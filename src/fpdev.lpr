@@ -6,11 +6,15 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  Classes
+  Classes,
+  fpdev.help,
+  fpdev.terminal
   { you can add units after this };
-
 begin
-WriteLn('hello fpdev');
+
+
 
 end.
 
+ 
+ 
