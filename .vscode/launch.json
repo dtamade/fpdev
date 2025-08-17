@@ -4,12 +4,14 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+
     {
       "type": "by-gdb",
       "request": "launch",
       "name": "debug-fpdev",
       "program": "${workspaceRoot}/bin/fpdev.exe",
-      "cwd": "${workspaceRoot}/bin/"
+      "programArgs": "help test", // 传递的参数
+      "cwd": "${workspaceRoot}/bin/",
     }
   ]
 }

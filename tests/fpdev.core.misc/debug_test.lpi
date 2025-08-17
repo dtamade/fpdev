@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<CONFIG> 
+  <ProjectOptions> 
+    <Version Value="12"/> 
+    <PathDelim Value="\"/> 
+    <General> 
+      <Title Value="debug_test"/> 
+      <SessionStorage Value="InProjectDir"/> 
+      <ResourceType Value="res"/> 
+    </General> 
+    <BuildModes> 
+      <Item Name="Default" Default="True"> 
+        <CompilerOptions>
+
+          <Version Value="11"/> 
+          <PathDelim Value="\\"/>
+          <Target> 
+            <Filename Value="bin\debug_test"/>
+          </Target> 
+          <SearchPaths> 
+            <OtherUnitFiles Value="..\\..\\src"/> 
+            <IncludeFiles Value="$(ProjOutDir)"/> 
+            <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths> 
+        </CompilerOptions> 
+      </Item> 
+    </BuildModes> 
+    <Units> 
+      <Unit> 
+        <Filename Value="debug_test.lpr"/> 
+        <IsPartOfProject Value="True"/> 
+      </Unit> 
+    </Units> 
+  </ProjectOptions> 
+  <CompilerOptions> 
+    <Version Value="11"/> 
+    <PathDelim Value="\"/> 
+    <Target> 
+      <Filename Value="bin\debug_test"/>
+    </Target> 
+    <SearchPaths> 
+      <OtherUnitFiles Value="..\\..\\src"/> 
+      <IncludeFiles Value="$(ProjOutDir)"/> 
+      <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+    </SearchPaths> 
+  </CompilerOptions> 
+</CONFIG> 

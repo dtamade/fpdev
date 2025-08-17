@@ -1,0 +1,959 @@
+unit fpdev.config;
+
+{
+
+```text
+   ______   ______     ______   ______     ______   ______
+  /\  ___\ /\  __ \   /\  ___\ /\  __ \   /\  ___\ /\  __ \
+  \ \  __\ \ \  __ \  \ \  __\ \ \  __ \  \ \  __\ \ \  __ \
+   \ \_\    \ \_\ \_\  \ \_\    \ \_\ \_\  \ \_\    \ \_\ \_\
+    \/_/     \/_/\/_/   \/_/     \/_/\/_/   \/_/     \/_/\/_/  Studio
+
+```
+# fpdev.config
+
+JSON配置管理系统
+
+
+## 声明
+
+转发或者用于自己项目请保留本项目的版权声明,谢谢.
+
+fafafaStudio
+Email:dtamade@gmail.com
+QQ群:685403987  QQ:179033731
+
+}
+
+{$I fpdev.settings.inc}
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  SysUtils, Classes, fpjson, jsonparser, jsonscanner,
+  fpdev.utils;
+
+type
+  TToolchainType = (ttRelease, ttDevelopment, ttCustom);
+
+  { TToolchainInfo }
+  TToolchainInfo = record
+    ToolchainType: TToolchainType;
+    Version: string;
+    InstallPath: string;
+    SourceURL: string;
+    Branch: string;
+    Installed: Boolean;
+    InstallDate: TDateTime;
+  end;
+
+  { TLazarusInfo }
+  TLazarusInfo = record
+    Version: string;
+    FPCVersion: string;
+    InstallPath: string;
+    SourceURL: string;
+    Branch: string;
+    Installed: Boolean;
+  end;
+
+  { TCrossTarget }
+  TCrossTarget = record
+    Enabled: Boolean;
+    BinutilsPath: string;
+    LibrariesPath: string;
+  end;
+
+  { TFPDevSettings }
+  TFPDevSettings = record
+    AutoUpdate: Boolean;
+    ParallelJobs: Integer;
+    KeepSources: Boolean;
+    InstallRoot: string;
+  end;
+
+  { TFPDevConfig }
+  TFPDevConfig = record
+    Version: string;
+    DefaultToolchain: string;
+    Toolchains: TStringList;
+    Lazarus: record
+      DefaultVersion: string;
+      Versions: TStringList;
+    end;
+    CrossTargets: TStringList;
+    Repositories: TStringList;
+    Settings: TFPDevSettings;
+  end;
+
+  { TFPDevConfigManager }
+  TFPDevConfigManager = class
+  private
+    FConfig: TFPDevConfig;
+    FConfigPath: string;
+    FModified: Boolean;
+
+    function ToolchainTypeToString(AType: TToolchainType): string;
+    function StringToToolchainType(const AStr: string): TToolchainType;
+    function ToolchainInfoToJSON(const AInfo: TToolchainInfo): TJSONObject;
+    function JSONToToolchainInfo(AJSON: TJSONObject): TToolchainInfo;
+    function LazarusInfoToJSON(const AInfo: TLazarusInfo): TJSONObject;
+    function JSONToLazarusInfo(AJSON: TJSONObject): TLazarusInfo;
+    function CrossTargetToJSON(const ATarget: TCrossTarget): TJSONObject;
+    function JSONToCrossTarget(AJSON: TJSONObject): TCrossTarget;
+
+  public
+    constructor Create(const AConfigPath: string = '');
+    destructor Destroy; override;
+
+    function LoadConfig: Boolean;
+    function SaveConfig: Boolean;
+    function GetDefaultConfigPath: string;
+    function CreateDefaultConfig: Boolean;
+
+    // 工具链管理
+    function AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
+    function RemoveToolchain(const AName: string): Boolean;
+    function GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
+    function SetDefaultToolchain(const AName: string): Boolean;
+    function GetDefaultToolchain: string;
+    function ListToolchains: TStringArray;
+
+    // Lazarus管理
+    function AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
+    function RemoveLazarusVersion(const AName: string): Boolean;
+    function GetLazarusVersion(const AName: string; out AInfo: TLazarusInfo): Boolean;
+    function SetDefaultLazarusVersion(const AName: string): Boolean;
+    function GetDefaultLazarusVersion: string;
+    function ListLazarusVersions: TStringArray;
+
+    // 交叉编译目标管理
+    function AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;
+    function RemoveCrossTarget(const ATarget: string): Boolean;
+    function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
+    function ListCrossTargets: TStringArray;
+
+    // 仓库管理
+    function AddRepository(const AName, AURL: string): Boolean;
+    function RemoveRepository(const AName: string): Boolean;
+    function GetRepository(const AName: string): string;
+    function ListRepositories: TStringArray;
+
+    // 设置管理
+    function GetSettings: TFPDevSettings;
+    function SetSettings(const ASettings: TFPDevSettings): Boolean;
+
+    // 属性
+    property ConfigPath: string read FConfigPath;
+    property Modified: Boolean read FModified;
+  end;
+
+implementation
+
+const
+  CONFIG_VERSION = '1.0';
+  DEFAULT_PARALLEL_JOBS = 4;
+  DEFAULT_FPC_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
+  DEFAULT_LAZARUS_REPO = 'https://gitlab.com/freepascal.org/lazarus.git';
+
+{ TFPDevConfigManager }
+
+constructor TFPDevConfigManager.Create(const AConfigPath: string);
+begin
+  inherited Create;
+
+  if AConfigPath = '' then
+    FConfigPath := GetDefaultConfigPath
+  else
+    FConfigPath := AConfigPath;
+
+  FModified := False;
+
+  // 初始化配置结构
+  FConfig.Version := CONFIG_VERSION;
+  FConfig.DefaultToolchain := '';
+  FConfig.Toolchains := TStringList.Create;
+  FConfig.Lazarus.DefaultVersion := '';
+  FConfig.Lazarus.Versions := TStringList.Create;
+  FConfig.CrossTargets := TStringList.Create;
+  FConfig.Repositories := TStringList.Create;
+
+  // 设置默认值
+  FConfig.Settings.AutoUpdate := False;
+  FConfig.Settings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
+  FConfig.Settings.KeepSources := True;
+  FConfig.Settings.InstallRoot := '';
+end;
+
+destructor TFPDevConfigManager.Destroy;
+begin
+  FConfig.Toolchains.Free;
+  FConfig.Lazarus.Versions.Free;
+  FConfig.CrossTargets.Free;
+  FConfig.Repositories.Free;
+  inherited Destroy;
+end;
+
+function TFPDevConfigManager.GetDefaultConfigPath: string;
+var
+  AppDir: string;
+begin
+  // 统一使用程序旁的 data 目录，避免与系统路径绑定（单文件核心 + 本地 data 根）
+  AppDir := ExtractFileDir(ParamStr(0));
+  Result := IncludeTrailingPathDelimiter(AppDir) + 'data' + PathDelim + 'config.json';
+end;
+
+function TFPDevConfigManager.ToolchainTypeToString(AType: TToolchainType): string;
+begin
+  case AType of
+    ttRelease: Result := 'release';
+    ttDevelopment: Result := 'development';
+    ttCustom: Result := 'custom';
+  else
+    Result := 'release';
+  end;
+end;
+
+function TFPDevConfigManager.StringToToolchainType(const AStr: string): TToolchainType;
+begin
+  if SameText(AStr, 'development') then
+    Result := ttDevelopment
+  else if SameText(AStr, 'custom') then
+    Result := ttCustom
+  else
+    Result := ttRelease;
+end;
+
+function TFPDevConfigManager.ToolchainInfoToJSON(const AInfo: TToolchainInfo): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('type', ToolchainTypeToString(AInfo.ToolchainType));
+    Result.Add('version', AInfo.Version);
+    Result.Add('install_path', AInfo.InstallPath);
+    Result.Add('source_url', AInfo.SourceURL);
+    Result.Add('branch', AInfo.Branch);
+    Result.Add('installed', AInfo.Installed);
+    if AInfo.InstallDate > 0 then
+      Result.Add('install_date', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', AInfo.InstallDate));
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TFPDevConfigManager.JSONToToolchainInfo(AJSON: TJSONObject): TToolchainInfo;
+var
+  DateStr: string;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  Result.ToolchainType := StringToToolchainType(AJSON.Get('type', 'release'));
+  Result.Version := AJSON.Get('version', '');
+  Result.InstallPath := AJSON.Get('install_path', '');
+  Result.SourceURL := AJSON.Get('source_url', '');
+  Result.Branch := AJSON.Get('branch', '');
+  Result.Installed := AJSON.Get('installed', False);
+
+  DateStr := AJSON.Get('install_date', '');
+  if DateStr <> '' then
+  begin
+    try
+      Result.InstallDate := StrToDateTime(StringReplace(DateStr, 'T', ' ', [rfReplaceAll]));
+    except
+      Result.InstallDate := 0;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.LazarusInfoToJSON(const AInfo: TLazarusInfo): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('version', AInfo.Version);
+    Result.Add('fpc_version', AInfo.FPCVersion);
+    Result.Add('install_path', AInfo.InstallPath);
+    Result.Add('source_url', AInfo.SourceURL);
+    Result.Add('branch', AInfo.Branch);
+    Result.Add('installed', AInfo.Installed);
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TFPDevConfigManager.JSONToLazarusInfo(AJSON: TJSONObject): TLazarusInfo;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  Result.Version := AJSON.Get('version', '');
+  Result.FPCVersion := AJSON.Get('fpc_version', '');
+  Result.InstallPath := AJSON.Get('install_path', '');
+  Result.SourceURL := AJSON.Get('source_url', '');
+  Result.Branch := AJSON.Get('branch', '');
+  Result.Installed := AJSON.Get('installed', False);
+end;
+
+function TFPDevConfigManager.CrossTargetToJSON(const ATarget: TCrossTarget): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.Add('enabled', ATarget.Enabled);
+    Result.Add('binutils_path', ATarget.BinutilsPath);
+    Result.Add('libraries_path', ATarget.LibrariesPath);
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TFPDevConfigManager.JSONToCrossTarget(AJSON: TJSONObject): TCrossTarget;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  Result.Enabled := AJSON.Get('enabled', False);
+  Result.BinutilsPath := AJSON.Get('binutils_path', '');
+  Result.LibrariesPath := AJSON.Get('libraries_path', '');
+end;
+
+function TFPDevConfigManager.CreateDefaultConfig: Boolean;
+var
+  ConfigDir: string;
+begin
+  Result := False;
+  try
+    // 创建配置目录
+    ConfigDir := ExtractFileDir(FConfigPath);
+    if (ConfigDir <> '') and not DirectoryExists(ConfigDir) then
+      ForceDirectories(ConfigDir);
+
+    // 设置默认仓库
+    FConfig.Repositories.Values['official_fpc'] := DEFAULT_FPC_REPO;
+    FConfig.Repositories.Values['official_lazarus'] := DEFAULT_LAZARUS_REPO;
+
+    // 设置默认安装根目录（程序旁 data 目录）
+    if FConfig.Settings.InstallRoot = '' then
+    begin
+      FConfig.Settings.InstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
+    end;
+
+    FModified := True;
+    Result := SaveConfig;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error creating default config: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.LoadConfig: Boolean;
+var
+  JSONStr: string;
+  JSONData: TJSONData;
+  ConfigJSON: TJSONObject;
+  ToolchainsJSON, LazarusJSON, CrossTargetsJSON, ReposJSON, SettingsJSON: TJSONObject;
+  i: Integer;
+  Key: string;
+begin
+  Result := False;
+
+  if not FileExists(FConfigPath) then
+  begin
+    // 创建默认配置
+    Result := CreateDefaultConfig;
+    Exit;
+  end;
+
+  try
+    // 读取配置文件
+    with TStringList.Create do
+    try
+      LoadFromFile(FConfigPath);
+      JSONStr := Text;
+    finally
+      Free;
+    end;
+
+    // 解析JSON
+    JSONData := GetJSON(JSONStr);
+    try
+      if not (JSONData is TJSONObject) then
+        Exit;
+
+      ConfigJSON := TJSONObject(JSONData);
+
+      // 读取基本信息
+      FConfig.Version := ConfigJSON.Get('version', CONFIG_VERSION);
+      FConfig.DefaultToolchain := ConfigJSON.Get('default_toolchain', '');
+
+      // 读取工具链信息
+      ToolchainsJSON := ConfigJSON.Objects['toolchains'];
+      if Assigned(ToolchainsJSON) then
+      begin
+        FConfig.Toolchains.Clear;
+        for i := 0 to ToolchainsJSON.Count - 1 do
+        begin
+          Key := ToolchainsJSON.Names[i];
+          FConfig.Toolchains.Values[Key] := ToolchainsJSON.Items[i].AsJSON;
+        end;
+      end;
+
+      // 读取Lazarus信息
+      LazarusJSON := ConfigJSON.Objects['lazarus'];
+      if Assigned(LazarusJSON) then
+      begin
+        FConfig.Lazarus.DefaultVersion := LazarusJSON.Get('default_version', '');
+        if Assigned(LazarusJSON.Objects['versions']) then
+        begin
+          FConfig.Lazarus.Versions.Clear;
+          for i := 0 to LazarusJSON.Objects['versions'].Count - 1 do
+          begin
+            Key := LazarusJSON.Objects['versions'].Names[i];
+            FConfig.Lazarus.Versions.Values[Key] := LazarusJSON.Objects['versions'].Items[i].AsJSON;
+          end;
+        end;
+      end;
+
+      // 读取交叉编译目标
+      CrossTargetsJSON := ConfigJSON.Objects['cross_targets'];
+      if Assigned(CrossTargetsJSON) then
+      begin
+        FConfig.CrossTargets.Clear;
+        for i := 0 to CrossTargetsJSON.Count - 1 do
+        begin
+          Key := CrossTargetsJSON.Names[i];
+          FConfig.CrossTargets.Values[Key] := CrossTargetsJSON.Items[i].AsJSON;
+        end;
+      end;
+
+      // 读取仓库信息
+      ReposJSON := ConfigJSON.Objects['repositories'];
+      if Assigned(ReposJSON) then
+      begin
+        FConfig.Repositories.Clear;
+        for i := 0 to ReposJSON.Count - 1 do
+        begin
+          Key := ReposJSON.Names[i];
+          FConfig.Repositories.Values[Key] := ReposJSON.Strings[Key];
+        end;
+      end;
+
+      // 读取设置
+      SettingsJSON := ConfigJSON.Objects['settings'];
+      if Assigned(SettingsJSON) then
+      begin
+        FConfig.Settings.AutoUpdate := SettingsJSON.Get('auto_update', False);
+        FConfig.Settings.ParallelJobs := SettingsJSON.Get('parallel_jobs', DEFAULT_PARALLEL_JOBS);
+        FConfig.Settings.KeepSources := SettingsJSON.Get('keep_sources', True);
+        FConfig.Settings.InstallRoot := SettingsJSON.Get('install_root', '');
+      end;
+
+      FModified := False;
+      Result := True;
+
+    finally
+      JSONData.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error loading config: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.SaveConfig: Boolean;
+var
+  ConfigJSON: TJSONObject;
+  ToolchainsJSON, LazarusJSON, LazVersionsJSON, CrossTargetsJSON, ReposJSON, SettingsJSON: TJSONObject;
+  i: Integer;
+  Key, Value: string;
+  JSONData: TJSONData;
+begin
+  Result := False;
+
+  try
+    ConfigJSON := TJSONObject.Create;
+    try
+      // 基本信息
+      ConfigJSON.Add('version', FConfig.Version);
+      ConfigJSON.Add('default_toolchain', FConfig.DefaultToolchain);
+
+      // 工具链信息
+      ToolchainsJSON := TJSONObject.Create;
+      for i := 0 to FConfig.Toolchains.Count - 1 do
+      begin
+        Key := FConfig.Toolchains.Names[i];
+        Value := FConfig.Toolchains.ValueFromIndex[i];
+        if Value <> '' then
+        begin
+          JSONData := GetJSON(Value);
+          ToolchainsJSON.Add(Key, JSONData);
+        end;
+      end;
+      ConfigJSON.Add('toolchains', ToolchainsJSON);
+
+      // Lazarus信息
+      LazarusJSON := TJSONObject.Create;
+      LazarusJSON.Add('default_version', FConfig.Lazarus.DefaultVersion);
+
+      LazVersionsJSON := TJSONObject.Create;
+      for i := 0 to FConfig.Lazarus.Versions.Count - 1 do
+      begin
+        Key := FConfig.Lazarus.Versions.Names[i];
+        Value := FConfig.Lazarus.Versions.ValueFromIndex[i];
+        if Value <> '' then
+        begin
+          JSONData := GetJSON(Value);
+          LazVersionsJSON.Add(Key, JSONData);
+        end;
+      end;
+      LazarusJSON.Add('versions', LazVersionsJSON);
+      ConfigJSON.Add('lazarus', LazarusJSON);
+
+      // 交叉编译目标
+      CrossTargetsJSON := TJSONObject.Create;
+      for i := 0 to FConfig.CrossTargets.Count - 1 do
+      begin
+        Key := FConfig.CrossTargets.Names[i];
+        Value := FConfig.CrossTargets.ValueFromIndex[i];
+        if Value <> '' then
+        begin
+          JSONData := GetJSON(Value);
+          CrossTargetsJSON.Add(Key, JSONData);
+        end;
+      end;
+      ConfigJSON.Add('cross_targets', CrossTargetsJSON);
+
+      // 仓库信息
+      ReposJSON := TJSONObject.Create;
+      for i := 0 to FConfig.Repositories.Count - 1 do
+      begin
+        Key := FConfig.Repositories.Names[i];
+        Value := FConfig.Repositories.ValueFromIndex[i];
+        ReposJSON.Add(Key, Value);
+      end;
+      ConfigJSON.Add('repositories', ReposJSON);
+
+      // 设置信息
+      SettingsJSON := TJSONObject.Create;
+      SettingsJSON.Add('auto_update', FConfig.Settings.AutoUpdate);
+      SettingsJSON.Add('parallel_jobs', FConfig.Settings.ParallelJobs);
+      SettingsJSON.Add('keep_sources', FConfig.Settings.KeepSources);
+      SettingsJSON.Add('install_root', FConfig.Settings.InstallRoot);
+      ConfigJSON.Add('settings', SettingsJSON);
+
+      // 保存到文件
+      with TStringList.Create do
+      try
+        Text := ConfigJSON.FormatJSON;
+        SaveToFile(FConfigPath);
+        FModified := False;
+        Result := True;
+      finally
+        Free;
+      end;
+
+    finally
+      ConfigJSON.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error saving config: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+// 工具链管理方法
+function TFPDevConfigManager.AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
+var
+  JSONObj: TJSONObject;
+begin
+  Result := False;
+  try
+    JSONObj := ToolchainInfoToJSON(AInfo);
+    try
+      FConfig.Toolchains.Values[AName] := JSONObj.AsJSON;
+      FModified := True;
+      Result := True;
+    finally
+      JSONObj.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error adding toolchain: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.RemoveToolchain(const AName: string): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  try
+    Index := FConfig.Toolchains.IndexOfName(AName);
+    if Index >= 0 then
+    begin
+      FConfig.Toolchains.Delete(Index);
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error removing toolchain: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
+var
+  JSONStr: string;
+  JSONData: TJSONData;
+begin
+  Result := False;
+  FillChar(AInfo, SizeOf(AInfo), 0);
+
+  try
+    JSONStr := FConfig.Toolchains.Values[AName];
+    if JSONStr <> '' then
+    begin
+      JSONData := GetJSON(JSONStr);
+      try
+        if JSONData is TJSONObject then
+        begin
+          AInfo := JSONToToolchainInfo(TJSONObject(JSONData));
+          Result := True;
+        end;
+      finally
+        JSONData.Free;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error getting toolchain: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.SetDefaultToolchain(const AName: string): Boolean;
+begin
+  Result := False;
+  try
+    if FConfig.Toolchains.IndexOfName(AName) >= 0 then
+    begin
+      FConfig.DefaultToolchain := AName;
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error setting default toolchain: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetDefaultToolchain: string;
+begin
+  Result := FConfig.DefaultToolchain;
+end;
+
+function TFPDevConfigManager.ListToolchains: TStringArray;
+var
+  i: Integer;
+begin
+  SetLength(Result, FConfig.Toolchains.Count);
+  for i := 0 to FConfig.Toolchains.Count - 1 do
+    Result[i] := FConfig.Toolchains.Names[i];
+end;
+
+// Lazarus管理方法
+function TFPDevConfigManager.AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
+var
+  JSONObj: TJSONObject;
+begin
+  Result := False;
+  try
+    JSONObj := LazarusInfoToJSON(AInfo);
+    try
+      FConfig.Lazarus.Versions.Values[AName] := JSONObj.AsJSON;
+      FModified := True;
+      Result := True;
+    finally
+      JSONObj.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error adding Lazarus version: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.RemoveLazarusVersion(const AName: string): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  try
+    Index := FConfig.Lazarus.Versions.IndexOfName(AName);
+    if Index >= 0 then
+    begin
+      FConfig.Lazarus.Versions.Delete(Index);
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error removing Lazarus version: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetLazarusVersion(const AName: string; out AInfo: TLazarusInfo): Boolean;
+var
+  JSONStr: string;
+  JSONData: TJSONData;
+begin
+  Result := False;
+  FillChar(AInfo, SizeOf(AInfo), 0);
+
+  try
+    JSONStr := FConfig.Lazarus.Versions.Values[AName];
+    if JSONStr <> '' then
+    begin
+      JSONData := GetJSON(JSONStr);
+      try
+        if JSONData is TJSONObject then
+        begin
+          AInfo := JSONToLazarusInfo(TJSONObject(JSONData));
+          Result := True;
+        end;
+      finally
+        JSONData.Free;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error getting Lazarus version: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.SetDefaultLazarusVersion(const AName: string): Boolean;
+begin
+  Result := False;
+  try
+    if FConfig.Lazarus.Versions.IndexOfName(AName) >= 0 then
+    begin
+      FConfig.Lazarus.DefaultVersion := AName;
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error setting default Lazarus version: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetDefaultLazarusVersion: string;
+begin
+  Result := FConfig.Lazarus.DefaultVersion;
+end;
+
+function TFPDevConfigManager.ListLazarusVersions: TStringArray;
+var
+  i: Integer;
+begin
+  SetLength(Result, FConfig.Lazarus.Versions.Count);
+  for i := 0 to FConfig.Lazarus.Versions.Count - 1 do
+    Result[i] := FConfig.Lazarus.Versions.Names[i];
+end;
+
+// 交叉编译目标管理方法
+function TFPDevConfigManager.AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;
+var
+  JSONObj: TJSONObject;
+begin
+  Result := False;
+  try
+    JSONObj := CrossTargetToJSON(AInfo);
+    try
+      FConfig.CrossTargets.Values[ATarget] := JSONObj.AsJSON;
+      FModified := True;
+      Result := True;
+    finally
+      JSONObj.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error adding cross target: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.RemoveCrossTarget(const ATarget: string): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  try
+    Index := FConfig.CrossTargets.IndexOfName(ATarget);
+    if Index >= 0 then
+    begin
+      FConfig.CrossTargets.Delete(Index);
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error removing cross target: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
+var
+  JSONStr: string;
+  JSONData: TJSONData;
+begin
+  Result := False;
+  FillChar(AInfo, SizeOf(AInfo), 0);
+
+  try
+    JSONStr := FConfig.CrossTargets.Values[ATarget];
+    if JSONStr <> '' then
+    begin
+      JSONData := GetJSON(JSONStr);
+      try
+        if JSONData is TJSONObject then
+        begin
+          AInfo := JSONToCrossTarget(TJSONObject(JSONData));
+          Result := True;
+        end;
+      finally
+        JSONData.Free;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error getting cross target: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.ListCrossTargets: TStringArray;
+var
+  i: Integer;
+begin
+  SetLength(Result, FConfig.CrossTargets.Count);
+  for i := 0 to FConfig.CrossTargets.Count - 1 do
+    Result[i] := FConfig.CrossTargets.Names[i];
+end;
+
+// 仓库管理方法
+function TFPDevConfigManager.AddRepository(const AName, AURL: string): Boolean;
+begin
+  Result := False;
+  try
+    FConfig.Repositories.Values[AName] := AURL;
+    FModified := True;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error adding repository: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.RemoveRepository(const AName: string): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  try
+    Index := FConfig.Repositories.IndexOfName(AName);
+    if Index >= 0 then
+    begin
+      FConfig.Repositories.Delete(Index);
+      FModified := True;
+      Result := True;
+    end;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error removing repository: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPDevConfigManager.GetRepository(const AName: string): string;
+begin
+  Result := FConfig.Repositories.Values[AName];
+end;
+
+function TFPDevConfigManager.ListRepositories: TStringArray;
+var
+  i: Integer;
+begin
+  SetLength(Result, FConfig.Repositories.Count);
+  for i := 0 to FConfig.Repositories.Count - 1 do
+    Result[i] := FConfig.Repositories.Names[i];
+end;
+
+// 设置管理方法
+function TFPDevConfigManager.GetSettings: TFPDevSettings;
+begin
+  Result := FConfig.Settings;
+end;
+
+function TFPDevConfigManager.SetSettings(const ASettings: TFPDevSettings): Boolean;
+begin
+  Result := False;
+  try
+    FConfig.Settings := ASettings;
+    FModified := True;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error setting configuration: ', E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+end.

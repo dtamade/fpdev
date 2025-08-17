@@ -1,0 +1,329 @@
+# BuildManager 设计与使用
+
+## 目标
+- 将构建/安装/配置职责从 TFPCSourceManager 中解耦
+- 保持默认安全、离线、可回滚：不写系统目录、不下载、不安装外部依赖
+- 提供可替换的实现（占位 -> 渐进接入 make 实际构建）
+
+## 关键点
+- 最小执行：在源码目录调用 make（若系统无 make，则温和跳过并返回 True）
+- 并行策略：-jN（限定 1..16）
+- 检查：TestResults 仅检查目录是否存在（占位）
+- 配置：Configure 目前为占位，不写系统 fpc.cfg
+
+## 接口
+- 单元：src/fpdev.build.manager.pas
+- 类：TBuildManager
+  - Create(ASourceRoot, AParallelJobs, AVerbose)
+  - SetSandboxRoot(Path)
+  - SetAllowInstall(Enable)
+  - property LogFileName: string（每次运行生成独立日志）
+  - BuildCompiler(Version): Boolean
+  - BuildRTL(Version): Boolean
+  - Install(Version): Boolean
+  - Configure(Version): Boolean
+  - TestResults(Version): Boolean
+
+## 使用举例
+- 在 TFPCSourceManager 内部：
+  - BuildFPCCompiler/BuildFPCRTL/InstallFPCBinaries/ConfigureFPCEnvironment/TestBuildResults
+  - 现已改为委托至 TBuildManager，日志输出保持一致
+
+- 直接使用（演示）：
+  - plays/fpdev.build.manager.demo/buildOrTest.bat
+  - 关键代码：
+    - SetSandboxRoot('sandbox_demo')：设置沙箱输出根目录
+    - SetAllowInstall(True)：允许安装（默认禁止，安全）
+    - SetLogVerbosity(1)：开启详细日志（记录 make 命令行等）
+    - 可选：SetStrictResults(True) 开启严格校验
+    - 可选：--no-install（或环境变量 NO_INSTALL=1）跳过安装
+    - BuildCompiler/BuildRTL/Install/Configure/TestResults 顺序执行
+
+### 示例：沙箱安装 + 详细日志
+- 初始化并开启安装到沙箱；打印日志文件路径；调用结果校验
+- 关键片段（demo.lpr）：
+
+    LBM.SetSandboxRoot('sandbox_demo');
+    LBM.SetAllowInstall(True);
+    LBM.SetLogVerbosity(1);
+    if LBM.BuildCompiler(LVer) then WriteLn('BuildCompiler OK');
+    if LBM.BuildRTL(LVer) then WriteLn('BuildRTL OK');
+    if LBM.Install(LVer) then WriteLn('Install OK');
+    if LBM.Configure(LVer) then WriteLn('Configure OK');
+    WriteLn('Log file: ', LBM.LogFileName);
+    if LBM.TestResults(LVer) then WriteLn('TestResults OK');
+
+- 环境变量控制（buildOrTest.bat）：
+  - DEMO_STRICT=1 → 追加 --strict
+  - DEMO_VERBOSE=1 → 追加 --verbose
+  - 也支持快捷参数：strict/-s 等同 --strict --verbose
+
+## 安全默认
+- 无 make 时：打印提示并返回 True（不阻塞流程）
+- 不写系统目录、不修改全局配置
+- 不触发网络下载
+
+## 日志文件与定位
+- 每次运行生成独立日志：logs/build_yyyymmdd_hhnnss_zzz.log
+- 代码与演示会打印 LogFileName，便于定位
+
+## 沙箱校验
+- SetAllowInstall(True) 时，Install 会尝试将安装输出定向至 sandbox/fpc-<version>
+- TestResults 在允许安装时优先校验沙箱：至少存在 bin/ 或 lib/ 之一即通过
+- 未允许安装时，回退校验源码目录的 compiler/ 与 rtl/ 是否存在
+
+### 严格模式（可选）
+- 启用：SetStrictResults(True)
+- 校验规则（若不满足则 FAIL）：
+  - bin/ 或 lib/ 目录为空
+  - lib/ 下没有子目录（通常应包含 fpc/<version> 等）
+  - bin/ 下找不到类似编译器可执行（前缀 fpc/ppc，扩展 .exe/.sh/无扩展）
+- 仍为沙箱范围内的结构校验，不触及系统目录
+
+#### 成功日志示例（SetLogVerbosity(1)）
+
+    == BuildCompiler START version=main src=sources\fpc\fpc-main
+    env: OS=Windows
+    env: PATH[0]=C:\Windows\system32
+    env: PATH[1]=C:\Windows
+    env: PATH[2]=C:\Windows\System32\Wbem
+    == BuildCompiler END OK
+    == BuildRTL START version=main src=sources\fpc\fpc-main
+    == BuildRTL END OK
+    == Install START version=main src=sources\fpc\fpc-main dest=sandbox_demo\fpc-main
+    sample of sandbox/bin:
+    - fpc.exe
+    - ppcx64.exe
+    sample of sandbox/lib:
+    - fpc
+    TestResults: sandbox OK at sandbox_demo\fpc-main
+
+#### 失败日志示例（StrictResults=True & SetLogVerbosity(1)）
+- bin 为空：
+
+    == Install START version=... src=... dest=...
+    sample of sandbox/bin:
+    FAIL: sandbox bin empty under strict mode: sandbox/fpc-<ver>/bin
+
+- 缺少编译器可执行：
+
+    sample of sandbox/bin:
+    - readme.txt
+    - tools-helper.bat
+    FAIL: sandbox bin missing expected compiler executable
+
+## CI/GitHub Actions 示例（自托管 Windows 运行器）
+- 场景：Windows 自托管 Runner（已安装 FPC/Lazarus），直接调用 demo 并收集日志产物
+- 文件：.github/workflows/build-manager-demo.yml（示例）
+
+- 场景：Linux 自托管 Runner（已安装 FPC），调用 shell 脚本并收集日志产物
+- 文件：.github/workflows/build-manager-demo-linux.yml（示例）
+
+```yaml
+name: BuildManager Demo (Self-hosted Windows)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'plays/fpdev.build.manager.demo/**'
+      - 'src/**'
+      - 'docs/build-manager.md'
+
+jobs:
+  demo:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run demo (strict + verbose)
+        shell: cmd
+        run: |
+          cd plays\fpdev.build.manager.demo
+          set DEMO_STRICT=1
+          set DEMO_VERBOSE=1
+          buildOrTest.bat strict
+      - name: Upload logs (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-manager-logs-win
+          path: plays/fpdev.build.manager.demo/logs/*.log
+```
+
+```yaml
+name: BuildManager Demo (Self-hosted Linux)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'plays/fpdev.build.manager.demo/**'
+      - 'src/**'
+      - 'docs/build-manager.md'
+
+jobs:
+  demo-linux:
+    runs-on: [self-hosted, Linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run demo (strict + verbose)
+        shell: bash
+        run: |
+          cd plays/fpdev.build.manager.demo
+          STRICT=1 VERBOSE=1 bash ./buildOrTest.sh
+      - name: Upload logs (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-manager-logs-linux
+          path: plays/fpdev.build.manager.demo/logs/*.log
+```
+
+- 若使用 GitHub 托管的 windows-latest，请先在步骤中安装/配置 FPC 环境（不在本示例覆盖）。
+
+## 严格模式：可配置产物清单（模板与设计）
+- 目标：让严格模式可按项目需求自定义“必需产物清单”，提升验证精度
+- 配置建议（示例格式）：
+
+```ini
+# 文件：build-manager.strict.ini（位于项目根、plays/demo 或沙箱目录）
+# 所有相对路径均以 sandbox/fpc-<version> 为根
+
+[bin]
+required_prefix=fpc,ppc
+required_ext=.exe,.sh,
+min_count=1
+
+[lib]
+require_subdir=true
+min_count=1
+# 可选：具体子目录名约束，如 fpc/<version>
+; required_subdir=fpc
+
+[share]
+required=false
+min_count=0
+require_subdir=false
+# 可选：指定必须存在的子目录名
+; required_subdir=fpcdoc
+
+[fpc]
+require_cfg=false
+# 多候选相对路径（按顺序尝试）
+cfg_relative_list=etc/fpc.cfg,lib/fpc/fpc.cfg
+
+[include]
+# 可选：相对目录（默认 include）
+relative_dir=include
+required=false
+min_count=0
+require_subdir=false
+; required_subdir=rtl
+
+[doc]
+# 可选：相对目录（默认 doc）
+relative_dir=doc
+required=false
+min_count=0
+require_subdir=false
+; required_subdir=html
+```
+
+- 行为：
+  - 当 SetStrictResults(True) 且检测到配置文件时，按清单规则执行验证；否则沿用内置规则
+  - 配置文件搜索顺序（先命中者优先）：
+    1) SetStrictConfigPath 指定的路径
+    2) 项目根目录的 build-manager.strict.ini
+    3) plays/fpdev.build.manager.demo/build-manager.strict.ini（模板已提供）
+    4) 沙箱目录下 ASandboxDest/build-manager.strict.ini
+  - 初期仅记录日志并返回 FAIL/OK，不做破坏性操作
+
+- 下一步（可选）：
+  - 在 docs 中提供示例清单与开启步骤
+  - 未来在严格模式中增加“详细失败报告”，逐项列出缺失项
+
+## 跨平台注意事项（Linux/macOS）
+- PATH 分隔符：
+  - Windows 使用分号 `;`
+  - Linux/macOS 使用冒号 `:`
+  - BuildManager 在详细日志模式下会按平台解析 PATH 并仅打印前若干项
+- make 行为差异：
+  - `-jN` 并行参数跨平台可用，但上游 Makefile 对 DESTDIR/PREFIX 支持程度可能不同
+  - 如安装阶段出现路径前缀不生效，请检查上游 Makefile 的安装变量命名（如 INSTALL_*、PREFIX 等）
+- 建议：
+  - 在非 Windows 平台使用 `sh -lc` 的脚本环境运行 demo，确保环境变量与 PATH 一致
+  - 如需更详细平台特定诊断，可将日志级别设为 1 并附加更多环境输出
+
+### Linux/macOS 安装 FPC 参考
+- 官方下载与说明：
+  - https://www.freepascal.org/download.html
+- 常见发行版包管理器（示例）：
+  - Debian/Ubuntu：`sudo apt-get update && sudo apt-get install -y fpc`
+  - Fedora/RHEL：`sudo dnf install -y fpc`
+  - Arch/Manjaro：`sudo pacman -S --noconfirm fpc`
+  - openSUSE：`sudo zypper install -y fpc`
+  - macOS（Homebrew）：`brew install fpc`
+- 验证安装：
+  - 查看版本：`fpc -iV`
+  - 查看路径：`which fpc`（Linux/macOS）或 `command -v fpc`
+- 备注：
+  - macOS 的 `make` 为 BSD make，上游 Makefile 若依赖 GNU make，需安装 `gmake` 并在环境中可用
+  - 若构建/安装依赖外部工具，请在 CI/Runner 上预安装并将其加入 PATH
+
+## 日志字段说明
+- Start/End 标记：
+  - 形如 `== BuildCompiler START version=... src=...` 与 `== BuildCompiler END OK/FAIL elapsed_ms=...`
+  - BuildRTL/Install 同理；elapsed_ms 为该阶段耗时（毫秒）
+- env 快照（仅在详细日志模式 SetLogVerbosity(1)）：
+  - `env: OS=...`、`env: PATH[i]=...`（仅打印 PATH 前若干项）
+- make 命令行（仅在详细日志模式）：
+  - 以 `make ...` 记录完整参数（可能包含 DESTDIR/PREFIX 等变量），便于复现
+- 目录样本（仅在详细日志模式）：
+  - `sample of sandbox/bin:`、`sample of sandbox/lib:`，打印若干文件/子目录用于诊断
+- WARN 与 FAIL：
+  - 非严格模式下（StrictResults=False）：如 bin/lib 为空，仅 WARN，不中断
+  - 严格模式（StrictResults=True）：同场景将视为 FAIL，并终止 TestResults
+- hint 提示（严格模式 + 详细日志，失败时）：
+  - [bin]：`required_prefix=...`、`required_ext=...` 与目录样本
+  - [lib]：`expected a subdirectory (e.g. fpc/<ver>)` 与目录样本
+  - [share]：`expected dir/subdir` 与目录样本
+  - [fpc]：`tried list=...` 与 `root=...`，便于检查 cfg 路径
+- 严格配置文件：
+  - `Strict config detected: <path>` 表明已加载 build-manager.strict.ini（搜索顺序见上文）
+- 日志文件命名与定位：
+  - 每次执行生成独立文件：`logs/build_yyyymmdd_hhnnss_zzz.log`；demo 与上层会打印路径
+- 日志级别：
+  - 0（默认）：仅关键流程与结果
+  - 1（详细）：env 快照、make 命令、目录样本、hint 提示
+
+## 严格清单推荐配置表（快速参考）
+- 适用范围：FPC 常见布局，Windows/Linux/macOS 通用；如与实际布局不符，请以模板为准微调
+- 通用建议
+  - [bin]
+    - required_prefix: fpc,ppc
+    - required_ext: Windows 建议 `.exe,`；Linux/macOS 建议 `.sh,` 或保留空扩展（模板默认 `.exe,.sh,` 覆盖三者）
+    - min_count: 1
+  - [lib]
+    - require_subdir: true（常见有 fpc/<version> 子目录）
+    - required_subdir: fpc（可选，更严格）
+    - min_count: 1
+  - [share]
+    - required: false（按需启用，文档/示例常放此目录）
+    - required_subdir: fpcdoc（可选）
+  - [fpc]
+    - require_cfg: true
+    - cfg_relative_list: etc/fpc.cfg,lib/fpc/fpc.cfg（按顺序尝试）
+  - [include]
+    - relative_dir: include；required: false（如需头文件可开启）
+  - [doc]
+    - relative_dir: doc；required: false（如需文档可开启）
+- Windows 专项
+  - [bin].required_ext: `.exe,`
+- Linux/macOS 专项
+  - [bin].required_ext: `.sh,` 或保留空扩展（可执行无扩展名），模板已包含
+- 开启与验证
+  - 严格模式：命令行 `--strict` 或代码 `SetStrictResults(True)`
+  - 配置来源（先命中者优先）：`SetStrictConfigPath` → 项目根 → demo 目录（模板已提供）→ 沙箱目录
+  - 推荐搭配 `--verbose` 查看 hint 与目录样本；失败时日志会标注 FAIL 与具体原因
+
+## 后续路线
+- 在 Build/Install/Configure 关键步骤记录 Start/End 标记，提升可读性
+- 逐步细化沙箱结构检查清单（如 share/、fpc.cfg 等）
+- 可选：引入配置以启用真实构建（用户显式允许时）
+

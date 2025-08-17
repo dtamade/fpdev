@@ -8,13 +8,278 @@
       <Unit>
         <Filename Value="fpdev.lpr"/>
         <IsPartOfProject Value="True"/>
-        <IsVisibleTab Value="True"/>
-        <CursorPos X="16" Y="13"/>
-        <UsageCount Value="20"/>
+        <CursorPos X="64" Y="8"/>
+        <UsageCount Value="64"/>
         <Loaded Value="True"/>
       </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\netwlibc\sysutils.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="282"/>
+        <CursorPos X="27" Y="318"/>
+        <UsageCount Value="32"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\objpas\sysutils\sysutils.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="757"/>
+        <CursorPos X="10" Y="795"/>
+        <UsageCount Value="32"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\inc\systemh.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1437"/>
+        <CursorPos X="11" Y="1512"/>
+        <UsageCount Value="32"/>
+      </Unit>
+      <Unit>
+        <Filename Value="fpdev.util.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="124"/>
+        <CursorPos X="134" Y="196"/>
+        <UsageCount Value="10"/>
+      </Unit>
+      <Unit>
+        <Filename Value="fpdev.util.windows.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="908"/>
+        <CursorPos X="61" Y="958"/>
+        <UsageCount Value="32"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\wininc\unifun.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="371"/>
+        <CursorPos X="10" Y="371"/>
+        <UsageCount Value="32"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwawinbase.pas"/>
+        <UnitName Value="JwaWinBase"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1975"/>
+        <CursorPos X="31" Y="2009"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwawinternl.pas"/>
+        <UnitName Value="JwaWinternl"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="567"/>
+        <CursorPos X="10" Y="603"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\wininc\base.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="95"/>
+        <CursorPos X="6" Y="95"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwanative.pas"/>
+        <UnitName Value="JwaNative"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="7171"/>
+        <CursorPos X="24" Y="7207"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwawindllnames.pas"/>
+        <UnitName Value="JwaWinDLLNames"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="82"/>
+        <CursorPos X="30" Y="118"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\wininc\redef.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="578"/>
+        <CursorPos X="10" Y="578"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\wininc\struct.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="2233"/>
+        <CursorPos X="15" Y="2245"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwapsapi.pas"/>
+        <UnitName Value="JwaPsApi"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="176"/>
+        <CursorPos Y="218"/>
+        <UsageCount Value="31"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwawinnt.pas"/>
+        <UnitName Value="JwaWinNT"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="3190"/>
+        <CursorPos Y="3203"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\objpas\sysutils\osutilsh.inc"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="15" Y="48"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\sysutils.pp"/>
+        <UnitName Value="SysUtils"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1724"/>
+        <CursorPos X="20" Y="1724"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\inc\ustringh.inc"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="120"/>
+        <CursorPos X="55" Y="160"/>
+        <UsageCount Value="28"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\inc\ustrings.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1788"/>
+        <CursorPos X="5" Y="1788"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwauserenv.pas"/>
+        <UnitName Value="JwaUserEnv"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1819"/>
+        <CursorPos X="74" Y="1855"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\inc\wstringh.inc"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="10" Y="37"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\rtl\win\wininc\defines.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="5888"/>
+        <CursorPos X="28" Y="5935"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-base\src\shlwapi.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="727"/>
+        <CursorPos X="14" Y="763"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwaiptypes.pas"/>
+        <UnitName Value="JwaIpTypes"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="181"/>
+        <CursorPos X="12" Y="228"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winceunits\src\iphlpapi.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="109"/>
+        <CursorPos X="6" Y="149"/>
+        <UsageCount Value="6"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwaiphlpapi.pas"/>
+        <UnitName Value="JwaIpHlpApi"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="330"/>
+        <CursorPos X="39" Y="367"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winceunits\src\service.pp"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="148"/>
+        <CursorPos X="42" Y="184"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\nextgen\fpcsrc\packages\winunits-jedi\src\jwawintype.pas"/>
+        <UnitName Value="JwaWinType"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1785"/>
+        <CursorPos X="28" Y="1787"/>
+        <UsageCount Value="28"/>
+      </Unit>
+      <Unit>
+        <Filename Value="fpdev.utils.windows.inc"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="364"/>
+        <CursorPos X="33" Y="396"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="fpdev.utils.pas"/>
+        <EditorIndex Value="1"/>
+        <CursorPos X="53" Y="14"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="D:\devtools\lazarus\stable\lazarus\components\PascalScript\Source\uPSR_dll.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="85"/>
+        <CursorPos X="21" Y="114"/>
+        <UsageCount Value="10"/>
+      </Unit>
     </Units>
-    <JumpHistory HistoryIndex="-1"/>
+    <JumpHistory HistoryIndex="8">
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="10" Column="36"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="8" Column="33"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="7" Column="48"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="9" Column="51"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="17" Column="43"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="10" Column="19"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.lpr"/>
+        <Caret Line="11" Column="14"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.utils.pas"/>
+        <Caret Line="14" Column="53"/>
+      </Position>
+      <Position>
+        <Filename Value="fpdev.utils.windows.inc"/>
+        <Caret Line="396" Column="33" TopLine="364"/>
+      </Position>
+    </JumpHistory>
     <RunParams>
       <FormatVersion Value="2"/>
       <Modes ActiveMode=""/>

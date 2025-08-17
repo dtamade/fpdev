@@ -1,0 +1,321 @@
+# FPDev 安装指南
+
+## 📋 系统要求
+
+### 支持的操作系统
+- **Windows**: Windows 10 或更高版本
+- **Linux**: Ubuntu 18.04+, Debian 10+, CentOS 8+, Fedora 30+
+- **macOS**: macOS 10.14 (Mojave) 或更高版本
+
+### 硬件要求
+- **最低内存**: 512MB RAM
+- **推荐内存**: 2GB+ RAM
+- **磁盘空间**: 
+  - FPDev 本身: 100MB
+  - 完整安装 (包括 FPC/Lazarus): 5GB+
+- **网络连接**: 用于下载源码和包
+
+### 依赖软件
+
+#### Windows
+- **Git for Windows** (用于源码下载)
+- **MSYS2** 或 **MinGW-w64** (用于编译工具)
+
+#### Linux
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install git build-essential curl wget
+
+# CentOS/RHEL/Fedora
+sudo dnf install git gcc gcc-c++ make curl wget
+# 或者 (CentOS 7)
+sudo yum install git gcc gcc-c++ make curl wget
+```
+
+#### macOS
+```bash
+# 安装 Xcode Command Line Tools
+xcode-select --install
+
+# 安装 Homebrew (推荐)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 安装依赖
+brew install git wget
+```
+
+## 🚀 安装方法
+
+### 方法一：预编译二进制文件 (推荐)
+
+#### Windows
+1. 下载最新版本:
+   ```powershell
+   # 使用 PowerShell
+   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
+   Expand-Archive -Path "fpdev.zip" -DestinationPath "C:\fpdev"
+   ```
+
+2. 添加到 PATH:
+   ```powershell
+   # 临时添加 (当前会话)
+   $env:PATH += ";C:\fpdev\bin"
+   
+   # 永久添加 (需要管理员权限)
+   [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\fpdev\bin", "Machine")
+   ```
+
+3. 验证安装:
+   ```cmd
+   fpdev --version
+   ```
+
+#### Linux
+1. 下载并安装:
+   ```bash
+   # 下载
+   wget https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-linux-x64.tar.gz
+   
+   # 解压
+   tar -xzf fpdev-linux-x64.tar.gz
+   
+   # 安装到系统目录
+   sudo mv fpdev /usr/local/bin/
+   
+   # 或者安装到用户目录
+   mkdir -p ~/.local/bin
+   mv fpdev ~/.local/bin/
+   export PATH="$HOME/.local/bin:$PATH"
+   ```
+
+2. 验证安装:
+   ```bash
+   fpdev --version
+   ```
+
+#### macOS
+1. 下载并安装:
+   ```bash
+   # 下载
+   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-macos-x64.tar.gz
+   
+   # 解压
+   tar -xzf fpdev-macos.tar.gz
+   
+   # 安装
+   sudo mv fpdev /usr/local/bin/
+   ```
+
+2. 首次运行可能需要在"系统偏好设置 > 安全性与隐私"中允许
+
+### 方法二：从源码编译
+
+#### 前提条件
+- FreePascal 编译器 (FPC 3.2.0+)
+- Git
+
+#### 编译步骤
+```bash
+# 克隆仓库
+git clone https://github.com/fpdev/fpdev.git
+cd fpdev
+
+# 编译
+cd src
+fpc -FE../bin fpdev.lpr
+
+# 验证
+../bin/fpdev --version
+```
+
+### 方法三：包管理器安装 (计划中)
+
+```bash
+# Homebrew (macOS)
+brew install fpdev
+
+# Chocolatey (Windows)
+choco install fpdev
+
+# Snap (Linux)
+sudo snap install fpdev
+
+# APT (Ubuntu/Debian)
+sudo apt install fpdev
+```
+
+## ⚙️ 配置
+
+### 初始配置
+```bash
+# 创建默认配置
+fpdev help
+
+# 查看配置文件位置
+# Windows: %USERPROFILE%\.fpdev\config.json
+# Linux/macOS: ~/.fpdev/config.json
+```
+
+### 环境变量
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `FPDEV_HOME` | FPDev 安装根目录 | `~/.fpdev` |
+| `FPDEV_CONFIG` | 配置文件路径 | `$FPDEV_HOME/config.json` |
+| `FPDEV_PARALLEL_JOBS` | 并行编译任务数 | CPU核心数 |
+
+### 代理配置
+```bash
+# 设置 HTTP 代理
+export HTTP_PROXY=http://proxy.example.com:8080
+export HTTPS_PROXY=http://proxy.example.com:8080
+
+# 设置 Git 代理
+git config --global http.proxy http://proxy.example.com:8080
+```
+
+## 🔧 验证安装
+
+### 基本功能测试
+```bash
+# 检查版本
+fpdev --version
+
+# 查看帮助
+fpdev help
+
+# 列出可用的 FPC 版本
+fpdev fpc list --all
+
+# 创建测试项目
+fpdev project new console test-app
+cd test-app
+```
+
+### 运行测试套件
+```bash
+# 如果从源码安装，可以运行测试
+cd fpdev/src
+fpc -Fu. ../tests/test_config_management.lpr
+../tests/test_config_management
+```
+
+## 🐛 故障排除
+
+### 常见问题
+
+#### 1. "fpdev: command not found"
+**原因**: PATH 环境变量未正确设置
+**解决方案**:
+```bash
+# 检查 fpdev 位置
+which fpdev
+
+# 添加到 PATH
+export PATH="/path/to/fpdev:$PATH"
+
+# 永久添加到 shell 配置文件
+echo 'export PATH="/path/to/fpdev:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### 2. 权限错误 (Linux/macOS)
+**原因**: 没有执行权限
+**解决方案**:
+```bash
+chmod +x /path/to/fpdev
+```
+
+#### 3. Windows 安全警告
+**原因**: Windows Defender 或杀毒软件误报
+**解决方案**:
+- 将 fpdev 添加到杀毒软件白名单
+- 在 Windows Defender 中添加排除项
+
+#### 4. 网络连接问题
+**原因**: 防火墙或代理设置
+**解决方案**:
+```bash
+# 测试网络连接
+curl -I https://gitlab.com/freepascal.org/fpc/source.git
+
+# 配置代理 (如果需要)
+export HTTP_PROXY=http://your-proxy:port
+```
+
+#### 5. Git 相关错误
+**原因**: Git 未安装或配置不正确
+**解决方案**:
+```bash
+# 检查 Git 安装
+git --version
+
+# 配置 Git (首次使用)
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+### 日志和调试
+
+#### 启用详细日志
+```bash
+# 设置环境变量
+export FPDEV_DEBUG=1
+export FPDEV_VERBOSE=1
+
+# 运行命令
+fpdev fpc install 3.2.2 --from-source
+```
+
+#### 日志文件位置
+- **Windows**: `%USERPROFILE%\.fpdev\logs\`
+- **Linux/macOS**: `~/.fpdev/logs/`
+
+### 获取帮助
+
+如果遇到问题，可以通过以下方式获取帮助:
+
+1. **查看文档**: https://fpdev.github.io/docs
+2. **GitHub Issues**: https://github.com/fpdev/fpdev/issues
+3. **社区论坛**: https://discord.gg/fpdev
+4. **邮件支持**: support@fpdev.org
+
+## 🔄 卸载
+
+### 完全卸载
+```bash
+# 删除 FPDev 二进制文件
+sudo rm /usr/local/bin/fpdev  # Linux/macOS
+# 或删除 C:\fpdev\  # Windows
+
+# 删除配置和数据 (可选)
+rm -rf ~/.fpdev  # Linux/macOS
+# 或删除 %USERPROFILE%\.fpdev  # Windows
+
+# 从 PATH 中移除 (如果手动添加过)
+# 编辑 ~/.bashrc 或相应的 shell 配置文件
+```
+
+## 📈 性能优化
+
+### 编译性能
+```bash
+# 设置并行编译任务数
+export FPDEV_PARALLEL_JOBS=8
+
+# 使用 SSD 存储
+# 将 FPDEV_HOME 设置到 SSD 分区
+export FPDEV_HOME=/fast/ssd/fpdev
+```
+
+### 网络优化
+```bash
+# 使用镜像源 (中国用户)
+fpdev config set mirror.fpc https://mirrors.tuna.tsinghua.edu.cn/freepascal
+fpdev config set mirror.lazarus https://mirrors.tuna.tsinghua.edu.cn/lazarus
+```
+
+---
+
+安装完成后，请查看 [快速开始指南](QUICKSTART.md) 了解基本使用方法。

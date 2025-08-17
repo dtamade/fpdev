@@ -1,2 +1,13 @@
 src/lib/
 bin/
+
+lib/
+*.o
+*.ppu
+*.compiled
+*.rsj
+*.lps
+*.exe
+.runlogs/
+.lazarus-pcp/
+out/

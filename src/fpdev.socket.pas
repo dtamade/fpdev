@@ -1,4 +1,4 @@
-unit fpdev.help;
+unit fpdev.socket;
 
 {
 
@@ -10,9 +10,9 @@ unit fpdev.help;
     \/_/     \/_/\/_/   \/_/     \/_/\/_/   \/_/     \/_/\/_/  Studio
 
 ```
-# fpdev.help
+# fpdev.socket
 
-帮助
+socket
 
 
 ## 声明
@@ -25,22 +25,11 @@ QQ群:685403987  QQ:179033731
 
 }
 
+{$I fpdev.settings.inc}
 {$mode objfpc}{$H+}
 
 interface
 
-uses
-  sysutils,
-  fpdev.terminal;
-
-procedure print_help;
-
 implementation
-
-procedure print_help;
-begin
-
-end;
-
 
 end.

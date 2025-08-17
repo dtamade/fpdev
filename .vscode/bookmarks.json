@@ -1,0 +1,64 @@
+{
+	"files": [
+		{
+			"path": "src/fpdev.settings.inc",
+			"bookmarks": [
+				{
+					"line": 4,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 7,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 10,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "src/fpdev.collections.pas",
+			"bookmarks": [
+				{
+					"line": 36,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 49,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 78,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 88,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 114,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 121,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 250,
+					"column": 0,
+					"label": ""
+				}
+			]
+		}
+	]
+}
