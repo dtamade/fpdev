@@ -320,6 +320,9 @@ require_subdir=false
   - `Strict config detected: <path>` 表明已加载 build-manager.strict.ini（搜索顺序见上文）
 - 日志文件命名与定位：
   - 每次执行生成独立文件：`logs/build_yyyymmdd_hhnnss_zzz.log`；demo 与上层会打印路径
+- Summary 汇总：
+  - 形如 `Summary: version=<ver> context=<stage> result=OK|FAIL elapsed_ms=<ms>`
+  - TestResults 与 Preflight 在成功/失败收尾处都会输出 Summary，便于在 CI 控制台快速扫描
 - 日志级别：
   - 0（默认）：仅关键流程与结果
   - 1（详细）：env 快照、make 命令、目录样本、hint 提示
@@ -353,6 +356,18 @@ require_subdir=false
   - 严格模式：命令行 `--strict` 或代码 `SetStrictResults(True)`
   - 配置来源（先命中者优先）：`SetStrictConfigPath` → 项目根 → demo 目录（模板已提供）→ 沙箱目录
   - 推荐搭配 `--verbose` 查看 hint 与目录样本；失败时日志会标注 FAIL 与具体原因
+
+## 本地运行测试程序（可选）
+- Windows
+  - `tests\fpdev.build.manager\run_tests.bat`
+- Linux/macOS
+  - `bash tests/fpdev.build.manager/run_tests.sh`
+- 这些脚本会：
+  - 编译并运行三个最小测试：
+    - `test_build_manager.lpr`（源码回退 + 沙箱）
+    - `test_build_manager_strict_fail.lpr`（严格模式，期望 FAIL）
+    - `test_build_manager_strict_pass.lpr`（严格模式，期望 PASS）
+  - 打印最新日志（logs/build_*.log），可查看 Summary/hint/样本
 
 ## 预检与演练模式（Preflight / Dry‑run）
 - 预检（Preflight）：不执行构建，快速检查环境与路径是否就绪
