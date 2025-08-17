@@ -175,6 +175,38 @@ jobs:
           path: plays/fpdev.build.manager.demo/logs/*.log
 ```
 
+```yaml
+name: BuildManager Demo (Self-hosted macOS)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'plays/fpdev.build.manager.demo/**'
+      - 'src/**'
+      - 'docs/build-manager.md'
+
+jobs:
+  demo-macos:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure tools (optional)
+        shell: bash
+        run: |
+          brew list fpc || brew install fpc
+          command -v gmake || brew install make # provides gmake
+      - name: Run demo (strict + verbose)
+        shell: bash
+        run: |
+          cd plays/fpdev.build.manager.demo
+          STRICT=1 VERBOSE=1 bash ./buildOrTest.sh
+      - name: Upload logs (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-manager-logs-macos
+          path: plays/fpdev.build.manager.demo/logs/*.log
+```
+
 - 若使用 GitHub 托管的 windows-latest，请先在步骤中安装/配置 FPC 环境（不在本示例覆盖）。
 
 ## 严格模式：可配置产物清单（模板与设计）
@@ -321,6 +353,45 @@ require_subdir=false
   - 严格模式：命令行 `--strict` 或代码 `SetStrictResults(True)`
   - 配置来源（先命中者优先）：`SetStrictConfigPath` → 项目根 → demo 目录（模板已提供）→ 沙箱目录
   - 推荐搭配 `--verbose` 查看 hint 与目录样本；失败时日志会标注 FAIL 与具体原因
+
+## 预检与演练模式（Preflight / Dry‑run）
+- 预检（Preflight）：不执行构建，快速检查环境与路径是否就绪
+  - 检查项：make 可用性、源码路径是否存在、sandbox 与 logs 是否可写、允许安装时版本安装根可创建/可写
+  - 日志：`== Preflight START/END`，失败时逐条输出 `issue: ...`
+  - 返回：全部检查通过返回 True，否则 False
+  - 使用示例：
+    - Windows：`plays\fpdev.build.manager.demo\buildOrTest.bat --preflight` 或 `set PREFLIGHT=1 & buildOrTest.bat`
+    - Linux/macOS：`PREFLIGHT=1 bash plays/.../buildOrTest.sh`
+- 演练（Dry‑run）：不执行 make，只打印将要执行的命令
+  - 行为：`RunMake` 仅记录 `make ...` 行并输出 `dry-run: skipped make execution`，返回 True
+  - 适用：在 CI 或本地先审阅将要执行的命令与变量（DESTDIR/PREFIX 等），避免误操作
+  - 使用示例：
+    - Windows：`set DRY_RUN=1 & plays\fpdev.build.manager.demo\buildOrTest.bat strict`
+    - Linux/macOS：`DRY_RUN=1 STRICT=1 bash plays/.../buildOrTest.sh`
+- 提示：演练模式不会验证命令执行是否成功；建议结合 `--verbose` 查看完整参数与环境快照
+
+
+## 真实构建开关设计（草案，安全默认）
+- 目标：在保持“默认安全”的前提下，允许用户显式启用更接近真实的构建/安装流程
+- 原则：
+  - 默认关闭；需要显式开启（如 SetAllowInstall(True) + SetRealBuild(True)/`--real-build`）
+  - 仅写入沙箱，不触及系统目录
+  - 开启前建议先执行 Preflight + Dry‑run
+- 建议开关（计划实现）：
+  - 代码：`LBM.SetRealBuild(True)`（默认 False）
+  - CLI：`--real-build`，环境变量 `REAL_BUILD=1`
+  - 依赖：Preflight() 必须通过；可选要求 `StrictResults=True`
+- 执行策略：
+  - make 阶段：在当前 RunMake 基础上执行 `clean all`（按上游 Makefile 兼容情况渐进接入）
+  - install 阶段：继续仅使用 `DESTDIR/PREFIX/INSTALL_PREFIX` 指向沙箱
+  - configure 阶段：仍不写系统 fpc.cfg，按严格清单验证 etc/fpc.cfg 或 lib/fpc/fpc.cfg
+- 回滚与审计：
+  - 日志包含 Start/End、elapsed_ms、完整命令、样本与 hint，便于核查
+  - 沙箱产物可整体删除以回滚；不留系统级状态
+- 推荐流程：
+  1) `--preflight`（或 PREFLIGHT=1）
+  2) `--dry-run --strict --verbose`
+  3) `--real-build --strict --verbose`（必要时）
 
 ## 后续路线
 - 在 Build/Install/Configure 关键步骤记录 Start/End 标记，提升可读性

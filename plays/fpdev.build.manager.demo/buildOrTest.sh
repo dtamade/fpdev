@@ -21,6 +21,9 @@ fi
 
 mkdir -p lib bin logs
 if [[ "${TEST_ONLY:-}" == "1" ]]; then DEMO_ARGS+=" --test-only"; fi
+if [[ "${DRY_RUN:-}" == "1" ]]; then DEMO_ARGS+=" --dry-run"; fi
+if [[ "${PREFLIGHT:-}" == "1" ]]; then DEMO_ARGS+=" --preflight"; fi
+
 
 
 # Build demo (Unix paths)

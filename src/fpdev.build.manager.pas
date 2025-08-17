@@ -21,6 +21,7 @@ type
     FLogVerbosity: Integer; // 0=normal, 1=verbose
     FStrictResults: Boolean; // 严格模式：更严格的沙箱产物校验
     FStrictConfigPath: string; // 严格模式配置文件路径（可选）
+    FDryRun: Boolean; // 演练模式：仅打印命令，不执行
     function GetSourcePath(const AVersion: string): string;
     function HasTool(const AExe: string; const AArgs: array of string): Boolean;
     function RunMake(const ASourcePath: string; const ATargets: array of string): Boolean;
@@ -33,6 +34,8 @@ type
     procedure LogDirSample(const ADir: string; ALimit: Integer);
     procedure LogEnvSnapshot;
     function ApplyStrictConfig(const ASandboxDest: string): Boolean;
+    function CanWriteDir(const APath: string): Boolean;
+    procedure LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
   public
     constructor Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
     procedure SetSandboxRoot(const APath: string);
@@ -40,12 +43,14 @@ type
     procedure SetLogVerbosity(ALevel: Integer);
     procedure SetStrictResults(AEnable: Boolean);
     procedure SetStrictConfigPath(const APath: string);
+    procedure SetDryRun(AEnable: Boolean);
     property LogFileName: string read GetLogFileName;
     function BuildCompiler(const AVersion: string): Boolean;
     function BuildRTL(const AVersion: string): Boolean;
     function Install(const AVersion: string): Boolean;
     function Configure(const AVersion: string): Boolean;
     function TestResults(const AVersion: string): Boolean;
+    function Preflight(const AVersion: string): Boolean;
   end;
 
 implementation
@@ -65,6 +70,7 @@ begin
   FLogVerbosity := 0;
   FStrictResults := False;
   FStrictConfigPath := '';
+  FDryRun := False;
   EnsureDir(FSandboxRoot);
   EnsureDir(FLogDir);
 end;
@@ -98,6 +104,12 @@ procedure TBuildManager.SetStrictConfigPath(const APath: string);
 begin
   FStrictConfigPath := APath;
   Log('StrictConfigPath set to ' + FStrictConfigPath);
+end;
+
+procedure TBuildManager.SetDryRun(AEnable: Boolean);
+begin
+  FDryRun := AEnable;
+  Log('DryRun set to ' + BoolToStr(FDryRun, True));
 end;
 
 function TBuildManager.DirHasAnyFile(const APath: string): Boolean;
@@ -414,6 +426,35 @@ begin
   Result := IncludeTrailingPathDelimiter(FSourceRoot) + 'fpc-' + LVersion;
 end;
 
+function TBuildManager.CanWriteDir(const APath: string): Boolean;
+var
+  LTest: string;
+  F: TextFile;
+begin
+  Result := False;
+  if not DirectoryExists(APath) then Exit(False);
+  LTest := IncludeTrailingPathDelimiter(APath) + '.write_test.tmp';
+  try
+    AssignFile(F, LTest);
+    Rewrite(F);
+    WriteLn(F, 'ok');
+    CloseFile(F);
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Log('cannot write to dir: ' + APath + ' err=' + E.Message);
+      Result := False;
+    end;
+  end;
+  if FileExists(LTest) then DeleteFile(LTest);
+end;
+
+procedure TBuildManager.LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
+begin
+  Log('Summary: version=' + AVersion + ' context=' + AContext + ' result=' + AResult + ' elapsed_ms=' + IntToStr(AElapsedMs));
+end;
+
 function TBuildManager.HasTool(const AExe: string; const AArgs: array of string): Boolean;
 var
   LExit: Integer;
@@ -492,6 +533,11 @@ begin
     LArgs[High(LArgs)] := 'OPT="-O2"';
   end;
   if FLogVerbosity > 0 then Log('make ' + String.Join(' ', LArgs));
+  if FDryRun then
+  begin
+    Log('dry-run: skipped make execution');
+    Exit(True);
+  end;
   Result := ExecuteProcess('make', LArgs) = 0;
 end;
 
@@ -556,17 +602,20 @@ begin
   // 优先校验沙箱安装（仅在允许安装时）
   if FAllowInstall then
   begin
+    var LStart := Now;
     LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
     LBin := IncludeTrailingPathDelimiter(LDest) + 'bin';
     LLib := IncludeTrailingPathDelimiter(LDest) + 'lib';
     if not DirectoryExists(LDest) then
     begin
       Log('TestResults: sandbox root missing: ' + LDest);
+      LogTestSummary(AVersion, 'sandbox', 'FAIL', MilliSecondsBetween(Now, LStart));
       Exit(False);
     end;
     if (not DirectoryExists(LBin)) and (not DirectoryExists(LLib)) then
     begin
       Log('TestResults: sandbox missing bin/lib under: ' + LDest);
+      LogTestSummary(AVersion, 'sandbox', 'FAIL', MilliSecondsBetween(Now, LStart));
       Exit(False);
     end;
     // Verbose: 输出目录样本，便于排查
@@ -578,20 +627,21 @@ begin
     // 细化：若 bin 存在但为空，或 lib 存在但为空
     if DirectoryExists(LBin) and (not DirHasAnyFile(LBin)) then
     begin
-      if FStrictResults then begin Log('FAIL: sandbox bin empty under strict mode: ' + LBin); Exit(False); end
+      if FStrictResults then begin Log('FAIL: sandbox bin empty under strict mode: ' + LBin); LogTestSummary(AVersion, 'sandbox/bin', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
       else Log('WARN: sandbox bin is empty: ' + LBin);
     end;
     if DirectoryExists(LLib) and (not DirHasAnyFile(LLib)) then
     begin
-      if FStrictResults then begin Log('FAIL: sandbox lib empty under strict mode: ' + LLib); Exit(False); end
+      if FStrictResults then begin Log('FAIL: sandbox lib empty under strict mode: ' + LLib); LogTestSummary(AVersion, 'sandbox/lib', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
       else Log('WARN: sandbox lib is empty: ' + LLib);
     end;
     // 若存在严格模式配置，按清单执行进一步校验
     if FStrictResults then
     begin
-      if not ApplyStrictConfig(LDest) then Exit(False);
+      if not ApplyStrictConfig(LDest) then begin LogTestSummary(AVersion, 'sandbox/strict', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end;
     end;
     Log('TestResults: sandbox OK at ' + LDest);
+    LogTestSummary(AVersion, 'sandbox', 'OK', MilliSecondsBetween(Now, LStart));
     Exit(True);
   end;
 
@@ -604,6 +654,74 @@ begin
   Log('TestResults: source tree OK at ' + LSrc);
   Result := True;
 end;
+
+function TBuildManager.Preflight(const AVersion: string): Boolean;
+var
+  LSrc, LDestRoot: string;
+  LIssues: TStringList;
+  LHasMake, LSrcOk, LSandOk, LLogOk: Boolean;
+begin
+  var LStart := Now;
+  Log('== Preflight START version=' + AVersion + ' srcRoot=' + FSourceRoot + ' sandbox=' + FSandboxRoot + ' logDir=' + FLogDir);
+  if FLogVerbosity > 0 then LogEnvSnapshot;
+  LIssues := TStringList.Create;
+  try
+    // 源码路径检查
+    LSrc := GetSourcePath(AVersion);
+    LSrcOk := DirectoryExists(LSrc);
+    if not LSrcOk then LIssues.Add('source not found: ' + LSrc);
+
+    // make 可用性
+    LHasMake := HasTool('make', ['--version']);
+    if not LHasMake then LIssues.Add('make not available');
+
+    // 目标与日志目录可写
+    EnsureDir(FSandboxRoot);
+    EnsureDir(FLogDir);
+    LSandOk := CanWriteDir(FSandboxRoot);
+    if not LSandOk then LIssues.Add('sandbox not writable: ' + FSandboxRoot);
+    LLogOk := CanWriteDir(FLogDir);
+    if not LLogOk then LIssues.Add('logs not writable: ' + FLogDir);
+
+    // 若允许安装，进一步检查版本安装根是否可创建
+    if FAllowInstall then
+    begin
+      LDestRoot := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
+      if not DirectoryExists(LDestRoot) then
+      begin
+        EnsureDir(LDestRoot);
+        if not DirectoryExists(LDestRoot) then
+          LIssues.Add('cannot create sandbox dest: ' + LDestRoot)
+        else if not CanWriteDir(LDestRoot) then
+          LIssues.Add('sandbox dest not writable: ' + LDestRoot);
+      end
+      else if not CanWriteDir(LDestRoot) then
+        LIssues.Add('sandbox dest not writable: ' + LDestRoot);
+    end;
+
+    // 结果
+    Result := (LIssues.Count = 0);
+    if Result then
+    begin
+      Log('== Preflight END OK');
+      LogTestSummary(AVersion, 'preflight', 'OK', MilliSecondsBetween(Now, LStart));
+    end
+    else
+    begin
+      // 输出所有问题
+      Log('== Preflight END FAIL issues=' + IntToStr(LIssues.Count));
+      if FLogVerbosity > 0 then
+      begin
+        var i: Integer;
+        for i := 0 to LIssues.Count-1 do Log('issue: ' + LIssues[i]);
+      end;
+      LogTestSummary(AVersion, 'preflight', 'FAIL', MilliSecondsBetween(Now, LStart));
+    end;
+  finally
+    LIssues.Free;
+  end;
+end;
+
 
 end.
 

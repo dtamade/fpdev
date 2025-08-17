@@ -45,6 +45,9 @@ if not defined DEMO_ARGS set DEMO_ARGS=%*%
 rem env overrides (append)
 if /I "%DEMO_STRICT%"=="1" set DEMO_ARGS=%DEMO_ARGS% --strict
 if /I "%DEMO_VERBOSE%"=="1" set DEMO_ARGS=%DEMO_ARGS% --verbose
+if /I "%DRY_RUN%"=="1" set DEMO_ARGS=%DEMO_ARGS% --dry-run
+if /I "%PREFLIGHT%"=="1" set DEMO_ARGS=%DEMO_ARGS% --preflight
+
 if /I "%NO_INSTALL%"=="1" set DEMO_ARGS=%DEMO_ARGS% --no-install
 
 echo Running: bin\demo.exe %DEMO_ARGS%

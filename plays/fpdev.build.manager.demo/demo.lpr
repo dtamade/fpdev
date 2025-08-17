@@ -18,6 +18,16 @@ begin
   LVerbose := FindCmdLineSwitch('v', True) or FindCmdLineSwitch('verbose', True);
   LNoInstall := FindCmdLineSwitch('no-install', True) or (GetEnvironmentVariable('NO_INSTALL') = '1');
   LTestOnly := FindCmdLineSwitch('test-only', True) or (GetEnvironmentVariable('TEST_ONLY') = '1');
+  if FindCmdLineSwitch('dry-run', True) or (GetEnvironmentVariable('DRY_RUN') = '1') then
+  begin
+    LBM.SetDryRun(True);
+    WriteLn('Dry-run enabled: will not execute make, only log commands.');
+  end;
+  if FindCmdLineSwitch('preflight', True) or (GetEnvironmentVariable('PREFLIGHT') = '1') then
+  begin
+    if not LBM.Preflight(LVer) then Halt(2);
+  end;
+
   LBM := TBuildManager.Create(LRoot, 2, True);
   try
     WriteLn('== BuildManager Demo ==');
