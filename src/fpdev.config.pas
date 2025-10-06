@@ -56,7 +56,7 @@ type
   { 已废弃：请使用 TConfigManager 和相关接口 }
   TFPDevConfigManager = class
   private
-    FConfigManager: TConfigManager;
+    FConfigManager: IConfigManager;  // 使用接口引用，自动管理生命周期
     function GetModified: Boolean;
     function GetConfigPath: string;
 
@@ -115,12 +115,13 @@ implementation
 constructor TFPDevConfigManager.Create(const AConfigPath: string);
 begin
   inherited Create;
-  FConfigManager := TConfigManager.Create(AConfigPath);
+  FConfigManager := TConfigManager.Create(AConfigPath) as IConfigManager;
 end;
 
 destructor TFPDevConfigManager.Destroy;
 begin
-  FConfigManager.Free;
+  // 显式清空接口引用，触发引用计数清理
+  FConfigManager := nil;
   inherited Destroy;
 end;
 

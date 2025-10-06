@@ -21,6 +21,13 @@ uses
   SysUtils, Classes;
 
 type
+  { IConfigChangeNotifier - 配置修改通知接口 }
+  { 子管理器通过此接口通知父管理器配置已修改 }
+  IConfigChangeNotifier = interface
+    ['{91A2B3C4-D5E6-789F-0ABC-DEF123456789}']
+    procedure NotifyConfigChanged;
+  end;
+
   // 工具链类型
   TToolchainType = (ttRelease, ttDevelopment, ttCustom);
 
