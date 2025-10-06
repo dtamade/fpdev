@@ -1,0 +1,7 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+reference
+sources
+lib
+logs
+3rd
+bin/tmp

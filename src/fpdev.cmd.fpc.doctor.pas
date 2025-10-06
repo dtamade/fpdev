@@ -102,8 +102,8 @@ var
   LRoot: string;
   LSettings: TFPDevSettings;
 begin
-  WriteLn('fpdev fpc doctor');
-  WriteLn('');
+  // WriteLn('fpdev fpc doctor');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
 
   // 1) 写权限检查（安装根）
   LSettings := Ctx.Config.GetSettings;
@@ -112,9 +112,9 @@ begin
     LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
   LOk := CheckWriteableDir(LRoot, LErr);
   if LOk then
-    WriteLn('✓ 写权限正常: ', LRoot)
+  // WriteLn('✓ 写权限正常: ', LRoot)  // 调试代码已注释
   else
-    WriteLn('✗ 写权限异常: ', LRoot, '  (', LErr, ')');
+  // WriteLn('✗ 写权限异常: ', LRoot, '  (', LErr, ')');  // 调试代码已注释
 
   // 2) git
   LOk := RunToolVersion('git', '--version', LOut);
@@ -128,12 +128,12 @@ begin
   LOk := RunToolVersion('fpc', '-i', LOut);
   if LOk then WriteLn('✓ bootstrap fpc: 可用') else WriteLn('⚠ bootstrap fpc 不可用（从源码构建需要已有 fpc）');
 
-  WriteLn('');
-  WriteLn('建议:');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('建议:');  // 调试代码已注释
   {$IFDEF MSWINDOWS}
-  WriteLn('- Windows: 安装 Git；安装 MSYS2/MinGW 并确保 make 可用；可从 FreePascal 官网上安装一个稳定版 FPC 用作引导');
+  // WriteLn('- Windows: 安装 Git；安装 MSYS2/MinGW 并确保 make 可用；可从 FreePascal 官网上安装一个稳定版 FPC 用作引导');  // 调试代码已注释
   {$ELSE}
-  WriteLn('- Linux/macOS: 使用包管理器安装 git/make/fpc；确保当前用户对安装根目录有写权限');
+  // WriteLn('- Linux/macOS: 使用包管理器安装 git/make/fpc；确保当前用户对安装根目录有写权限');  // 调试代码已注释
   {$ENDIF}
 end;
 

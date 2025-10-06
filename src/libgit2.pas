@@ -222,7 +222,7 @@ function git_repository_set_head(repo: git_repository; const refname: PChar): ci
 procedure git_repository_free(repo: git_repository); cdecl; external LIBGIT2_LIB;
 
 // 克隆操作
-function git_clone(out repo: git_repository; const url: PChar; const local_path: PChar; const options: git_clone_options): cint; cdecl; external LIBGIT2_LIB;
+function git_clone(out repo: git_repository; const url: PChar; const local_path: PChar; const options: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
 // 远程操作
 function git_remote_lookup(out remote: git_remote; repo: git_repository; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
@@ -300,8 +300,8 @@ function git_index_add_bypath(index: git_index; const path: PChar): cint; cdecl;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 
   // Checkout 操作
-  function git_checkout_head(repo: git_repository; const opts: git_checkout_options): cint; cdecl; external LIBGIT2_LIB;
-  function git_checkout_tree(repo: git_repository; tree: git_object; const opts: git_checkout_options): cint; cdecl; external LIBGIT2_LIB;
+  function git_checkout_head(repo: git_repository; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
+  function git_checkout_tree(repo: git_repository; tree: git_object; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
 procedure git_index_free(index: git_index); cdecl; external LIBGIT2_LIB;
 

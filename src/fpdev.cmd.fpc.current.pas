@@ -35,9 +35,13 @@ begin
   try
     LVer := LMgr.GetCurrentVersion;
     if LVer <> '' then
-      WriteLn('当前FPC版本: ', LVer)
+    begin
+      // WriteLn('当前FPC版本: ', LVer)  // 调试代码已注释
+    end
     else
-      WriteLn('未设置默认FPC版本');
+    begin
+      // WriteLn('未设置默认FPC版本');  // 调试代码已注释
+    end;
   finally
     LMgr.Free;
   end;

@@ -1,0 +1,29 @@
+{
+  "packages": [
+    {
+      "name": "synapse",
+      "version": "1.2.0",
+      "description": "Networking library for Pascal",
+      "homepage": "https://github.com/araratnethome/synapse",
+      "license": "MPL-1.1",
+      "repository": "https://github.com/araratnethome/synapse.git",
+      "url": [
+        "file:///REPLACE_ME/synapse-1.2.0.zip"
+      ],
+      "sha256": ""
+    },
+    {
+      "name": "fpJSON",
+      "version": "1.0.0",
+      "description": "JSON utilities for FPC",
+      "homepage": "https://www.freepascal.org/",
+      "license": "LGPL-2.1",
+      "repository": "https://gitlab.com/freepascal.org/fpc/source.git",
+      "url": [
+        "file:///REPLACE_ME/fpJSON-1.0.0.zip"
+      ],
+      "sha256": ""
+    }
+  ]
+}
+

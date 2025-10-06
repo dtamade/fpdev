@@ -64,7 +64,7 @@ var
 begin
   if Length(AParams) < 1 then
   begin
-    WriteLn('错误: 需要指定版本号，例如: fpdev fpc use 3.2.2');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc use 3.2.2');  // 调试代码已注释
     Exit;
   end;
   LVer := AParams[0];
@@ -73,10 +73,10 @@ begin
   begin
     LMgr := TFPCManager.Create(Ctx.Config);
     try
-      WriteLn('未安装版本 ', LVer, '，自动安装 (--ensure) ...');
+  // WriteLn('未安装版本 ', LVer, '，自动安装 (--ensure) ...');  // 调试代码已注释
       if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
       begin
-        WriteLn('错误: 自动安装失败，无法切换');
+  // WriteLn('错误: 自动安装失败，无法切换');  // 调试代码已注释
         Exit;
       end;
     finally

@@ -1,0 +1,170 @@
+diff --git a/compiler/globtype.pas b/compiler/globtype.pas
+index cd8440aa..11b6407c 100644
+--- a/compiler/globtype.pas
++++ b/compiler/globtype.pas
+@@ -218,7 +218,7 @@ interface
+          cs_asm_leave,cs_asm_extern,cs_asm_pipe,cs_asm_source,
+          cs_asm_regalloc,cs_asm_tempalloc,cs_asm_nodes,cs_asm_pre_binutils_2_25,
+          { linking }
+-         cs_link_nolink,cs_link_static,cs_link_smart,cs_link_shared,cs_link_deffile,
++         cs_link_nolink,cs_link_compat,cs_link_static,cs_link_smart,cs_link_shared,cs_link_deffile,
+          cs_link_strip,cs_link_staticflag,cs_link_on_target,cs_link_extern,cs_link_opt_vtable,
+          cs_link_opt_used_sections,cs_link_separate_dbg_file,
+          cs_link_map,cs_link_pthread,cs_link_no_default_lib_order,
+diff --git a/compiler/options.pas b/compiler/options.pas
+index fe9a3697..9635ccc1 100644
+--- a/compiler/options.pas
++++ b/compiler/options.pas
+@@ -2606,13 +2606,22 @@ begin
+                         DefaultReplacements(utilsprefix);
+                         More:='';
+                       end;
+-                    'L' : begin  // -XLO is link order -XLA is link alias. -XLD avoids load defaults.
++                    'L' : begin  // -XLO is link order -XLA is link alias. -XLD avoids load defaults. -XLC add GLIBC versioning symbols
+                                  // these are not aggregable.
+-                            if (j=length(more)) or not (more[j+1] in ['O','A','D']) then
++                            if (j=length(more)) or not (more[j+1] in ['C','O','A','D']) then
+                               IllegalPara(opt)
+                             else
+                               begin
+                                 case more[j+1] of
++                                 'C' : begin
++                                         if (target_info.system=system_x86_64_linux) then
++                                           begin
++                                             def_system_macro('FPC_LINK_COMPAT');
++                                             include(init_settings.globalswitches,cs_link_compat);
++                                           end
++                                         else
++                                           IgnoredPara('-XLC');
++                                       end;
+                                  'A' : begin
+                                         s:=Copy(more,3,length(More)-2);
+                                         if not LinkLibraryAliases.AddDep(s) Then
+diff --git a/compiler/pdecsub.pas b/compiler/pdecsub.pas
+index a8a7cf9e..a2b6057b 100644
+--- a/compiler/pdecsub.pas
++++ b/compiler/pdecsub.pas
+@@ -108,6 +108,8 @@ implementation
+ {$endif}
+        ;
+ 
++{$I glibc.inc}
++
+     const
+       { Please leave this here, this module should NOT use
+         these variables.
+@@ -2262,9 +2264,13 @@ procedure pd_external(pd:tabstractprocdef);
+   the procedure is either imported by number or by name. (DM)
+ }
+ var
+-  hs : string;
+-  v:Tconstexprint;
+-  is_java_external: boolean;
++  hs                   : string;
++  v                    : Tconstexprint;
++  is_java_external     : boolean;
++  sym_name             : string;
++  gf                   : TGLIBCFUNCTION;
++  glibicpu             : integer;
++  glibtcpu             : tsystemcpu;
+ begin
+   if pd.typ<>procdef then
+     internalerror(2003042615);
+@@ -2309,6 +2315,7 @@ begin
+              if import_name^='' then
+                message(parser_e_empty_import_name);
+            end;
++
+           if (idtoken=_INDEX) then
+            begin
+              {After the word index follows the index number in the DLL.}
+@@ -2338,6 +2345,48 @@ begin
+                message(parser_e_empty_import_name);
+            end;
+         end;
++
++      if (cs_link_compat in current_settings.globalswitches) then
++       begin
++         if (target_info.system in systems_linux) then
++          begin
++            if (target_info.cpu in GLIBCCPU) then
++            begin
++              if assigned(import_name) then
++                sym_name:=import_name^
++              else
++                sym_name:=proc_get_importname(tprocdef(pd));
++              if ((sym_name<>'') AND (Pos('FPC_',sym_name)<>1)) then        // skip FPC compiler calls
++               begin
++                 if pos('@', sym_name)=0 then                               // no versioning present -> attempt translation
++                 begin
++                   // Get correct version index for lookup
++                   glibicpu:=0;
++                   for glibtcpu in GLIBCCPU do
++                   begin
++                     if glibtcpu=target_info.cpu then break;
++                     Inc(glibicpu)
++                   end;
++                   for gf in GLIBCFUNCTIONS do
++                     begin
++                       if sym_name=gf.Name then
++                        begin
++                          if (Length(gf.Version[glibicpu])>0) then
++                           begin
++                             stringdispose(import_name);                                       // dispose of unversioned symbol name
++                             import_name:=stringdup(gf.Name+'@GLIBC_'+gf.Version[glibicpu]);   // replace with versioned symbol name
++                             comment(V_Warning,'Forced versioned linking of '+gf.Name+' with version '+gf.Version[glibicpu]);
++                             // Add versioned importname !!!!!
++                             writeln('donalf: ','Forced versioned linking of '+gf.Name+' with version '+gf.Version[glibicpu]);
++                           end;
++                          break;
++                        end;
++                     end;
++                 end;
++               end;
++            end;
++          end;
++       end;
+     end;
+ end;
+ 
+diff --git a/compiler/ppu.pas b/compiler/ppu.pas
+index 4846a7de..0d96f893 100644
+--- a/compiler/ppu.pas
++++ b/compiler/ppu.pas
+@@ -53,7 +53,7 @@ const
+   uf_init                = $000001; { unit has initialization section }
+   uf_finalize            = $000002; { unit has finalization section   }
+   uf_big_endian          = $000004;
+-//uf_has_browser         = $000010;
++  uf_compat_linked       = $000010; { the ppu is linked against compat GLIBC }
+   uf_in_library          = $000020; { is the file in another file than <ppufile>.* ? }
+   uf_smart_linked        = $000040; { the ppu can be smartlinked }
+   uf_static_linked       = $000080; { the ppu can be linked static }
+diff --git a/compiler/utils/ppuutils/ppudump.pp b/compiler/utils/ppuutils/ppudump.pp
+index 3418e628..215db295 100644
+--- a/compiler/utils/ppuutils/ppudump.pp
++++ b/compiler/utils/ppuutils/ppudump.pp
+@@ -800,13 +800,13 @@ type
+     str  : string[30];
+   end;
+ const
+-  flagopts=32;
++  flagopts=33;
+   flagopt : array[1..flagopts] of tflagopt=(
+     (mask: $1    ;str:'init'),
+     (mask: $2    ;str:'final'),
+     (mask: $4    ;str:'big_endian'),
+     (mask: $8    ;str:'dbx'),
+-//    (mask: $10   ;str:'browser'),
++    (mask: $10   ;str:'compat_linked'),
+     (mask: $20   ;str:'in_library'),
+     (mask: $40   ;str:'smart_linked'),
+     (mask: $80   ;str:'static_linked'),
+@@ -2171,6 +2171,7 @@ const
+         'Adapt assembler call to GNU version <= 2.25', {cs_asm_pre_binutils_2_25}
+          { linking }
+         'Skip linking stage', {cs_link_nolink}
++        'Link compat', {cs_link_compat}
+         'Link static', {cs_link_static}
+         'Link smart', {cs_link_smart}
+         'Link shared', {cs_link_shared}

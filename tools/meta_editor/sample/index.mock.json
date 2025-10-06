@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "schema": "fpdev-repo/v2",
+    "name": "example-mirror",
+    "updated": "2025-09-13T12:00:00Z"
+  },
+  "catalog": {
+    "fpc": {
+      "3.2.2": {
+        "release_date": "2021-05-20",
+        "artifacts": [
+          {
+            "os": "windows",
+            "arch": "x86_64",
+            "format": "zip",
+            "urls": [
+              "https://mirror.example.com/fpc/3.2.2/fpc-3.2.2-x86_64-windows.zip"
+            ],
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "size": 123456789
+          },
+          {
+            "os": "linux",
+            "arch": "x86_64",
+            "format": "tar.xz",
+            "urls": [
+              "https://mirror.example.com/fpc/3.2.2/fpc-3.2.2-x86_64-linux.tar.xz"
+            ],
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "size": 987654321
+          }
+        ]
+      },
+      "3.3.1": {
+        "channel": "nightly",
+        "artifacts": [
+          {
+            "os": "windows",
+            "arch": "x86_64",
+            "format": "zip",
+            "urls": [
+              "https://mirror.example.com/fpc/3.3.1/fpc-3.3.1-x86_64-windows.zip"
+            ],
+            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "size": 111222333
+          }
+        ]
+      }
+    },
+    "lazarus": {
+      "3.0.0": {
+        "requires": { "fpc": ">=3.2.2" },
+        "artifacts": [
+          {
+            "os": "windows",
+            "arch": "x86_64",
+            "format": "zip",
+            "urls": [
+              "https://mirror.example.com/lazarus/3.0.0/lazarus-3.0.0-x86_64-windows.zip"
+            ],
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "size": 222333444
+          }
+        ]
+      }
+    },
+    "toolsets": {
+      "make": {
+        "4.4": {
+          "artifacts": [
+            {
+              "os": "windows",
+              "arch": "x86_64",
+              "format": "zip",
+              "urls": [
+                "https://mirror.example.com/tools/make/4.4/make-4.4-x86_64-windows.zip"
+              ],
+              "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "size": 555666
+            }
+          ]
+        }
+      }
+    },
+    "cross": {
+      "win64": {
+        "3.2.2": {
+          "artifacts": [
+            {
+              "os": "linux",
+              "arch": "x86_64",
+              "format": "tar.xz",
+              "urls": [
+                "https://mirror.example.com/cross/win64/3.2.2/win64-cross-3.2.2-x86_64-linux.tar.xz"
+              ],
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "size": 888999
+            }
+          ]
+        }
+      }
+    },
+    "components": {
+      "synapse": {
+        "40.1": {
+          "artifacts": [
+            {
+              "format": "zip",
+              "urls": [
+                "https://mirror.example.com/components/synapse/40.1/synapse-40.1.zip"
+              ],
+              "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+              "size": 101112
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+
+

@@ -34,6 +34,48 @@ Notes:
 
 ---
 
+## Usage cheatsheet
+
+```bash
+# Help & version
+fpdev help
+fpdev version
+
+# FPC management
+fpdev fpc install 3.2.2 --from-source
+fpdev fpc list --all
+fpdev fpc use 3.2.2           # alias: default
+fpdev fpc current
+fpdev fpc show 3.2.2
+
+# Lazarus management
+fpdev lazarus install 3.0 --from-source
+fpdev lazarus list
+fpdev lazarus use 3.0         # alias: default
+fpdev lazarus current
+fpdev lazarus run
+
+# Cross toolchains
+fpdev cross list --all
+fpdev cross install win64
+fpdev cross configure win64 --binutils=C:/bin --libraries=C:/lib
+
+# Packages
+fpdev package install synapse
+fpdev package list --all
+fpdev package search json
+fpdev package repo add custom https://example.com/repo
+fpdev package repo remove custom      # alias: rm, del
+fpdev package repo list               # alias: ls
+
+# Projects
+fpdev project new console hello-world
+fpdev project list
+fpdev project build
+```
+
+---
+
 ## High‑level API (fpdev.git2)
 
 Exposes modern OO wrappers around libgit2:

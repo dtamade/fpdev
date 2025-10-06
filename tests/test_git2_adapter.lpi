@@ -1,118 +1,111 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="9"/>
-    <PathDelim Value="\"/>
+    <Version Value="9" />
+    <PathDelim Value="\" />
     <General>
       <Flags>
-        <MainUnitHasCreateFormStatements Value="False"/>
-        <MainUnitHasTitleStatement Value="False"/>
-        <Runnable Value="True"/>
+        <MainUnitHasCreateFormStatements Value="False" />
+        <MainUnitHasTitleStatement Value="False" />
+        <Runnable Value="True" />
       </Flags>
-      <SessionStorage Value="InProjectDir"/>
-      <MainUnit Value="0"/>
-      <Title Value="test_git2_adapter"/>
-      <ResourceType Value="res"/>
+      <SessionStorage Value="InProjectDir" />
+      <MainUnit Value="0" />
+      <Title Value="test_git2_adapter" />
+      <ResourceType Value="res" />
     </General>
     <i18n>
-      <EnableI18N LFM="False"/>
+      <EnableI18N LFM="False" />
     </i18n>
     <VersionInfo>
-      <StringTable ProductVersion=""/>
+      <StringTable ProductVersion="" />
     </VersionInfo>
     <BuildModes>
-      <Item Name="Default" Default="True"/>
-      <Item Name="Debug">
-        <CompilerOptions>
-          <Version Value="11"/>
-          <Target>
-            <Filename Value="bin/test_git2_adapter"/>
-          </Target>
-          <SearchPaths>
-            <IncludeFiles Value="$(ProjOutDir);../src"/>
-            <OtherUnitFiles Value="../src"/>
-            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
-          </SearchPaths>
-          <Parsing>
-            <SyntaxOptions>
-              <IncludeAssertionCode Value="True"/>
-            </SyntaxOptions>
-          </Parsing>
-          <CodeGeneration>
-            <Checks>
-              <IOChecks Value="True"/>
-              <RangeChecks Value="True"/>
-              <OverflowChecks Value="True"/>
-      <RequiredPackages>
-        <Item>
-          <PackageName Value="FCL"/>
-        </Item>
-      </RequiredPackages>
-
-              <StackChecks Value="True"/>
-            </Checks>
-            <VerifyObjMethodCallValidity Value="True"/>
-          </CodeGeneration>
-          <Linking>
-            <Debugging>
-              <DebugInfoType Value="dsDwarf3"/>
-              <UseHeaptrc Value="True"/>
-              <TrashVariables Value="True"/>
-              <UseExternalDbgSyms Value="True"/>
-            </Debugging>
-          </Linking>
-          <Other>
-            <CompilerMessages>
-              <IgnoredMessages idx5024="True"/>
-            </CompilerMessages>
-          </Other>
-        </CompilerOptions>
-      </Item>
+      <Item Name="Default" Default="True" />
       <Item Name="Release">
         <CompilerOptions>
-          <Version Value="11"/>
+          <Version Value="11" />
           <Target>
-            <Filename Value="bin/test_git2_adapter"/>
+            <Filename Value="bin/test_git2_adapter" />
           </Target>
           <SearchPaths>
-            <IncludeFiles Value="$(ProjOutDir);../src"/>
-            <OtherUnitFiles Value="../src"/>
-            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+            <IncludeFiles Value="$(ProjOutDir);../src" />
+            <OtherUnitFiles Value="../src" />
+            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
           </SearchPaths>
           <CodeGeneration>
-            <SmartLinkUnit Value="True"/>
+            <SmartLinkUnit Value="True" />
             <Optimizations>
-              <OptimizationLevel Value="3"/>
+              <OptimizationLevel Value="3" />
             </Optimizations>
           </CodeGeneration>
           <Linking>
             <Debugging>
-              <GenerateDebugInfo Value="False"/>
+              <GenerateDebugInfo Value="False" />
             </Debugging>
-            <LinkSmart Value="True"/>
+            <LinkSmart Value="True" />
           </Linking>
+        </CompilerOptions>
+      </Item>
+      <Item Name="Debug">
+        <CompilerOptions>
+          <Version Value="11" />
+          <Target>
+            <Filename Value="bin/$(ProjectName)" />
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir);../../src" />
+            <OtherUnitFiles Value="../../src" />
+            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True" />
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <Checks>
+              <IOChecks Value="True" />
+              <RangeChecks Value="True" />
+              <OverflowChecks Value="True" />
+              <StackChecks Value="True" />
+            </Checks>
+            <VerifyObjMethodCallValidity Value="True" />
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf3" />
+              <UseHeaptrc Value="True" />
+              <TrashVariables Value="True" />
+              <UseExternalDbgSyms Value="True" />
+            </Debugging>
+          </Linking>
+          <Other>
+            <CompilerMessages>
+              <IgnoredMessages idx5024="True" />
+            </CompilerMessages>
+          </Other>
         </CompilerOptions>
       </Item>
     </BuildModes>
     <CompilerOptions>
       <SearchPaths>
-        <UnitPath Value="..\src"/>
-        <OtherUnitFiles Value="..\src"/>
+        <UnitPath Value="..\src" />
+        <OtherUnitFiles Value="..\src" />
       </SearchPaths>
-      <TargetFileName Value="bin\test_git2_adapter"/>
+      <TargetFileName Value="bin\test_git2_adapter" />
     </CompilerOptions>
     <RunParams>
       <local>
-        <FormatVersion Value="1"/>
+        <FormatVersion Value="1" />
       </local>
     </RunParams>
     <Units Count="1">
       <Unit0>
-        <Filename Value="test_git2_adapter.lpr"/>
-        <IsPartOfProject Value="True"/>
-        <IsMainUnit Value="True"/>
+        <Filename Value="test_git2_adapter.lpr" />
+        <IsPartOfProject Value="True" />
+        <IsMainUnit Value="True" />
       </Unit0>
     </Units>
   </ProjectOptions>
 </CONFIG>
-

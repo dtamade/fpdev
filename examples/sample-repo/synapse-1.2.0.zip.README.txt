@@ -1,0 +1,3 @@
+This is a placeholder for synapse-1.2.0.zip.
+For integration tests, adjust the URLs in examples/sample-repo/index.json to point to a real zip path or create a local zip and replace REPLACE_ME with its parent directory.
+

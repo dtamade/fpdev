@@ -1,0 +1,114 @@
+object FormMain: TFormMain
+  Left = 200
+  Height = 600
+  Top = 120
+  Width = 900
+  Caption = 'FPDev Metadata Editor - Untitled'
+  ClientHeight = 600
+  ClientWidth = 900
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  Position = poScreenCenter
+  LCLVersion = '2.2.6'
+  object MainMenu1: TMainMenu
+    left = 8
+    top = 8
+    object MenuItemFile: TMenuItem
+      Caption = '&File'
+      object MenuItemOpen: TMenuItem
+        Caption = '&Open...'
+        OnClick = MenuItemOpenClick
+      end
+      object MenuItemClone: TMenuItem
+        Caption = '&Clone...'
+        OnClick = MenuItemOpenClick
+      end
+      object MenuItemSave: TMenuItem
+        Caption = '&Save'
+        OnClick = MenuItemSaveClick
+      end
+      object MenuItemSaveAs: TMenuItem
+        Caption = 'Save &As...'
+        OnClick = MenuItemSaveAsClick
+      end
+      object MenuItemSep1: TMenuItem
+        Caption = '-'
+      end
+      object MenuItemPull: TMenuItem
+        Caption = 'Pull'
+        OnClick = MenuItemPullClick
+      end
+      object MenuItemCommitPush: TMenuItem
+        Caption = 'Commit && Push'
+        OnClick = MenuItemCommitPushClick
+      end
+      object MenuItemSep2: TMenuItem
+        Caption = '-'
+      end
+      object MenuItemExit: TMenuItem
+        Caption = 'E&xit'
+        OnClick = MenuItemExitClick
+      end
+    end
+  end
+  object StatusBar1: TStatusBar
+    Align = alBottom
+    SimplePanel = True
+    SimpleText = 'Ready'
+    Top = 579
+    Width = 900
+  end
+  object Splitter1: TSplitter
+    Align = alRight
+    Left = 680
+  end
+  object PanelLeft: TPanel
+    Align = alClient
+    ClientHeight = 579
+    ClientWidth = 900
+    TabOrder = 0
+    object VST: TVirtualStringTree
+      Align = alClient
+      Header.AutoSizeIndex = 1
+      Header.MainColumn = 0
+      Header.Options = [hoVisible, hoAutoResize, hoColumnResize]
+      NodeDataSize = 0
+      TabOrder = 0
+      TreeOptions.MiscOptions = [toEditable, toFullRepaintOnResize, toInitOnSave]
+      TreeOptions.PaintOptions = [toShowHorzGridLines, toShowTreeLines, toThemeAware]
+      TreeOptions.SelectionOptions = [toFullRowSelect, toRightClickSelect]
+      OnFreeNode = VSTFreeNode
+      OnGetText = VSTGetText
+      OnInitChildren = VSTInitChildren
+      OnInitNode = VSTInitNode
+      OnNewText = VSTNewText
+      Left = 0
+      Top = 0
+      Width = 900
+      Height = 579
+      Columns = <
+        item
+          Position = 0
+          Width = 320
+          WideText = 'Name'
+        end
+        item
+          Position = 1
+          Width = 520
+          WideText = 'Value'
+        end>
+    end
+  end
+  object OpenDialog1: TOpenDialog
+    Filter = 'JSON files|*.json|All files|*.*'
+    left = 40
+    top = 40
+  end
+  object SaveDialog1: TSaveDialog
+    Filter = 'JSON files|*.json|All files|*.*'
+    left = 80
+    top = 40
+  end
+end
+
+

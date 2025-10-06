@@ -31,7 +31,7 @@ var
 begin
   if Length(AParams) < 1 then
   begin
-    WriteLn('错误: 需要指定版本号，例如: fpdev lazarus use 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus use 3.0');  // 调试代码已注释
     Exit;
   end;
   LVer := AParams[0];

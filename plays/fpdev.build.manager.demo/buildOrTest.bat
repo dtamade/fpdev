@@ -12,17 +12,19 @@ if /I "%1"=="-h" goto :help
 if /I "%1"=="/?" goto :help
 
 :help
-@echo Usage: buildOrTest.bat [strict|-s] [--no-install] [--verbose]
+@echo Usage: buildOrTest.bat [strict^|-s] [--no-install] [--verbose] [--preflight] [--dry-run]
 @echo   strict or -s     Enable --strict and --verbose
 @echo   --no-install     Skip Install() stage
 @echo   --verbose        Enable verbose logs
 @echo Env vars:
 @echo   DEMO_STRICT=1    Append --strict
 @echo   DEMO_VERBOSE=1   Append --verbose
+@echo   TEST_ONLY=1      Append --test-only (skip Build/Install/Configure)
 @echo   NO_INSTALL=1     Append --no-install
 @echo Examples:
 @echo   buildOrTest.bat strict
-@echo   set DEMO_STRICT=1 ^& set DEMO_VERBOSE=1 ^& buildOrTest.bat
+@echo   buildOrTest.bat --preflight --dry-run --no-install
+@echo   set TEST_ONLY=1 ^& set NO_INSTALL=1 ^& set PREFLIGHT=1 ^& set DRY_RUN=1 ^& buildOrTest.bat
 if /I "%1"=="help" goto :end
 if /I "%TEST_ONLY%"=="1" set DEMO_ARGS=%DEMO_ARGS% --test-only
 

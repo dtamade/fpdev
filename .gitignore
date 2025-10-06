@@ -11,3 +11,26 @@ lib/
 .runlogs/
 .lazarus-pcp/
 out/
+
+.fpdev/
+
+# 自动添加的忽略模式
+# 编译产物
+*.dbg
+# 临时文件
+*.log
+*.tmp
+*.bak
+# 备份文件
+*.backup.*
+backups/
+# IDE文件
+# 输出目录中的编译产物
+bin/*.exe
+bin/*.o
+bin/*.ppu
+lib/*.o
+lib/*.ppu
+# 测试临时目录
+tests/tmp*/
+tests/bin/tmp*/

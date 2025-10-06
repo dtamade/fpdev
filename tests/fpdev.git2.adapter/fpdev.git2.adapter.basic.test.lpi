@@ -1,119 +1,118 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="12"/>
-    <PathDelim Value="\"/>
+    <Version Value="12" />
+    <PathDelim Value="\" />
     <General>
-      <Title Value="fpdev.git2.adapter.basic.test"/>
-      <SessionStorage Value="InProjectDir"/>
-      <ResourceType Value="res"/>
+      <Title Value="fpdev.git2.adapter.basic.test" />
+      <SessionStorage Value="InProjectDir" />
+      <ResourceType Value="res" />
     </General>
     <BuildModes>
-      <Item Name="Default" Default="True"/>
-      <Item Name="Debug">
-        <CompilerOptions>
-          <Version Value="11"/>
-          <Target>
-            <Filename Value="bin/fpdev.git2.adapter.basic.test"/>
-          </Target>
-          <SearchPaths>
-            <IncludeFiles Value="$(ProjOutDir);../../src"/>
-            <OtherUnitFiles Value="../../src"/>
-            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
-          </SearchPaths>
-          <Parsing>
-            <SyntaxOptions>
-              <IncludeAssertionCode Value="True"/>
-            </SyntaxOptions>
-          </Parsing>
-          <CodeGeneration>
-            <Checks>
-              <IOChecks Value="True"/>
-              <RangeChecks Value="True"/>
-              <OverflowChecks Value="True"/>
-              <StackChecks Value="True"/>
-            </Checks>
-            <VerifyObjMethodCallValidity Value="True"/>
-          </CodeGeneration>
-          <Linking>
-            <Debugging>
-              <DebugInfoType Value="dsDwarf3"/>
-              <UseHeaptrc Value="True"/>
-              <TrashVariables Value="True"/>
-              <UseExternalDbgSyms Value="True"/>
-            </Debugging>
-          </Linking>
-          <Other>
-            <CompilerMessages>
-              <IgnoredMessages idx5024="True"/>
-            </CompilerMessages>
-          </Other>
-        </CompilerOptions>
-      </Item>
+      <Item Name="Default" Default="True" />
       <Item Name="Release">
         <CompilerOptions>
-          <Version Value="11"/>
+          <Version Value="11" />
           <Target>
-            <Filename Value="bin/fpdev.git2.adapter.basic.test"/>
+            <Filename Value="bin/fpdev.git2.adapter.basic.test" />
           </Target>
           <SearchPaths>
-            <IncludeFiles Value="$(ProjOutDir);../../src"/>
-            <OtherUnitFiles Value="../../src"/>
-            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+            <IncludeFiles Value="$(ProjOutDir);../../src" />
+            <OtherUnitFiles Value="../../src" />
+            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
           </SearchPaths>
           <CodeGeneration>
-            <SmartLinkUnit Value="True"/>
+            <SmartLinkUnit Value="True" />
             <Optimizations>
-              <OptimizationLevel Value="3"/>
+              <OptimizationLevel Value="3" />
             </Optimizations>
           </CodeGeneration>
           <Linking>
             <Debugging>
-              <GenerateDebugInfo Value="False"/>
+              <GenerateDebugInfo Value="False" />
             </Debugging>
-            <LinkSmart Value="True"/>
+            <LinkSmart Value="True" />
           </Linking>
+        </CompilerOptions>
+      </Item>
+      <Item Name="Debug">
+        <CompilerOptions>
+          <Version Value="11" />
+          <Target>
+            <Filename Value="bin/$(ProjectName)" />
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir);../../src" />
+            <OtherUnitFiles Value="../../src" />
+            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True" />
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <Checks>
+              <IOChecks Value="True" />
+              <RangeChecks Value="True" />
+              <OverflowChecks Value="True" />
+              <StackChecks Value="True" />
+            </Checks>
+            <VerifyObjMethodCallValidity Value="True" />
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf3" />
+              <UseHeaptrc Value="True" />
+              <TrashVariables Value="True" />
+              <UseExternalDbgSyms Value="True" />
+            </Debugging>
+          </Linking>
+          <Other>
+            <CompilerMessages>
+              <IgnoredMessages idx5024="True" />
+            </CompilerMessages>
+          </Other>
         </CompilerOptions>
       </Item>
     </BuildModes>
     <Units>
       <Unit>
-        <Filename Value="fpdev.git2.adapter.basic.test.lpr"/>
-        <IsPartOfProject Value="True"/>
+        <Filename Value="fpdev.git2.adapter.basic.test.lpr" />
+        <IsPartOfProject Value="True" />
       </Unit>
       <Unit>
-        <Filename Value="fpdev.git2.adapter.basic.testcase.pas"/>
-        <IsPartOfProject Value="True"/>
+        <Filename Value="fpdev.git2.adapter.basic.testcase.pas" />
+        <IsPartOfProject Value="True" />
       </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
-    <Version Value="11"/>
-    <PathDelim Value="\"/>
+    <Version Value="11" />
+    <PathDelim Value="\" />
     <Target>
-      <Filename Value="bin/fpdev.git2.adapter.basic.test"/>
+      <Filename Value="bin/fpdev.git2.adapter.basic.test" />
     </Target>
     <SearchPaths>
-      <IncludeFiles Value="$(ProjOutDir);../../src"/>
-      <OtherUnitFiles Value="../../src"/>
-      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      <IncludeFiles Value="$(ProjOutDir);../../src" />
+      <OtherUnitFiles Value="../../src" />
+      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
     </SearchPaths>
     <Linking>
       <Debugging>
-        <DebugInfoType Value="dsDwarf3"/>
-        <UseHeaptrc Value="True"/>
-        <TrashVariables Value="True"/>
-        <UseExternalDbgSyms Value="True"/>
+        <DebugInfoType Value="dsDwarf3" />
+        <UseHeaptrc Value="True" />
+        <TrashVariables Value="True" />
+        <UseExternalDbgSyms Value="True" />
       </Debugging>
     </Linking>
     <RequiredPackages>
       <Item>
-        <PackageName Value="FCL"/>
+        <PackageName Value="FCL" />
       </Item>
       <Item>
-        <PackageName Value="fpcunittestrunner"/>
+        <PackageName Value="fpcunittestrunner" />
       </Item>
     </RequiredPackages>
   </CompilerOptions>
 </CONFIG>
-

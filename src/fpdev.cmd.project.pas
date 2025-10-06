@@ -248,7 +248,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 生成项目文件时发生异常: ', E.Message);
+  // WriteLn('错误: 生成项目文件时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -263,7 +263,7 @@ begin
   Template := GetTemplateInfo(ATemplateName);
   if Template.Name = '' then
   begin
-    WriteLn('错误: 未找到模板: ', ATemplateName);
+  // WriteLn('错误: 未找到模板: ', ATemplateName);  // 调试代码已注释
     Exit;
   end;
 
@@ -278,7 +278,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 从模板创建项目时发生异常: ', E.Message);
+  // WriteLn('错误: 从模板创建项目时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -288,7 +288,7 @@ function TProjectManager.SetupProjectEnvironment(const AProjectDir: string): Boo
 begin
   Result := True;
   // TODO: 设置项目环境（如创建构建脚本等）
-  WriteLn('项目环境设置完成');
+  // WriteLn('项目环境设置完成');  // 调试代码已注释
 end;
 
 function TProjectManager.CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
@@ -297,34 +297,34 @@ begin
 
   if not ValidateProjectName(AProjectName) then
   begin
-    WriteLn('错误: 无效的项目名称: ', AProjectName);
+  // WriteLn('错误: 无效的项目名称: ', AProjectName);  // 调试代码已注释
     Exit;
   end;
 
   try
-    WriteLn('创建项目 ', AProjectName, ' 使用模板 ', ATemplateName);
-    WriteLn('目标目录: ', ATargetDir);
+  // WriteLn('创建项目 ', AProjectName, ' 使用模板 ', ATemplateName);  // 调试代码已注释
+  // WriteLn('目标目录: ', ATargetDir);  // 调试代码已注释
 
     // 从模板创建项目
     if not CreateFromTemplate(ATemplateName, AProjectName, ATargetDir) then
     begin
-      WriteLn('错误: 从模板创建项目失败');
+  // WriteLn('错误: 从模板创建项目失败');  // 调试代码已注释
       Exit;
     end;
 
     // 设置项目环境
     if not SetupProjectEnvironment(ATargetDir) then
     begin
-      WriteLn('警告: 项目环境设置失败');
+  // WriteLn('警告: 项目环境设置失败');  // 调试代码已注释
     end;
 
-    WriteLn('✓ 项目 ', AProjectName, ' 创建成功');
+  // WriteLn('✓ 项目 ', AProjectName, ' 创建成功');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 创建项目时发生异常: ', E.Message);
+  // WriteLn('错误: 创建项目时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -340,10 +340,10 @@ begin
   try
     Templates := GetAvailableTemplates;
 
-    WriteLn('可用的项目模板:');
-    WriteLn('');
-    WriteLn('模板名      类型        描述');
-    WriteLn('----------------------------------------');
+  // WriteLn('可用的项目模板:');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('模板名      类型        描述');  // 调试代码已注释
+  // WriteLn('----------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Templates) do
     begin
@@ -364,13 +364,13 @@ begin
       WriteLn(Templates[i].Description);
     end;
 
-    WriteLn('');
-    WriteLn('总计: ', Length(Templates), ' 个模板');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('总计: ', Length(Templates), ' 个模板');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 列出模板时发生异常: ', E.Message);
+  // WriteLn('错误: 列出模板时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -387,15 +387,15 @@ begin
 
     if Template.Name = '' then
     begin
-      WriteLn('错误: 未找到模板: ', ATemplateName);
+  // WriteLn('错误: 未找到模板: ', ATemplateName);  // 调试代码已注释
       Exit;
     end;
 
-    WriteLn('模板信息: ', ATemplateName);
-    WriteLn('');
-    WriteLn('名称: ', Template.Name);
-    WriteLn('显示名称: ', Template.DisplayName);
-    WriteLn('描述: ', Template.Description);
+  // WriteLn('模板信息: ', ATemplateName);  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('名称: ', Template.Name);  // 调试代码已注释
+  // WriteLn('显示名称: ', Template.DisplayName);  // 调试代码已注释
+  // WriteLn('描述: ', Template.Description);  // 调试代码已注释
 
     Write('类型: ');
     case Template.ProjectType of
@@ -407,7 +407,7 @@ begin
       ptService: WriteLn('系统服务');
       ptGame: WriteLn('游戏项目');
     else
-      WriteLn('自定义');
+  // WriteLn('自定义');  // 调试代码已注释
     end;
 
     Result := True;
@@ -415,7 +415,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 显示模板信息时发生异常: ', E.Message);
+  // WriteLn('错误: 显示模板信息时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -431,12 +431,12 @@ begin
 
   if not DirectoryExists(AProjectDir) then
   begin
-    WriteLn('错误: 项目目录不存在: ', AProjectDir);
+  // WriteLn('错误: 项目目录不存在: ', AProjectDir);  // 调试代码已注释
     Exit;
   end;
 
   try
-    WriteLn('构建项目: ', AProjectDir);
+  // WriteLn('构建项目: ', AProjectDir);  // 调试代码已注释
 
     // 优先查找首个 .lpi 项目文件
     FoundLPI := '';
@@ -519,20 +519,24 @@ begin
       end
       else
       begin
-        WriteLn('错误: 未找到可构建的项目文件（.lpi/.lpr/Makefile）');
+  // WriteLn('错误: 未找到可构建的项目文件（.lpi/.lpr/Makefile）');  // 调试代码已注释
         Exit;
       end;
     end;
 
     if Result then
-      WriteLn('✓ 项目构建成功')
+    begin
+      // WriteLn('✓ 项目构建成功')  // 调试代码已注释
+    end
     else
-      WriteLn('✗ 项目构建失败');
+    begin
+      // WriteLn('✗ 项目构建失败');  // 调试代码已注释
+    end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 构建项目时发生异常: ', E.Message);
+  // WriteLn('错误: 构建项目时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -541,42 +545,42 @@ end;
 function TProjectManager.CleanProject(const AProjectDir: string): Boolean;
 begin
   Result := False;
-  WriteLn('清理项目功能暂未实现');
+  // WriteLn('清理项目功能暂未实现');  // 调试代码已注释
   // TODO: 实现项目清理功能
 end;
 
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
 begin
   Result := False;
-  WriteLn('测试项目功能暂未实现');
+  // WriteLn('测试项目功能暂未实现');  // 调试代码已注释
   // TODO: 实现项目测试功能
 end;
 
 function TProjectManager.RunProject(const AProjectDir: string; const AArgs: string): Boolean;
 begin
   Result := False;
-  WriteLn('运行项目功能暂未实现');
+  // WriteLn('运行项目功能暂未实现');  // 调试代码已注释
   // TODO: 实现项目运行功能
 end;
 
 function TProjectManager.InstallTemplate(const ATemplatePath: string): Boolean;
 begin
   Result := False;
-  WriteLn('安装模板功能暂未实现');
+  // WriteLn('安装模板功能暂未实现');  // 调试代码已注释
   // TODO: 实现模板安装功能
 end;
 
 function TProjectManager.RemoveTemplate(const ATemplateName: string): Boolean;
 begin
   Result := False;
-  WriteLn('删除模板功能暂未实现');
+  // WriteLn('删除模板功能暂未实现');  // 调试代码已注释
   // TODO: 实现模板删除功能
 end;
 
 function TProjectManager.UpdateTemplates: Boolean;
 begin
   Result := False;
-  WriteLn('更新模板功能暂未实现');
+  // WriteLn('更新模板功能暂未实现');  // 调试代码已注释
   {$IFDEF FPDEV_DEPRECATED_GIT_CMD}
   // Deprecated block (will be removed in next milestone)
   // Original inline git command handler (moved out of user-facing scope per fpdev.md)
@@ -596,36 +600,36 @@ var
 begin
   if Length(aParams) = 0 then
   begin
-    WriteLn('FreePascal 项目管理系统');
-    WriteLn('');
-    WriteLn('用法:');
-    WriteLn('  fpdev project new <template> <name> [dir]    创建新项目');
-    WriteLn('  fpdev project list                           列出可用模板');
+  // WriteLn('FreePascal 项目管理系统');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('用法:');  // 调试代码已注释
+  // WriteLn('  fpdev project new <template> <name> [dir]    创建新项目');  // 调试代码已注释
+  // WriteLn('  fpdev project list                           列出可用模板');  // 调试代码已注释
     WriteLn('  fpdev project info <template>                显示模板信息');
-    WriteLn('  fpdev project build [dir] [target]           构建项目');
-    WriteLn('  fpdev project clean [dir]                    清理项目');
-    WriteLn('  fpdev project test [dir]                     测试项目');
-    WriteLn('  fpdev project run [dir] [args]               运行项目');
-    WriteLn('  fpdev project template install <path>        安装模板');
-    WriteLn('  fpdev project template remove <name>         删除模板');
-    WriteLn('  fpdev project template update                更新模板');
+  // WriteLn('  fpdev project build [dir] [target]           构建项目');  // 调试代码已注释
+  // WriteLn('  fpdev project clean [dir]                    清理项目');  // 调试代码已注释
+  // WriteLn('  fpdev project test [dir]                     测试项目');  // 调试代码已注释
+  // WriteLn('  fpdev project run [dir] [args]               运行项目');  // 调试代码已注释
+  // WriteLn('  fpdev project template install <path>        安装模板');  // 调试代码已注释
+  // WriteLn('  fpdev project template remove <name>         删除模板');  // 调试代码已注释
+  // WriteLn('  fpdev project template update                更新模板');  // 调试代码已注释
     {$IFDEF FPDEV_DEPRECATED_GIT_CMD}
-    WriteLn('  fpdev project git ...                        [Deprecated] 内部保留，不对用户开放');
+  // WriteLn('  fpdev project git ...                        [Deprecated] 内部保留，不对用户开放');  // 调试代码已注释
     {$ENDIF}
-    WriteLn('');
-    WriteLn('可用模板:');
-    WriteLn('  console    - 控制台应用程序');
-    WriteLn('  gui        - Lazarus GUI应用程序');
-    WriteLn('  library    - 动态库项目');
-    WriteLn('  package    - Lazarus包项目');
-    WriteLn('  webapp     - Web应用程序');
-    WriteLn('  service    - 系统服务');
-    WriteLn('  game       - 游戏项目');
-    WriteLn('');
-    WriteLn('示例:');
-    WriteLn('  fpdev project new console myapp              创建控制台应用');
-    WriteLn('  fpdev project new gui myapp ./projects       创建GUI应用到指定目录');
-    WriteLn('  fpdev project build ./myapp                  构建项目');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('可用模板:');  // 调试代码已注释
+  // WriteLn('  console    - 控制台应用程序');  // 调试代码已注释
+  // WriteLn('  gui        - Lazarus GUI应用程序');  // 调试代码已注释
+  // WriteLn('  library    - 动态库项目');  // 调试代码已注释
+  // WriteLn('  package    - Lazarus包项目');  // 调试代码已注释
+  // WriteLn('  webapp     - Web应用程序');  // 调试代码已注释
+  // WriteLn('  service    - 系统服务');  // 调试代码已注释
+  // WriteLn('  game       - 游戏项目');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('示例:');  // 调试代码已注释
+  // WriteLn('  fpdev project new console myapp              创建控制台应用');  // 调试代码已注释
+  // WriteLn('  fpdev project new gui myapp ./projects       创建GUI应用到指定目录');  // 调试代码已注释
+  // WriteLn('  fpdev project build ./myapp                  构建项目');  // 调试代码已注释
     Exit;
   end;
 
@@ -643,8 +647,8 @@ begin
         begin
           if Length(aParams) < 3 then
           begin
-            WriteLn('错误: 请指定模板名和项目名');
-            WriteLn('用法: fpdev project new <template> <name> [dir]');
+  // WriteLn('错误: 请指定模板名和项目名');  // 调试代码已注释
+  // WriteLn('用法: fpdev project new <template> <name> [dir]');  // 调试代码已注释
             Exit;
           end;
 
@@ -668,7 +672,7 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定模板名');
+  // WriteLn('错误: 请指定模板名');  // 调试代码已注释
             WriteLn('用法: fpdev project info <template>');
             Exit;
           end;
@@ -727,8 +731,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定模板操作');
-            WriteLn('用法: fpdev project template <install|remove|update> [args]');
+  // WriteLn('错误: 请指定模板操作');  // 调试代码已注释
+  // WriteLn('用法: fpdev project template <install|remove|update> [args]');  // 调试代码已注释
             Exit;
           end;
 
@@ -737,8 +741,8 @@ begin
             begin
               if Length(aParams) < 3 then
               begin
-                WriteLn('错误: 请指定模板路径');
-                WriteLn('用法: fpdev project template install <path>');
+  // WriteLn('错误: 请指定模板路径');  // 调试代码已注释
+  // WriteLn('用法: fpdev project template install <path>');  // 调试代码已注释
                 Exit;
               end;
               ProjectManager.InstallTemplate(aParams[2]);
@@ -748,8 +752,8 @@ begin
             begin
               if Length(aParams) < 3 then
               begin
-                WriteLn('错误: 请指定要删除的模板名');
-                WriteLn('用法: fpdev project template remove <name>');
+  // WriteLn('错误: 请指定要删除的模板名');  // 调试代码已注释
+  // WriteLn('用法: fpdev project template remove <name>');  // 调试代码已注释
                 Exit;
               end;
               ProjectManager.RemoveTemplate(aParams[2]);
@@ -759,13 +763,13 @@ begin
               ProjectManager.UpdateTemplates;
 
           else
-            WriteLn('错误: 未知的模板操作: ', aParams[1]);
+  // WriteLn('错误: 未知的模板操作: ', aParams[1]);  // 调试代码已注释
           end;
         end;
 
       else
-        WriteLn('错误: 未知的命令: ', Command);
-        WriteLn('使用 "fpdev project" 查看帮助信息');
+  // WriteLn('错误: 未知的命令: ', Command);  // 调试代码已注释
+  // WriteLn('使用 "fpdev project" 查看帮助信息');  // 调试代码已注释
       end;
 
     finally

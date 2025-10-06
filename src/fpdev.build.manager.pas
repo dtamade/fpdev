@@ -22,8 +22,16 @@ type
     FStrictResults: Boolean; // 严格模式：更严格的沙箱产物校验
     FStrictConfigPath: string; // 严格模式配置文件路径（可选）
     FDryRun: Boolean; // 演练模式：仅打印命令，不执行
+    FToolchainStrict: Boolean; // 工具链严格校验（失败则阻断）
+    // make 与目标/前缀配置（可选）
+    FMakeCmd: string;              // 自定义 make 命令（留空则自动探测）
+    FCPU_TARGET: string;           // 目标 CPU（可选）
+    FOS_TARGET: string;            // 目标 OS（可选）
+    FPREFIX: string;               // 安装前缀（可选，Install 时若设置将覆盖默认）
+    FINSTALL_PREFIX: string;       // 安装前缀（可选，Install 时若设置将覆盖默认）
     function GetSourcePath(const AVersion: string): string;
     function HasTool(const AExe: string; const AArgs: array of string): Boolean;
+    function ResolveMakeCmd: string;
     function RunMake(const ASourcePath: string; const ATargets: array of string): Boolean;
     procedure Log(const ALine: string);
     procedure EnsureDir(const APath: string);
@@ -44,6 +52,11 @@ type
     procedure SetStrictResults(AEnable: Boolean);
     procedure SetStrictConfigPath(const APath: string);
     procedure SetDryRun(AEnable: Boolean);
+    procedure SetToolchainStrict(AEnable: Boolean);
+    // 可选增强配置
+    procedure SetMakeCmd(const ACmd: string);
+    procedure SetTarget(const ACpu, AOs: string);
+    procedure SetPrefix(const APrefix, AInstallPrefix: string);
     property LogFileName: string read GetLogFileName;
     function BuildCompiler(const AVersion: string): Boolean;
     function BuildRTL(const AVersion: string): Boolean;
@@ -51,12 +64,14 @@ type
     function Configure(const AVersion: string): Boolean;
     function TestResults(const AVersion: string): Boolean;
     function Preflight(const AVersion: string): Boolean;
+    // 环境体检（纯代码实现，不依赖脚本）
+    function CheckToolchain: Boolean;
   end;
 
 implementation
 
 uses
-  Process, IniFiles, DateUtils;
+  Process, IniFiles, DateUtils, fpdev.toolchain;
 
 constructor TBuildManager.Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
 begin
@@ -71,6 +86,12 @@ begin
   FStrictResults := False;
   FStrictConfigPath := '';
   FDryRun := False;
+  FToolchainStrict := False;
+  FMakeCmd := '';
+  FCPU_TARGET := '';
+  FOS_TARGET := '';
+  FPREFIX := '';
+  FINSTALL_PREFIX := '';
   EnsureDir(FSandboxRoot);
   EnsureDir(FLogDir);
 end;
@@ -110,6 +131,12 @@ procedure TBuildManager.SetDryRun(AEnable: Boolean);
 begin
   FDryRun := AEnable;
   Log('DryRun set to ' + BoolToStr(FDryRun, True));
+end;
+
+procedure TBuildManager.SetToolchainStrict(AEnable: Boolean);
+begin
+  FToolchainStrict := AEnable;
+  Log('ToolchainStrict set to ' + BoolToStr(FToolchainStrict, True));
 end;
 
 function TBuildManager.DirHasAnyFile(const APath: string): Boolean;
@@ -239,6 +266,33 @@ var
   LReqPrefix, LReqExt: TStringList;
   LMinCountBin, LMinCountLib: Integer;
   LRequireSubdir: Boolean;
+  // added non-inline locals
+  LDemoPath: string;
+  LSandboxCfg: string;
+  LShareRequired: Boolean;
+  LShareMin: Integer;
+  LShareRequireSubdir: Boolean;
+  LShareReqSub: string;
+  LShare: string;
+  LHasCfg: Boolean;
+  LRequireCfg: Boolean;
+  LCfgFound: string;
+  k: Integer;
+  SR: TSearchRec;
+  LCfgList: TStringList;
+  LRel, LFull: string;
+  LIncRel: string;
+  LIncRequired: Boolean;
+  LIncMin: Integer;
+  LIncRequireSubdir: Boolean;
+  LIncReqSub: string;
+  LIncDir: string;
+  LDocRel: string;
+  LDocRequired: Boolean;
+  LDocMin: Integer;
+  LDocRequireSubdir: Boolean;
+  LDocReqSub: string;
+  LDocDir: string;
   function ReadCSV(const S: string): TStringList;
   var L: TStringList;
   begin
@@ -261,13 +315,13 @@ begin
   end;
   if (LIniPath = '') then
   begin
-    var LDemoPath := IncludeTrailingPathDelimiter('plays') + 'fpdev.build.manager.demo' + PathDelim + 'build-manager.strict.ini';
+    LDemoPath := IncludeTrailingPathDelimiter('plays') + 'fpdev.build.manager.demo' + PathDelim + 'build-manager.strict.ini';
     if FileExists(LDemoPath) then
       LIniPath := LDemoPath;
   end;
   if (LIniPath = '') then
   begin
-    var LSandboxCfg := IncludeTrailingPathDelimiter(ASandboxDest) + 'build-manager.strict.ini';
+    LSandboxCfg := IncludeTrailingPathDelimiter(ASandboxDest) + 'build-manager.strict.ini';
     if FileExists(LSandboxCfg) then
       LIniPath := LSandboxCfg;
   end;
@@ -326,11 +380,11 @@ begin
     else begin Log('FAIL: [lib] directory not found: ' + LLib); Exit(False); end;
 
     // share 规则（可选）
-    var LShareRequired := Ini.ReadBool('share', 'required', False);
-    var LShareMin := Ini.ReadInteger('share', 'min_count', 0);
-    var LShareRequireSubdir := Ini.ReadBool('share', 'require_subdir', False);
-    var LShareReqSub := Ini.ReadString('share', 'required_subdir', '');
-    var LShare := IncludeTrailingPathDelimiter(ASandboxDest) + 'share';
+    LShareRequired := Ini.ReadBool('share', 'required', False);
+    LShareMin := Ini.ReadInteger('share', 'min_count', 0);
+    LShareRequireSubdir := Ini.ReadBool('share', 'require_subdir', False);
+    LShareReqSub := Ini.ReadString('share', 'required_subdir', '');
+    LShare := IncludeTrailingPathDelimiter(ASandboxDest) + 'share';
     if LShareRequired then
     begin
       if not DirectoryExists(LShare) then begin Log('FAIL: [share] directory not found: ' + LShare); if FLogVerbosity > 0 then Log('hint: [share] expected dir: ' + LShare); Exit(False); end;
@@ -344,24 +398,22 @@ begin
     end;
 
     // fpc.cfg 规则（可选）
-    var LRequireCfg := Ini.ReadBool('fpc', 'require_cfg', False);
-    var LCfgList := ReadCSV(Ini.ReadString('fpc', 'cfg_relative_list', 'etc/fpc.cfg,lib/fpc/fpc.cfg'));
+    LRequireCfg := Ini.ReadBool('fpc', 'require_cfg', False);
+    LCfgList := ReadCSV(Ini.ReadString('fpc', 'cfg_relative_list', 'etc/fpc.cfg,lib/fpc/fpc.cfg'));
     if LRequireCfg then
     begin
-      var LHasCfg := False;
-      var LCfgFound := '';
-      var k: Integer;
+      LHasCfg := False;
+      LCfgFound := '';
       for k := 0 to LCfgList.Count-1 do
       begin
-        var LRel := StringReplace(LCfgList[k], '/', PathDelim, [rfReplaceAll]);
-        var LFull := IncludeTrailingPathDelimiter(ASandboxDest) + LRel;
+        LRel := StringReplace(LCfgList[k], '/', PathDelim, [rfReplaceAll]);
+        LFull := IncludeTrailingPathDelimiter(ASandboxDest) + LRel;
         if FileExists(LFull) then begin LHasCfg := True; LCfgFound := LFull; Break; end;
       end;
       if not LHasCfg then begin Log('FAIL: [fpc] missing fpc.cfg in cfg_relative_list'); if FLogVerbosity > 0 then begin Log('hint: [fpc] tried list=' + Ini.ReadString('fpc','cfg_relative_list','etc/fpc.cfg,lib/fpc/fpc.cfg')); Log('hint: [fpc] root=' + ASandboxDest); end; Exit(False); end;
       // 轻量内容检查：要求 fpc.cfg 非空
       if LCfgFound <> '' then
       begin
-        var SR: TSearchRec;
         if FindFirst(LCfgFound, faAnyFile, SR) = 0 then
         begin
           try
@@ -374,12 +426,12 @@ begin
     end;
 
     // include 规则（可选，可配置相对目录）
-    var LIncRel := Ini.ReadString('include', 'relative_dir', 'include');
-    var LIncRequired := Ini.ReadBool('include', 'required', False);
-    var LIncMin := Ini.ReadInteger('include', 'min_count', 0);
-    var LIncRequireSubdir := Ini.ReadBool('include', 'require_subdir', False);
-    var LIncReqSub := Ini.ReadString('include', 'required_subdir', '');
-    var LIncDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LIncRel, '/', PathDelim, [rfReplaceAll]);
+    LIncRel := Ini.ReadString('include', 'relative_dir', 'include');
+    LIncRequired := Ini.ReadBool('include', 'required', False);
+    LIncMin := Ini.ReadInteger('include', 'min_count', 0);
+    LIncRequireSubdir := Ini.ReadBool('include', 'require_subdir', False);
+    LIncReqSub := Ini.ReadString('include', 'required_subdir', '');
+    LIncDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LIncRel, '/', PathDelim, [rfReplaceAll]);
     if LIncRequired then
     begin
       if not DirectoryExists(LIncDir) then begin Log('FAIL: [include] directory not found: ' + LIncDir); if FLogVerbosity > 0 then Log('hint: [include] expected dir: ' + LIncDir); Exit(False); end;
@@ -393,12 +445,12 @@ begin
     end;
 
     // doc 规则（可选，可配置相对目录）
-    var LDocRel := Ini.ReadString('doc', 'relative_dir', 'doc');
-    var LDocRequired := Ini.ReadBool('doc', 'required', False);
-    var LDocMin := Ini.ReadInteger('doc', 'min_count', 0);
-    var LDocRequireSubdir := Ini.ReadBool('doc', 'require_subdir', False);
-    var LDocReqSub := Ini.ReadString('doc', 'required_subdir', '');
-    var LDocDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LDocRel, '/', PathDelim, [rfReplaceAll]);
+    LDocRel := Ini.ReadString('doc', 'relative_dir', 'doc');
+    LDocRequired := Ini.ReadBool('doc', 'required', False);
+    LDocMin := Ini.ReadInteger('doc', 'min_count', 0);
+    LDocRequireSubdir := Ini.ReadBool('doc', 'require_subdir', False);
+    LDocReqSub := Ini.ReadString('doc', 'required_subdir', '');
+    LDocDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LDocRel, '/', PathDelim, [rfReplaceAll]);
     if LDocRequired then
     begin
       if not DirectoryExists(LDocDir) then begin Log('FAIL: [doc] directory not found: ' + LDocDir); if FLogVerbosity > 0 then Log('hint: [doc] expected dir: ' + LDocDir); Exit(False); end;
@@ -455,6 +507,69 @@ begin
   Log('Summary: version=' + AVersion + ' context=' + AContext + ' result=' + AResult + ' elapsed_ms=' + IntToStr(AElapsedMs));
 end;
 
+function TBuildManager.CheckToolchain: Boolean;
+var
+  LIssues: TStringList;
+  LStart: TDateTime;
+  Ok: Boolean;
+  Line: string;
+  i: Integer;
+  LRes: string;
+  function Check(const ACmd, AProbeArg: string; out AOk: Boolean; out ALine: string): Boolean;
+  var ExitCode: Integer;
+  begin
+    try
+      if AProbeArg <> '' then ExitCode := ExecuteProcess(ACmd, [AProbeArg])
+      else ExitCode := ExecuteProcess(ACmd, []);
+      AOk := (ExitCode = 0);
+    except
+      AOk := False;
+    end;
+    if AOk then ALine := '[ OK ] ' + ACmd else ALine := '[MISS] ' + ACmd;
+    Result := AOk;
+  end;
+begin
+  LStart := Now;
+  LIssues := TStringList.Create;
+  try
+    Log('== Toolchain Check START');
+    // 按平台尝试若干常见工具
+    Ok := False; Line := '';
+    // 构建工具
+    Check('fpc','-iV', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogVerbosity>0 then Log(Line);
+    Check('lazbuild','--version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogVerbosity>0 then Log(Line);
+    // make 族
+    {$IFDEF MSWINDOWS}
+    if not Check('mingw32-make','--version', Ok, Line) then
+      if not Check('make','--version', Ok, Line) then
+        if not Check('gmake','--version', Ok, Line) then LIssues.Add('[MISS] make-family');
+    {$ELSE}
+    if not Check('gmake','--version', Ok, Line) then
+      if not Check('make','--version', Ok, Line) then LIssues.Add('[MISS] make-family');
+    {$ENDIF}
+    // 版本控制/SSL（可选）
+    Check('git','--version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogVerbosity>0 then Log(Line);
+    Check('openssl','version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogVerbosity>0 then Log(Line);
+    // 各平台编译器前端（可选）
+    Check('ppc386','', Ok, Line); if not Ok then if FLogVerbosity>0 then Log(Line);
+    Check('ppcx64','', Ok, Line); if not Ok then if FLogVerbosity>0 then Log(Line);
+    Check('ppcarm','', Ok, Line); if not Ok then if FLogVerbosity>0 then Log(Line);
+    Result := (LIssues.Count = 0);
+    if Result then Log('== Toolchain Check END OK') else
+    begin
+      Log('== Toolchain Check END FAIL issues=' + IntToStr(LIssues.Count));
+      if FLogVerbosity>0 then
+      begin
+        for i:=0 to LIssues.Count-1 do Log('issue: ' + LIssues[i]);
+      end;
+    end;
+    if Result then LRes := 'OK' else LRes := 'FAIL';
+    LogTestSummary('n/a','toolchain', LRes, MilliSecondsBetween(Now, LStart));
+  finally
+    LIssues.Free;
+  end;
+end;
+
 function TBuildManager.HasTool(const AExe: string; const AArgs: array of string): Boolean;
 var
   LExit: Integer;
@@ -465,6 +580,35 @@ begin
   except
     Result := False;
   end;
+end;
+
+function TBuildManager.ResolveMakeCmd: string;
+begin
+  // 优先级：自定义 → mingw32-make → gmake → make
+  if FMakeCmd <> '' then Exit(FMakeCmd);
+  {$IFDEF MSWINDOWS}
+  if HasTool('mingw32-make', ['--version']) then Exit('mingw32-make');
+  {$ENDIF}
+  if HasTool('gmake', ['--version']) then Exit('gmake');
+  if HasTool('make', ['--version']) then Exit('make');
+  Result := 'make'; // 回退（后续 RunMake 会再次验证可用性）
+end;
+
+procedure TBuildManager.SetMakeCmd(const ACmd: string);
+begin
+  FMakeCmd := Trim(ACmd);
+end;
+
+procedure TBuildManager.SetTarget(const ACpu, AOs: string);
+begin
+  FCPU_TARGET := Trim(ACpu);
+  FOS_TARGET := Trim(AOs);
+end;
+
+procedure TBuildManager.SetPrefix(const APrefix, AInstallPrefix: string);
+begin
+  FPREFIX := Trim(APrefix);
+  FINSTALL_PREFIX := Trim(AInstallPrefix);
 end;
 
 procedure TBuildManager.Log(const ALine: string);
@@ -503,24 +647,33 @@ var
   LArgs: array of string;
   i, LIdx: Integer;
   LJobs: string;
+  LMake: string;
   LMakeVer: Integer;
 begin
   Result := False;
   if not DirectoryExists(ASourcePath) then Exit(False);
-  LMakeVer := ExecuteProcess('make', ['--version']);
+  // 解析 make 命令（去除内联变量）
+  LMake := ResolveMakeCmd;
+  LMakeVer := ExecuteProcess(LMake, ['--version']);
   if LMakeVer <> 0 then
   begin
-    Log('未检测到 make，跳过实际构建');
+    Log('未检测到 make（' + LMake + '），跳过实际构建');
     Exit(True); // 安全起见：不阻塞后续流程
   end;
   // 组合参数：-C <dir> -jN <targets>
   if FParallelJobs <= 0 then FParallelJobs := 1;
   if FParallelJobs > 16 then FParallelJobs := 16;
   LJobs := IntToStr(FParallelJobs);
-  SetLength(LArgs, 2 + Length(ATargets) + 2);
+  // 预留 额外变量位：CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX
+  SetLength(LArgs, 2 + 2 + 4 + Length(ATargets));
   LArgs[0] := '-C'; LArgs[1] := ASourcePath;
   LArgs[2] := '-j' + LJobs;
   LIdx := 3;
+  if FCPU_TARGET <> '' then begin LArgs[LIdx] := 'CPU_TARGET=' + FCPU_TARGET; Inc(LIdx); end;
+  if FOS_TARGET <> '' then begin LArgs[LIdx] := 'OS_TARGET=' + FOS_TARGET; Inc(LIdx); end;
+  // PREFIX/INSTALL_PREFIX 如设置则带入（Install 时仍会显式覆盖）
+  if FPREFIX <> '' then begin LArgs[LIdx] := 'PREFIX=' + FPREFIX; Inc(LIdx); end;
+  if FINSTALL_PREFIX <> '' then begin LArgs[LIdx] := 'INSTALL_PREFIX=' + FINSTALL_PREFIX; Inc(LIdx); end;
   for i := Low(ATargets) to High(ATargets) do
   begin
     LArgs[LIdx] := ATargets[i];
@@ -538,38 +691,44 @@ begin
     Log('dry-run: skipped make execution');
     Exit(True);
   end;
-  Result := ExecuteProcess('make', LArgs) = 0;
+  Result := ExecuteProcess(ResolveMakeCmd, LArgs) = 0;
 end;
 
 function TBuildManager.BuildCompiler(const AVersion: string): Boolean;
 var
   LSrc: string;
+  LStart: TDateTime;
+  LMs: Integer;
 begin
   LSrc := GetSourcePath(AVersion);
   Log('== BuildCompiler START version=' + AVersion + ' src=' + LSrc);
   if FLogVerbosity > 0 then LogEnvSnapshot;
-  var LStart := Now;
+  LStart := Now;
   Result := RunMake(LSrc, ['clean','compiler']);
-  var LMs := MilliSecondsBetween(Now, LStart);
+  LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== BuildCompiler END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildCompiler END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
 
 function TBuildManager.BuildRTL(const AVersion: string): Boolean;
 var
   LSrc: string;
+  LStart: TDateTime;
+  LMs: Integer;
 begin
   LSrc := GetSourcePath(AVersion);
   Log('== BuildRTL START version=' + AVersion + ' src=' + LSrc);
   if FLogVerbosity > 0 then LogEnvSnapshot;
-  var LStart := Now;
+  LStart := Now;
   Result := RunMake(LSrc, ['rtl']);
-  var LMs := MilliSecondsBetween(Now, LStart);
+  LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== BuildRTL END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildRTL END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
 
 function TBuildManager.Install(const AVersion: string): Boolean;
 var
   LSrc, LDest: string;
+  LStart: TDateTime;
+  LMs: Integer;
 begin
   if not FAllowInstall then
   begin
@@ -581,10 +740,10 @@ begin
   EnsureDir(LDest);
   Log('== Install START version=' + AVersion + ' src=' + LSrc + ' dest=' + LDest);
   if FLogVerbosity > 0 then LogEnvSnapshot;
-  var LStart := Now;
+  LStart := Now;
   // 将安装目标定向到沙箱（尝试常见变量：DESTDIR/PREFIX），具体支持取决于上游 Makefile
   Result := RunMake(LSrc, ['DESTDIR=' + LDest, 'PREFIX=' + LDest, 'INSTALL_PREFIX=' + LDest, 'install']);
-  var LMs := MilliSecondsBetween(Now, LStart);
+  LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== Install END OK elapsed_ms=' + IntToStr(LMs)) else Log('== Install END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
 
@@ -598,11 +757,13 @@ function TBuildManager.TestResults(const AVersion: string): Boolean;
 var
   LSrc, LCompilerPath, LRTLPath: string;
   LDest, LBin, LLib: string;
+  LStart: TDateTime;
 begin
   // 优先校验沙箱安装（仅在允许安装时）
   if FAllowInstall then
   begin
-    var LStart := Now;
+    // 耗时统计：去除内联变量
+    LStart := Now;
     LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
     LBin := IncludeTrailingPathDelimiter(LDest) + 'bin';
     LLib := IncludeTrailingPathDelimiter(LDest) + 'lib';
@@ -660,8 +821,12 @@ var
   LSrc, LDestRoot: string;
   LIssues: TStringList;
   LHasMake, LSrcOk, LSandOk, LLogOk: Boolean;
+  LJson: string;
+  LStatus, LReason, LMin, LRec, LFpcVer: string;
+  LStart: TDateTime;
+  i: integer;
 begin
-  var LStart := Now;
+  LStart := Now;
   Log('== Preflight START version=' + AVersion + ' srcRoot=' + FSourceRoot + ' sandbox=' + FSandboxRoot + ' logDir=' + FLogDir);
   if FLogVerbosity > 0 then LogEnvSnapshot;
   LIssues := TStringList.Create;
@@ -671,9 +836,26 @@ begin
     LSrcOk := DirectoryExists(LSrc);
     if not LSrcOk then LIssues.Add('source not found: ' + LSrc);
 
-    // make 可用性
-    LHasMake := HasTool('make', ['--version']);
-    if not LHasMake then LIssues.Add('make not available');
+    // 工具链严格校验（可选）
+    if FToolchainStrict then
+    begin
+      // 先做 FPC 版本策略校验：不满足直接加入问题
+      if not CheckFPCVersionPolicy(AVersion, LStatus, LReason, LMin, LRec, LFpcVer) then
+        LIssues.Add(Format('fpc policy FAIL: src=%s current=%s min=%s rec=%s reason=%s',[AVersion, LFpcVer, LMin, LRec, LReason]))
+      else if (LStatus <> 'OK') and (FLogVerbosity > 0) then
+        Log(Format('fpc policy %s: current=%s min=%s rec=%s',[LStatus, LFpcVer, LMin, LRec]));
+
+      // 再做 HostReady 工具链体检
+      LJson := BuildToolchainReportJSON; // 仅构建 JSON；若要写文件，可在外层处理
+      if Pos('"level":"FAIL"', LJson) > 0 then
+        LIssues.Add('toolchain check failed');
+    end
+    else
+    begin
+      // 宽松：仅检查 make 存在
+      LHasMake := HasTool('make', ['--version']);
+      if not LHasMake then LIssues.Add('make not available');
+    end;
 
     // 目标与日志目录可写
     EnsureDir(FSandboxRoot);
@@ -712,7 +894,6 @@ begin
       Log('== Preflight END FAIL issues=' + IntToStr(LIssues.Count));
       if FLogVerbosity > 0 then
       begin
-        var i: Integer;
         for i := 0 to LIssues.Count-1 do Log('issue: ' + LIssues[i]);
       end;
       LogTestSummary(AVersion, 'preflight', 'FAIL', MilliSecondsBetween(Now, LStart));

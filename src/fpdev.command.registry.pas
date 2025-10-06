@@ -39,6 +39,8 @@ type
     // New path-based API
     procedure RegisterPath(const APath: array of string; AFactory: TCommandFactory; const Aliases: array of string);
     function DispatchPath(const AArgs: array of string; const Ctx: ICommandContext): Integer;
+    // 列出指定路径节点下的子命令名；路径为空表示根
+    function ListChildren(const APath: array of string): TStringArray;
   end;
 
 function GlobalCommandRegistry: TCommandRegistry;
@@ -162,17 +164,35 @@ begin
   end
   else
   begin
-    // 自动帮助：列出当前节点子命令（若无可执行前缀）
-    if (Node <> nil) and (Node.Children.Count > 0) then
-    begin
-      WriteLn('可用子命令:');
-      for i := 0 to Node.Children.Count-1 do
-        WriteLn('  ', Node.Children[i]);
-      Result := 0;
-    end
-    else
-      Result := 1;
+    // 未匹配到可执行命令：返回非0，交由上层输出帮助/错误
+    Result := 1;
   end;
+end;
+
+function TCommandRegistry.ListChildren(const APath: array of string): TStringArray;
+var
+  Node, Child: TCommandNode;
+  i: Integer;
+begin
+  Node := FRoot;
+  for i := Low(APath) to High(APath) do
+  begin
+    if (APath[i] = '') then Continue;
+    Node := Node.FindChild(LowerCase(APath[i]));
+    if Node = nil then
+    begin
+      SetLength(Result, 0);
+      Exit;
+    end;
+  end;
+  if (Node <> nil) and (Node.Children.Count > 0) then
+  begin
+    SetLength(Result, Node.Children.Count);
+    for i := 0 to Node.Children.Count-1 do
+      Result[i] := Node.Children[i];
+  end
+  else
+    SetLength(Result, 0);
 end;
 
 
@@ -217,6 +237,9 @@ begin
     GRegistry := TCommandRegistry.Create;
   Result := GRegistry;
 end;
+
+finalization
+  GRegistry.Free;
 
 end.
 

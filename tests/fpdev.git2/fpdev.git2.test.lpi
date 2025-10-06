@@ -1,68 +1,87 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="12"/>
-    <PathDelim Value="\"/>
+    <Version Value="12" />
+    <PathDelim Value="\" />
     <General>
       <Flags>
-        <MainUnitHasCreateFormStatements Value="False"/>
-        <MainUnitHasTitleStatement Value="False"/>
-        <MainUnitHasScaledStatement Value="False"/>
+        <MainUnitHasCreateFormStatements Value="False" />
+        <MainUnitHasTitleStatement Value="False" />
+        <MainUnitHasScaledStatement Value="False" />
       </Flags>
-      <SessionStorage Value="InProjectDir"/>
-      <Title Value="fpdev.git2.test"/>
-      <UseAppBundle Value="False"/>
-      <ResourceType Value="res"/>
+      <SessionStorage Value="InProjectDir" />
+      <Title Value="fpdev.git2.test" />
+      <UseAppBundle Value="False" />
+      <ResourceType Value="res" />
     </General>
     <BuildModes>
-      <Item Name="Default" Default="True"/>
+      <Item Name="Default" Default="True" />
       <Item Name="Debug">
         <CompilerOptions>
-          <Version Value="11"/>
-          <PathDelim Value="\"/>
+          <Version Value="11" />
           <Target>
-            <Filename Value="bin/fpdev.git2.test"/>
+            <Filename Value="bin/$(ProjectName)" />
           </Target>
-          <Debugging>
-            <UseHeaptrc Value="True"/>
-          </Debugging>
           <SearchPaths>
-            <IncludeFiles Value="$(ProjOutDir)"/>
-            <OtherUnitFiles Value="../../src;../../src/git2;."/>
-            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+            <IncludeFiles Value="$(ProjOutDir);../../src" />
+            <OtherUnitFiles Value="../../src" />
+            <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
           </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True" />
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <Checks>
+              <IOChecks Value="True" />
+              <RangeChecks Value="True" />
+              <OverflowChecks Value="True" />
+              <StackChecks Value="True" />
+            </Checks>
+            <VerifyObjMethodCallValidity Value="True" />
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf3" />
+              <UseHeaptrc Value="True" />
+              <TrashVariables Value="True" />
+              <UseExternalDbgSyms Value="True" />
+            </Debugging>
+          </Linking>
           <Other>
-            <CustomOptions Value="-gh"/>
+            <CompilerMessages>
+              <IgnoredMessages idx5024="True" />
+            </CompilerMessages>
           </Other>
         </CompilerOptions>
       </Item>
     </BuildModes>
     <PublishOptions>
-      <Version Value="2"/>
+      <Version Value="2" />
     </PublishOptions>
     <RunParams>
       <local>
-        <FormatVersion Value="1"/>
+        <FormatVersion Value="1" />
       </local>
     </RunParams>
-    <RequiredPackages/>
+    <RequiredPackages />
     <Units>
       <Unit>
-        <Filename Value="fpdev.git2.test.lpr"/>
+        <Filename Value="fpdev.git2.test.lpr" />
       </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
-    <Version Value="11"/>
-    <PathDelim Value="\"/>
+    <Version Value="11" />
+    <PathDelim Value="\" />
     <Target>
-      <Filename Value="bin/fpdev.git2.test"/>
+      <Filename Value="bin/fpdev.git2.test" />
     </Target>
     <SearchPaths>
-      <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../../src;../../src/git2;."/>
-      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      <IncludeFiles Value="$(ProjOutDir)" />
+      <OtherUnitFiles Value="../../src;../../src/git2;." />
+      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)" />
     </SearchPaths>
   </CompilerOptions>
 </CONFIG>
-

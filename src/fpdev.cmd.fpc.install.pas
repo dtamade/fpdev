@@ -70,7 +70,7 @@ var
 begin
   if Length(AParams) < 1 then
   begin
-    WriteLn('错误: 需要指定版本号，例如: fpdev fpc install 3.2.2');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc install 3.2.2');  // 调试代码已注释
     Exit;
   end;
   LVer := AParams[0];

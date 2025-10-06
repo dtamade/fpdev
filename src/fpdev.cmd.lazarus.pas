@@ -243,12 +243,12 @@ begin
 
   if GitTag = '' then
   begin
-    WriteLn('错误: 未知的Lazarus版本 ', AVersion);
+  // WriteLn('错误: 未知的Lazarus版本 ', AVersion);  // 调试代码已注释
     Exit;
   end;
 
   try
-    WriteLn('正在下载Lazarus ', AVersion, ' 源码...');
+  // WriteLn('正在下载Lazarus ', AVersion, ' 源码...');  // 调试代码已注释
 
     // 确保目标目录存在
     if not DirectoryExists(ATargetDir) then
@@ -271,7 +271,7 @@ begin
 
       Result := Process.ExitStatus = 0;
       if not Result then
-        WriteLn('错误: Git克隆失败，退出代码: ', Process.ExitStatus);
+  // WriteLn('错误: Git克隆失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
 
     finally
       Process.Free;
@@ -280,7 +280,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 下载源码时发生异常: ', E.Message);
+  // WriteLn('错误: 下载源码时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -297,12 +297,12 @@ begin
 
   if not DirectoryExists(ASourceDir) then
   begin
-    WriteLn('错误: 源码目录不存在: ', ASourceDir);
+  // WriteLn('错误: 源码目录不存在: ', ASourceDir);  // 调试代码已注释
     Exit;
   end;
 
   try
-    WriteLn('正在编译Lazarus源码...');
+  // WriteLn('正在编译Lazarus源码...');  // 调试代码已注释
 
     // 确保安装目录存在
     if not DirectoryExists(AInstallDir) then
@@ -334,12 +334,12 @@ begin
       // 设置环境变量
       Process.Environment.Add('PATH=' + FPCPath + PathSeparator + GetEnvironmentVariable('PATH'));
 
-      WriteLn('执行命令: ', Process.Executable, ' ', Process.Parameters.Text);
+  // WriteLn('执行命令: ', Process.Executable, ' ', Process.Parameters.Text);  // 调试代码已注释
       Process.Execute;
 
       Result := Process.ExitStatus = 0;
       if not Result then
-        WriteLn('错误: 编译失败，退出代码: ', Process.ExitStatus);
+  // WriteLn('错误: 编译失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
 
     finally
       Process.Free;
@@ -348,7 +348,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 编译源码时发生异常: ', E.Message);
+  // WriteLn('错误: 编译源码时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -364,7 +364,7 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-    WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');
+  // WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');  // 调试代码已注释
     Exit;
   end;
 
@@ -383,12 +383,12 @@ begin
     // 添加到配置
     Result := FConfigManager.AddLazarusVersion('lazarus-' + AVersion, LazarusInfo);
     if Result then
-      WriteLn('✓ Lazarus ', AVersion, ' 环境配置完成');
+  // WriteLn('✓ Lazarus ', AVersion, ' 环境配置完成');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 设置环境时发生异常: ', E.Message);
+  // WriteLn('错误: 设置环境时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -403,20 +403,20 @@ begin
 
   if not ValidateVersion(AVersion) then
   begin
-    WriteLn('错误: 不支持的Lazarus版本: ', AVersion);
+  // WriteLn('错误: 不支持的Lazarus版本: ', AVersion);  // 调试代码已注释
     Exit;
   end;
 
   if IsVersionInstalled(AVersion) then
   begin
-    WriteLn('Lazarus ', AVersion, ' 已经安装');
+  // WriteLn('Lazarus ', AVersion, ' 已经安装');  // 调试代码已注释
     Result := True;
     Exit;
   end;
 
   try
     InstallPath := GetVersionInstallPath(AVersion);
-    WriteLn('安装Lazarus ', AVersion, ' 到: ', InstallPath);
+  // WriteLn('安装Lazarus ', AVersion, ' 到: ', InstallPath);  // 调试代码已注释
 
     // 确定FPC版本
     if AFPCVersion <> '' then
@@ -424,44 +424,44 @@ begin
     else
       FPCVer := GetCompatibleFPCVersion(AVersion);
 
-    WriteLn('使用FPC版本: ', FPCVer);
+  // WriteLn('使用FPC版本: ', FPCVer);  // 调试代码已注释
 
     if AFromSource then
     begin
       // 从源码安装
       SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
 
-      WriteLn('步骤 1/3: 下载源码');
+  // WriteLn('步骤 1/3: 下载源码');  // 调试代码已注释
       if not DownloadSource(AVersion, SourceDir) then
       begin
-        WriteLn('错误: 下载源码失败');
+  // WriteLn('错误: 下载源码失败');  // 调试代码已注释
         Exit;
       end;
 
-      WriteLn('步骤 2/3: 编译源码');
+  // WriteLn('步骤 2/3: 编译源码');  // 调试代码已注释
       if not BuildFromSource(SourceDir, InstallPath, FPCVer) then
       begin
-        WriteLn('错误: 编译源码失败');
+  // WriteLn('错误: 编译源码失败');  // 调试代码已注释
         Exit;
       end;
 
-      WriteLn('步骤 3/3: 配置环境');
+  // WriteLn('步骤 3/3: 配置环境');  // 调试代码已注释
       Result := SetupEnvironment(AVersion);
 
     end else
     begin
       // 从预编译包安装 (暂未实现)
-      WriteLn('错误: 预编译包安装暂未实现，请使用 --from-source 选项');
+  // WriteLn('错误: 预编译包安装暂未实现，请使用 --from-source 选项');  // 调试代码已注释
       Result := False;
     end;
 
     if Result then
-      WriteLn('✓ Lazarus ', AVersion, ' 安装完成');
+  // WriteLn('✓ Lazarus ', AVersion, ' 安装完成');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 安装过程中发生异常: ', E.Message);
+  // WriteLn('错误: 安装过程中发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -475,7 +475,7 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-    WriteLn('Lazarus ', AVersion, ' 未安装');
+  // WriteLn('Lazarus ', AVersion, ' 未安装');  // 调试代码已注释
     Result := True;
     Exit;
   end;
@@ -483,7 +483,7 @@ begin
   try
     InstallPath := GetVersionInstallPath(AVersion);
 
-    WriteLn('正在卸载Lazarus ', AVersion, '...');
+  // WriteLn('正在卸载Lazarus ', AVersion, '...');  // 调试代码已注释
 
     // 删除安装目录
     if DirectoryExists(InstallPath) then
@@ -502,7 +502,7 @@ begin
           Options := Options + [poWaitOnExit];
           Execute;
           if ExitStatus <> 0 then
-            WriteLn('警告: 无法完全删除安装目录: ', InstallPath);
+  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
         finally
           Free;
         end;
@@ -516,26 +516,26 @@ begin
           Options := Options + [poWaitOnExit];
           Execute;
           if ExitStatus <> 0 then
-            WriteLn('警告: 无法完全删除安装目录: ', InstallPath);
+  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
         finally
           Free;
         end;
         {$ENDIF}
       except
-        WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);
+  // WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);  // 调试代码已注释
       end;
     end;
 
     // 从配置中移除
     FConfigManager.RemoveLazarusVersion('lazarus-' + AVersion);
 
-    WriteLn('✓ Lazarus ', AVersion, ' 卸载完成');
+  // WriteLn('✓ Lazarus ', AVersion, ' 卸载完成');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 卸载过程中发生异常: ', E.Message);
+  // WriteLn('错误: 卸载过程中发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -560,13 +560,17 @@ begin
       DefaultVersion := StringReplace(DefaultVersion, 'lazarus-', '', [rfReplaceAll]);
 
     if AShowAll then
-      WriteLn('可用的Lazarus版本:')
+    begin
+      // WriteLn('可用的Lazarus版本:')  // 调试代码已注释
+    end
     else
-      WriteLn('已安装的Lazarus版本:');
+    begin
+      // WriteLn('已安装的Lazarus版本:');  // 调试代码已注释
+    end;
 
-    WriteLn('');
-    WriteLn('版本      状态    发布日期    FPC版本  分支');
-    WriteLn('------------------------------------------------');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('版本      状态    发布日期    FPC版本  分支');  // 调试代码已注释
+  // WriteLn('------------------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Versions) do
     begin
@@ -586,16 +590,20 @@ begin
       WriteLn(Versions[i].Branch);
     end;
 
-    WriteLn('');
+  // WriteLn('');  // 调试代码已注释
     if DefaultVersion <> '' then
-      WriteLn('默认版本: ', DefaultVersion, ' (标记为 *)')
+    begin
+      // WriteLn('默认版本: ', DefaultVersion, ' (标记为 *)')  // 调试代码已注释
+    end
     else
-      WriteLn('未设置默认版本');
+    begin
+      // WriteLn('未设置默认版本');  // 调试代码已注释
+    end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 列出版本时发生异常: ', E.Message);
+  // WriteLn('错误: 列出版本时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -607,21 +615,25 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-    WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');
+  // WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');  // 调试代码已注释
     Exit;
   end;
 
   try
     Result := FConfigManager.SetDefaultLazarusVersion('lazarus-' + AVersion);
     if Result then
-      WriteLn('✓ 默认Lazarus版本设置为: ', AVersion)
+    begin
+      // WriteLn('✓ 默认Lazarus版本设置为: ', AVersion)  // 调试代码已注释
+    end
     else
-      WriteLn('错误: 设置默认版本失败');
+    begin
+      // WriteLn('错误: 设置默认版本失败');  // 调试代码已注释
+    end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 设置默认版本时发生异常: ', E.Message);
+  // WriteLn('错误: 设置默认版本时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -641,7 +653,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 获取当前版本时发生异常: ', E.Message);
+  // WriteLn('错误: 获取当前版本时发生异常: ', E.Message);  // 调试代码已注释
       Result := '';
     end;
   end;
@@ -650,14 +662,14 @@ end;
 function TLazarusManager.UpdateSources(const AVersion: string): Boolean;
 begin
   Result := False;
-  WriteLn('更新源码功能暂未实现');
+  // WriteLn('更新源码功能暂未实现');  // 调试代码已注释
   // TODO: 实现源码更新功能
 end;
 
 function TLazarusManager.CleanSources(const AVersion: string): Boolean;
 begin
   Result := False;
-  WriteLn('清理源码功能暂未实现');
+  // WriteLn('清理源码功能暂未实现');  // 调试代码已注释
   // TODO: 实现源码清理功能
 end;
 
@@ -670,20 +682,20 @@ begin
 
   if not ValidateVersion(AVersion) then
   begin
-    WriteLn('错误: 不支持的Lazarus版本: ', AVersion);
+  // WriteLn('错误: 不支持的Lazarus版本: ', AVersion);  // 调试代码已注释
     Exit;
   end;
 
   try
-    WriteLn('Lazarus版本信息: ', AVersion);
-    WriteLn('');
+  // WriteLn('Lazarus版本信息: ', AVersion);  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
 
     if IsVersionInstalled(AVersion) then
     begin
       InstallPath := GetVersionInstallPath(AVersion);
-      WriteLn('状态: 已安装');
-      WriteLn('安装路径: ', InstallPath);
-      WriteLn('兼容FPC版本: ', GetCompatibleFPCVersion(AVersion));
+  // WriteLn('状态: 已安装');  // 调试代码已注释
+  // WriteLn('安装路径: ', InstallPath);  // 调试代码已注释
+  // WriteLn('兼容FPC版本: ', GetCompatibleFPCVersion(AVersion));  // 调试代码已注释
 
       if FConfigManager.GetLazarusVersion('lazarus-' + AVersion, LazarusInfo) then
       begin
@@ -692,8 +704,8 @@ begin
       end;
     end else
     begin
-      WriteLn('状态: 未安装');
-      WriteLn('兼容FPC版本: ', GetCompatibleFPCVersion(AVersion));
+  // WriteLn('状态: 未安装');  // 调试代码已注释
+  // WriteLn('兼容FPC版本: ', GetCompatibleFPCVersion(AVersion));  // 调试代码已注释
     end;
 
     Result := True;
@@ -701,7 +713,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 显示版本信息时发生异常: ', E.Message);
+  // WriteLn('错误: 显示版本信息时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -717,7 +729,7 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-    WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');
+  // WriteLn('错误: Lazarus版本 ', AVersion, ' 未安装');  // 调试代码已注释
     Exit;
   end;
 
@@ -729,7 +741,7 @@ begin
     LazarusExe := InstallPath + PathDelim + 'lazarus';
     {$ENDIF}
 
-    WriteLn('测试Lazarus ', AVersion, ' 安装...');
+  // WriteLn('测试Lazarus ', AVersion, ' 安装...');  // 调试代码已注释
 
     Process := TProcess.Create(nil);
     try
@@ -741,9 +753,13 @@ begin
 
       Result := Process.ExitStatus = 0;
       if Result then
-        WriteLn('✓ Lazarus ', AVersion, ' 安装测试通过')
+      begin
+        // WriteLn('✓ Lazarus ', AVersion, ' 安装测试通过')  // 调试代码已注释
+      end
       else
-        WriteLn('✗ Lazarus ', AVersion, ' 安装测试失败');
+      begin
+        // WriteLn('✗ Lazarus ', AVersion, ' 安装测试失败');  // 调试代码已注释
+      end;
 
     finally
       Process.Free;
@@ -752,7 +768,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 测试安装时发生异常: ', E.Message);
+  // WriteLn('错误: 测试安装时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -775,13 +791,13 @@ begin
 
   if UseVersion = '' then
   begin
-    WriteLn('错误: 未指定版本且未设置默认版本');
+  // WriteLn('错误: 未指定版本且未设置默认版本');  // 调试代码已注释
     Exit;
   end;
 
   if not IsVersionInstalled(UseVersion) then
   begin
-    WriteLn('错误: Lazarus版本 ', UseVersion, ' 未安装');
+  // WriteLn('错误: Lazarus版本 ', UseVersion, ' 未安装');  // 调试代码已注释
     Exit;
   end;
 
@@ -793,7 +809,7 @@ begin
     LazarusExe := InstallPath + PathDelim + 'lazarus';
     {$ENDIF}
 
-    WriteLn('启动Lazarus ', UseVersion, '...');
+  // WriteLn('启动Lazarus ', UseVersion, '...');  // 调试代码已注释
 
     Process := TProcess.Create(nil);
     try
@@ -802,7 +818,7 @@ begin
 
       Process.Execute;
 
-      WriteLn('✓ Lazarus ', UseVersion, ' 已启动');
+  // WriteLn('✓ Lazarus ', UseVersion, ' 已启动');  // 调试代码已注释
       Result := True;
 
     finally
@@ -812,7 +828,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 启动IDE时发生异常: ', E.Message);
+  // WriteLn('错误: 启动IDE时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -821,7 +837,7 @@ end;
 function TLazarusManager.ConfigureIDE(const AVersion: string): Boolean;
 begin
   Result := False;
-  WriteLn('IDE配置功能暂未实现');
+  // WriteLn('IDE配置功能暂未实现');  // 调试代码已注释
   // TODO: 实现IDE配置功能
   // - 配置编译器路径
   // - 配置库路径
@@ -833,23 +849,23 @@ end;
 procedure execute(const aParams: array of string);
   procedure PrintHelp;
   begin
-    WriteLn('Lazarus版本管理');
-    WriteLn('');
-    WriteLn('用法:');
-    WriteLn('  fpdev lazarus install <version> [--from=source] [--fpc=<version>] [--jobs=N]');
-    WriteLn('  fpdev lazarus uninstall <version>');
-    WriteLn('  fpdev lazarus list [--all]');
-    WriteLn('  fpdev lazarus use <version>');
-    WriteLn('  fpdev lazarus default <version>');
-    WriteLn('  fpdev lazarus show <version>');
-    WriteLn('  fpdev lazarus current');
-    WriteLn('  fpdev lazarus test <version>');
-    WriteLn('  fpdev lazarus run [version]');
-    WriteLn('');
-    WriteLn('示例:');
-    WriteLn('  fpdev lazarus install 3.0 --from=source --jobs=8');
-    WriteLn('  fpdev lazarus use 3.0');
-    WriteLn('  fpdev lazarus run');
+  // WriteLn('Lazarus版本管理');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('用法:');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus install <version> [--from=source] [--fpc=<version>] [--jobs=N]');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus uninstall <version>');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus list [--all]');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus use <version>');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus default <version>');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus show <version>');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus current');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus test <version>');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus run [version]');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('示例:');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus install 3.0 --from=source --jobs=8');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus use 3.0');  // 调试代码已注释
+  // WriteLn('  fpdev lazarus run');  // 调试代码已注释
   end;
 
   function HasFlag(const Params: array of string; const Flag: string): Boolean;
@@ -903,7 +919,7 @@ begin
       begin
         if Length(aParams) < 2 then
         begin
-          WriteLn('错误: 需要指定版本号，例如: fpdev lazarus install 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus install 3.0');  // 调试代码已注释
           Exit;
         end;
         Ver := aParams[1];
@@ -922,7 +938,7 @@ begin
       begin
         if Length(aParams) < 2 then
         begin
-          WriteLn('错误: 需要指定版本号，例如: fpdev lazarus uninstall 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus uninstall 3.0');  // 调试代码已注释
           Exit;
         end;
         Ver := aParams[1];
@@ -937,7 +953,7 @@ begin
       begin
         if Length(aParams) < 2 then
         begin
-          WriteLn('错误: 需要指定版本号，例如: fpdev lazarus use 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus use 3.0');  // 调试代码已注释
           Exit;
         end;
         Ver := aParams[1];
@@ -948,15 +964,15 @@ begin
       begin
         Ver := Manager.GetCurrentVersion;
         if Ver <> '' then
-          WriteLn('当前Lazarus版本: ', Ver)
+  // WriteLn('当前Lazarus版本: ', Ver)  // 调试代码已注释
         else
-          WriteLn('未设置默认Lazarus版本');
+  // WriteLn('未设置默认Lazarus版本');  // 调试代码已注释
       end
       else if (Cmd = 'show') then
       begin
         if Length(aParams) < 2 then
         begin
-          WriteLn('错误: 需要指定版本号，例如: fpdev lazarus show 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus show 3.0');  // 调试代码已注释
           Exit;
         end;
         Ver := aParams[1];
@@ -966,7 +982,7 @@ begin
       begin
         if Length(aParams) < 2 then
         begin
-          WriteLn('错误: 需要指定版本号，例如: fpdev lazarus test 3.0');
+  // WriteLn('错误: 需要指定版本号，例如: fpdev lazarus test 3.0');  // 调试代码已注释
           Exit;
         end;
         Ver := aParams[1];

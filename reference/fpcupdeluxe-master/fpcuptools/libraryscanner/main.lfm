@@ -1,0 +1,197 @@
+object Form1: TForm1
+  Left = 511
+  Height = 484
+  Top = 214
+  Width = 926
+  Caption = 'Form1'
+  ClientHeight = 484
+  ClientWidth = 926
+  OnCreate = FormCreate
+  LCLVersion = '2.3.0.0'
+  object btnStartScan: TButton
+    AnchorSideLeft.Control = Owner
+    AnchorSideTop.Control = Owner
+    Left = 8
+    Height = 61
+    Top = 8
+    Width = 240
+    BorderSpacing.Left = 8
+    BorderSpacing.Top = 8
+    Caption = 'Start Scanner'
+    OnClick = btnStartScanClick
+    TabOrder = 0
+  end
+  object LibraryMemo: TMemo
+    AnchorSideLeft.Control = stFound
+    AnchorSideTop.Control = stFound
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = stFound
+    AnchorSideRight.Side = asrBottom
+    AnchorSideBottom.Control = Owner
+    AnchorSideBottom.Side = asrBottom
+    Left = 264
+    Height = 428
+    Top = 48
+    Width = 220
+    Anchors = [akTop, akLeft, akRight, akBottom]
+    BorderSpacing.Top = 8
+    BorderSpacing.Bottom = 8
+    ScrollBars = ssVertical
+    TabOrder = 1
+  end
+  object LibraryNotFoundMemo: TMemo
+    AnchorSideLeft.Control = stNotFound
+    AnchorSideTop.Control = stNotFound
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = stNotFound
+    AnchorSideRight.Side = asrBottom
+    AnchorSideBottom.Control = Owner
+    AnchorSideBottom.Side = asrBottom
+    Left = 8
+    Height = 231
+    Top = 245
+    Width = 240
+    Anchors = [akTop, akLeft, akRight, akBottom]
+    BorderSpacing.Top = 8
+    BorderSpacing.Bottom = 8
+    ScrollBars = ssVertical
+    TabOrder = 2
+  end
+  object LibraryLocationMemo: TMemo
+    AnchorSideLeft.Control = stLocation
+    AnchorSideTop.Control = stLocation
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    AnchorSideBottom.Control = Owner
+    AnchorSideBottom.Side = asrBottom
+    Left = 500
+    Height = 424
+    Top = 52
+    Width = 418
+    Anchors = [akTop, akLeft, akRight, akBottom]
+    BorderSpacing.Top = 8
+    BorderSpacing.Right = 8
+    BorderSpacing.Bottom = 8
+    ScrollBars = ssVertical
+    TabOrder = 3
+  end
+  object stNotFound: TStaticText
+    AnchorSideLeft.Control = btnStartScan
+    AnchorSideTop.Control = chkQT
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = btnStartScan
+    AnchorSideRight.Side = asrBottom
+    Left = 8
+    Height = 33
+    Top = 204
+    Width = 240
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Top = 16
+    Caption = 'Not Found'
+    Font.CharSet = ANSI_CHARSET
+    Font.Height = -19
+    Font.Pitch = fpVariable
+    Font.Quality = fqDraft
+    ParentFont = False
+    TabOrder = 4
+  end
+  object stFound: TStaticText
+    AnchorSideLeft.Control = btnStartScan
+    AnchorSideLeft.Side = asrBottom
+    AnchorSideTop.Control = Owner
+    Left = 264
+    Height = 32
+    Top = 8
+    Width = 220
+    BorderSpacing.Left = 16
+    BorderSpacing.Top = 8
+    Caption = 'Libraries Found'
+    Constraints.MaxWidth = 220
+    Constraints.MinWidth = 220
+    Font.CharSet = ANSI_CHARSET
+    Font.Height = -19
+    Font.Pitch = fpVariable
+    Font.Quality = fqDraft
+    ParentFont = False
+    TabOrder = 5
+  end
+  object stLocation: TStaticText
+    AnchorSideLeft.Control = stFound
+    AnchorSideLeft.Side = asrBottom
+    AnchorSideTop.Control = Owner
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 500
+    Height = 36
+    Top = 8
+    Width = 418
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Left = 16
+    BorderSpacing.Top = 8
+    BorderSpacing.Right = 8
+    Caption = 'Libraries FileSystem Location'
+    Font.CharSet = ANSI_CHARSET
+    Font.Height = -19
+    Font.Pitch = fpVariable
+    Font.Quality = fqDraft
+    ParentFont = False
+    TabOrder = 6
+  end
+  object chkQT: TCheckBox
+    AnchorSideLeft.Control = Owner
+    AnchorSideTop.Control = btnStartScan
+    AnchorSideTop.Side = asrBottom
+    Left = 8
+    Height = 19
+    Top = 169
+    Width = 82
+    BorderSpacing.Left = 8
+    BorderSpacing.Top = 100
+    Caption = 'With QT libs'
+    Checked = True
+    State = cbChecked
+    TabOrder = 7
+  end
+  object Edit1: TEdit
+    AnchorSideLeft.Control = Owner
+    AnchorSideTop.Control = btnStartScan
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = btnStartScan
+    AnchorSideRight.Side = asrBottom
+    Left = 8
+    Height = 23
+    Top = 73
+    Width = 240
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Left = 8
+    BorderSpacing.Top = 4
+    OnClick = Edit1Click
+    ReadOnly = True
+    TabOrder = 8
+  end
+  object Edit2: TEdit
+    AnchorSideLeft.Control = Owner
+    AnchorSideTop.Control = Edit1
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = btnStartScan
+    AnchorSideRight.Side = asrBottom
+    Left = 8
+    Height = 23
+    Top = 100
+    Width = 240
+    Anchors = [akTop, akLeft, akRight]
+    BorderSpacing.Left = 8
+    BorderSpacing.Top = 4
+    OnClick = Edit2Click
+    TabOrder = 9
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 323
+    Top = 127
+  end
+  object SelectDirectoryDialog1: TSelectDirectoryDialog
+    Left = 318
+    Top = 189
+  end
+end

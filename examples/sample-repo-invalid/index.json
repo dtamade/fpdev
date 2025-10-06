@@ -1,0 +1,8 @@
+[
+  { "name": "valid1", "version": "1.0.0", "url": ["file:///tmp/valid1.zip"] },
+  { "name": "noversion", "url": ["file:///tmp/noversion.zip"] },
+  { "name": "emptyurl", "version": "1.0.0", "url": [] },
+  { "name": "strurl-empty", "version": "1.0.0", "url": "" },
+  { "name": "valid1", "version": "1.1.0", "url": ["file:///tmp/valid1-1.1.0.zip"] }
+]
+

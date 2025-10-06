@@ -53,10 +53,9 @@
     WriteLn('Log file: ', LBM.LogFileName);
     if LBM.TestResults(LVer) then WriteLn('TestResults OK');
 
-- 环境变量控制（buildOrTest.bat）：
-  - DEMO_STRICT=1 → 追加 --strict
-  - DEMO_VERBOSE=1 → 追加 --verbose
-  - 也支持快捷参数：strict/-s 等同 --strict --verbose
+- 参数与环境变量（buildOrTest.bat）：
+  - 参数：strict/-s → 等同 --strict --verbose；还支持 --no-install / --verbose / --preflight / --dry-run
+  - 环境变量：DEMO_STRICT=1、DEMO_VERBOSE=1、NO_INSTALL=1、PREFLIGHT=1、DRY_RUN=1（等价于追加对应参数）
 
 ## 安全默认
 - 无 make 时：打印提示并返回 True（不阻塞流程）
@@ -375,8 +374,8 @@ require_subdir=false
   - 日志：`== Preflight START/END`，失败时逐条输出 `issue: ...`
   - 返回：全部检查通过返回 True，否则 False
   - 使用示例：
-    - Windows：`plays\fpdev.build.manager.demo\buildOrTest.bat --preflight` 或 `set PREFLIGHT=1 & buildOrTest.bat`
-    - Linux/macOS：`PREFLIGHT=1 bash plays/.../buildOrTest.sh`
+    - Windows：`plays\fpdev.build.manager.demo\buildOrTest.bat --preflight --dry-run --no-install` 或 `set PREFLIGHT=1 & set DRY_RUN=1 & set NO_INSTALL=1 & set TEST_ONLY=1 & buildOrTest.bat`
+    - Linux/macOS：`PREFLIGHT=1 DRY_RUN=1 NO_INSTALL=1 TEST_ONLY=1 bash plays/.../buildOrTest.sh`
 - 演练（Dry‑run）：不执行 make，只打印将要执行的命令
   - 行为：`RunMake` 仅记录 `make ...` 行并输出 `dry-run: skipped make execution`，返回 True
   - 适用：在 CI 或本地先审阅将要执行的命令与变量（DESTDIR/PREFIX 等），避免误操作
@@ -384,6 +383,18 @@ require_subdir=false
     - Windows：`set DRY_RUN=1 & plays\fpdev.build.manager.demo\buildOrTest.bat strict`
     - Linux/macOS：`DRY_RUN=1 STRICT=1 bash plays/.../buildOrTest.sh`
 - 提示：演练模式不会验证命令执行是否成功；建议结合 `--verbose` 查看完整参数与环境快照
+
+### Preflight 常见失败原因与处理
+- source not found: sources\fpc\fpc-<ver>
+  - 处理：确保 sources\fpc 目录存在且包含对应版本（如 fpc-main 或 fpc-3.2.2）；或调整 demo 中的 LRoot/LVer
+- make not available
+  - 处理：Windows 安装 MSYS2/MinGW 并添加 mingw32-make/make 到 PATH；Linux/macOS 安装 gmake/make
+- sandbox/logs not writable
+  - 处理：确认 plays/demo 下的 sandbox_demo 与 logs 可创建/可写；必要时以管理员身份或更改权限
+- sandbox dest not writable / cannot create sandbox dest
+  - 处理：当允许安装时，确认 sandbox_demo\fpc-<ver> 目录可写或可创建
+- toolchain check failed（开启 ToolchainStrict 时）
+  - 处理：先运行 scripts\check_toolchain.bat / .sh，按日志中的缺项逐一安装补齐
 
 
 ## 真实构建开关设计（草案，安全默认）
@@ -413,3 +424,37 @@ require_subdir=false
 - 逐步细化沙箱结构检查清单（如 share/、fpc.cfg 等）
 - 可选：引入配置以启用真实构建（用户显式允许时）
 
+
+
+
+## 全工具链真实演练 Runbook（快速上手）
+
+本项目默认以“干跑 + 沙箱安装”保障安全；当工具链齐备时，可按如下步骤进行真实演练：
+
+1) 工具链体检（必选）
+- Windows: `scripts\check_toolchain.bat`
+- Unix: `bash scripts/check_toolchain.sh`
+- 输出：`logs/check/toolchain_*.txt`，缺项返回非零并提示缺失工具
+
+2) 干跑示例（推荐先执行）
+- Windows: `scripts\run_examples.bat`
+- Unix: `bash scripts/run_examples.sh`
+- 行为：仅编译并运行示例程序；示例内部默认 FDryRun=True，不执行 make；日志：`logs/examples/`
+
+3) 真实演练（仅沙箱内写入，无系统污染）
+- Windows: `scripts\run_examples_real.bat`
+- Unix: `bash scripts/run_examples_real.sh`
+- 行为：脚本导出 `REAL=1`，示例自动切换到非 Dry-Run；安装目标固定在 `plays/.sandbox`；日志：`logs/examples/real/`
+
+4) 观察与收敛
+- 详见示例日志与 `TBuildManager` 日志（`logs/build_*.log`）
+- 严格模式：示例 `example_strict_validate.lpr` 会按 `plays/fpdev.build.manager.demo/build-manager.strict.ini` 校验产物（可自定义）
+
+可选高级设置：
+- make 命令覆盖：`SetMakeCmd('mingw32-make')` 或 `SetMakeCmd('gmake')`
+- 交叉目标：`SetTarget('x86_64','win32')` / `SetTarget('aarch64','linux')`
+- 安装前缀：`SetPrefix('<prefix>','<install_prefix>')`
+
+注意：
+- Windows 日志时间戳可能含空格（小时 < 10）；如需可改为零填充格式（见 todos）
+- 上游 Makefile 对 DESTDIR/PREFIX 等变量的支持程度可能不同，必要时请查看上游文档或在日志中审阅完整 make 命令行

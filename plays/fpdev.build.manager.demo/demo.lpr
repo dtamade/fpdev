@@ -9,24 +9,17 @@ procedure Run;
 var
   LBM: TBuildManager;
   LRoot, LVer: string;
-  LStrict, LVerbose, LNoInstall, LTestOnly: Boolean;
+  LStrict, LVerbose, LNoInstall, LTestOnly, LDryRun, LPreflight: Boolean;
 begin
   LRoot := 'sources' + PathDelim + 'fpc';
   LVer := 'main';
-  // 解析命令行参数
+  // 解析命令行参数（先解析，再创建与配置 LBM）
   LStrict := FindCmdLineSwitch('strict', True);
   LVerbose := FindCmdLineSwitch('v', True) or FindCmdLineSwitch('verbose', True);
   LNoInstall := FindCmdLineSwitch('no-install', True) or (GetEnvironmentVariable('NO_INSTALL') = '1');
   LTestOnly := FindCmdLineSwitch('test-only', True) or (GetEnvironmentVariable('TEST_ONLY') = '1');
-  if FindCmdLineSwitch('dry-run', True) or (GetEnvironmentVariable('DRY_RUN') = '1') then
-  begin
-    LBM.SetDryRun(True);
-    WriteLn('Dry-run enabled: will not execute make, only log commands.');
-  end;
-  if FindCmdLineSwitch('preflight', True) or (GetEnvironmentVariable('PREFLIGHT') = '1') then
-  begin
-    if not LBM.Preflight(LVer) then Halt(2);
-  end;
+  LDryRun := FindCmdLineSwitch('dry-run', True) or (GetEnvironmentVariable('DRY_RUN') = '1');
+  LPreflight := FindCmdLineSwitch('preflight', True) or (GetEnvironmentVariable('PREFLIGHT') = '1');
 
   LBM := TBuildManager.Create(LRoot, 2, True);
   try
@@ -36,6 +29,16 @@ begin
     LBM.SetAllowInstall(not LNoInstall);
     if LVerbose then LBM.SetLogVerbosity(1) else LBM.SetLogVerbosity(0);
     LBM.SetStrictResults(LStrict);
+    if LDryRun then
+    begin
+      LBM.SetDryRun(True);
+      WriteLn('Dry-run enabled: will not execute make, only log commands.');
+    end;
+    if LPreflight then
+    begin
+      if not LBM.Preflight(LVer) then Halt(2);
+    end;
+
     if not LTestOnly then
     begin
       if LBM.BuildCompiler(LVer) then WriteLn('BuildCompiler OK') else WriteLn('BuildCompiler FAIL');

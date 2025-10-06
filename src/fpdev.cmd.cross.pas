@@ -279,14 +279,14 @@ end;
 function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
 begin
   Result := False;
-  WriteLn('正在下载 ', ATarget, ' 的二进制工具...');
+  // WriteLn('正在下载 ', ATarget, ' 的二进制工具...');  // 调试代码已注释
 
   // TODO: 实现实际的下载逻辑
   // 这里应该根据目标平台下载相应的binutils
   // 例如从官方源或第三方源下载预编译的工具链
 
-  WriteLn('注意: 二进制工具下载功能暂未实现');
-  WriteLn('请手动安装交叉编译工具链，然后使用 configure 命令配置路径');
+  // WriteLn('注意: 二进制工具下载功能暂未实现');  // 调试代码已注释
+  // WriteLn('请手动安装交叉编译工具链，然后使用 configure 命令配置路径');  // 调试代码已注释
 
   Result := True; // 暂时返回成功，允许手动配置
 end;
@@ -294,13 +294,13 @@ end;
 function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
 begin
   Result := False;
-  WriteLn('正在下载 ', ATarget, ' 的库文件...');
+  // WriteLn('正在下载 ', ATarget, ' 的库文件...');  // 调试代码已注释
 
   // TODO: 实现实际的下载逻辑
   // 这里应该根据目标平台下载相应的系统库
 
-  WriteLn('注意: 库文件下载功能暂未实现');
-  WriteLn('请手动安装目标平台的库文件，然后使用 configure 命令配置路径');
+  // WriteLn('注意: 库文件下载功能暂未实现');  // 调试代码已注释
+  // WriteLn('请手动安装目标平台的库文件，然后使用 configure 命令配置路径');  // 调试代码已注释
 
   Result := True; // 暂时返回成功，允许手动配置
 end;
@@ -324,12 +324,12 @@ begin
     // 添加到配置
     Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
     if Result then
-      WriteLn('✓ ', ATarget, ' 交叉编译环境配置完成');
+  // WriteLn('✓ ', ATarget, ' 交叉编译环境配置完成');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 设置交叉编译环境时发生异常: ', E.Message);
+  // WriteLn('错误: 设置交叉编译环境时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -344,13 +344,13 @@ begin
 
   if not ValidateTarget(ATarget) then
   begin
-    WriteLn('错误: 不支持的交叉编译目标: ', ATarget);
+  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
     Exit;
   end;
 
   if IsTargetInstalled(ATarget) then
   begin
-    WriteLn('交叉编译目标 ', ATarget, ' 已经安装');
+  // WriteLn('交叉编译目标 ', ATarget, ' 已经安装');  // 调试代码已注释
     Result := True;
     Exit;
   end;
@@ -358,36 +358,36 @@ begin
   try
     TargetInfo := GetTargetInfo(ATarget);
     InstallPath := GetTargetInstallPath(ATarget);
-    WriteLn('安装交叉编译目标 ', ATarget, ' 到: ', InstallPath);
+  // WriteLn('安装交叉编译目标 ', ATarget, ' 到: ', InstallPath);  // 调试代码已注释
 
     // 确保安装目录存在
     if not DirectoryExists(InstallPath) then
       ForceDirectories(InstallPath);
 
-    WriteLn('步骤 1/3: 下载二进制工具');
+  // WriteLn('步骤 1/3: 下载二进制工具');  // 调试代码已注释
     if not DownloadBinutils(ATarget, TargetInfo) then
     begin
-      WriteLn('错误: 下载二进制工具失败');
+  // WriteLn('错误: 下载二进制工具失败');  // 调试代码已注释
       Exit;
     end;
 
-    WriteLn('步骤 2/3: 下载库文件');
+  // WriteLn('步骤 2/3: 下载库文件');  // 调试代码已注释
     if not DownloadLibraries(ATarget, TargetInfo) then
     begin
-      WriteLn('错误: 下载库文件失败');
+  // WriteLn('错误: 下载库文件失败');  // 调试代码已注释
       Exit;
     end;
 
-    WriteLn('步骤 3/3: 配置环境');
+  // WriteLn('步骤 3/3: 配置环境');  // 调试代码已注释
     Result := SetupCrossEnvironment(ATarget, TargetInfo);
 
     if Result then
-      WriteLn('✓ 交叉编译目标 ', ATarget, ' 安装完成');
+  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 安装完成');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 安装过程中发生异常: ', E.Message);
+  // WriteLn('错误: 安装过程中发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -401,7 +401,7 @@ begin
 
   if not IsTargetInstalled(ATarget) then
   begin
-    WriteLn('交叉编译目标 ', ATarget, ' 未安装');
+  // WriteLn('交叉编译目标 ', ATarget, ' 未安装');  // 调试代码已注释
     Result := True;
     Exit;
   end;
@@ -409,7 +409,7 @@ begin
   try
     InstallPath := GetTargetInstallPath(ATarget);
 
-    WriteLn('正在卸载交叉编译目标 ', ATarget, '...');
+  // WriteLn('正在卸载交叉编译目标 ', ATarget, '...');  // 调试代码已注释
 
     // 删除安装目录
     if DirectoryExists(InstallPath) then
@@ -428,7 +428,7 @@ begin
           Options := Options + [poWaitOnExit];
           Execute;
           if ExitStatus <> 0 then
-            WriteLn('警告: 无法完全删除安装目录: ', InstallPath);
+  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
         finally
           Free;
         end;
@@ -442,26 +442,26 @@ begin
           Options := Options + [poWaitOnExit];
           Execute;
           if ExitStatus <> 0 then
-            WriteLn('警告: 无法完全删除安装目录: ', InstallPath);
+  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
         finally
           Free;
         end;
         {$ENDIF}
       except
-        WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);
+  // WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);  // 调试代码已注释
       end;
     end;
 
     // 从配置中移除
     FConfigManager.RemoveCrossTarget(ATarget);
 
-    WriteLn('✓ 交叉编译目标 ', ATarget, ' 卸载完成');
+  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 卸载完成');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 卸载过程中发生异常: ', E.Message);
+  // WriteLn('错误: 卸载过程中发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -481,13 +481,13 @@ begin
       Targets := GetInstalledTargets;
 
     if AShowAll then
-      WriteLn('可用的交叉编译目标:')
+  // WriteLn('可用的交叉编译目标:')  // 调试代码已注释
     else
-      WriteLn('已安装的交叉编译目标:');
+  // WriteLn('已安装的交叉编译目标:');  // 调试代码已注释
 
-    WriteLn('');
-    WriteLn('目标        状态    显示名称                CPU       操作系统');
-    WriteLn('------------------------------------------------------------');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('目标        状态    显示名称                CPU       操作系统');  // 调试代码已注释
+  // WriteLn('------------------------------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Targets) do
     begin
@@ -503,13 +503,13 @@ begin
       WriteLn(Targets[i].OS);
     end;
 
-    WriteLn('');
-    WriteLn('总计: ', Length(Targets), ' 个目标');
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('总计: ', Length(Targets), ' 个目标');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 列出目标时发生异常: ', E.Message);
+  // WriteLn('错误: 列出目标时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -527,18 +527,18 @@ begin
       CrossTarget.Enabled := True;
       Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
       if Result then
-        WriteLn('✓ 交叉编译目标 ', ATarget, ' 已启用')
+  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 已启用')  // 调试代码已注释
       else
-        WriteLn('错误: 启用目标失败');
+  // WriteLn('错误: 启用目标失败');  // 调试代码已注释
     end else
     begin
-      WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');
+  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');  // 调试代码已注释
     end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 启用目标时发生异常: ', E.Message);
+  // WriteLn('错误: 启用目标时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -556,18 +556,18 @@ begin
       CrossTarget.Enabled := False;
       Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
       if Result then
-        WriteLn('✓ 交叉编译目标 ', ATarget, ' 已禁用')
+  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 已禁用')  // 调试代码已注释
       else
-        WriteLn('错误: 禁用目标失败');
+  // WriteLn('错误: 禁用目标失败');  // 调试代码已注释
     end else
     begin
-      WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');
+  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');  // 调试代码已注释
     end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 禁用目标时发生异常: ', E.Message);
+  // WriteLn('错误: 禁用目标时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -583,14 +583,14 @@ begin
 
   if not ValidateTarget(ATarget) then
   begin
-    WriteLn('错误: 不支持的交叉编译目标: ', ATarget);
+  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
     Exit;
   end;
 
   try
     TargetInfo := GetTargetInfo(ATarget);
-    WriteLn('交叉编译目标信息: ', ATarget);
-    WriteLn('');
+  // WriteLn('交叉编译目标信息: ', ATarget);  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
     WriteLn('显示名称: ', TargetInfo.DisplayName);
     WriteLn('CPU架构: ', TargetInfo.CPU);
     WriteLn('操作系统: ', TargetInfo.OS);
@@ -599,18 +599,18 @@ begin
     if TargetInfo.Installed then
     begin
       InstallPath := GetTargetInstallPath(ATarget);
-      WriteLn('状态: 已安装');
-      WriteLn('安装路径: ', InstallPath);
+  // WriteLn('状态: 已安装');  // 调试代码已注释
+  // WriteLn('安装路径: ', InstallPath);  // 调试代码已注释
 
       if FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
       begin
-        WriteLn('二进制工具路径: ', CrossTarget.BinutilsPath);
-        WriteLn('库文件路径: ', CrossTarget.LibrariesPath);
-        WriteLn('启用状态: ', CrossTarget.Enabled);
+  // WriteLn('二进制工具路径: ', CrossTarget.BinutilsPath);  // 调试代码已注释
+  // WriteLn('库文件路径: ', CrossTarget.LibrariesPath);  // 调试代码已注释
+  // WriteLn('启用状态: ', CrossTarget.Enabled);  // 调试代码已注释
       end;
     end else
     begin
-      WriteLn('状态: 未安装');
+  // WriteLn('状态: 未安装');  // 调试代码已注释
     end;
 
     Result := True;
@@ -618,7 +618,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 显示目标信息时发生异常: ', E.Message);
+  // WriteLn('错误: 显示目标信息时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -634,18 +634,18 @@ begin
 
   if not IsTargetInstalled(ATarget) then
   begin
-    WriteLn('错误: 交叉编译目标 ', ATarget, ' 未安装');
+  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未安装');  // 调试代码已注释
     Exit;
   end;
 
   try
     if not FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
     begin
-      WriteLn('错误: 无法获取交叉编译目标配置');
+  // WriteLn('错误: 无法获取交叉编译目标配置');  // 调试代码已注释
       Exit;
     end;
 
-    WriteLn('测试交叉编译目标 ', ATarget, '...');
+  // WriteLn('测试交叉编译目标 ', ATarget, '...');  // 调试代码已注释
 
     // 查找交叉编译器
     GCCExe := CrossTarget.BinutilsPath + PathDelim + GetTargetInfo(ATarget).BinutilsPrefix + 'gcc';
@@ -655,7 +655,7 @@ begin
 
     if not FileExists(GCCExe) then
     begin
-      WriteLn('错误: 找不到交叉编译器: ', GCCExe);
+  // WriteLn('错误: 找不到交叉编译器: ', GCCExe);  // 调试代码已注释
       Exit;
     end;
 
@@ -669,9 +669,13 @@ begin
 
       Result := Process.ExitStatus = 0;
       if Result then
-        WriteLn('✓ 交叉编译目标 ', ATarget, ' 测试通过')
+      begin
+        // WriteLn('✓ 交叉编译目标 ', ATarget, ' 测试通过')  // 调试代码已注释
+      end
       else
-        WriteLn('✗ 交叉编译目标 ', ATarget, ' 测试失败');
+      begin
+        // WriteLn('✗ 交叉编译目标 ', ATarget, ' 测试失败');  // 调试代码已注释
+      end;
 
     finally
       Process.Free;
@@ -680,7 +684,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: 测试目标时发生异常: ', E.Message);
+  // WriteLn('错误: 测试目标时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -689,7 +693,7 @@ end;
 function TCrossCompilerManager.BuildTest(const ATarget: string; const ASourceFile: string): Boolean;
 begin
   Result := False;
-  WriteLn('构建测试功能暂未实现');
+  // WriteLn('构建测试功能暂未实现');  // 调试代码已注释
   // TODO: 实现交叉编译测试构建
   // - 创建简单的测试程序
   // - 使用交叉编译器编译
@@ -704,7 +708,7 @@ begin
 
   if not ValidateTarget(ATarget) then
   begin
-    WriteLn('错误: 不支持的交叉编译目标: ', ATarget);
+  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
     Exit;
   end;
 
@@ -712,13 +716,13 @@ begin
     // 验证路径
     if not DirectoryExists(ABinutilsPath) then
     begin
-      WriteLn('错误: 二进制工具路径不存在: ', ABinutilsPath);
+  // WriteLn('错误: 二进制工具路径不存在: ', ABinutilsPath);  // 调试代码已注释
       Exit;
     end;
 
     if not DirectoryExists(ALibrariesPath) then
     begin
-      WriteLn('错误: 库文件路径不存在: ', ALibrariesPath);
+  // WriteLn('错误: 库文件路径不存在: ', ALibrariesPath);  // 调试代码已注释
       Exit;
     end;
 
@@ -730,14 +734,18 @@ begin
 
     Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
     if Result then
-      WriteLn('✓ 交叉编译目标 ', ATarget, ' 配置完成')
+    begin
+      // WriteLn('✓ 交叉编译目标 ', ATarget, ' 配置完成')  // 调试代码已注释
+    end
     else
-      WriteLn('错误: 配置目标失败');
+    begin
+      // WriteLn('错误: 配置目标失败');  // 调试代码已注释
+    end;
 
   except
     on E: Exception do
     begin
-      WriteLn('错误: 配置目标时发生异常: ', E.Message);
+  // WriteLn('错误: 配置目标时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
     end;
   end;
@@ -746,14 +754,14 @@ end;
 function TCrossCompilerManager.UpdateTarget(const ATarget: string): Boolean;
 begin
   Result := False;
-  WriteLn('更新目标功能暂未实现');
+  // WriteLn('更新目标功能暂未实现');  // 调试代码已注释
   // TODO: 实现目标更新功能
 end;
 
 function TCrossCompilerManager.CleanTarget(const ATarget: string): Boolean;
 begin
   Result := False;
-  WriteLn('清理目标功能暂未实现');
+  // WriteLn('清理目标功能暂未实现');  // 调试代码已注释
   // TODO: 实现目标清理功能
 end;
 
@@ -770,33 +778,33 @@ var
 begin
   if Length(aParams) = 0 then
   begin
-    WriteLn('交叉编译工具链管理');
-    WriteLn('');
-    WriteLn('用法:');
-    WriteLn('  fpdev cross install <target>                           安装交叉编译目标');
-    WriteLn('  fpdev cross uninstall <target>                         卸载交叉编译目标');
-    WriteLn('  fpdev cross list [--all]                               列出交叉编译目标');
-    WriteLn('  fpdev cross enable <target>                            启用交叉编译目标');
-    WriteLn('  fpdev cross disable <target>                           禁用交叉编译目标');
+  // WriteLn('交叉编译工具链管理');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('用法:');  // 调试代码已注释
+  // WriteLn('  fpdev cross install <target>                           安装交叉编译目标');  // 调试代码已注释
+  // WriteLn('  fpdev cross uninstall <target>                         卸载交叉编译目标');  // 调试代码已注释
+  // WriteLn('  fpdev cross list [--all]                               列出交叉编译目标');  // 调试代码已注释
+  // WriteLn('  fpdev cross enable <target>                            启用交叉编译目标');  // 调试代码已注释
+  // WriteLn('  fpdev cross disable <target>                           禁用交叉编译目标');  // 调试代码已注释
     WriteLn('  fpdev cross info <target>                              显示目标信息');
-    WriteLn('  fpdev cross test <target>                              测试交叉编译目标');
-    WriteLn('  fpdev cross configure <target> --binutils=<path> --libraries=<path>  配置目标路径');
-    WriteLn('  fpdev cross build <target> [source-file]               构建测试程序');
-    WriteLn('');
-    WriteLn('支持的目标:');
-    WriteLn('  win32, win64          - Windows 32/64位');
-    WriteLn('  linux32, linux64      - Linux 32/64位');
-    WriteLn('  linuxarm, linuxarm64  - Linux ARM/ARM64');
-    WriteLn('  darwin32, darwin64    - macOS 32/64位');
-    WriteLn('  darwinarm64           - macOS ARM64');
-    WriteLn('  android               - Android');
-    WriteLn('  ios                   - iOS');
-    WriteLn('  freebsd64             - FreeBSD 64位');
-    WriteLn('');
-    WriteLn('示例:');
-    WriteLn('  fpdev cross install win64                              安装Windows 64位交叉编译');
-    WriteLn('  fpdev cross configure win64 --binutils=/usr/bin --libraries=/usr/lib  手动配置路径');
-    WriteLn('  fpdev cross list --all                                 列出所有可用目标');
+  // WriteLn('  fpdev cross test <target>                              测试交叉编译目标');  // 调试代码已注释
+  // WriteLn('  fpdev cross configure <target> --binutils=<path> --libraries=<path>  配置目标路径');  // 调试代码已注释
+  // WriteLn('  fpdev cross build <target> [source-file]               构建测试程序');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('支持的目标:');  // 调试代码已注释
+  // WriteLn('  win32, win64          - Windows 32/64位');  // 调试代码已注释
+  // WriteLn('  linux32, linux64      - Linux 32/64位');  // 调试代码已注释
+  // WriteLn('  linuxarm, linuxarm64  - Linux ARM/ARM64');  // 调试代码已注释
+  // WriteLn('  darwin32, darwin64    - macOS 32/64位');  // 调试代码已注释
+  // WriteLn('  darwinarm64           - macOS ARM64');  // 调试代码已注释
+  // WriteLn('  android               - Android');  // 调试代码已注释
+  // WriteLn('  ios                   - iOS');  // 调试代码已注释
+  // WriteLn('  freebsd64             - FreeBSD 64位');  // 调试代码已注释
+  // WriteLn('');  // 调试代码已注释
+  // WriteLn('示例:');  // 调试代码已注释
+  // WriteLn('  fpdev cross install win64                              安装Windows 64位交叉编译');  // 调试代码已注释
+  // WriteLn('  fpdev cross configure win64 --binutils=/usr/bin --libraries=/usr/lib  手动配置路径');  // 调试代码已注释
+  // WriteLn('  fpdev cross list --all                                 列出所有可用目标');  // 调试代码已注释
     Exit;
   end;
 
@@ -814,8 +822,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要安装的目标');
-            WriteLn('用法: fpdev cross install <target>');
+  // WriteLn('错误: 请指定要安装的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross install <target>');  // 调试代码已注释
             Exit;
           end;
 
@@ -827,8 +835,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要卸载的目标');
-            WriteLn('用法: fpdev cross uninstall <target>');
+  // WriteLn('错误: 请指定要卸载的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross uninstall <target>');  // 调试代码已注释
             Exit;
           end;
 
@@ -846,8 +854,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要启用的目标');
-            WriteLn('用法: fpdev cross enable <target>');
+  // WriteLn('错误: 请指定要启用的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross enable <target>');  // 调试代码已注释
             Exit;
           end;
 
@@ -859,8 +867,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要禁用的目标');
-            WriteLn('用法: fpdev cross disable <target>');
+  // WriteLn('错误: 请指定要禁用的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross disable <target>');  // 调试代码已注释
             Exit;
           end;
 
@@ -872,7 +880,7 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要查看信息的目标');
+  // WriteLn('错误: 请指定要查看信息的目标');  // 调试代码已注释
             WriteLn('用法: fpdev cross info <target>');
             Exit;
           end;
@@ -885,8 +893,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要测试的目标');
-            WriteLn('用法: fpdev cross test <target>');
+  // WriteLn('错误: 请指定要测试的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross test <target>');  // 调试代码已注释
             Exit;
           end;
 
@@ -898,8 +906,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要配置的目标');
-            WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');
+  // WriteLn('错误: 请指定要配置的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');  // 调试代码已注释
             Exit;
           end;
 
@@ -918,8 +926,8 @@ begin
 
           if (BinutilsPath = '') or (LibrariesPath = '') then
           begin
-            WriteLn('错误: 请指定二进制工具和库文件路径');
-            WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');
+  // WriteLn('错误: 请指定二进制工具和库文件路径');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');  // 调试代码已注释
             Exit;
           end;
 
@@ -930,8 +938,8 @@ begin
         begin
           if Length(aParams) < 2 then
           begin
-            WriteLn('错误: 请指定要构建的目标');
-            WriteLn('用法: fpdev cross build <target> [source-file]');
+  // WriteLn('错误: 请指定要构建的目标');  // 调试代码已注释
+  // WriteLn('用法: fpdev cross build <target> [source-file]');  // 调试代码已注释
             Exit;
           end;
 
@@ -961,8 +969,8 @@ begin
         end;
 
       else
-        WriteLn('错误: 未知的命令: ', Command);
-        WriteLn('使用 "fpdev cross" 查看帮助信息');
+  // WriteLn('错误: 未知的命令: ', Command);  // 调试代码已注释
+  // WriteLn('使用 "fpdev cross" 查看帮助信息');  // 调试代码已注释
       end;
 
     finally

@@ -21,7 +21,7 @@ unit fpdev.collections;
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731    
+QQ群:685403987  QQ:179033731
 
 }
 
@@ -39,22 +39,22 @@ uses
 
 type
 
-	allocator_getMem_t		 = function(aSize: PtrUInt): Pointer;
-	allocator_allocMem_t	 = allocator_getMem_t;
-	allocator_reAllocMem_t = function(var aMem: Pointer; aSize: PtrUInt): Pointer;
-	allocator_freeMem_t    = procedure(aPtr: Pointer);
+  allocator_getMem_t     = function(aSize: PtrUInt): Pointer;
+  allocator_allocMem_t   = allocator_getMem_t;
+  allocator_reAllocMem_t = function(var aMem: Pointer; aSize: PtrUInt): Pointer;
+  allocator_freeMem_t    = procedure(aPtr: Pointer);
 
 
-	pallocator_t = ^allocator_t;
+  pallocator_t = ^allocator_t;
 
 { allocator_t 内存分配器 }
 
  allocator_t  = record
-		getMem:		  allocator_getMem_t;
-		allocMem:	  allocator_allocMem_t;
-		reallocMem: allocator_reAllocMem_t;
-		freeMem:	  allocator_freeMem_t;
-	end;
+    getMem:      allocator_getMem_t;
+    allocMem:    allocator_allocMem_t;
+    reallocMem: allocator_reAllocMem_t;
+    freeMem:    allocator_freeMem_t;
+  end;
 
 function  allocator_create(aGetMem: allocator_getMem_t; aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; aFreeMem: allocator_freeMem_t): pallocator_t;
 procedure allocator_init(aAllocator: pallocator_t; aGetMem: allocator_getMem_t; aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; aFreeMem: allocator_freeMem_t);
@@ -314,16 +314,16 @@ var
     freeMem:    @freeMem_rtl;
   );
 
-function allocator_create(aGetMem: allocator_getMem_t; 
-  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; 
+function allocator_create(aGetMem: allocator_getMem_t;
+  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t;
   aFreeMem: allocator_freeMem_t): pallocator_t;
 begin
   Result := aGetMem(SizeOf(allocator_t));
   allocator_init(Result, aGetMem, aAllocMem, aReallocMem, aFreeMem);
 end;
 
-procedure allocator_init(aAllocator: pallocator_t; aGetMem: allocator_getMem_t; 
-  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; 
+procedure allocator_init(aAllocator: pallocator_t; aGetMem: allocator_getMem_t;
+  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t;
   aFreeMem: allocator_freeMem_t);
 begin
   aAllocator^.getMem := aGetMem;
@@ -382,8 +382,8 @@ begin
   FAllocator := aAllocator;
 end;
 
-constructor TAllocator.Create(aGetMem: allocator_getMem_t; 
-  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; 
+constructor TAllocator.Create(aGetMem: allocator_getMem_t;
+  aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t;
   aFreeMem: allocator_freeMem_t);
 begin
   FAllocatorInternal := allocator_create(aGetMem, aAllocMem, aReallocMem, aFreeMem);

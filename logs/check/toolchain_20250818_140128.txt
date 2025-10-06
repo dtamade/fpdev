@@ -1,0 +1,12 @@
+Toolchain Check @ 2025/08/18 ÷‹“ª 14:01:28.96 
+================================== 
+CMD OK  found
+CMD MISSING
+CMD OK  found
+CMD OK  
+CMD OK  4.99
+CMD OK  2.49.0.windows.1
+CMD OK  3.4.1
+CMD MISSING
+CMD OK  found
+CMD MISSING

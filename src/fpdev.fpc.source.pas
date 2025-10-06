@@ -32,7 +32,7 @@ type
     FParallelJobs: Integer;
     FUseCache: Boolean;
     FVerboseOutput: Boolean;
-    
+
     function GetSourcePath(const AVersion: string): string;
     function GetVersionFromBranch(const ABranch: string): string;
     function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
@@ -63,11 +63,11 @@ type
     function UseCachedBuild(const AVersion: string): Boolean;
     function OptimizeBuildCommand(const ABaseCommand: string): string;
     function CheckBuildPrerequisites(const AVersion: string): Boolean;
-    
+
   public
     constructor Create(const ASourceRoot: string = '');
     destructor Destroy; override;
-    
+
     // 源码管理
     function CloneFPCSource(const AVersion: string = 'main'): Boolean;
     function UpdateFPCSource(const AVersion: string = ''): Boolean;
@@ -78,16 +78,16 @@ type
     function InstallFPCVersion(const AVersion: string): Boolean;
     function ListAvailableVersions: TStringArray;
     function ListLocalVersions: TStringArray;
-    
+
     // 版本信息
     function GetCurrentVersion: string;
     function IsVersionAvailable(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
-    
+
     // 路径管理
     function GetFPCSourcePath(const AVersion: string = ''): string;
     function GetFPCBuildPath(const AVersion: string = ''): string;
-    
+
     // 属性
     property SourceRoot: string read FSourceRoot write FSourceRoot;
     property CurrentVersion: string read GetCurrentVersion;
@@ -96,7 +96,7 @@ type
 const
   // FPC Git仓库信息
   FPC_GIT_URL = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  
+
   // 支持的FPC版本分支
   FPC_VERSIONS: array[0..6] of record
     Version: string;
@@ -156,7 +156,7 @@ begin
     Version := 'main'
   else
     Version := AVersion;
-    
+
   Result := FSourceRoot + PathDelim + 'fpc-' + Version;
 end;
 
@@ -165,7 +165,7 @@ var
   i: Integer;
 begin
   Result := ABranch;
-  
+
   // 从分支名推断版本
   for i := 0 to High(FPC_VERSIONS) do
   begin
@@ -184,9 +184,9 @@ var
 begin
   Result := False;
 
-  WriteLn('执行Git命令: ', ACommand);
+  // WriteLn('执行Git命令: ', ACommand);  // 调试代码已注释
   if AWorkingDir <> '' then
-    WriteLn('工作目录: ', AWorkingDir);
+  // WriteLn('工作目录: ', AWorkingDir);  // 调试代码已注释
 
   OldDir := GetCurrentDir;
   try
@@ -197,9 +197,13 @@ begin
     Result := ExitCode = 0;
 
     if Result then
-      WriteLn('✓ Git命令执行成功')
+    begin
+      // WriteLn('✓ Git命令执行成功')  // 调试代码已注释
+    end
     else
-      WriteLn('✗ Git命令执行失败，退出代码: ', ExitCode);
+    begin
+      // WriteLn('✗ Git命令执行失败，退出代码: ', ExitCode);  // 调试代码已注释
+    end;
 
   finally
     SetCurrentDir(OldDir);
@@ -215,9 +219,9 @@ var
 begin
   Result := False;
 
-  WriteLn('执行命令: ', AProgram);
+  // WriteLn('执行命令: ', AProgram);  // 调试代码已注释
   if AWorkingDir <> '' then
-    WriteLn('工作目录: ', AWorkingDir);
+  // WriteLn('工作目录: ', AWorkingDir);  // 调试代码已注释
 
   // 转换参数数组
   SetLength(Args, Length(AArgs));
@@ -233,9 +237,13 @@ begin
     Result := ExitCode = 0;
 
     if Result then
-      WriteLn('✓ 命令执行成功')
+    begin
+      // WriteLn('✓ 命令执行成功')  // 调试代码已注释
+    end
     else
-      WriteLn('✗ 命令执行失败，退出代码: ', ExitCode);
+    begin
+      // WriteLn('✗ 命令执行失败，退出代码: ', ExitCode);  // 调试代码已注释
+    end;
 
   finally
     SetCurrentDir(OldDir);
@@ -264,17 +272,17 @@ function TFPCSourceManager.SwitchFPCVersion(const AVersion: string): Boolean;
 begin
   if not IsVersionInstalled(AVersion) then
   begin
-    WriteLn('版本 ', AVersion, ' 未安装（请先执行: fpdev fpc install ', AVersion, '）');
+  // WriteLn('版本 ', AVersion, ' 未安装（请先执行: fpdev fpc install ', AVersion, '）');  // 调试代码已注释
     Exit(False);
   end;
   Result := Repo.SwitchFPCVersion(AVersion);
   if Result then
   begin
     FCurrentVersion := AVersion;
-    WriteLn('✓ 已切换至版本: ', AVersion);
+  // WriteLn('✓ 已切换至版本: ', AVersion);  // 调试代码已注释
   end
   else
-    WriteLn('✗ 切换版本失败: ', AVersion);
+  // WriteLn('✗ 切换版本失败: ', AVersion);  // 调试代码已注释
 end;
 
 function TFPCSourceManager.ListAvailableVersions: TStringArray;
@@ -310,11 +318,11 @@ begin
       until FindNext(SearchRec) <> 0;
       FindClose(SearchRec);
     end;
-    
+
     SetLength(Result, VersionList.Count);
     for i := 0 to VersionList.Count - 1 do
       Result[i] := VersionList[i];
-      
+
   finally
     VersionList.Free;
   end;
@@ -354,7 +362,7 @@ begin
     Version := FCurrentVersion;
   if Version = '' then
     Version := 'main';
-    
+
   Result := GetSourcePath(Version);
 end;
 
@@ -380,14 +388,14 @@ begin
 
   if not DirectoryExists(SourcePath) then
   begin
-    WriteLn('✗ FPC源码目录不存在: ', SourcePath);
-    WriteLn('请先克隆源码: CloneFPCSource');
+  // WriteLn('✗ FPC源码目录不存在: ', SourcePath);  // 调试代码已注释
+  // WriteLn('请先克隆源码: CloneFPCSource');  // 调试代码已注释
     Exit;
   end;
 
-  WriteLn('正在构建FPC ', Version, '...');
-  WriteLn('源码路径: ', SourcePath);
-  WriteLn('注意: 构建过程可能需要30-60分钟');
+  // WriteLn('正在构建FPC ', Version, '...');  // 调试代码已注释
+  // WriteLn('源码路径: ', SourcePath);  // 调试代码已注释
+  // WriteLn('注意: 构建过程可能需要30-60分钟');  // 调试代码已注释
   WriteLn;
 
   // 构建FPC需要已有的FPC编译器作为bootstrap
@@ -397,21 +405,21 @@ begin
   BuildCommand := 'make clean all';
   {$ENDIF}
 
-  WriteLn('执行构建命令: ', BuildCommand);
+  // WriteLn('执行构建命令: ', BuildCommand);  // 调试代码已注释
   Result := ExecuteCommand('make', ['clean', 'all'], SourcePath);
 
   if Result then
   begin
-    WriteLn('✓ FPC ', Version, ' 构建成功');
-    WriteLn('编译器位置: ', SourcePath, PathDelim, 'compiler', PathDelim, 'ppc386');
+  // WriteLn('✓ FPC ', Version, ' 构建成功');  // 调试代码已注释
+  // WriteLn('编译器位置: ', SourcePath, PathDelim, 'compiler', PathDelim, 'ppc386');  // 调试代码已注释
   end
   else
   begin
-    WriteLn('✗ FPC ', Version, ' 构建失败');
-    WriteLn('请检查:');
-    WriteLn('1. 是否已安装bootstrap FPC编译器');
-    WriteLn('2. 是否安装了必要的构建工具 (make, binutils)');
-    WriteLn('3. 网络连接是否正常');
+  // WriteLn('✗ FPC ', Version, ' 构建失败');  // 调试代码已注释
+  // WriteLn('请检查:');  // 调试代码已注释
+  // WriteLn('1. 是否已安装bootstrap FPC编译器');  // 调试代码已注释
+  // WriteLn('2. 是否安装了必要的构建工具 (make, binutils)');  // 调试代码已注释
+  // WriteLn('3. 网络连接是否正常');  // 调试代码已注释
   end;
 end;
 
@@ -422,8 +430,8 @@ begin
   Result := False;
   Version := AVersion;
 
-  WriteLn('开始构建测试FPC版本: ', Version);
-  WriteLn('智能构建流程 (智能clone管理，避免重复克隆)');
+  // WriteLn('开始构建测试FPC版本: ', Version);  // 调试代码已注释
+  // WriteLn('智能构建流程 (智能clone管理，避免重复克隆)');  // 调试代码已注释
   WriteLn;
 
   // Step 1: Initialize build environment
@@ -431,7 +439,7 @@ begin
   if not ReportBuildStep(bsInit, '初始化构建环境') then Exit;
   if not InitializeInstall(Version) then
   begin
-    WriteLn('✗ 构建环境初始化失败');
+  // WriteLn('✗ 构建环境初始化失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -440,7 +448,7 @@ begin
   if not ReportBuildStep(bsBootstrap, '检查Bootstrap编译器') then Exit;
   if not EnsureBootstrapCompiler(Version) then
   begin
-    WriteLn('✗ Bootstrap编译器准备失败');
+  // WriteLn('✗ Bootstrap编译器准备失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -449,7 +457,7 @@ begin
   if not ReportBuildStep(bsClone, '智能克隆FPC源码') then Exit;
   if not CloneFPCSource(Version) then
   begin
-    WriteLn('✗ 源码准备失败');
+  // WriteLn('✗ 源码准备失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -458,7 +466,7 @@ begin
   if not ReportBuildStep(bsCompiler, '构建FPC编译器') then Exit;
   if not BuildFPCCompiler(Version) then
   begin
-    WriteLn('✗ 编译器构建失败');
+  // WriteLn('✗ 编译器构建失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -467,7 +475,7 @@ begin
   if not ReportBuildStep(bsRTL, '构建FPC RTL') then Exit;
   if not BuildFPCRTL(Version) then
   begin
-    WriteLn('✗ RTL构建失败');
+  // WriteLn('✗ RTL构建失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -476,7 +484,7 @@ begin
   if not ReportBuildStep(bsConfig, '测试构建结果') then Exit;
   if not TestBuildResults(Version) then
   begin
-    WriteLn('✗ 构建测试失败');
+  // WriteLn('✗ 构建测试失败');  // 调试代码已注释
     Exit;
   end;
 
@@ -485,10 +493,10 @@ begin
   ReportBuildStep(bsFinished, 'FPC构建测试完成');
 
   WriteLn;
-  WriteLn('🎉 FPC ', Version, ' 构建测试成功！');
-  WriteLn('构建路径: ', GetFPCSourcePath(Version), PathDelim, 'compiler');
-  WriteLn('Bootstrap: ', FBootstrapCompiler);
-  WriteLn('并行任务: ', FParallelJobs);
+  // WriteLn('🎉 FPC ', Version, ' 构建测试成功！');  // 调试代码已注释
+  // WriteLn('构建路径: ', GetFPCSourcePath(Version), PathDelim, 'compiler');  // 调试代码已注释
+  // WriteLn('Bootstrap: ', FBootstrapCompiler);  // 调试代码已注释
+  // WriteLn('并行任务: ', FParallelJobs);  // 调试代码已注释
   Result := True;
 end;
 
@@ -531,8 +539,8 @@ end;
 
 function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
 begin
-  WriteLn('! 正在下载Bootstrap编译器 ', AVersion, '...');
-  WriteLn('注意: 实际实现中需要从FPC官方下载预编译版本');
+  // WriteLn('! 正在下载Bootstrap编译器 ', AVersion, '...');  // 调试代码已注释
+  // WriteLn('注意: 实际实现中需要从FPC官方下载预编译版本');  // 调试代码已注释
   // TODO: Implement actual bootstrap download
   Result := True; // Simulate success for now
 end;
@@ -542,14 +550,14 @@ var
   RequiredVersion, SystemFPC, BootstrapPath: string;
 begin
   RequiredVersion := GetRequiredBootstrapVersion(ATargetVersion);
-  WriteLn('需要Bootstrap编译器版本: ', RequiredVersion);
+  // WriteLn('需要Bootstrap编译器版本: ', RequiredVersion);  // 调试代码已注释
 
   // Check system FPC
   SystemFPC := FindSystemFPC;
   if IsCompatibleBootstrap(SystemFPC, RequiredVersion) then
   begin
     FBootstrapCompiler := SystemFPC;
-    WriteLn('✓ 使用系统FPC作为Bootstrap编译器');
+  // WriteLn('✓ 使用系统FPC作为Bootstrap编译器');  // 调试代码已注释
     Exit(True);
   end;
 
@@ -558,28 +566,28 @@ begin
   if FileExists(BootstrapPath) then
   begin
     FBootstrapCompiler := BootstrapPath;
-    WriteLn('✓ 使用已下载的Bootstrap编译器');
+  // WriteLn('✓ 使用已下载的Bootstrap编译器');  // 调试代码已注释
     Exit(True);
   end;
 
   // Download bootstrap compiler
-  WriteLn('! 系统FPC版本不兼容，正在下载Bootstrap编译器...');
+  // WriteLn('! 系统FPC版本不兼容，正在下载Bootstrap编译器...');  // 调试代码已注释
   Result := DownloadBootstrapCompiler(RequiredVersion);
   if Result then
   begin
     FBootstrapCompiler := GetBootstrapPath(RequiredVersion);
-    WriteLn('✓ Bootstrap编译器下载完成');
+  // WriteLn('✓ Bootstrap编译器下载完成');  // 调试代码已注释
   end;
 end;
 
 // Step-by-step build process (FPCUpDeluxe-inspired)
 function TFPCSourceManager.InitializeInstall(const AVersion: string): Boolean;
 begin
-  WriteLn('正在初始化安装环境...');
+  // WriteLn('正在初始化安装环境...');  // 调试代码已注释
   // Create necessary directories
   ForceDirectories(FSourceRoot);
   ForceDirectories(FSourceRoot + PathDelim + 'bootstrap');
-  WriteLn('✓ 安装环境初始化完成');
+  // WriteLn('✓ 安装环境初始化完成');  // 调试代码已注释
   Result := True;
 end;
 
@@ -587,9 +595,9 @@ function TFPCSourceManager.BuildFPCCompiler(const AVersion: string): Boolean;
 var
   LBM: TBuildManager;
 begin
-  WriteLn('正在测试FPC编译器构建...');
-  WriteLn('使用Bootstrap编译器: ', FBootstrapCompiler);
-  WriteLn('并行任务数: ', FParallelJobs);
+  // WriteLn('正在测试FPC编译器构建...');  // 调试代码已注释
+  // WriteLn('使用Bootstrap编译器: ', FBootstrapCompiler);  // 调试代码已注释
+  // WriteLn('并行任务数: ', FParallelJobs);  // 调试代码已注释
 
   // 代理到 BuildManager（目前为占位实现，后续逐步迁移真实逻辑）
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
@@ -601,16 +609,16 @@ begin
   end;
 
   if Result then
-    WriteLn('✓ FPC编译器构建测试完成')
+  // WriteLn('✓ FPC编译器构建测试完成')  // 调试代码已注释
   else
-    WriteLn('✗ FPC编译器构建测试失败');
+  // WriteLn('✗ FPC编译器构建测试失败');  // 调试代码已注释
 end;
 
 function TFPCSourceManager.BuildFPCRTL(const AVersion: string): Boolean;
 var
   LBM: TBuildManager;
 begin
-  WriteLn('正在构建FPC RTL (运行时库)...');
+  // WriteLn('正在构建FPC RTL (运行时库)...');  // 调试代码已注释
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.BuildRTL(AVersion);
@@ -618,16 +626,16 @@ begin
     LBM.Free;
   end;
   if Result then
-    WriteLn('✓ FPC RTL构建完成')
+  // WriteLn('✓ FPC RTL构建完成')  // 调试代码已注释
   else
-    WriteLn('✗ FPC RTL构建失败');
+  // WriteLn('✗ FPC RTL构建失败');  // 调试代码已注释
 end;
 
 function TFPCSourceManager.BuildFPCPackages(const AVersion: string): Boolean;
 begin
-  WriteLn('正在构建FPC包...');
+  // WriteLn('正在构建FPC包...');  // 调试代码已注释
   // TODO: Implement packages build
-  WriteLn('✓ FPC包构建完成');
+  // WriteLn('✓ FPC包构建完成');  // 调试代码已注释
   Result := True;
 end;
 
@@ -635,7 +643,7 @@ function TFPCSourceManager.InstallFPCBinaries(const AVersion: string): Boolean;
 var
   LBM: TBuildManager;
 begin
-  WriteLn('正在安装FPC二进制文件...');
+  // WriteLn('正在安装FPC二进制文件...');  // 调试代码已注释
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.Install(AVersion);
@@ -643,16 +651,16 @@ begin
     LBM.Free;
   end;
   if Result then
-    WriteLn('✓ FPC二进制文件安装完成')
+  // WriteLn('✓ FPC二进制文件安装完成')  // 调试代码已注释
   else
-    WriteLn('✗ FPC二进制文件安装失败');
+  // WriteLn('✗ FPC二进制文件安装失败');  // 调试代码已注释
 end;
 
 function TFPCSourceManager.ConfigureFPCEnvironment(const AVersion: string): Boolean;
 var
   LBM: TBuildManager;
 begin
-  WriteLn('正在配置FPC环境...');
+  // WriteLn('正在配置FPC环境...');  // 调试代码已注释
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.Configure(AVersion);
@@ -660,16 +668,16 @@ begin
     LBM.Free;
   end;
   if Result then
-    WriteLn('✓ FPC环境配置完成')
+  // WriteLn('✓ FPC环境配置完成')  // 调试代码已注释
   else
-    WriteLn('✗ FPC环境配置失败');
+  // WriteLn('✗ FPC环境配置失败');  // 调试代码已注释
 end;
 
 function TFPCSourceManager.TestBuildResults(const AVersion: string): Boolean;
 var
   LBM: TBuildManager;
 begin
-  WriteLn('正在测试构建结果...');
+  // WriteLn('正在测试构建结果...');  // 调试代码已注释
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.TestResults(AVersion);
@@ -695,9 +703,9 @@ begin
   end;
 
   if AStep <> bsFinished then
-    WriteLn('[', StepNum, '/6] ', AMessage, '...')
+  // WriteLn('[', StepNum, '/6] ', AMessage, '...')  // 调试代码已注释
   else
-    WriteLn('✓ ', AMessage);
+  // WriteLn('✓ ', AMessage);  // 调试代码已注释
 
   Result := True;
 end;
@@ -716,7 +724,7 @@ begin
   if Result < 1 then Result := 1;
   if Result > 16 then Result := 16;
 
-  WriteLn('检测到CPU核心数: ', Result);
+  // WriteLn('检测到CPU核心数: ', Result);  // 调试代码已注释
 end;
 
 function TFPCSourceManager.IsCacheAvailable(const AVersion: string): Boolean;
@@ -727,15 +735,15 @@ begin
   Result := FileExists(CachePath);
 
   if Result then
-    WriteLn('发现缓存: ', CachePath)
+  // WriteLn('发现缓存: ', CachePath)  // 调试代码已注释
   else
-    WriteLn('无可用缓存');
+  // WriteLn('无可用缓存');  // 调试代码已注释
 end;
 
 function TFPCSourceManager.UseCachedBuild(const AVersion: string): Boolean;
 begin
   // TODO: Implement actual cache usage
-  WriteLn('正在从缓存恢复构建...');
+  // WriteLn('正在从缓存恢复构建...');  // 调试代码已注释
   Result := True; // Simulate success for now
 end;
 
@@ -754,28 +762,28 @@ begin
   if not FVerboseOutput then
     Result := Result + ' VERBOSE=0';
 
-  WriteLn('优化后的构建命令: ', Result);
+  // WriteLn('优化后的构建命令: ', Result);  // 调试代码已注释
 end;
 
 function TFPCSourceManager.CheckBuildPrerequisites(const AVersion: string): Boolean;
 begin
-  WriteLn('检查构建前置条件...');
+  // WriteLn('检查构建前置条件...');  // 调试代码已注释
 
   // Check if make is available
   if not ExecuteCommand('make', ['--version'], '') then
   begin
-    WriteLn('✗ make工具未找到');
+  // WriteLn('✗ make工具未找到');  // 调试代码已注释
     Exit(False);
   end;
 
   // Check if bootstrap compiler is available
   if FBootstrapCompiler = '' then
   begin
-    WriteLn('✗ Bootstrap编译器未设置');
+  // WriteLn('✗ Bootstrap编译器未设置');  // 调试代码已注释
     Exit(False);
   end;
 
-  WriteLn('✓ 构建前置条件检查通过');
+  // WriteLn('✓ 构建前置条件检查通过');  // 调试代码已注释
   Result := True;
 end;
 
@@ -799,21 +807,21 @@ begin
      DirectoryExists(RTLPath) and
      FileExists(MakefilePath) then
   begin
-    WriteLn('✓ 源码目录验证通过');
-    WriteLn('  - 编译器目录: ', CompilerPath);
-    WriteLn('  - RTL目录: ', RTLPath);
-    WriteLn('  - Makefile: ', MakefilePath);
+  // WriteLn('✓ 源码目录验证通过');  // 调试代码已注释
+  // WriteLn('  - 编译器目录: ', CompilerPath);  // 调试代码已注释
+  // WriteLn('  - RTL目录: ', RTLPath);  // 调试代码已注释
+  // WriteLn('  - Makefile: ', MakefilePath);  // 调试代码已注释
     Result := True;
   end
   else
   begin
-    WriteLn('✗ 源码目录验证失败');
+  // WriteLn('✗ 源码目录验证失败');  // 调试代码已注释
     if not DirectoryExists(CompilerPath) then
-      WriteLn('  - 缺少编译器目录: ', CompilerPath);
+  // WriteLn('  - 缺少编译器目录: ', CompilerPath);  // 调试代码已注释
     if not DirectoryExists(RTLPath) then
-      WriteLn('  - 缺少RTL目录: ', RTLPath);
+  // WriteLn('  - 缺少RTL目录: ', RTLPath);  // 调试代码已注释
     if not FileExists(MakefilePath) then
-      WriteLn('  - 缺少Makefile: ', MakefilePath);
+  // WriteLn('  - 缺少Makefile: ', MakefilePath);  // 调试代码已注释
   end;
 end;
 

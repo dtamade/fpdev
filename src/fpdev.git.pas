@@ -16,11 +16,12 @@ type
     function GetGitOutput(const ACommand: string; const AWorkingDir: string = ''): string;
     function IsGitInstalled: Boolean;
     function IsGitRepository(const APath: string): Boolean;
-    
+    function ExecuteGitParams(const Params: array of string; const AWorkingDir: string = ''): Boolean;
+
   public
     constructor Create;
     destructor Destroy; override;
-    
+
     // 基本Git操作
     function CloneRepository(const AURL, ATargetDir: string; const ABranch: string = ''): Boolean;
     function UpdateRepository(const ARepoDir: string): Boolean;
@@ -28,7 +29,10 @@ type
     function GetCurrentBranch(const ARepoDir: string): string;
     function ListBranches(const ARepoDir: string): TStringArray;
     function GetLastCommitHash(const ARepoDir: string): string;
-    
+    function Add(const ARepoDir, APathSpec: string): Boolean;
+    function Commit(const ARepoDir, AMessage: string): Boolean;
+    function Push(const ARepoDir: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
+
     // 验证和检查
     function ValidateGitEnvironment: Boolean;
     function GetGitVersion: string;
@@ -58,7 +62,7 @@ begin
     Process.Executable := 'git';
     Process.Parameters.Add('--version');
     Process.Options := Process.Options + [poWaitOnExit, poUsePipes, poNoConsole];
-    
+
     try
       Process.Execute;
       Result := Process.ExitStatus = 0;
@@ -83,9 +87,9 @@ function TGitManager.ValidateGitEnvironment: Boolean;
 begin
   Result := IsGitInstalled;
   if Result then
-    WriteLn('✓ Git found: ', GetGitVersion)
+  // WriteLn('✓ Git found: ', GetGitVersion)  // 调试代码已注释
   else
-    WriteLn('✗ Git not found. Please install Git first.');
+  // WriteLn('✗ Git not found. Please install Git first.');  // 调试代码已注释
 end;
 
 function TGitManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
@@ -95,45 +99,72 @@ var
   i: Integer;
 begin
   Result := False;
-  
+
   if not IsGitInstalled then
   begin
-    WriteLn('错误: Git未安装');
+  // WriteLn('错误: Git未安装');  // 调试代码已注释
     Exit;
   end;
-  
+
   Process := TProcess.Create(nil);
   try
     Process.Executable := 'git';
-    
+
     // 解析命令参数
     CommandParts := ACommand.Split(' ');
     for i := 0 to High(CommandParts) do
       if Trim(CommandParts[i]) <> '' then
         Process.Parameters.Add(Trim(CommandParts[i]));
-    
+
     if AWorkingDir <> '' then
       Process.CurrentDirectory := AWorkingDir;
-      
+
     Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-    
-    WriteLn('执行: git ', ACommand);
+
+  // WriteLn('执行: git ', ACommand);  // 调试代码已注释
     if AWorkingDir <> '' then
-      WriteLn('工作目录: ', AWorkingDir);
-    
+  // WriteLn('工作目录: ', AWorkingDir);  // 调试代码已注释
+
     try
       Process.Execute;
       Result := Process.ExitStatus = 0;
-      
+
       if not Result then
-        WriteLn('Git命令执行失败，退出代码: ', Process.ExitStatus);
-        
+  // WriteLn('Git命令执行失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
+
     except
       on E: Exception do
       begin
-        WriteLn('执行Git命令时发生异常: ', E.Message);
+  // WriteLn('执行Git命令时发生异常: ', E.Message);  // 调试代码已注释
         Result := False;
       end;
+    end;
+  finally
+    Process.Free;
+  end;
+end;
+
+function TGitManager.ExecuteGitParams(const Params: array of string; const AWorkingDir: string): Boolean;
+var
+  Process: TProcess;
+  i: Integer;
+begin
+  Result := False;
+  if not IsGitInstalled then Exit;
+  Process := TProcess.Create(nil);
+  try
+    Process.Executable := 'git';
+    for i := Low(Params) to High(Params) do
+      if Trim(Params[i]) <> '' then
+        Process.Parameters.Add(Params[i]);
+    if AWorkingDir <> '' then
+      Process.CurrentDirectory := AWorkingDir;
+    Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+    try
+      Process.Execute;
+      Result := Process.ExitStatus = 0;
+    except
+      Result := False;
     end;
   finally
     Process.Free;
@@ -148,35 +179,35 @@ var
   OutputStream: TStringList;
 begin
   Result := '';
-  
+
   if not IsGitInstalled then
     Exit;
-  
+
   Process := TProcess.Create(nil);
   OutputStream := TStringList.Create;
   try
     Process.Executable := 'git';
-    
+
     // 解析命令参数
     CommandParts := ACommand.Split(' ');
     for i := 0 to High(CommandParts) do
       if Trim(CommandParts[i]) <> '' then
         Process.Parameters.Add(Trim(CommandParts[i]));
-    
+
     if AWorkingDir <> '' then
       Process.CurrentDirectory := AWorkingDir;
-      
+
     Process.Options := Process.Options + [poWaitOnExit, poUsePipes, poNoConsole];
-    
+
     try
       Process.Execute;
-      
+
       if Process.ExitStatus = 0 then
       begin
         OutputStream.LoadFromStream(Process.Output);
         Result := OutputStream.Text;
       end;
-      
+
     except
       on E: Exception do
         Result := '';
@@ -198,85 +229,85 @@ var
   ParentDir: string;
 begin
   Result := False;
-  
-  WriteLn('正在克隆仓库...');
-  WriteLn('URL: ', AURL);
-  WriteLn('目标目录: ', ATargetDir);
+
+  // WriteLn('正在克隆仓库...');  // 调试代码已注释
+  // WriteLn('URL: ', AURL);  // 调试代码已注释
+  // WriteLn('目标目录: ', ATargetDir);  // 调试代码已注释
   if ABranch <> '' then
-    WriteLn('分支: ', ABranch);
-  
+  // WriteLn('分支: ', ABranch);  // 调试代码已注释
+
   // 确保父目录存在
   ParentDir := ExtractFileDir(ATargetDir);
   if not DirectoryExists(ParentDir) then
   begin
-    WriteLn('创建目录: ', ParentDir);
+  // WriteLn('创建目录: ', ParentDir);  // 调试代码已注释
     if not ForceDirectories(ParentDir) then
     begin
-      WriteLn('错误: 无法创建目录 ', ParentDir);
+  // WriteLn('错误: 无法创建目录 ', ParentDir);  // 调试代码已注释
       Exit;
     end;
   end;
-  
+
   // 如果目标目录已存在且是Git仓库，则更新而不是克隆
   if IsGitRepository(ATargetDir) then
   begin
-    WriteLn('目标目录已存在Git仓库，尝试更新...');
+  // WriteLn('目标目录已存在Git仓库，尝试更新...');  // 调试代码已注释
     Result := UpdateRepository(ATargetDir);
     Exit;
   end;
-  
+
   // 构建克隆命令
   Command := 'clone';
   if ABranch <> '' then
     Command := Command + ' --branch ' + ABranch;
   Command := Command + ' ' + AURL + ' ' + ATargetDir;
-  
+
   Result := ExecuteGitCommand(Command);
-  
+
   if Result then
-    WriteLn('✓ 仓库克隆成功')
+  // WriteLn('✓ 仓库克隆成功')  // 调试代码已注释
   else
-    WriteLn('✗ 仓库克隆失败');
+  // WriteLn('✗ 仓库克隆失败');  // 调试代码已注释
 end;
 
 function TGitManager.UpdateRepository(const ARepoDir: string): Boolean;
 begin
   Result := False;
-  
+
   if not IsGitRepository(ARepoDir) then
   begin
-    WriteLn('错误: ', ARepoDir, ' 不是Git仓库');
+  // WriteLn('错误: ', ARepoDir, ' 不是Git仓库');  // 调试代码已注释
     Exit;
   end;
-  
-  WriteLn('正在更新仓库: ', ARepoDir);
-  
+
+  // WriteLn('正在更新仓库: ', ARepoDir);  // 调试代码已注释
+
   // 执行 git pull
   Result := ExecuteGitCommand('pull', ARepoDir);
-  
+
   if Result then
-    WriteLn('✓ 仓库更新成功')
+  // WriteLn('✓ 仓库更新成功')  // 调试代码已注释
   else
-    WriteLn('✗ 仓库更新失败');
+  // WriteLn('✗ 仓库更新失败');  // 调试代码已注释
 end;
 
 function TGitManager.CheckoutBranch(const ARepoDir, ABranch: string): Boolean;
 begin
   Result := False;
-  
+
   if not IsGitRepository(ARepoDir) then
   begin
-    WriteLn('错误: ', ARepoDir, ' 不是Git仓库');
+  // WriteLn('错误: ', ARepoDir, ' 不是Git仓库');  // 调试代码已注释
     Exit;
   end;
-  
-  WriteLn('切换到分支: ', ABranch);
+
+  // WriteLn('切换到分支: ', ABranch);  // 调试代码已注释
   Result := ExecuteGitCommand('checkout ' + ABranch, ARepoDir);
-  
+
   if Result then
-    WriteLn('✓ 分支切换成功')
+  // WriteLn('✓ 分支切换成功')  // 调试代码已注释
   else
-    WriteLn('✗ 分支切换失败');
+  // WriteLn('✗ 分支切换失败');  // 调试代码已注释
 end;
 
 function TGitManager.GetCurrentBranch(const ARepoDir: string): string;
@@ -292,11 +323,11 @@ var
   Branch: string;
 begin
   SetLength(Result, 0);
-  
+
   Output := GetGitOutput('branch -r', ARepoDir);
   if Output = '' then
     Exit;
-  
+
   Lines := Output.Split([#10, #13]);
   for i := 0 to High(Lines) do
   begin
@@ -316,6 +347,30 @@ end;
 function TGitManager.GetLastCommitHash(const ARepoDir: string): string;
 begin
   Result := Trim(GetGitOutput('rev-parse HEAD', ARepoDir));
+end;
+
+function TGitManager.Add(const ARepoDir, APathSpec: string): Boolean;
+begin
+  Result := ExecuteGitParams(['add', APathSpec], ARepoDir);
+end;
+
+function TGitManager.Commit(const ARepoDir, AMessage: string): Boolean;
+begin
+  if AMessage = '' then
+    AMessage := 'update index.json';
+  Result := ExecuteGitParams(['commit', '-m', AMessage], ARepoDir);
+end;
+
+function TGitManager.Push(const ARepoDir: string; const ARemote: string; const ABranch: string): Boolean;
+var
+  BranchParam: string;
+begin
+  BranchParam := ABranch;
+  if BranchParam = '' then
+    BranchParam := GetCurrentBranch(ARepoDir);
+  if BranchParam = '' then
+    BranchParam := 'HEAD';
+  Result := ExecuteGitParams(['push', ARemote, BranchParam], ARepoDir);
 end;
 
 end.

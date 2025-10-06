@@ -252,14 +252,12 @@ end;
 
 function TGitRepositoryImpl.IsBare: Boolean;
 begin
-  // 近似：无工作区即 bare；后续可在 fpdev.git2 增加直接方法
-  Result := (FRepo.WorkDir = '');
+  Result := FRepo.IsBare;
 end;
 
 function TGitRepositoryImpl.IsEmpty: Boolean;
 begin
-  // 暂时返回 False；后续可通过 libgit2 is_empty 实现
-  Result := False;
+  Result := FRepo.IsEmpty;
 end;
 
 function TGitRepositoryImpl.Head: IGitReference;
@@ -311,10 +309,7 @@ begin
 end;
 function TGitRepositoryImpl.CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
 begin
-  if Force then
-    Result := FRepo.CheckoutBranch(Branch) // 暂借同实现（底层默认SAFE，后续将传入 FORCE 标志）
-  else
-    Result := FRepo.CheckoutBranch(Branch);
+  Result := FRepo.CheckoutBranchEx(Branch, Force);
 end;
 
 

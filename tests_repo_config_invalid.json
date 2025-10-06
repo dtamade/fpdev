@@ -1,0 +1,21 @@
+{
+  "version" : "1.0",
+  "default_toolchain" : "",
+  "toolchains" : {},
+  "lazarus" : {
+    "default_version" : "",
+    "versions" : {}
+  },
+  "cross_targets" : {},
+  "repositories" : {
+    "official_fpc" : "https://gitlab.com/freepascal.org/fpc/source.git",
+    "official_lazarus" : "https://gitlab.com/freepascal.org/lazarus.git",
+    "invalid-sample" : "file:///D:/projects/Pascal/lazarus/My/projects/fpdev/examples/sample-repo-invalid/index.json"
+  },
+  "settings" : {
+    "auto_update" : false,
+    "parallel_jobs" : 4,
+    "keep_sources" : true,
+    "install_root" : "D:\\projects\\Pascal\\lazarus\\My\\projects\\fpdev\\tests\\data"
+  }
+}

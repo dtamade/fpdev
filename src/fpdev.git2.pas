@@ -70,6 +70,7 @@ type
     function GetCurrentBranch: string;
     function ListBranches(AType: git_branch_t = GIT_BRANCH_LOCAL): TStringArray;
     function CheckoutBranch(const ABranch: string): Boolean;
+    function CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
 
     // 状态接口（简易与详细）
     // Status: 返回简化的路径字符串数组（不含标志）
@@ -81,6 +82,8 @@ type
     function Status: TStringArray;
     function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
     function IsClean: Boolean;
+    function IsBare: Boolean;
+    function IsEmpty: Boolean;
     function HasUncommittedChanges: Boolean;
 
     function GetCommit(const AOID: TGitOID): TGitCommit;
@@ -336,7 +339,10 @@ begin
   GitTime.offset := 0;
   GitTime.sign := Ord('+');
   Tm := CreateGitTimeFromGitTime(GitTime);
-  Create(AName, AEmail, Tm);
+  inherited Create;
+  FName := AName;
+  FEmail := AEmail;
+  FWhen := Tm;
 end;
 
 function TGitSignature.ToString: string;
@@ -368,7 +374,7 @@ begin
     FillByte(LOpts, SizeOf(LOpts), 0);
     CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
     LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
-    CheckGitResult(git_checkout_head(FHandle, LOpts), 'Checkout HEAD');
+    CheckGitResult(git_checkout_head(FHandle, @LOpts), 'Checkout HEAD');
 
     Result := True;
   except
@@ -377,6 +383,29 @@ begin
       // 转为布尔返回；详细错误已由 EGitError 携带
       Result := False;
     end;
+  end;
+end;
+
+function TGitRepository.CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
+var
+  LRefName: string;
+  LOpts: git_checkout_options;
+begin
+  Result := False;
+  try
+    if Trim(ABranch) = '' then Exit(False);
+    if Pos('refs/', ABranch) = 1 then LRefName := ABranch else LRefName := 'refs/heads/' + ABranch;
+    CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
+    FillByte(LOpts, SizeOf(LOpts), 0);
+    CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
+    if Force then
+      LOpts.checkout_strategy := GIT_CHECKOUT_FORCE
+    else
+      LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
+    CheckGitResult(git_checkout_head(FHandle, @LOpts), 'Checkout HEAD');
+    Result := True;
+  except
+    Result := False;
   end;
 end;
 
@@ -396,7 +425,7 @@ begin
   FillByte(opts, SizeOf(opts), 0);
   CheckGitResult(git_clone_options_init(@opts, 1), 'Init clone options');
   opts.checkout_opts.checkout_strategy := GIT_CHECKOUT_SAFE;
-  CheckResult(git_clone(FHandle, PChar(AURL), PChar(ALocalPath), opts), 'Clone repository');
+  CheckResult(git_clone(FHandle, PChar(AURL), PChar(ALocalPath), @opts), 'Clone repository');
   FPath := ALocalPath;
   FWorkDir := string(git_repository_workdir(FHandle));
 end;
@@ -481,6 +510,7 @@ begin
           raise EGitError.Create(rc, 'Iterate branches');
         BranchName := string(git_reference_name(RefHandle));
         List.Add(BranchName);
+        git_reference_free(RefHandle);
       end;
     finally
       git_branch_iterator_free(Iterator);
@@ -520,6 +550,7 @@ function TGitRepository.Status: TStringArray;
 var
   LList: TStringList;
   LCount: SizeInt;
+  LP: TStatusListPayload;
   function StatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): cint; cdecl;
   begin
     if (AFlags <> GIT_STATUS_CURRENT) then
@@ -530,7 +561,6 @@ begin
   SetLength(Result, 0);
   LList := TStringList.Create;
   try
-    var LP: TStatusListPayload;
     LP.List := LList;
     CheckGitResult(git_status_foreach(FHandle, @StatusListCb, @LP), 'Status foreach');
     LCount := LList.Count;
@@ -582,6 +612,16 @@ end;
 function TGitRepository.HasUncommit: Boolean;
 begin
   Result := HasUncommittedChanges;
+end;
+
+function TGitRepository.IsBare: Boolean;
+begin
+  Result := git_repository_is_bare(FHandle) <> 0;
+end;
+
+function TGitRepository.IsEmpty: Boolean;
+begin
+  Result := git_repository_is_empty(FHandle) <> 0;
 end;
 
 function TGitRepository.GetRemote(const AName: string): TGitRemote;
