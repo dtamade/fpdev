@@ -494,9 +494,9 @@ begin
       Write(Format('%-10s  ', [Targets[i].Name]));
 
       if Targets[i].Installed then
-        Write('已安装  ')
+        Write('Installed  ')
       else
-        Write('可用    ');
+        Write('Available  ');
 
       Write(Format('%-20s  ', [Targets[i].DisplayName]));
       Write(Format('%-8s  ', [Targets[i].CPU]));
@@ -591,10 +591,10 @@ begin
     TargetInfo := GetTargetInfo(ATarget);
   // WriteLn('交叉编译目标信息: ', ATarget);  // 调试代码已注释
   // WriteLn('');  // 调试代码已注释
-    WriteLn('显示名称: ', TargetInfo.DisplayName);
-    WriteLn('CPU架构: ', TargetInfo.CPU);
-    WriteLn('操作系统: ', TargetInfo.OS);
-    WriteLn('二进制工具前缀: ', TargetInfo.BinutilsPrefix);
+    WriteLn('Display Name: ', TargetInfo.DisplayName);
+    WriteLn('CPU Architecture: ', TargetInfo.CPU);
+    WriteLn('Operating System: ', TargetInfo.OS);
+    WriteLn('Binutils Prefix: ', TargetInfo.BinutilsPrefix);
 
     if TargetInfo.Installed then
     begin

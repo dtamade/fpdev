@@ -766,7 +766,7 @@ begin
         if DirectoryExists(TmpDir) then
         begin
           try
-            if not RemoveDirRecursive(TmpDir) then WriteLn('警告: 部分临时文件未能清理: ', TmpDir);
+            if not RemoveDirRecursive(TmpDir) then WriteLn('Warning: Could not clean some temporary files: ', TmpDir);
           except
             on E: Exception do
   // WriteLn('警告: 清理临时目录失败: ', E.Message);  // 调试代码已注释
@@ -965,16 +965,16 @@ begin
   try
     PackageInfo := GetPackageInfo(APackageName);
 
-  // WriteLn('包信息: ', APackageName);  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-    WriteLn('名称: ', PackageInfo.Name);
-    WriteLn('版本: ', PackageInfo.Version);
-    WriteLn('描述: ', PackageInfo.Description);
+  // WriteLn('Package info: ', APackageName);  // Debug code commented out
+  // WriteLn('');  // Debug code commented out
+    WriteLn('Name: ', PackageInfo.Name);
+    WriteLn('Version: ', PackageInfo.Version);
+    WriteLn('Description: ', PackageInfo.Description);
 
     if PackageInfo.Installed then
     begin
-  // WriteLn('状态: 已安装');  // 调试代码已注释
-      WriteLn('安装路径: ', PackageInfo.InstallPath);
+  // WriteLn('Status: Installed');  // Debug code commented out
+      WriteLn('Install Path: ', PackageInfo.InstallPath);
     end else
     begin
   // WriteLn('状态: 未安装');  // 调试代码已注释

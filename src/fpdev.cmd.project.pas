@@ -350,15 +350,15 @@ begin
       Write(Format('%-10s  ', [Templates[i].Name]));
 
       case Templates[i].ProjectType of
-        ptConsole: Write('控制台      ');
-        ptGUI: Write('GUI应用     ');
-        ptLibrary: Write('动态库      ');
-        ptPackage: Write('包项目      ');
-        ptWebApp: Write('Web应用     ');
-        ptService: Write('系统服务    ');
-        ptGame: Write('游戏项目    ');
+        ptConsole: Write('Console     ');
+        ptGUI: Write('GUI App     ');
+        ptLibrary: Write('Library     ');
+        ptPackage: Write('Package     ');
+        ptWebApp: Write('Web App     ');
+        ptService: Write('Service     ');
+        ptGame: Write('Game        ');
       else
-        Write('自定义      ');
+        Write('Custom      ');
       end;
 
       WriteLn(Templates[i].Description);
@@ -397,15 +397,15 @@ begin
   // WriteLn('显示名称: ', Template.DisplayName);  // 调试代码已注释
   // WriteLn('描述: ', Template.Description);  // 调试代码已注释
 
-    Write('类型: ');
+    Write('Type: ');
     case Template.ProjectType of
-      ptConsole: WriteLn('控制台应用程序');
-      ptGUI: WriteLn('GUI应用程序');
-      ptLibrary: WriteLn('动态库');
-      ptPackage: WriteLn('Lazarus包');
-      ptWebApp: WriteLn('Web应用程序');
-      ptService: WriteLn('系统服务');
-      ptGame: WriteLn('游戏项目');
+      ptConsole: WriteLn('Console Application');
+      ptGUI: WriteLn('GUI Application');
+      ptLibrary: WriteLn('Library');
+      ptPackage: WriteLn('Lazarus Package');
+      ptWebApp: WriteLn('Web Application');
+      ptService: WriteLn('System Service');
+      ptGame: WriteLn('Game Project');
     else
   // WriteLn('自定义');  // 调试代码已注释
     end;

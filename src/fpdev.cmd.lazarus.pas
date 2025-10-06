@@ -579,11 +579,11 @@ begin
       if Versions[i].Installed then
       begin
         if SameText(Versions[i].Version, DefaultVersion) then
-          Write('已安装*  ')
+          Write('Installed*  ')
         else
-          Write('已安装   ');
+          Write('Installed   ');
       end else
-        Write('可用     ');
+        Write('Available   ');
 
       Write(Format('%-10s  ', [Versions[i].ReleaseDate]));
       Write(Format('%-7s  ', [Versions[i].FPCVersion]));
@@ -699,8 +699,8 @@ begin
 
       if FConfigManager.GetLazarusVersion('lazarus-' + AVersion, LazarusInfo) then
       begin
-        WriteLn('关联FPC版本: ', LazarusInfo.FPCVersion);
-        WriteLn('源码URL: ', LazarusInfo.SourceURL);
+        WriteLn('Associated FPC Version: ', LazarusInfo.FPCVersion);
+        WriteLn('Source URL: ', LazarusInfo.SourceURL);
       end;
     end else
     begin

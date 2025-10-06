@@ -73,7 +73,7 @@ begin
     if not DirectoryExists(LPath) then ForceDirectories(LPath);
     if not DirectoryExists(LPath) then
     begin
-      AErr := '无法创建目录';
+      AErr := 'Cannot create directory';
       Exit(False);
     end;
     LTest := LPath + '.fpdev_write_test.tmp';
@@ -118,15 +118,15 @@ begin
 
   // 2) git
   LOk := RunToolVersion('git', '--version', LOut);
-  if LOk then WriteLn('✓ git: ', LOut) else WriteLn('✗ git 未就绪（请安装 Git 并加入 PATH）');
+  if LOk then WriteLn('✓ git: ', LOut) else WriteLn('✗ git not ready (Please install Git and add it to PATH)');
 
   // 3) make
   LOk := RunToolVersion('make', '--version', LOut);
-  if LOk then WriteLn('✓ make: ', Copy(LOut,1,80), '...') else WriteLn('✗ make 未就绪（Windows 建议安装 MSYS2/MinGW 并将 make 加入 PATH）');
+  if LOk then WriteLn('✓ make: ', Copy(LOut,1,80), '...') else WriteLn('✗ make not ready (Windows: install MSYS2/MinGW and add make to PATH)');
 
-  // 4) bootstrap fpc（可选）
+  // 4) bootstrap fpc (optional)
   LOk := RunToolVersion('fpc', '-i', LOut);
-  if LOk then WriteLn('✓ bootstrap fpc: 可用') else WriteLn('⚠ bootstrap fpc 不可用（从源码构建需要已有 fpc）');
+  if LOk then WriteLn('✓ bootstrap fpc: available') else WriteLn('⚠ bootstrap fpc not available (building from source requires an existing fpc)');
 
   // WriteLn('');  // 调试代码已注释
   // WriteLn('建议:');  // 调试代码已注释

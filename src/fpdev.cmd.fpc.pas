@@ -754,11 +754,11 @@ begin
       if Versions[i].Installed then
       begin
         if SameText(Versions[i].Version, DefaultVersion) then
-          Write('已安装*  ')
+          Write('Installed*  ')
         else
-          Write('已安装   ');
+          Write('Installed   ');
       end else
-        Write('可用     ');
+        Write('Available   ');
 
       Write(Format('%-10s  ', [Versions[i].ReleaseDate]));
       WriteLn(Versions[i].Branch);
@@ -872,8 +872,8 @@ begin
 
       if FConfigManager.GetToolchain('fpc-' + AVersion, ToolchainInfo) then
       begin
-        WriteLn('安装日期: ', DateTimeToStr(ToolchainInfo.InstallDate));
-        WriteLn('源码URL: ', ToolchainInfo.SourceURL);
+        WriteLn('Install Date: ', DateTimeToStr(ToolchainInfo.InstallDate));
+        WriteLn('Source URL: ', ToolchainInfo.SourceURL);
       end;
     end else
     begin
