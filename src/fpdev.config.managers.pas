@@ -242,7 +242,16 @@ end;
 
 function TRepositoryManager.HasRepository(const AName: string): Boolean;
 begin
-  Result := FRepositories.IndexOfName(AName) >= 0;
+  WriteLn('DEBUG TRepositoryManager.HasRepository: Checking for: ', AName);
+  WriteLn('DEBUG TRepositoryManager.HasRepository: FRepositories assigned: ', Assigned(FRepositories));
+  if Assigned(FRepositories) then
+  begin
+    WriteLn('DEBUG TRepositoryManager.HasRepository: FRepositories count: ', FRepositories.Count);
+    Result := FRepositories.IndexOfName(AName) >= 0;
+    WriteLn('DEBUG TRepositoryManager.HasRepository: Result: ', Result);
+  end
+  else
+    Result := False;
 end;
 
 function TRepositoryManager.GetDefaultRepository: string;

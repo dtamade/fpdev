@@ -255,8 +255,15 @@ begin
 end;
 
 function TFPDevConfigManager.HasRepository(const AName: string): Boolean;
+var
+  RepoMgr: IRepositoryManager;
 begin
-  Result := FConfigManager.GetRepositoryManager.HasRepository(AName);
+  WriteLn('DEBUG: HasRepository called for: ', AName);
+  WriteLn('DEBUG: Getting repository manager...');
+  RepoMgr := FConfigManager.GetRepositoryManager;
+  WriteLn('DEBUG: Got repository manager, calling HasRepository...');
+  Result := RepoMgr.HasRepository(AName);
+  WriteLn('DEBUG: HasRepository returned: ', Result);
 end;
 
 function TFPDevConfigManager.GetDefaultRepository: string;
