@@ -25,13 +25,13 @@ function TRepoAddCommand.FindSub(const AName: string): IFpdevCommand; begin Resu
 
 procedure TRepoAddCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
 var
-  Name, URL: string;
+  RepoName, URL: string;
 begin
   if Length(AParams) < 2 then Exit;
-  Name := AParams[0];
+  RepoName := AParams[0];
   URL := AParams[1];
-  if (Trim(Name)='') or (Trim(URL)='') then Exit;
-  if Ctx.Config.AddRepository(Name, URL) then
+  if (Trim(RepoName)='') or (Trim(URL)='') then Exit;
+  if Ctx.Config.AddRepository(RepoName, URL) then
     Ctx.SaveIfModified;
 end;
 

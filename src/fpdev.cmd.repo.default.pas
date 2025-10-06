@@ -25,14 +25,14 @@ function TRepoDefaultCommand.FindSub(const AName: string): IFpdevCommand; begin 
 
 procedure TRepoDefaultCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
 var
-  Name: string;
+  RepoName: string;
   S: TFPDevSettings;
 begin
   if Length(AParams) < 1 then Exit;
-  Name := AParams[0];
-  if Ctx.Config.GetRepository(Name) = '' then Exit;
+  RepoName := AParams[0];
+  if Ctx.Config.GetRepository(RepoName) = '' then Exit;
   S := Ctx.Config.GetSettings;
-  S.DefaultRepo := Name;
+  S.DefaultRepo := RepoName;
   if Ctx.Config.SetSettings(S) then
     Ctx.SaveIfModified;
 end;

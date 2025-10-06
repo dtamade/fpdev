@@ -25,12 +25,12 @@ function TRepoRemoveCommand.FindSub(const AName: string): IFpdevCommand; begin R
 
 procedure TRepoRemoveCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
 var
-  Name: string;
+  RepoName: string;
 begin
   if Length(AParams) < 1 then Exit;
-  Name := AParams[0];
-  if (Trim(Name)='') then Exit;
-  if Ctx.Config.RemoveRepository(Name) then
+  RepoName := AParams[0];
+  if (Trim(RepoName)='') then Exit;
+  if Ctx.Config.RemoveRepository(RepoName) then
     Ctx.SaveIfModified;
 end;
 
