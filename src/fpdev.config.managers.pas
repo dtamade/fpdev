@@ -25,8 +25,16 @@ type
   // 前向声明
   TConfigManager = class;
 
+  { TNonRefCountedObject - 基类，实现接口但不进行引用计数 }
+  TNonRefCountedObject = class(TObject)
+  protected
+    function QueryInterface(constref IID: TGuid; out Obj): LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+    function _AddRef: LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+    function _Release: LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+  end;
+
   { TRepositoryManager - 仓库管理实现 }
-  TRepositoryManager = class(TInterfacedObject, IRepositoryManager)
+  TRepositoryManager = class(TNonRefCountedObject, IRepositoryManager)
   private
     FOwner: TConfigManager;
     FRepositories: TStringList;
@@ -50,7 +58,7 @@ type
   end;
 
   { TSettingsManager - 设置管理实现 }
-  TSettingsManager = class(TInterfacedObject, ISettingsManager)
+  TSettingsManager = class(TNonRefCountedObject, ISettingsManager)
   private
     FOwner: TConfigManager;
     FSettings: TFPDevSettings;
@@ -67,7 +75,7 @@ type
   end;
 
   { TToolchainManager - 工具链管理实现 }
-  TToolchainManager = class(TInterfacedObject, IToolchainManager)
+  TToolchainManager = class(TNonRefCountedObject, IToolchainManager)
   private
     FOwner: TConfigManager;
     FToolchains: TStringList;
@@ -96,7 +104,7 @@ type
   end;
 
   { TLazarusManager - Lazarus版本管理实现 }
-  TLazarusManager = class(TInterfacedObject, ILazarusManager)
+  TLazarusManager = class(TNonRefCountedObject, ILazarusManager)
   private
     FOwner: TConfigManager;
     FVersions: TStringList;
@@ -123,7 +131,7 @@ type
   end;
 
   { TCrossTargetManager - 交叉编译目标管理实现 }
-  TCrossTargetManager = class(TInterfacedObject, ICrossTargetManager)
+  TCrossTargetManager = class(TNonRefCountedObject, ICrossTargetManager)
   private
     FOwner: TConfigManager;
     FCrossTargets: TStringList;
@@ -147,7 +155,7 @@ type
   end;
 
   { TConfigManager - 配置管理总入口 }
-  TConfigManager = class(TInterfacedObject, IConfigManager)
+  TConfigManager = class(TNonRefCountedObject, IConfigManager)
   private
     FConfigPath: string;
     FModified: Boolean;
@@ -188,6 +196,26 @@ const
   DEFAULT_LAZARUS_REPO = 'https://gitlab.com/freepascal.org/lazarus.git';
 
 implementation
+
+{ TNonRefCountedObject }
+
+function TNonRefCountedObject.QueryInterface(constref IID: TGuid; out Obj): LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+begin
+  if GetInterface(IID, Obj) then
+    Result := 0
+  else
+    Result := E_NOINTERFACE;
+end;
+
+function TNonRefCountedObject._AddRef: LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+begin
+  Result := -1;  // 不进行引用计数
+end;
+
+function TNonRefCountedObject._Release: LongInt; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF};
+begin
+  Result := -1;  // 不进行引用计数
+end;
 
 { TRepositoryManager }
 
@@ -249,7 +277,9 @@ end;
 
 function TRepositoryManager.GetDefaultRepository: string;
 begin
-  Result := FDefaultRepo;
+  // 默认仓库实际上存储在 Settings 中，这里返回的是备用值
+  // 应该从 Settings 中读取
+  Result := FOwner.GetSettingsManager.GetSettings.DefaultRepo;
 end;
 
 function TRepositoryManager.ListRepositories: TStringArray;
@@ -950,6 +980,7 @@ end;
 
 destructor TConfigManager.Destroy;
 begin
+  // 现在类不再继承自 TInterfacedObject，需要手动释放
   FToolchainManager.Free;
   FLazarusManager.Free;
   FCrossTargetManager.Free;
