@@ -118,15 +118,15 @@ begin
 
   // 2) git
   LOk := RunToolVersion('git', '--version', LOut);
-  if LOk then WriteLn('✓ git: ', LOut) else WriteLn('✗ git not ready (Please install Git and add it to PATH)');
+  if LOk then WriteLn('[OK] git: ', LOut) else WriteLn('[X] git not ready (Please install Git and add it to PATH)');
 
   // 3) make
   LOk := RunToolVersion('make', '--version', LOut);
-  if LOk then WriteLn('✓ make: ', Copy(LOut,1,80), '...') else WriteLn('✗ make not ready (Windows: install MSYS2/MinGW and add make to PATH)');
+  if LOk then WriteLn('[OK] make: ', Copy(LOut,1,80), '...') else WriteLn('[X] make not ready (Windows: install MSYS2/MinGW and add make to PATH)');
 
   // 4) bootstrap fpc (optional)
   LOk := RunToolVersion('fpc', '-i', LOut);
-  if LOk then WriteLn('✓ bootstrap fpc: available') else WriteLn('⚠ bootstrap fpc not available (building from source requires an existing fpc)');
+  if LOk then WriteLn('[OK] bootstrap fpc: available') else WriteLn('[!] bootstrap fpc not available (building from source requires an existing fpc)');
 
   // WriteLn('');  // 调试代码已注释
   // WriteLn('建议:');  // 调试代码已注释

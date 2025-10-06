@@ -139,7 +139,7 @@ begin
       if LParam = '--fetch-tool' then
       begin
         // fpdev --fetch-tool <name> <version> <os> <arch> [--manifest <path>] [--dest <zip>]
-        if ParamCount < 5 then begin WriteLn('用法: fpdev --fetch-tool <name> <version> <os> <arch> [--manifest <path>] [--dest <zip>]'); ExitCode:=2; Exit; end;
+        if ParamCount < 5 then begin WriteLn('Usage: fpdev --fetch-tool <name> <version> <os> <arch> [--manifest <path>] [--dest <zip>]'); ExitCode:=2; Exit; end;
         Name := ParamStr(2);
         Ver := ParamStr(3);
         OS  := ParamStr(4);
@@ -153,16 +153,16 @@ begin
         end;
         J := TStringList.Create;
         try
-          if ManifestPath='' then begin WriteLn('未指定 --manifest'); ExitCode:=2; Exit; end;
-          if not FileExists(ManifestPath) then begin WriteLn('清单不存在: ', ManifestPath); ExitCode:=2; Exit; end;
+          if ManifestPath='' then begin WriteLn('--manifest not specified'); ExitCode:=2; Exit; end;
+          if not FileExists(ManifestPath) then begin WriteLn('Manifest not found: ', ManifestPath); ExitCode:=2; Exit; end;
           J.LoadFromFile(ManifestPath);
-          if not ParseManifestJSON(J.Text, M) then begin WriteLn('清单解析失败'); ExitCode:=2; Exit; end;
-          if not FindComponent(M, Name, Ver, OS, Arch, C) then begin WriteLn('未找到组件'); ExitCode:=2; Exit; end;
+          if not ParseManifestJSON(J.Text, M) then begin WriteLn('Manifest parse failed'); ExitCode:=2; Exit; end;
+          if not FindComponent(M, Name, Ver, OS, Arch, C) then begin WriteLn('Component not found'); ExitCode:=2; Exit; end;
           if Dest='' then Dest := IncludeTrailingPathDelimiter(GetCacheDir)+'toolchain'+PathDelim+Name+'-'+Ver+'.zip';
           Opt.DestDir := ExtractFileDir(Dest); Opt.SHA256 := C.Sha256; Opt.TimeoutMS := 30000;
           Ok := FetchWithMirrors(C.URLs, Dest, Opt, Err);
-          if Ok then begin WriteLn('下载成功: ', Dest); ExitCode:=0; end
-          else begin WriteLn('下载失败: ', Err); ExitCode:=2; end;
+          if Ok then begin WriteLn('Download successful: ', Dest); ExitCode:=0; end
+          else begin WriteLn('Download failed: ', Err); ExitCode:=2; end;
         finally
           J.Free;
         end;
@@ -171,17 +171,17 @@ begin
       else if LParam = '--extract-zip' then
       begin
         // fpdev --extract-zip <zip> <dest>
-        if ParamCount < 3 then begin WriteLn('用法: fpdev --extract-zip <zip> <dest>'); ExitCode:=2; Exit; end;
+        if ParamCount < 3 then begin WriteLn('Usage: fpdev --extract-zip <zip> <dest>'); ExitCode:=2; Exit; end;
         Zip := ParamStr(2);
         Dest := ParamStr(3);
-        if ZipExtract(Zip, Dest, Err) then begin WriteLn('解压成功: ', Dest); ExitCode:=0; end
-        else begin WriteLn('解压失败: ', Err); ExitCode:=2; end;
+        if ZipExtract(Zip, Dest, Err) then begin WriteLn('Extract successful: ', Dest); ExitCode:=0; end
+        else begin WriteLn('Extract failed: ', Err); ExitCode:=2; end;
         Exit;
       end
       else if LParam = '--ensure-source' then
       begin
         // fpdev --ensure-source <name> <version> --local <dir|zip> [--sha256 <hex>] [--strict]
-        if ParamCount < 4 then begin WriteLn('用法: fpdev --ensure-source <name> <version> --local <dir|zip> [--sha256 <hex>] [--strict]'); ExitCode:=2; Exit; end;
+        if ParamCount < 4 then begin WriteLn('Usage: fpdev --ensure-source <name> <version> --local <dir|zip> [--sha256 <hex>] [--strict]'); ExitCode:=2; Exit; end;
         Name := ParamStr(2);
         Ver  := ParamStr(3);
         LocalPath := '';
@@ -199,7 +199,7 @@ begin
           Ok := EnsureSourceLocalDir(Name, Ver, LocalPath, Strict, DestPath, Err)
         else if (LocalPath<>'') and FileExists(LocalPath) then
           Ok := EnsureSourceLocalZip(Name, Ver, LocalPath, Sha, DestPath, Err)
-        else begin WriteLn('缺少 --local <dir|zip>'); ExitCode:=2; Exit; end;
+        else begin WriteLn('Missing --local <dir|zip>'); ExitCode:=2; Exit; end;
         if Ok then begin WriteLn('Source ready at: ', DestPath); ExitCode:=0; end
         else begin WriteLn('Ensure source failed: ', Err); ExitCode:=2; end;
         Exit;
@@ -207,7 +207,7 @@ begin
       else if LParam = '--import-bundle' then
       begin
         // fpdev --import-bundle <dir|zip>
-        if ParamCount < 2 then begin WriteLn('用法: fpdev --import-bundle <dir|zip>'); ExitCode:=2; Exit; end;
+        if ParamCount < 2 then begin WriteLn('Usage: fpdev --import-bundle <dir|zip>'); ExitCode:=2; Exit; end;
         P := ParamStr(2);
         if ImportBundle(P, Err) then begin WriteLn('Bundle imported.'); ExitCode:=0; end
         else begin WriteLn('Import bundle failed: ', Err); ExitCode:=2; end;
@@ -224,8 +224,8 @@ begin
         ExitCode := GlobalCommandRegistry.Dispatch(LArgs, LCtx);
         if ExitCode <> 0 then
         begin
-          WriteLn('错误: 未知或执行失败的命令: ', LParam);
-          WriteLn('使用 "fpdev help" 查看帮助信息');
+          WriteLn('Error: Unknown or failed command: ', LParam);
+          WriteLn('Use "fpdev help" to see help information');
         end;
       finally
         LCtx.Free;
@@ -234,7 +234,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('错误: ', E.ClassName, ': ', E.Message);
+      WriteLn('Error: ', E.ClassName, ': ', E.Message);
       ExitCode := 1;
     end;
   end;
