@@ -71,6 +71,7 @@ type
     ParallelJobs: Integer;
     KeepSources: Boolean;
     InstallRoot: string;
+    DefaultRepo: string;
   end;
 
   { TFPDevConfig }
@@ -138,6 +139,8 @@ type
     function AddRepository(const AName, AURL: string): Boolean;
     function RemoveRepository(const AName: string): Boolean;
     function GetRepository(const AName: string): string;
+    function HasRepository(const AName: string): Boolean;
+    function GetDefaultRepository: string;
     function ListRepositories: TStringArray;
 
     // 设置管理
@@ -184,6 +187,7 @@ begin
   FConfig.Settings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
   FConfig.Settings.KeepSources := True;
   FConfig.Settings.InstallRoot := '';
+  FConfig.Settings.DefaultRepo := '';
 end;
 
 destructor TFPDevConfigManager.Destroy;
@@ -197,11 +201,27 @@ end;
 
 function TFPDevConfigManager.GetDefaultConfigPath: string;
 var
-  AppDir: string;
+  Root: string;
 begin
-  // 统一使用程序旁的 data 目录，避免与系统路径绑定（单文件核心 + 本地 data 根）
-  AppDir := ExtractFileDir(ParamStr(0));
-  Result := IncludeTrailingPathDelimiter(AppDir) + 'data' + PathDelim + 'config.json';
+  // 统一使用系统规范数据根目录（支持 FPDEV_DATA_ROOT 覆盖），与 fpdev.paths 对齐
+  Root := GetEnvironmentVariable('FPDEV_DATA_ROOT');
+  if Root='' then
+  begin
+    {$IFDEF MSWINDOWS}
+    Root := GetEnvironmentVariable('APPDATA');
+    if Root<>'' then Root := IncludeTrailingPathDelimiter(Root)+'fpdev' else Root := '.fpdev';
+    {$ELSE}
+    Root := GetEnvironmentVariable('XDG_DATA_HOME');
+    if Root='' then
+    begin
+      Root := GetEnvironmentVariable('HOME');
+      if Root<>'' then Root := IncludeTrailingPathDelimiter(Root)+'.fpdev' else Root := '.fpdev';
+    end
+    else
+      Root := IncludeTrailingPathDelimiter(Root)+'fpdev';
+    {$ENDIF}
+  end;
+  Result := IncludeTrailingPathDelimiter(Root)+'config.json';
 end;
 
 function TFPDevConfigManager.ToolchainTypeToString(AType: TToolchainType): string;
@@ -332,10 +352,10 @@ begin
     FConfig.Repositories.Values['official_fpc'] := DEFAULT_FPC_REPO;
     FConfig.Repositories.Values['official_lazarus'] := DEFAULT_LAZARUS_REPO;
 
-    // 设置默认安装根目录（程序旁 data 目录）
+    // 设置默认安装根目录（数据根下 data 目录）
     if FConfig.Settings.InstallRoot = '' then
     begin
-      FConfig.Settings.InstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
+      FConfig.Settings.InstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(FConfigPath));
     end;
 
     FModified := True;
@@ -449,6 +469,7 @@ begin
         FConfig.Settings.ParallelJobs := SettingsJSON.Get('parallel_jobs', DEFAULT_PARALLEL_JOBS);
         FConfig.Settings.KeepSources := SettingsJSON.Get('keep_sources', True);
         FConfig.Settings.InstallRoot := SettingsJSON.Get('install_root', '');
+        FConfig.Settings.DefaultRepo := SettingsJSON.Get('default_repo', '');
       end;
 
       FModified := False;
@@ -546,6 +567,7 @@ begin
       SettingsJSON.Add('parallel_jobs', FConfig.Settings.ParallelJobs);
       SettingsJSON.Add('keep_sources', FConfig.Settings.KeepSources);
       SettingsJSON.Add('install_root', FConfig.Settings.InstallRoot);
+      SettingsJSON.Add('default_repo', FConfig.Settings.DefaultRepo);
       ConfigJSON.Add('settings', SettingsJSON);
 
       // 保存到文件
@@ -923,6 +945,16 @@ end;
 function TFPDevConfigManager.GetRepository(const AName: string): string;
 begin
   Result := FConfig.Repositories.Values[AName];
+end;
+
+function TFPDevConfigManager.HasRepository(const AName: string): Boolean;
+begin
+  Result := FConfig.Repositories.IndexOfName(AName) >= 0;
+end;
+
+function TFPDevConfigManager.GetDefaultRepository: string;
+begin
+  Result := FConfig.Settings.DefaultRepo;
 end;
 
 function TFPDevConfigManager.ListRepositories: TStringArray;
