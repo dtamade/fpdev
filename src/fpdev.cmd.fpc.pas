@@ -2331,14 +2331,28 @@ begin
         end;
         Ver := aParams[1];
         FromSource := HasFlag(aParams, 'from-source') or (GetFlagValue(aParams, 'from', S) and SameText(S, 'source'));
+
         if GetFlagValue(aParams, 'jobs', Jobs) then
         begin
           Settings := Cfg.GetSettings;
           if TryStrToInt(Jobs, Settings.ParallelJobs) then
             Cfg.SetSettings(Settings);
         end;
+
         if not GetFlagValue(aParams, 'prefix', S) then S := '';
-        Ok := Manager.InstallVersion(Ver, FromSource, S, False);
+
+        // Choose installation method
+        if FromSource then
+        begin
+          // Source installation (original method)
+          Ok := Manager.InstallVersion(Ver, True, S, False);
+        end
+        else
+        begin
+          // Binary installation (new method, default)
+          Ok := Manager.InstallFromBinary(Ver, S);
+        end;
+
         if Ok and Cfg.Modified then Cfg.SaveConfig;
       end
       else if (Cmd = 'uninstall') or (Cmd = 'remove') or (Cmd = 'purge') then
