@@ -34,7 +34,8 @@ interface
 
 uses
   SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
-  fpdev.config, fpdev.utils, fpdev.terminal, fpdev.fpc.source;
+  fpdev.config, fpdev.utils, fpdev.terminal, fpdev.fpc.source,
+  fphttpclient;
 
 type
   { TFPCVersionInfo }
@@ -2002,13 +2003,66 @@ begin
 end;
 
 function TFPCManager.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+var
+  URL: string;
+  HTTPClient: TFPHTTPClient;
+  TempDir: string;
+  FileStream: TFileStream;
 begin
   Result := False;
   ATempFile := '';
 
-  // TODO: Implement HTTP download using fphttpclient or synapse
-  // For now, return false to indicate not implemented
-  WriteLn('Binary download not yet implemented');
+  try
+    // Get download URL
+    URL := GetBinaryDownloadURL(AVersion);
+    if URL = '' then
+    begin
+      WriteLn('Error: Failed to construct download URL for version ', AVersion);
+      Exit;
+    end;
+
+    // Create temp directory if it doesn't exist
+    TempDir := GetTempDir + 'fpdev_downloads';
+    if not DirectoryExists(TempDir) then
+      ForceDirectories(TempDir);
+
+    // Generate temp file name
+    {$IFDEF MSWINDOWS}
+    ATempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.zip';
+    {$ELSE}
+    ATempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.tar.gz';
+    {$ENDIF}
+
+    WriteLn('Downloading FPC ', AVersion, ' from:');
+    WriteLn('  ', URL);
+    WriteLn('To: ', ATempFile);
+
+    // Download file
+    HTTPClient := TFPHTTPClient.Create(nil);
+    try
+      HTTPClient.AllowRedirect := True;
+      FileStream := TFileStream.Create(ATempFile, fmCreate);
+      try
+        HTTPClient.Get(URL, FileStream);
+        Result := True;
+        WriteLn('Download completed: ', FileStream.Size, ' bytes');
+      finally
+        FileStream.Free;
+      end;
+    finally
+      HTTPClient.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error downloading binary: ', E.Message);
+      Result := False;
+      if FileExists(ATempFile) then
+        DeleteFile(ATempFile);
+      ATempFile := '';
+    end;
+  end;
 end;
 
 function TFPCManager.VerifyChecksum(const AFilePath, AVersion: string): Boolean;
