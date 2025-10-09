@@ -834,10 +834,98 @@ begin
 end;
 
 function TFPCManager.UpdateSources(const AVersion: string): Boolean;
+var
+  SourceDir: string;
+  GitDir: string;
+  Process: TProcess;
+  OutputLines: TStringList;
+  HasRemote: Boolean;
 begin
   Result := False;
-  // WriteLn('更新源码功能暂未实现');  // 调试代码已注释
-  // TODO: 实现源码更新功能
+
+  // Determine source directory
+  if AVersion = '' then
+    SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-main'
+  else
+    SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
+
+  // Validate source directory exists
+  if not DirectoryExists(SourceDir) then
+  begin
+    WriteLn('Error: FPC source directory does not exist: ', SourceDir);
+    Exit;
+  end;
+
+  // Check if it's a git repository
+  GitDir := SourceDir + PathDelim + '.git';
+  if not DirectoryExists(GitDir) then
+  begin
+    WriteLn('Error: Directory is not a git repository: ', SourceDir);
+    Exit;
+  end;
+
+  try
+    // Check if remote is configured by reading git remote output
+    HasRemote := False;
+    OutputLines := TStringList.Create;
+    try
+      Process := TProcess.Create(nil);
+      try
+        Process.Executable := 'git';
+        Process.Parameters.Add('remote');
+        Process.CurrentDirectory := SourceDir;
+        Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+
+        Process.Execute;
+
+        // Read output to check if any remotes are configured
+        if Process.ExitStatus = 0 then
+        begin
+          OutputLines.LoadFromStream(Process.Output);
+          HasRemote := OutputLines.Count > 0;
+        end;
+      finally
+        Process.Free;
+      end;
+    finally
+      OutputLines.Free;
+    end;
+
+    // If no remote configured, repository is already up-to-date (local only)
+    if not HasRemote then
+    begin
+      WriteLn('FPC source is local-only (no remote configured): ', SourceDir);
+      Result := True;
+      Exit;
+    end;
+
+    // Execute git pull to update sources
+    Process := TProcess.Create(nil);
+    try
+      Process.Executable := 'git';
+      Process.Parameters.Add('pull');
+      Process.CurrentDirectory := SourceDir;
+      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+
+      Process.Execute;
+
+      Result := Process.ExitStatus = 0;
+      if Result then
+        WriteLn('Updated FPC source: ', SourceDir)
+      else
+        WriteLn('Error: git pull failed (exit code: ', Process.ExitStatus, ')');
+
+    finally
+      Process.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error updating FPC sources: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TFPCManager.CleanSources(const AVersion: string): Boolean;
