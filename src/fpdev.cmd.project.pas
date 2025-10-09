@@ -605,7 +605,7 @@ begin
   // WriteLn('用法:');  // 调试代码已注释
   // WriteLn('  fpdev project new <template> <name> [dir]    创建新项目');  // 调试代码已注释
   // WriteLn('  fpdev project list                           列出可用模板');  // 调试代码已注释
-    WriteLn('  fpdev project info <template>                显示模板信息');
+    WriteLn('  fpdev project info <template>                Show template information');
   // WriteLn('  fpdev project build [dir] [target]           构建项目');  // 调试代码已注释
   // WriteLn('  fpdev project clean [dir]                    清理项目');  // 调试代码已注释
   // WriteLn('  fpdev project test [dir]                     测试项目');  // 调试代码已注释
@@ -673,7 +673,7 @@ begin
           if Length(aParams) < 2 then
           begin
   // WriteLn('错误: 请指定模板名');  // 调试代码已注释
-            WriteLn('用法: fpdev project info <template>');
+            WriteLn('Usage: fpdev project info <template>');
             Exit;
           end;
 

@@ -1371,7 +1371,7 @@ begin
   // WriteLn('  fpdev package update <package>                  更新包');  // 调试代码已注释
   // WriteLn('  fpdev package list [--all]                      列出包');  // 调试代码已注释
   // WriteLn('  fpdev package search <query>                    搜索包');  // 调试代码已注释
-    WriteLn('  fpdev package info <package>                    显示包信息');
+    WriteLn('  fpdev package info <package>                    Show package information');
   // WriteLn('  fpdev package deps <package>                    显示包依赖');  // 调试代码已注释
   // WriteLn('  fpdev package verify <package>                  验证包');  // 调试代码已注释
   // WriteLn('  fpdev package install-local <path>              从本地安装包');  // 调试代码已注释
@@ -1482,7 +1482,7 @@ begin
           if Length(aParams) < 2 then
           begin
   // WriteLn('错误: 请指定要查看信息的包名');  // 调试代码已注释
-            WriteLn('用法: fpdev package info <package>');
+            WriteLn('Usage: fpdev package info <package>');
             Exit;
           end;
 

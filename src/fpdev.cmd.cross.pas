@@ -786,7 +786,7 @@ begin
   // WriteLn('  fpdev cross list [--all]                               列出交叉编译目标');  // 调试代码已注释
   // WriteLn('  fpdev cross enable <target>                            启用交叉编译目标');  // 调试代码已注释
   // WriteLn('  fpdev cross disable <target>                           禁用交叉编译目标');  // 调试代码已注释
-    WriteLn('  fpdev cross info <target>                              显示目标信息');
+    WriteLn('  fpdev cross info <target>                              Show target information');
   // WriteLn('  fpdev cross test <target>                              测试交叉编译目标');  // 调试代码已注释
   // WriteLn('  fpdev cross configure <target> --binutils=<path> --libraries=<path>  配置目标路径');  // 调试代码已注释
   // WriteLn('  fpdev cross build <target> [source-file]               构建测试程序');  // 调试代码已注释
@@ -881,7 +881,7 @@ begin
           if Length(aParams) < 2 then
           begin
   // WriteLn('错误: 请指定要查看信息的目标');  // 调试代码已注释
-            WriteLn('用法: fpdev cross info <target>');
+            WriteLn('Usage: fpdev cross info <target>');
             Exit;
           end;
 

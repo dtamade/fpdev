@@ -603,7 +603,7 @@ begin
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.BuildCompiler(AVersion);
-    WriteLn('日志文件: ', LBM.LogFileName);
+    WriteLn('Log file: ', LBM.LogFileName);
   finally
     LBM.Free;
   end;
