@@ -22,6 +22,12 @@ type
     bsFinished        // Finished
   );
 
+  // Platform information for bootstrap download
+  TPlatformInfo = record
+    Platform: string;      // 'Win64', 'Linux', 'macOS'
+    Architecture: string;  // 'x86_64-win64', 'x86_64-linux', 'aarch64-darwin', etc.
+  end;
+
   { TFPCSourceManager }
   TFPCSourceManager = class
   private
@@ -38,6 +44,9 @@ type
     function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
     function ExecuteCommand(const AProgram: string; const AArgs: array of string; const AWorkingDir: string = ''): Boolean;
     function IsValidSourceDirectory(const APath: string): Boolean;
+
+    // Platform detection for bootstrap download
+    function DetectPlatformArch: TPlatformInfo;
 
     // Bootstrap compiler management - private helpers
     function FindSystemFPC: string;
@@ -88,6 +97,7 @@ type
     // Bootstrap compiler management (FPCUpDeluxe-inspired) - for testing
     function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
     function GetBootstrapPath(const AVersion: string): string;
+    function GetBootstrapDownloadURL(const AVersion: string): string;
     function DownloadBootstrapCompiler(const AVersion: string): Boolean;
 
     // 属性
@@ -115,6 +125,9 @@ const
   );
 
 implementation
+
+uses
+  fphttpclient, opensslsockets, zipper;
 
 { TFPCSourceManager }
 
@@ -502,6 +515,45 @@ begin
   Result := True;
 end;
 
+// Platform detection for bootstrap download
+function TFPCSourceManager.DetectPlatformArch: TPlatformInfo;
+begin
+  // Initialize result
+  Result.Platform := '';
+  Result.Architecture := '';
+
+  // Detect platform
+  {$IFDEF MSWINDOWS}
+    {$IFDEF CPU64}
+    Result.Platform := 'Win64';
+    Result.Architecture := 'x86_64-win64';
+    {$ELSE}
+    Result.Platform := 'Win32';
+    Result.Architecture := 'i386-win32';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF LINUX}
+    {$IFDEF CPU64}
+    Result.Platform := 'Linux';
+    Result.Architecture := 'x86_64-linux';
+    {$ELSE}
+    Result.Platform := 'Linux';
+    Result.Architecture := 'i386-linux';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF DARWIN}
+    {$IFDEF CPUAARCH64}
+    Result.Platform := 'macOS';
+    Result.Architecture := 'aarch64-darwin';
+    {$ELSE}
+    Result.Platform := 'macOS';
+    Result.Architecture := 'x86_64-darwin';
+    {$ENDIF}
+  {$ENDIF}
+end;
+
 // Bootstrap compiler management (FPCUpDeluxe-inspired)
 function TFPCSourceManager.GetRequiredBootstrapVersion(const ATargetVersion: string): string;
 begin
@@ -539,12 +591,116 @@ begin
   {$ENDIF}
 end;
 
-function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
+function TFPCSourceManager.GetBootstrapDownloadURL(const AVersion: string): string;
+var
+  PlatformInfo: TPlatformInfo;
 begin
-  // WriteLn('! 正在下载Bootstrap编译器 ', AVersion, '...');  // 调试代码已注释
-  // WriteLn('注意: 实际实现中需要从FPC官方下载预编译版本');  // 调试代码已注释
-  // TODO: Implement actual bootstrap download
-  Result := True; // Simulate success for now
+  // Detect platform and architecture
+  PlatformInfo := DetectPlatformArch;
+
+  // Construct SourceForge download URL
+  // Format: https://sourceforge.net/projects/freepascal/files/{Platform}/{Version}/fpc-{Version}.{Arch}.zip/download
+  Result := Format('https://sourceforge.net/projects/freepascal/files/%s/%s/fpc-%s.%s.zip/download',
+    [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);
+end;
+
+function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
+var
+  URL, TempFile, TempDir, BootstrapRoot, ExtractDir, BootstrapPath: string;
+  HTTPClient: TFPHTTPClient;
+  FileStream: TFileStream;
+  Unzipper: TUnZipper;
+begin
+  Result := False;
+
+  try
+    // Get download URL
+    URL := GetBootstrapDownloadURL(AVersion);
+    if URL = '' then
+    begin
+      WriteLn('Error: Failed to construct download URL for version ', AVersion);
+      Exit;
+    end;
+
+    // Create temp directory for download
+    TempDir := GetTempDir + 'fpdev_bootstrap_' + IntToStr(GetTickCount64);
+    if not DirectoryExists(TempDir) then
+      ForceDirectories(TempDir);
+
+    // Generate temp file name
+    TempFile := TempDir + PathDelim + 'fpc-bootstrap-' + AVersion + '.zip';
+
+    WriteLn('Downloading bootstrap compiler ', AVersion, ' from:');
+    WriteLn('  ', URL);
+    WriteLn('To: ', TempFile);
+    WriteLn;
+
+    // Download file
+    HTTPClient := TFPHTTPClient.Create(nil);
+    try
+      HTTPClient.AllowRedirect := True;
+      FileStream := TFileStream.Create(TempFile, fmCreate);
+      try
+        HTTPClient.Get(URL, FileStream);
+        WriteLn('Download completed: ', FileStream.Size, ' bytes');
+      finally
+        FileStream.Free;
+      end;
+    finally
+      HTTPClient.Free;
+    end;
+
+    // Extract archive to bootstrap directory
+    BootstrapRoot := FSourceRoot + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion;
+    if not DirectoryExists(BootstrapRoot) then
+      ForceDirectories(BootstrapRoot);
+
+    WriteLn('Extracting bootstrap compiler to: ', BootstrapRoot);
+
+    Unzipper := TUnZipper.Create;
+    try
+      Unzipper.FileName := TempFile;
+      Unzipper.OutputPath := BootstrapRoot;
+      Unzipper.Examine;
+      WriteLn('  Files in archive: ', Unzipper.Entries.Count);
+      Unzipper.UnZipAllFiles;
+      WriteLn('Extraction completed successfully');
+    finally
+      Unzipper.Free;
+    end;
+
+    // Verify that fpc executable exists
+    BootstrapPath := GetBootstrapPath(AVersion);
+    if FileExists(BootstrapPath) then
+    begin
+      WriteLn('Bootstrap compiler verified: ', BootstrapPath);
+      Result := True;
+    end
+    else
+    begin
+      WriteLn('Warning: Bootstrap compiler executable not found at expected path: ', BootstrapPath);
+      Result := False;
+    end;
+
+    // Cleanup temp files
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    if DirectoryExists(TempDir) then
+      RemoveDir(TempDir);
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error downloading bootstrap compiler: ', E.Message);
+      Result := False;
+
+      // Cleanup on error
+      if FileExists(TempFile) then
+        DeleteFile(TempFile);
+      if DirectoryExists(TempDir) then
+        RemoveDir(TempDir);
+    end;
+  end;
 end;
 
 function TFPCSourceManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
