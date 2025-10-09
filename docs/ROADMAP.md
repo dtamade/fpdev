@@ -212,10 +212,12 @@ Following the TODO-FPC-v1.md philosophy:
   - **Commit**: 848b2d1 (test), 8e245b1 (feat)
   - **Priority**: 🟡 HIGH
 
-- [ ] **Implement `fpdev fpc update`** (TDD)
-  - Write tests for source updates
-  - Implement git pull + rebuild orchestration
-  - Handle version conflicts gracefully
+- [x] **Implement `fpdev fpc update`** (TDD) ✅ COMPLETE
+  - ✅ Write tests for source updates
+  - ✅ Implement git pull + rebuild orchestration
+  - ✅ Handle version conflicts gracefully
+  - **Tests**: 3/3 passing (test_fpc_update.lpr)
+  - **Commit**: 1ea771d (test), 9844cf3 (feat)
   - **Priority**: 🟢 MEDIUM
 
 ### Phase 2: Installation Flexibility (v1.0 → v1.5)
@@ -543,15 +545,17 @@ end;
    - ✅ Implement feature
    - ✅ Refactor and commit
 
-### Week 2 (CURRENT)
+### Week 2 (CURRENT - COMPLETE)
 1. [x] ~~**Implement `fpdev fpc clean` (TDD)**~~ ✅ COMPLETE
    - ✅ Write failing tests for FPC source cleanup
    - ✅ Implement feature
    - ✅ Clean up build artifacts and temporary files
-2. [ ] **NEXT: Implement `fpdev fpc update` (TDD)**
-   - Write tests for FPC source updates
-   - Implement git pull + rebuild orchestration
-3. [ ] Update documentation
+2. [x] ~~**Implement `fpdev fpc update` (TDD)**~~ ✅ COMPLETE
+   - ✅ Write tests for FPC source updates
+   - ✅ Implement git pull + rebuild orchestration
+3. [ ] **NEXT: Update documentation**
+   - Update README with newly implemented features
+   - Add usage examples for fpdev fpc clean/update
 
 ### Week 3-4
 1. [ ] Implement `fpdev project test` (TDD)
@@ -564,20 +568,20 @@ end;
 
 Use this checklist to track implementation progress:
 
-### Phase 1 Progress: [███████░░░] 70% (7/10 tasks complete)
+### Phase 1 Progress: [████████░░] 80% (8/10 tasks complete)
 - [x] Analyze project status
 - [x] Create roadmap
 - [x] Implement project clean (✅ TDD complete, 3 tests passing)
 - [x] Implement project run (✅ TDD complete, 4 tests passing)
 - [x] Implement project test (✅ TDD complete, 4 tests passing)
 - [x] Implement fpc clean (✅ TDD complete, 3 tests passing)
-- [ ] Implement fpc update
+- [x] Implement fpc update (✅ TDD complete, 3 tests passing)
 - [ ] Write tests for all features
 - [ ] Update documentation
 - [ ] Release v1.1
 
 ---
 
-**Last Updated**: 2025-01-29 (Updated after implementing project clean, run, test, and fpc clean)
+**Last Updated**: 2025-01-29 (Updated after implementing project clean, run, test, fpc clean, and fpc update)
 **Maintained By**: FPDev Development Team
 **License**: MIT
