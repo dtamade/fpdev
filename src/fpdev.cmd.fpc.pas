@@ -72,6 +72,7 @@ type
     function ValidateVersion(const AVersion: string): Boolean;
     function GetVersionInstallPath(const AVersion: string): string;
     function IsVersionInstalled(const AVersion: string): Boolean;
+    function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager);
@@ -1198,6 +1199,7 @@ begin
 
         if Process.ExitStatus = 0 then
         begin
+          // Read output using LoadFromStream
           OutputLines.LoadFromStream(Process.Output);
           if OutputLines.Count > 0 then
           begin
@@ -1225,6 +1227,13 @@ begin
       OutputLines.Free;
     end;
 
+    // Run smoke test: compile and execute hello world
+    if not RunSmokeTest(FPCExe, VerifResult) then
+    begin
+      VerifResult.Verified := False;
+      Exit(False);
+    end;
+
     // Verification successful
     VerifResult.Verified := True;
     Exit(True);
@@ -1233,6 +1242,140 @@ begin
     on E: Exception do
     begin
       VerifResult.ErrorMessage := 'Exception during verification: ' + E.Message;
+      Exit(False);
+    end;
+  end;
+end;
+
+function TFPCManager.RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
+var
+  TempDir, HelloPas, HelloExe: string;
+  HelloFile: TextFile;
+  CompileProcess, RunProcess: TProcess;
+  OutputLines: TStringList;
+  Output: string;
+begin
+  Result := False;
+  VerifResult.SmokeTestPassed := False;
+
+  try
+    // Create temporary directory for smoke test
+    TempDir := GetTempDir + 'fpdev_smoke_' + IntToStr(GetTickCount64);
+    ForceDirectories(TempDir);
+
+    HelloPas := TempDir + PathDelim + 'hello.pas';
+    {$IFDEF MSWINDOWS}
+    HelloExe := TempDir + PathDelim + 'hello.exe';
+    {$ELSE}
+    HelloExe := TempDir + PathDelim + 'hello';
+    {$ENDIF}
+
+    // Create hello.pas
+    AssignFile(HelloFile, HelloPas);
+    try
+      Rewrite(HelloFile);
+      WriteLn(HelloFile, 'program hello;');
+      WriteLn(HelloFile, 'begin');
+      WriteLn(HelloFile, '  WriteLn(''Hello, World!'');');
+      WriteLn(HelloFile, 'end.');
+      CloseFile(HelloFile);
+    except
+      on E: Exception do
+      begin
+        VerifResult.ErrorMessage := 'Failed to create hello.pas: ' + E.Message;
+        Exit(False);
+      end;
+    end;
+
+    // Compile hello.pas
+    CompileProcess := TProcess.Create(nil);
+    try
+      CompileProcess.Executable := AFPCExe;
+      CompileProcess.Parameters.Add('-o' + HelloExe);
+      CompileProcess.Parameters.Add(HelloPas);
+      CompileProcess.Options := CompileProcess.Options + [poWaitOnExit, poUsePipes];
+      CompileProcess.Execute;
+
+      if CompileProcess.ExitStatus <> 0 then
+      begin
+        VerifResult.ErrorMessage := 'Smoke test: Failed to compile hello.pas (exit code: ' + IntToStr(CompileProcess.ExitStatus) + ')';
+        Exit(False);
+      end;
+    finally
+      CompileProcess.Free;
+    end;
+
+    // Check if executable was created
+    if not FileExists(HelloExe) then
+    begin
+      VerifResult.ErrorMessage := 'Smoke test: Compiled executable not found: ' + HelloExe;
+      Exit(False);
+    end;
+
+    // Run hello.exe and check output
+    RunProcess := TProcess.Create(nil);
+    OutputLines := TStringList.Create;
+    try
+      {$IFDEF MSWINDOWS}
+      // On Windows, check if a .bat file exists (mock environment)
+      if FileExists(ChangeFileExt(HelloExe, '.bat')) then
+      begin
+        RunProcess.Executable := 'cmd.exe';
+        RunProcess.Parameters.Add('/c');
+        RunProcess.Parameters.Add(ChangeFileExt(HelloExe, '.bat'));
+      end
+      else
+      begin
+        RunProcess.Executable := HelloExe;
+      end;
+      {$ELSE}
+      RunProcess.Executable := HelloExe;
+      {$ENDIF}
+
+      RunProcess.Options := RunProcess.Options + [poWaitOnExit, poUsePipes];
+      RunProcess.Execute;
+
+      if RunProcess.ExitStatus <> 0 then
+      begin
+        VerifResult.ErrorMessage := 'Smoke test: hello program failed (exit code: ' + IntToStr(RunProcess.ExitStatus) + ')';
+        Exit(False);
+      end;
+
+      // Check output
+      OutputLines.LoadFromStream(RunProcess.Output);
+      if OutputLines.Count > 0 then
+        Output := Trim(OutputLines[0])
+      else
+        Output := '';
+
+      if Output <> 'Hello, World!' then
+      begin
+        VerifResult.ErrorMessage := 'Smoke test: Unexpected output. Expected ''Hello, World!'', got: ''' + Output + '''';
+        Exit(False);
+      end;
+
+      // Smoke test passed!
+      VerifResult.SmokeTestPassed := True;
+      Result := True;
+
+    finally
+      RunProcess.Free;
+      OutputLines.Free;
+
+      // Cleanup temporary files
+      try
+        if FileExists(HelloExe) then DeleteFile(HelloExe);
+        if FileExists(HelloPas) then DeleteFile(HelloPas);
+        RemoveDir(TempDir);
+      except
+        // Ignore cleanup errors
+      end;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      VerifResult.ErrorMessage := 'Smoke test exception: ' + E.Message;
       Exit(False);
     end;
   end;

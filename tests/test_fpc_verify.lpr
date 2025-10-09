@@ -233,16 +233,15 @@ begin
     Halt(1);
   end;
 
-  // Assert: Smoke test should be run
+  // Assert: Smoke test should pass
   if not VerificationResult.SmokeTestPassed then
   begin
-    WriteLn('Note: Smoke test did not pass (may not be implemented yet)');
-    // Don't fail - this is optional functionality
-  end else begin
-    WriteLn('Passed: Smoke test passed successfully');
+    WriteLn('Failed: Smoke test should pass');
+    WriteLn('Note: This requires compiling and running a hello world program');
+    Halt(1);
   end;
 
-  WriteLn('Passed: Smoke test functionality verified');
+  WriteLn('Passed: Smoke test passed successfully');
 end;
 
 begin
