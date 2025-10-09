@@ -106,6 +106,9 @@ type
     function IsVersionInstalled(const AVersion: string): Boolean;
     function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
 
+    // Scoped installation support
+    function DetectInstallScope(const ACurrentDir: string): TInstallScope;
+
   public
     constructor Create(AConfigManager: TFPDevConfigManager);
     destructor Destroy; override;
@@ -126,6 +129,10 @@ type
     function TestInstallation(const AVersion: string): Boolean;
     function VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
     function GetVersionInstallPath(const AVersion: string): string;
+
+    // Metadata operations (public for testing)
+    function WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
+    function ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
   end;
 
 // 主要执行函数
@@ -375,8 +382,208 @@ begin
   inherited Destroy;
 end;
 
-function TFPCManager.GetVersionInstallPath(const AVersion: string): string;
+function TFPCManager.DetectInstallScope(const ACurrentDir: string): TInstallScope;
+var
+  Dir, FPDevDir: string;
 begin
+  // Default to user scope
+  Result := isUser;
+
+  // Start from current directory and search up
+  Dir := ExpandFileName(ACurrentDir);
+
+  while Dir <> '' do
+  begin
+    FPDevDir := Dir + PathDelim + '.fpdev';
+    if DirectoryExists(FPDevDir) then
+    begin
+      Result := isProject;
+      Exit;
+    end;
+
+    // Move up to parent directory
+    Dir := ExtractFileDir(Dir);
+
+    // Stop at root (when parent == current)
+    if Dir = ExtractFileDir(Dir) then
+      Break;
+  end;
+end;
+
+function TFPCManager.WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
+var
+  MetaPath: string;
+  JSON, VerifyObj, OriginObj: TJSONObject;
+  ScopeStr, SourceModeStr: string;
+begin
+  Result := False;
+
+  try
+    MetaPath := AInstallPath + PathDelim + '.fpdev-meta.json';
+
+    // Convert enum to string
+    case AMeta.Scope of
+      isUser: ScopeStr := 'user';
+      isProject: ScopeStr := 'project';
+      isSystem: ScopeStr := 'system';
+    end;
+
+    case AMeta.SourceMode of
+      smAuto: SourceModeStr := 'auto';
+      smBinary: SourceModeStr := 'binary';
+      smSource: SourceModeStr := 'source';
+    end;
+
+    // Build JSON object
+    JSON := TJSONObject.Create;
+    try
+      JSON.Add('version', AMeta.Version);
+      JSON.Add('scope', ScopeStr);
+      JSON.Add('source_mode', SourceModeStr);
+      JSON.Add('channel', AMeta.Channel);
+      JSON.Add('prefix', AMeta.Prefix);
+
+      // Verify object
+      VerifyObj := TJSONObject.Create;
+      VerifyObj.Add('timestamp', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', AMeta.Verify.Timestamp));
+      VerifyObj.Add('ok', AMeta.Verify.OK);
+      VerifyObj.Add('detected_version', AMeta.Verify.DetectedVersion);
+      VerifyObj.Add('smoke_test_passed', AMeta.Verify.SmokeTestPassed);
+      JSON.Add('verify', VerifyObj);
+
+      // Origin object
+      OriginObj := TJSONObject.Create;
+      OriginObj.Add('repo_url', AMeta.Origin.RepoURL);
+      OriginObj.Add('commit', AMeta.Origin.Commit);
+      OriginObj.Add('built_from_source', AMeta.Origin.BuiltFromSource);
+      JSON.Add('origin', OriginObj);
+
+      JSON.Add('installed_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', AMeta.InstalledAt));
+
+      // Write to file
+      SafeWriteAllText(MetaPath, JSON.FormatJSON);
+      Result := True;
+    finally
+      JSON.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      // Silent failure for now
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPCManager.ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
+var
+  MetaPath, JSONText, ScopeStr, SourceModeStr: string;
+  JSON, VerifyObj, OriginObj: TJSONObject;
+  Parser: TJSONParser;
+begin
+  Result := False;
+  FillChar(AMeta, SizeOf(AMeta), 0);
+
+  try
+    MetaPath := AInstallPath + PathDelim + '.fpdev-meta.json';
+
+    if not FileExists(MetaPath) then
+      Exit;
+
+    JSONText := ReadAllTextIfExists(MetaPath);
+    if JSONText = '' then
+      Exit;
+
+    Parser := TJSONParser.Create(JSONText);
+    try
+      JSON := TJSONObject(Parser.Parse);
+      try
+        // Read basic fields
+        AMeta.Version := JSON.Get('version', '');
+        ScopeStr := JSON.Get('scope', 'user');
+        SourceModeStr := JSON.Get('source_mode', 'auto');
+        AMeta.Channel := JSON.Get('channel', '');
+        AMeta.Prefix := JSON.Get('prefix', '');
+
+        // Parse scope
+        if ScopeStr = 'project' then
+          AMeta.Scope := isProject
+        else if ScopeStr = 'system' then
+          AMeta.Scope := isSystem
+        else
+          AMeta.Scope := isUser;
+
+        // Parse source mode
+        if SourceModeStr = 'binary' then
+          AMeta.SourceMode := smBinary
+        else if SourceModeStr = 'source' then
+          AMeta.SourceMode := smSource
+        else
+          AMeta.SourceMode := smAuto;
+
+        // Read verify object
+        if JSON.Find('verify', VerifyObj) then
+        begin
+          AMeta.Verify.OK := VerifyObj.Get('ok', False);
+          AMeta.Verify.DetectedVersion := VerifyObj.Get('detected_version', '');
+          AMeta.Verify.SmokeTestPassed := VerifyObj.Get('smoke_test_passed', False);
+          // Note: Timestamp parsing omitted for simplicity in v1
+        end;
+
+        // Read origin object
+        if JSON.Find('origin', OriginObj) then
+        begin
+          AMeta.Origin.RepoURL := OriginObj.Get('repo_url', '');
+          AMeta.Origin.Commit := OriginObj.Get('commit', '');
+          AMeta.Origin.BuiltFromSource := OriginObj.Get('built_from_source', False);
+        end;
+
+        // Note: InstalledAt parsing omitted for simplicity in v1
+
+        Result := True;
+      finally
+        JSON.Free;
+      end;
+    finally
+      Parser.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      // Silent failure
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPCManager.GetVersionInstallPath(const AVersion: string): string;
+var
+  Scope: TInstallScope;
+  ProjectRoot: string;
+begin
+  // Detect current scope
+  Scope := DetectInstallScope(GetCurrentDir);
+
+  if Scope = isProject then
+  begin
+    // Find project root by searching for .fpdev
+    ProjectRoot := GetCurrentDir;
+    while ProjectRoot <> '' do
+    begin
+      if DirectoryExists(ProjectRoot + PathDelim + '.fpdev') then
+      begin
+        Result := ProjectRoot + PathDelim + '.fpdev' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
+        Exit;
+      end;
+      ProjectRoot := ExtractFileDir(ProjectRoot);
+      if ProjectRoot = ExtractFileDir(ProjectRoot) then
+        Break;
+    end;
+  end;
+
+  // Default to user scope
   Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
 end;
 

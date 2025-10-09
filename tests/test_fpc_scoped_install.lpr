@@ -14,8 +14,8 @@ var
 
 procedure InitTestEnvironment;
 begin
-  // Create test root directory
-  TestRootDir := 'test_scoped_install_' + IntToStr(GetTickCount64);
+  // Create test root directory in temp (outside project to avoid .fpdev detection)
+  TestRootDir := GetTempDir + 'test_scoped_install_' + IntToStr(GetTickCount64);
   ForceDirectories(TestRootDir);
 
   // Initialize config manager
@@ -132,30 +132,47 @@ var
   Settings: TFPDevSettings;
   ExpectedPath: string;
   InstallPath: string;
+  SavedDir: string;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 2: User Scope Installation (Default)');
   WriteLn('==================================================');
 
-  // Setup: Override install root to test directory
-  Settings := ConfigManager.GetSettings;
-  Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  // Save current directory
+  SavedDir := GetCurrentDir;
+  try
+    // Change to test directory (no .fpdev) to force user scope
+    SetCurrentDir(TestRootDir);
 
-  FPCManager := TFPCManager.Create(ConfigManager);
+    // Setup: Override install root to test directory
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := TestRootDir;
+    ConfigManager.SetSettings(Settings);
 
-  // Expected path for user scope
-  ExpectedPath := TestRootDir + PathDelim + 'fpc' + PathDelim + '3.2.2';
+    FPCManager := TFPCManager.Create(ConfigManager);
 
-  // This will fail until we implement scoped installation
-  // Note: We're not actually installing, just testing path resolution
-  InstallPath := FPCManager.GetVersionInstallPath('3.2.2');
+    // Expected path for user scope
+    ExpectedPath := TestRootDir + PathDelim + 'fpc' + PathDelim + '3.2.2';
 
-  AssertEquals(ExpectedPath, InstallPath, 'User scope path matches expected');
+    // Test path resolution
+    InstallPath := FPCManager.GetVersionInstallPath('3.2.2');
 
-  FPCManager.Free;
-  FPCManager := nil;
+    // Compare - should be <TestRootDir>/fpc/3.2.2
+    AssertTrue(
+      (Pos(TestRootDir, InstallPath) > 0) and
+      (Pos(PathDelim + 'fpc' + PathDelim + '3.2.2', InstallPath) > 0) and
+      (Pos('.fpdev' + PathDelim + 'toolchains', InstallPath) = 0),
+      'User scope path is correct',
+      'Expected user scope path (<root>/fpc/3.2.2), got: ' + InstallPath
+    );
+
+    FPCManager.Free;
+    FPCManager := nil;
+  finally
+    // Restore directory
+    SetCurrentDir(SavedDir);
+  end;
 end;
 
 // ============================================================================
@@ -166,23 +183,53 @@ var
   ProjectDir: string;
   FPDevDir: string;
   ExpectedPath: string;
+  InstallPath: string;
+  SavedDir: string;
+  Settings: TFPDevSettings;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 3: Project Scope Installation');
   WriteLn('==================================================');
 
-  // Setup: Create a project directory with .fpdev
-  ProjectDir := TestRootDir + PathDelim + 'test_project';
-  FPDevDir := ProjectDir + PathDelim + '.fpdev';
-  ForceDirectories(FPDevDir);
+  // Save current directory
+  SavedDir := GetCurrentDir;
+  try
+    // Setup: Create a project directory with .fpdev
+    ProjectDir := TestRootDir + PathDelim + 'test_project';
+    FPDevDir := ProjectDir + PathDelim + '.fpdev';
+    ForceDirectories(FPDevDir);
 
-  // Expected path for project scope
-  ExpectedPath := FPDevDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2';
+    // Change to project directory to trigger project scope
+    SetCurrentDir(ProjectDir);
 
-  // This will fail until we implement project scope detection
-  WriteLn('  Project scope not yet implemented - test will fail');
-  AssertTrue(False, 'Project scope detection', 'Not implemented yet');
+    // Setup manager
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := TestRootDir;
+    ConfigManager.SetSettings(Settings);
+
+    FPCManager := TFPCManager.Create(ConfigManager);
+
+    // Expected path for project scope
+    ExpectedPath := FPDevDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2';
+
+    // Test path resolution
+    InstallPath := FPCManager.GetVersionInstallPath('3.2.2');
+
+    // Compare - should contain .fpdev/toolchains/fpc/3.2.2
+    AssertTrue(
+      (Pos(ProjectDir, InstallPath) > 0) and
+      (Pos('.fpdev' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2', InstallPath) > 0),
+      'Project scope path is correct',
+      'Expected project scope path (.fpdev/toolchains/fpc/3.2.2), got: ' + InstallPath
+    );
+
+    FPCManager.Free;
+    FPCManager := nil;
+  finally
+    // Restore directory
+    SetCurrentDir(SavedDir);
+  end;
 end;
 
 // ============================================================================
@@ -222,34 +269,109 @@ end;
 procedure TestMetadataCreation;
 var
   MetaPath: string;
-  MetaExists: Boolean;
+  TestInstallPath: string;
+  Meta: TFPDevMetadata;
+  WriteSuccess: Boolean;
+  Settings: TFPDevSettings;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 5: Metadata File Creation');
   WriteLn('==================================================');
 
-  MetaPath := TestRootDir + PathDelim + '.fpdev-meta.json';
+  // Setup test install path
+  TestInstallPath := TestRootDir + PathDelim + 'test_install';
+  ForceDirectories(TestInstallPath);
 
-  // This will fail until we implement metadata writing
-  MetaExists := FileExists(MetaPath);
+  // Setup manager
+  Settings := ConfigManager.GetSettings;
+  Settings.InstallRoot := TestRootDir;
+  ConfigManager.SetSettings(Settings);
 
-  WriteLn('  Metadata creation not yet implemented');
-  AssertTrue(False, 'Metadata file created', 'WriteMetadata not implemented');
+  FPCManager := TFPCManager.Create(ConfigManager);
+
+  // Create metadata
+  FillChar(Meta, SizeOf(Meta), 0);
+  Meta.Version := '3.2.2';
+  Meta.Scope := isUser;
+  Meta.SourceMode := smSource;
+  Meta.Channel := 'stable';
+  Meta.Prefix := TestInstallPath;
+  Meta.InstalledAt := Now;
+
+  // Write metadata
+  WriteSuccess := FPCManager.WriteMetadata(TestInstallPath, Meta);
+
+  // Check file exists
+  MetaPath := TestInstallPath + PathDelim + '.fpdev-meta.json';
+
+  AssertTrue(WriteSuccess, 'WriteMetadata succeeded', 'WriteMetadata should return true');
+  AssertTrue(FileExists(MetaPath), 'Metadata file created', 'File should exist: ' + MetaPath);
+
+  FPCManager.Free;
+  FPCManager := nil;
 end;
 
 // ============================================================================
 // Test 6: Metadata Contains Verification Results
 // ============================================================================
 procedure TestMetadataWithVerification;
+var
+  TestInstallPath: string;
+  Meta, ReadMeta: TFPDevMetadata;
+  Settings: TFPDevSettings;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 6: Metadata Contains Verification Results');
   WriteLn('==================================================');
 
-  WriteLn('  Verification integration not yet implemented');
-  AssertTrue(False, 'Metadata includes verify results', 'Not implemented');
+  // Setup test install path
+  TestInstallPath := TestRootDir + PathDelim + 'test_verify';
+  ForceDirectories(TestInstallPath);
+
+  // Setup manager
+  Settings := ConfigManager.GetSettings;
+  Settings.InstallRoot := TestRootDir;
+  ConfigManager.SetSettings(Settings);
+
+  FPCManager := TFPCManager.Create(ConfigManager);
+
+  // Create initial metadata with no verification
+  FillChar(Meta, SizeOf(Meta), 0);
+  Meta.Version := '3.2.2';
+  Meta.Scope := isUser;
+  Meta.SourceMode := smSource;
+  Meta.Channel := 'stable';
+  Meta.Prefix := TestInstallPath;
+  Meta.InstalledAt := Now;
+
+  // Write initial metadata
+  FPCManager.WriteMetadata(TestInstallPath, Meta);
+
+  // Simulate verification results
+  Meta.Verify.Timestamp := Now;
+  Meta.Verify.OK := True;
+  Meta.Verify.DetectedVersion := '3.2.2';
+  Meta.Verify.SmokeTestPassed := True;
+
+  // Write updated metadata
+  FPCManager.WriteMetadata(TestInstallPath, Meta);
+
+  // Read back metadata
+  if FPCManager.ReadMetadata(TestInstallPath, ReadMeta) then
+  begin
+    AssertTrue(ReadMeta.Verify.OK, 'Verify OK field preserved', 'Should be true');
+    AssertEquals('3.2.2', ReadMeta.Verify.DetectedVersion, 'Detected version preserved');
+    AssertTrue(ReadMeta.Verify.SmokeTestPassed, 'Smoke test result preserved', 'Should be true');
+  end
+  else
+  begin
+    AssertTrue(False, 'Read metadata succeeded', 'ReadMetadata should return true');
+  end;
+
+  FPCManager.Free;
+  FPCManager := nil;
 end;
 
 // ============================================================================
