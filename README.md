@@ -287,6 +287,58 @@ fpdev fpc clean 3.2.2                     # 清理源码构建产物
 fpdev fpc update 3.2.2                    # 更新FPC源码 (git pull)
 ```
 
+#### FPC 源码管理详解
+
+**清理源码构建产物** (`fpdev fpc clean`)
+- 递归清理所有 `.o`, `.ppu`, `.a`, `.so` 等编译产物
+- 保留源代码文件和 Git 仓库
+- 释放磁盘空间，为重新编译做准备
+
+```bash
+# 清理特定版本的构建产物
+fpdev fpc clean 3.2.2
+
+# 示例输出：
+# Cleaning FPC 3.2.2 build artifacts...
+# Removed: 1234 object files (.o)
+# Removed: 567 unit files (.ppu)
+# Removed: 89 library files (.a, .so)
+# Total freed: 456 MB
+# Source repository preserved
+```
+
+**更新 FPC 源码** (`fpdev fpc update`)
+- 执行 `git pull` 更新源码到最新版本
+- 自动检测是否需要重新编译
+- 保留本地配置和构建设置
+
+```bash
+# 更新特定版本的源码
+fpdev fpc update 3.2.2
+
+# 示例输出：
+# Updating FPC 3.2.2 sources...
+# Running: git pull origin fixes_3_2
+# Already up to date. (或显示更新的文件列表)
+# Update completed successfully
+# Note: Run 'fpdev fpc install 3.2.2 --from-source' to rebuild if needed
+```
+
+**典型工作流：**
+```bash
+# 1. 更新源码到最新版本
+fpdev fpc update 3.2.2
+
+# 2. 如果有更新，清理旧的构建产物
+fpdev fpc clean 3.2.2
+
+# 3. 重新编译最新源码
+fpdev fpc install 3.2.2 --from-source
+
+# 4. 验证安装
+fpdev fpc current
+```
+
 ### 2. Lazarus IDE 管理
 ```bash
 fpdev lazarus install 3.0 --from-source   # 安装 Lazarus
