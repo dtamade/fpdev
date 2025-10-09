@@ -112,9 +112,9 @@ begin
     LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
   LOk := CheckWriteableDir(LRoot, LErr);
   if LOk then
-  // WriteLn('✓ 写权限正常: ', LRoot)  // 调试代码已注释
+    WriteLn('[OK] Write permission OK: ', LRoot)
   else
-  // WriteLn('✗ 写权限异常: ', LRoot, '  (', LErr, ')');  // 调试代码已注释
+    WriteLn('[X] Write permission failed: ', LRoot, ' (', LErr, ')');
 
   // 2) git
   LOk := RunToolVersion('git', '--version', LOut);

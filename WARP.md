@@ -221,6 +221,180 @@ bash tests/fpdev.build.manager/run_tests.sh
 | `scripts\run_examples.bat` | 编译并运行示例(干跑模式) |
 | `scripts\run_examples_real.bat` | 运行真实构建示例(仅写沙箱) |
 
+### lazbuild 编译规范
+
+`lazbuild` 是 Lazarus IDE 的命令行构建工具，用于编译 `.lpi` 项目文件，无需打开 IDE。这是 FPDev 项目的**标准构建方式**。
+
+#### 基本语法
+
+```bash
+lazbuild [选项] <项目文件.lpi>
+```
+
+#### 常用选项
+
+| 选项 | 说明 |
+|------|------|
+| `-B` 或 `--build-all` | 完全重新编译（清理构建） |
+| `-r` 或 `--recursive` | 递归构建依赖包 |
+| `--build-mode=<模式>` | 指定构建模式（Debug、Release 等） |
+| `-q` 或 `--quiet` | 减少输出信息 |
+| `-v` 或 `--verbose` | 增加详细输出 |
+| `--os=<目标>` | 目标操作系统（win32、linux、darwin 等） |
+| `--cpu=<目标>` | 目标 CPU 架构（x86_64、i386、aarch64 等） |
+| `--widgetset=<组件集>` | 目标窗口组件集（win32、gtk2、qt5、cocoa 等） |
+| `--build-mode-list` | 列出项目中定义的所有构建模式 |
+
+#### 标准构建流程
+
+```powershell
+# 1. 检查可用的构建模式
+lazbuild --build-mode-list fpdev.lpi
+
+# 2. 简单编译（增量构建）
+lazbuild fpdev.lpi
+
+# 3. 完全重新编译（推荐用于测试重大更改）
+lazbuild -B fpdev.lpi
+
+# 4. 编译并构建依赖包
+lazbuild -B -r fpdev.lpi
+
+# 5. 指定构建模式（Release 模式，启用优化）
+lazbuild -B --build-mode=Release fpdev.lpi
+
+# 6. 安静模式（减少输出）
+lazbuild -B -q fpdev.lpi
+
+# 7. 交叉编译示例（Linux x86_64）
+lazbuild --os=linux --cpu=x86_64 fpdev.lpi
+```
+
+#### FPDev 项目构建模式
+
+项目中定义的构建模式（在 `fpdev.lpi` 中配置）：
+
+- **Default** - 标准调试构建（默认）
+- **Debug** - 完整调试符号，禁用优化
+- **Release** - 启用优化，去除调试信息
+- **Test** - 用于运行单元测试
+
+#### 最佳实践
+
+1. **重大更改时使用 `-B`**: 确保所有文件完全重新编译
+2. **依赖更改时使用 `-r`**: 递归构建所有依赖包
+3. **自动化脚本中明确指定构建模式**: 避免依赖默认值
+4. **CI/CD 流程中检查退出码**: `lazbuild` 成功返回 `0`，失败返回非零值
+5. **使用绝对路径**: 在脚本中使用绝对路径避免路径问题
+
+#### 退出码
+
+- `0` - 编译成功
+- `1` - 编译错误（语法错误、链接失败等）
+- `2` - 无效参数
+
+#### 常见问题排查
+
+**问题：包未找到**
+```
+错误: Package 'xxx' not found
+解决: 使用 -r 标志递归构建依赖包
+      lazbuild -B -r fpdev.lpi
+```
+
+**问题：单元文件未找到**
+```
+错误: Fatal: Can't find unit xxx
+解决: 检查项目选项中的单元搜索路径，确保所有依赖已编译
+```
+
+**问题：编译期间访问冲突**
+```
+错误: Runtime error 216 (Access Violation)
+解决: 使用 -B 清理构建，检查是否存在循环单元引用
+      lazbuild -B fpdev.lpi
+```
+
+#### PowerShell 辅助函数
+
+```powershell
+# 定义构建辅助函数
+function Build-FPDev {
+    param(
+        [switch]$Clean,
+        [string]$Mode = "Default",
+        [switch]$Recursive,
+        [switch]$Quiet
+    )
+    
+    $args = @()
+    if ($Clean) { $args += "-B" }
+    if ($Recursive) { $args += "-r" }
+    if ($Quiet) { $args += "-q" }
+    $args += "--build-mode=$Mode"
+    $args += "fpdev.lpi"
+    
+    Write-Host "Building with: lazbuild $($args -join ' ')" -ForegroundColor Cyan
+    lazbuild @args
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+        exit $LASTEXITCODE
+    } else {
+        Write-Host "Build succeeded" -ForegroundColor Green
+    }
+}
+
+# 使用示例
+Build-FPDev -Clean -Mode Release -Recursive
+```
+
+#### 持续集成示例
+
+```yaml
+# GitHub Actions / GitLab CI 示例
+steps:
+  - name: Build FPDev (Release)
+    run: |
+      lazbuild -B -q --build-mode=Release fpdev.lpi
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    shell: pwsh
+
+  - name: Build Tests
+    run: |
+      lazbuild -B --build-mode=Test tests/test_git2_adapter.lpi
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    shell: pwsh
+
+  - name: Run Tests
+    run: |
+      .\bin\test_git2_adapter.exe
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    shell: pwsh
+```
+
+#### FPDev 项目快速命令
+
+```powershell
+# 构建主程序（标准）
+lazbuild -B fpdev.lpi
+
+# 构建主程序（Release，用于发布）
+lazbuild -B --build-mode=Release fpdev.lpi
+
+# 构建测试（Git 适配器测试）
+lazbuild -B tests\test_git2_adapter.lpi
+
+# 构建测试（构建管理器测试）
+lazbuild -B tests\fpdev.build.manager\test_build_manager.lpi
+
+# 构建所有测试（批处理）
+foreach ($test in Get-ChildItem -Path tests -Filter *.lpi -Recurse) {
+    Write-Host "Building $($test.FullName)"
+    lazbuild -B $test.FullName
+}
+```
+
 ---
 
 ## 项目架构
@@ -589,6 +763,25 @@ uses
 
 - ✅ 构建前先运行 `Preflight()` 检查环境
 - ❌ 假设 `make` 总是存在会导致运行时错误
+
+### 7. 终端输出编码 (Windows 重要！)
+
+- ❗ **绝对不要在终端输出中文！**
+- ⚠️ Windows 终端输出中文会导致 "Disk Full" 错误
+- ✅ 所有用户可见的输出必须使用英文
+- ✅ 日志文件和配置文件可以使用 UTF-8 编码
+
+```pascal
+// 错误 - 会在 Windows 上导致 Disk Full
+WriteLn('用法: fpdev help');
+WriteLn('错误: 未知命令');
+
+// 正确 - 使用英文
+WriteLn('Usage: fpdev help');
+WriteLn('Error: Unknown command');
+```
+
+**原因**: Windows 控制台的编码问题会导致 Pascal 的 WriteLn 在输出中文时触发 I/O 错误，表现为 "Disk Full" 异常。这是 **已知问题**，必须使用英文输出。
 
 ---
 
