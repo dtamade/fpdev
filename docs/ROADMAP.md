@@ -179,16 +179,20 @@ Following the TODO-FPC-v1.md philosophy:
 
 #### 1.1 Project Management Essentials
 - [x] ~~Analyze codebase and create roadmap~~ (Complete)
-- [ ] **Implement `fpdev project clean`** (TDD)
-  - Write tests for cleaning build artifacts
-  - Implement cleanup logic (*.o, *.ppu, executables)
-  - Document usage
+- [x] **Implement `fpdev project clean`** (TDD) ✅ COMPLETE
+  - ✅ Write tests for cleaning build artifacts
+  - ✅ Implement cleanup logic (*.o, *.ppu, executables)
+  - ✅ Document usage
+  - **Tests**: 3/3 passing (test_project_clean.lpr)
+  - **Commit**: fd46a91 (test), f781161 (feat)
   - **Priority**: 🔴 HIGHEST
 
-- [ ] **Implement `fpdev project run`** (TDD)
-  - Write tests for running built executables
-  - Implement run logic with argument passing
-  - Handle cross-platform executable names
+- [x] **Implement `fpdev project run`** (TDD) ✅ COMPLETE
+  - ✅ Write tests for running built executables
+  - ✅ Implement run logic with argument passing
+  - ✅ Handle cross-platform executable names
+  - **Tests**: 4/4 passing (test_project_run.lpr)
+  - **Commit**: 37d8187 (test), f781161 (feat)
   - **Priority**: 🔴 HIGHEST
 
 - [ ] **Implement `fpdev project test`** (TDD)
@@ -519,16 +523,23 @@ end;
 
 ## Next Immediate Actions
 
-### Week 1 (Current)
+### ✅ Week 1 (COMPLETE)
 1. ✅ Complete project status analysis
 2. ✅ Create development roadmap (this document)
-3. [ ] **START: Implement `fpdev project clean` (TDD)**
-   - Write failing test
-   - Implement feature
-   - Refactor and commit
+3. ✅ **COMPLETE: Implement `fpdev project clean` (TDD)**
+   - ✅ Write failing test
+   - ✅ Implement feature
+   - ✅ Refactor and commit
+4. ✅ **COMPLETE: Implement `fpdev project run` (TDD)**
+   - ✅ Write failing test
+   - ✅ Implement feature
+   - ✅ Refactor and commit
 
-### Week 2
-1. [ ] Implement `fpdev project run` (TDD)
+### Week 2 (CURRENT)
+1. [ ] **NEXT: Implement `fpdev project test` (TDD)**
+   - Write failing tests for test discovery and execution
+   - Implement feature
+   - Support FPCUnit and custom frameworks
 2. [ ] Implement `fpdev fpc clean` (TDD)
 3. [ ] Update documentation
 
@@ -543,11 +554,11 @@ end;
 
 Use this checklist to track implementation progress:
 
-### Phase 1 Progress: [██░░░░░░░░] 20% (2/10 tasks complete)
+### Phase 1 Progress: [████░░░░░░] 40% (4/10 tasks complete)
 - [x] Analyze project status
 - [x] Create roadmap
-- [ ] Implement project clean
-- [ ] Implement project run
+- [x] Implement project clean (✅ TDD complete, 3 tests passing)
+- [x] Implement project run (✅ TDD complete, 4 tests passing)
 - [ ] Implement project test
 - [ ] Implement fpc clean
 - [ ] Implement fpc update
@@ -557,6 +568,6 @@ Use this checklist to track implementation progress:
 
 ---
 
-**Last Updated**: 2025-01-29
+**Last Updated**: 2025-01-29 (Updated after implementing project clean and run)
 **Maintained By**: FPDev Development Team
 **License**: MIT
