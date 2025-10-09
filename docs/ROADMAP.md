@@ -204,10 +204,12 @@ Following the TODO-FPC-v1.md philosophy:
   - **Priority**: 🟡 HIGH
 
 #### 1.2 FPC Source Management
-- [ ] **Implement `fpdev fpc clean`** (TDD)
-  - Write tests for source cleanup
-  - Implement cleanup for temp files, build artifacts
-  - Preserve source repos by default
+- [x] **Implement `fpdev fpc clean`** (TDD) ✅ COMPLETE
+  - ✅ Write tests for source cleanup
+  - ✅ Implement cleanup for temp files, build artifacts
+  - ✅ Preserve source repos by default
+  - **Tests**: 3/3 passing (test_fpc_clean.lpr)
+  - **Commit**: 848b2d1 (test), 8e245b1 (feat)
   - **Priority**: 🟡 HIGH
 
 - [ ] **Implement `fpdev fpc update`** (TDD)
@@ -542,11 +544,13 @@ end;
    - ✅ Refactor and commit
 
 ### Week 2 (CURRENT)
-1. [ ] **NEXT: Implement `fpdev fpc clean` (TDD)**
-   - Write failing tests for FPC source cleanup
-   - Implement feature
-   - Clean up build artifacts and temporary files
-2. [ ] Implement `fpdev fpc update` (TDD)
+1. [x] ~~**Implement `fpdev fpc clean` (TDD)**~~ ✅ COMPLETE
+   - ✅ Write failing tests for FPC source cleanup
+   - ✅ Implement feature
+   - ✅ Clean up build artifacts and temporary files
+2. [ ] **NEXT: Implement `fpdev fpc update` (TDD)**
+   - Write tests for FPC source updates
+   - Implement git pull + rebuild orchestration
 3. [ ] Update documentation
 
 ### Week 3-4
@@ -560,13 +564,13 @@ end;
 
 Use this checklist to track implementation progress:
 
-### Phase 1 Progress: [██████░░░░] 60% (6/10 tasks complete)
+### Phase 1 Progress: [███████░░░] 70% (7/10 tasks complete)
 - [x] Analyze project status
 - [x] Create roadmap
 - [x] Implement project clean (✅ TDD complete, 3 tests passing)
 - [x] Implement project run (✅ TDD complete, 4 tests passing)
 - [x] Implement project test (✅ TDD complete, 4 tests passing)
-- [ ] Implement fpc clean
+- [x] Implement fpc clean (✅ TDD complete, 3 tests passing)
 - [ ] Implement fpc update
 - [ ] Write tests for all features
 - [ ] Update documentation
@@ -574,6 +578,6 @@ Use this checklist to track implementation progress:
 
 ---
 
-**Last Updated**: 2025-01-29 (Updated after implementing project clean, run, and test)
+**Last Updated**: 2025-01-29 (Updated after implementing project clean, run, test, and fpc clean)
 **Maintained By**: FPDev Development Team
 **License**: MIT
