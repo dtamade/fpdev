@@ -49,6 +49,15 @@ type
 
   TFPCVersionArray = array of TFPCVersionInfo;
 
+  { TVerificationResult }
+  TVerificationResult = record
+    Verified: Boolean;
+    ExecutableExists: Boolean;
+    DetectedVersion: string;
+    SmokeTestPassed: Boolean;
+    ErrorMessage: string;
+  end;
+
   { TFPCManager }
   TFPCManager = class
   private
@@ -82,6 +91,7 @@ type
     // 工具链操作
     function ShowVersionInfo(const AVersion: string): Boolean;
     function TestInstallation(const AVersion: string): Boolean;
+    function VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
   end;
 
 // 主要执行函数
@@ -1142,6 +1152,92 @@ begin
   end;
 end;
 
+function TFPCManager.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
+var
+  Process: TProcess;
+  FPCExe: string;
+  InstallPath: string;
+  OutputLines: TStringList;
+  DetectedVer: string;
+begin
+  // Initialize result record
+  FillChar(VerifResult, SizeOf(VerifResult), 0);
+  VerifResult.Verified := False;
+  VerifResult.ExecutableExists := False;
+  VerifResult.DetectedVersion := '';
+  VerifResult.SmokeTestPassed := False;
+  VerifResult.ErrorMessage := '';
+
+  // Get install path
+  InstallPath := GetVersionInstallPath(AVersion);
+  {$IFDEF MSWINDOWS}
+  FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+
+  // Check if executable exists
+  if not FileExists(FPCExe) then
+  begin
+    VerifResult.ErrorMessage := 'FPC executable not found: ' + FPCExe;
+    Exit(False);
+  end;
+
+  VerifResult.ExecutableExists := True;
+
+  try
+    // Run fpc -iV to get version
+    OutputLines := TStringList.Create;
+    try
+      Process := TProcess.Create(nil);
+      try
+        Process.Executable := FPCExe;
+        Process.Parameters.Add('-iV');
+        Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+        Process.Execute;
+
+        if Process.ExitStatus = 0 then
+        begin
+          OutputLines.LoadFromStream(Process.Output);
+          if OutputLines.Count > 0 then
+          begin
+            DetectedVer := Trim(OutputLines[0]);
+            VerifResult.DetectedVersion := DetectedVer;
+
+            // Verify version matches
+            if not SameText(DetectedVer, AVersion) then
+            begin
+              VerifResult.ErrorMessage := 'Version mismatch: expected ' + AVersion + ', detected ' + DetectedVer;
+              Exit(False);
+            end;
+          end else begin
+            VerifResult.ErrorMessage := 'No version output from fpc -iV';
+            Exit(False);
+          end;
+        end else begin
+          VerifResult.ErrorMessage := 'fpc -iV failed with exit code: ' + IntToStr(Process.ExitStatus);
+          Exit(False);
+        end;
+      finally
+        Process.Free;
+      end;
+    finally
+      OutputLines.Free;
+    end;
+
+    // Verification successful
+    VerifResult.Verified := True;
+    Exit(True);
+
+  except
+    on E: Exception do
+    begin
+      VerifResult.ErrorMessage := 'Exception during verification: ' + E.Message;
+      Exit(False);
+    end;
+  end;
+end;
+
 // 主要执行函数
 procedure execute(const aParams: array of string);
   procedure PrintHelp;
@@ -1172,6 +1268,7 @@ var
   Ver, S, Jobs: string;
   FromSource: Boolean;
   Settings: TFPDevSettings;
+  VerifResult: TVerificationResult;
 begin
   if Length(aParams) = 0 then
   begin
@@ -1280,6 +1377,34 @@ begin
         end;
         Ver := aParams[1];
         Manager.TestInstallation(Ver);
+      end
+      else if (Cmd = 'verify') then
+      begin
+        if Length(aParams) < 2 then
+        begin
+          WriteLn('Error: Version number required. Example: fpdev fpc verify 3.2.2');
+          Exit;
+        end;
+        Ver := aParams[1];
+
+        WriteLn('Verifying FPC ', Ver, ' installation...');
+        WriteLn;
+
+        if Manager.VerifyInstallation(Ver, VerifResult) then
+        begin
+          WriteLn('Verification passed:');
+          WriteLn('  Executable: Found');
+          WriteLn('  Version: ', VerifResult.DetectedVersion);
+          WriteLn('  Status: OK');
+        end
+        else
+        begin
+          WriteLn('Verification failed:');
+          WriteLn('  Executable exists: ', VerifResult.ExecutableExists);
+          if VerifResult.DetectedVersion <> '' then
+            WriteLn('  Detected version: ', VerifResult.DetectedVersion);
+          WriteLn('  Error: ', VerifResult.ErrorMessage);
+        end;
       end
       else
       begin
