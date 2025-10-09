@@ -39,12 +39,9 @@ type
     function ExecuteCommand(const AProgram: string; const AArgs: array of string; const AWorkingDir: string = ''): Boolean;
     function IsValidSourceDirectory(const APath: string): Boolean;
 
-    // Bootstrap compiler management (FPCUpDeluxe-inspired)
-    function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
+    // Bootstrap compiler management - private helpers
     function FindSystemFPC: string;
     function IsCompatibleBootstrap(const ACompilerPath, ARequiredVersion: string): Boolean;
-    function GetBootstrapPath(const AVersion: string): string;
-    function DownloadBootstrapCompiler(const AVersion: string): Boolean;
     function EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 
     // Step-by-step build process (FPCUpDeluxe-inspired)
@@ -87,6 +84,11 @@ type
     // 路径管理
     function GetFPCSourcePath(const AVersion: string = ''): string;
     function GetFPCBuildPath(const AVersion: string = ''): string;
+
+    // Bootstrap compiler management (FPCUpDeluxe-inspired) - for testing
+    function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
+    function GetBootstrapPath(const AVersion: string): string;
+    function DownloadBootstrapCompiler(const AVersion: string): Boolean;
 
     // 属性
     property SourceRoot: string read FSourceRoot write FSourceRoot;
