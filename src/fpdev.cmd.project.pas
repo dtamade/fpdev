@@ -67,6 +67,7 @@ type
     function GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
     function SetupProjectEnvironment(const AProjectDir: string): Boolean;
     function FindExecutableInDirectory(const ADir: string): string;
+    function FindTestExecutableInDirectory(const ADir: string): string;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager);
@@ -644,11 +645,107 @@ begin
   end;
 end;
 
+function TProjectManager.FindTestExecutableInDirectory(const ADir: string): string;
+var
+  SR: TSearchRec;
+  TestPattern: string;
+begin
+  Result := '';
+
+  if not DirectoryExists(ADir) then
+    Exit;
+
+  // Look for test executables (files starting with 'test' or 'test_')
+  {$IFDEF MSWINDOWS}
+  TestPattern := ADir + PathDelim + 'test*.exe';
+  {$ELSE}
+  TestPattern := ADir + PathDelim + 'test*';
+  {$ENDIF}
+
+  if FindFirst(TestPattern, faAnyFile, SR) = 0 then
+  begin
+    repeat
+      if (SR.Attr and faDirectory) = 0 then
+      begin
+        Result := ADir + PathDelim + SR.Name;
+        {$IFNDEF MSWINDOWS}
+        // On Unix, verify it's an executable (has no extension or is a binary)
+        if (ExtractFileExt(SR.Name) = '') or (ExtractFileExt(SR.Name) = '.lpr') then
+        begin
+          // If it's .lpr, try to find corresponding executable
+          if ExtractFileExt(SR.Name) = '.lpr' then
+            Result := ADir + PathDelim + ChangeFileExt(SR.Name, '');
+
+          if FileExists(Result) then
+            Break
+          else
+            Result := '';
+        end;
+        {$ELSE}
+        Break;
+        {$ENDIF}
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+end;
+
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
+var
+  Process: TProcess;
+  FoundExe: string;
+  ExitStatus: Integer;
 begin
   Result := False;
-  // WriteLn('测试项目功能暂未实现');  // 调试代码已注释
-  // TODO: 实现项目测试功能
+
+  if not DirectoryExists(AProjectDir) then
+  begin
+    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    Exit;
+  end;
+
+  try
+    // Find test executable in project directory
+    FoundExe := FindTestExecutableInDirectory(AProjectDir);
+
+    if FoundExe = '' then
+    begin
+      WriteLn('Error: No test executable found in directory: ', AProjectDir);
+      WriteLn('Note: Test executables should start with "test" or "test_"');
+      Exit;
+    end;
+
+    WriteLn('Running tests: ', ExtractFileName(FoundExe));
+
+    // Create and configure process
+    Process := TProcess.Create(nil);
+    try
+      Process.Executable := FoundExe;
+      Process.CurrentDirectory := AProjectDir;
+
+      // Execute and wait for completion
+      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+      Process.Execute;
+
+      ExitStatus := Process.ExitStatus;
+      Result := ExitStatus = 0;
+
+      if Result then
+        WriteLn('Tests passed (exit code: 0)')
+      else
+        WriteLn('Tests failed (exit code: ', ExitStatus, ')');
+
+    finally
+      Process.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error running tests: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TProjectManager.FindExecutableInDirectory(const ADir: string): string;
