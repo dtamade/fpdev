@@ -124,6 +124,8 @@ type
     function CreateWindowsActivationScript(const AScriptPath, ABinPath: string): Boolean;
     function CreateUnixActivationScript(const AScriptPath, ABinPath: string): Boolean;
     function UpdateVSCodeSettings(const AProjectRoot, ABinPath: string): Boolean;
+    function ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+    function ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager);
@@ -584,6 +586,101 @@ begin
   except
     Result := False;
   end;
+end;
+
+function TFPCManager.ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+var
+  ProjectRoot, EnvDir: string;
+  ActivateCmd, ActivateSh, VSCodeSettingsPath: string;
+begin
+  Result := False;
+
+  // Find project root
+  ProjectRoot := FindProjectRoot(GetCurrentDir);
+  if ProjectRoot = '' then
+  begin
+    AResult.ErrorMessage := 'Cannot find project root (.fpdev directory)';
+    Exit;
+  end;
+
+  // Create env directory
+  EnvDir := ProjectRoot + PathDelim + '.fpdev' + PathDelim + 'env';
+  if not DirectoryExists(EnvDir) then
+    ForceDirectories(EnvDir);
+
+  // Create activation scripts
+  ActivateCmd := EnvDir + PathDelim + 'activate.cmd';
+  ActivateSh := EnvDir + PathDelim + 'activate.sh';
+
+  if not CreateWindowsActivationScript(ActivateCmd, ABinPath) then
+  begin
+    AResult.ErrorMessage := 'Failed to create Windows activation script';
+    Exit;
+  end;
+
+  if not CreateUnixActivationScript(ActivateSh, ABinPath) then
+  begin
+    AResult.ErrorMessage := 'Failed to create Unix activation script';
+    Exit;
+  end;
+
+  AResult.ActivationScript := ActivateCmd;
+
+  // Optional: Update VS Code settings (non-fatal if fails)
+  if UpdateVSCodeSettings(ProjectRoot, ABinPath) then
+  begin
+    VSCodeSettingsPath := ProjectRoot + PathDelim + '.vscode' + PathDelim + 'settings.json';
+    AResult.VSCodeSettings := VSCodeSettingsPath;
+  end;
+
+  // Generate shell command
+  {$IFDEF MSWINDOWS}
+  AResult.ShellCommand := '.fpdev\env\activate.cmd';
+  {$ELSE}
+  AResult.ShellCommand := 'source .fpdev/env/activate.sh';
+  {$ENDIF}
+
+  Result := True;
+end;
+
+function TFPCManager.ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+var
+  EnvDir: string;
+  ActivateCmd, ActivateSh: string;
+begin
+  Result := False;
+
+  // Create user env directory
+  EnvDir := ExtractFileDir(FConfigManager.ConfigPath) + PathDelim + 'env';
+  if not DirectoryExists(EnvDir) then
+    ForceDirectories(EnvDir);
+
+  // Create activation scripts with version suffix
+  ActivateCmd := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
+  ActivateSh := EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
+
+  if not CreateWindowsActivationScript(ActivateCmd, ABinPath) then
+  begin
+    AResult.ErrorMessage := 'Failed to create Windows activation script';
+    Exit;
+  end;
+
+  if not CreateUnixActivationScript(ActivateSh, ABinPath) then
+  begin
+    AResult.ErrorMessage := 'Failed to create Unix activation script';
+    Exit;
+  end;
+
+  AResult.ActivationScript := ActivateCmd;
+
+  // Generate shell command
+  {$IFDEF MSWINDOWS}
+  AResult.ShellCommand := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
+  {$ELSE}
+  AResult.ShellCommand := 'source ' + EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
+  {$ENDIF}
+
+  Result := True;
 end;
 
 function TFPCManager.WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
@@ -1263,8 +1360,7 @@ end;
 function TFPCManager.ActivateVersion(const AVersion: string): TActivationResult;
 var
   Scope: TInstallScope;
-  ProjectRoot, InstallPath, BinPath, EnvDir: string;
-  ActivateCmd, ActivateSh, VSCodeSettingsPath: string;
+  InstallPath, BinPath: string;
 begin
   // Initialize result
   FillChar(Result, SizeOf(Result), 0);
@@ -1281,86 +1377,19 @@ begin
   InstallPath := GetVersionInstallPath(AVersion);
   BinPath := InstallPath + PathDelim + 'bin';
 
-  // Detect scope
+  // Detect scope and delegate to appropriate handler
   Scope := DetectInstallScope(GetCurrentDir);
   Result.Scope := Scope;
 
   if Scope = isProject then
   begin
-    // Project scope: create scripts in .fpdev/env
-    ProjectRoot := FindProjectRoot(GetCurrentDir);
-    if ProjectRoot = '' then
-    begin
-      Result.ErrorMessage := 'Cannot find project root (.fpdev directory)';
+    if not ActivateProjectScope(AVersion, BinPath, Result) then
       Exit;
-    end;
-
-    EnvDir := ProjectRoot + PathDelim + '.fpdev' + PathDelim + 'env';
-    if not DirectoryExists(EnvDir) then
-      ForceDirectories(EnvDir);
-
-    // Create activation scripts
-    ActivateCmd := EnvDir + PathDelim + 'activate.cmd';
-    ActivateSh := EnvDir + PathDelim + 'activate.sh';
-
-    if not CreateWindowsActivationScript(ActivateCmd, BinPath) then
-    begin
-      Result.ErrorMessage := 'Failed to create Windows activation script';
-      Exit;
-    end;
-
-    if not CreateUnixActivationScript(ActivateSh, BinPath) then
-    begin
-      Result.ErrorMessage := 'Failed to create Unix activation script';
-      Exit;
-    end;
-
-    Result.ActivationScript := ActivateCmd; // Primary script for current platform
-
-    // Optional: Update VS Code settings (non-fatal if fails)
-    if UpdateVSCodeSettings(ProjectRoot, BinPath) then
-    begin
-      VSCodeSettingsPath := ProjectRoot + PathDelim + '.vscode' + PathDelim + 'settings.json';
-      Result.VSCodeSettings := VSCodeSettingsPath;
-    end;
-
-    // Generate shell command
-    {$IFDEF MSWINDOWS}
-    Result.ShellCommand := '.fpdev\env\activate.cmd';
-    {$ELSE}
-    Result.ShellCommand := 'source .fpdev/env/activate.sh';
-    {$ENDIF}
   end
   else
   begin
-    // User scope: create scripts in ~/.fpdev/env
-    EnvDir := ExtractFileDir(FConfigManager.ConfigPath) + PathDelim + 'env';
-    if not DirectoryExists(EnvDir) then
-      ForceDirectories(EnvDir);
-
-    ActivateCmd := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
-    ActivateSh := EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
-
-    if not CreateWindowsActivationScript(ActivateCmd, BinPath) then
-    begin
-      Result.ErrorMessage := 'Failed to create Windows activation script';
+    if not ActivateUserScope(AVersion, BinPath, Result) then
       Exit;
-    end;
-
-    if not CreateUnixActivationScript(ActivateSh, BinPath) then
-    begin
-      Result.ErrorMessage := 'Failed to create Unix activation script';
-      Exit;
-    end;
-
-    Result.ActivationScript := ActivateCmd;
-
-    // Generate shell command
-    {$IFDEF MSWINDOWS}
-    Result.ShellCommand := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
-    {$ELSE}
-    Result.ShellCommand := 'source ' + EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
-    {$ENDIF}
   end;
 
   // Set as default version
