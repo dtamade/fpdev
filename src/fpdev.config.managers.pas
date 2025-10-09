@@ -150,12 +150,12 @@ type
     FModified: Boolean;
     FVersion: string;
     
-    // 子管理器 - 内部持有具体类型用于序列化
-    FToolchainManagerImpl: TToolchainManager;
-    FLazarusManagerImpl: TLazarusManager;
-    FCrossTargetManagerImpl: TCrossTargetManager;
-    FRepositoryManagerImpl: TRepositoryManager;
-    FSettingsManagerImpl: TSettingsManager;
+    // 子管理器 - 使用接口引用，完全拥抱引用计数
+    FToolchainManager: IToolchainManager;
+    FLazarusManager: ILazarusManager;
+    FCrossTargetManager: ICrossTargetManager;
+    FRepositoryManager: IRepositoryManager;
+    FSettingsManager: ISettingsManager;
     
     function GetDefaultConfigPath: string;
   public
@@ -242,14 +242,8 @@ end;
 
 function TRepositoryManager.HasRepository(const AName: string): Boolean;
 begin
-  WriteLn('DEBUG TRepositoryManager.HasRepository: Checking for: ', AName);
-  WriteLn('DEBUG TRepositoryManager.HasRepository: FRepositories assigned: ', Assigned(FRepositories));
   if Assigned(FRepositories) then
-  begin
-    WriteLn('DEBUG TRepositoryManager.HasRepository: FRepositories count: ', FRepositories.Count);
-    Result := FRepositories.IndexOfName(AName) >= 0;
-    WriteLn('DEBUG TRepositoryManager.HasRepository: Result: ', Result);
-  end
+    Result := FRepositories.IndexOfName(AName) >= 0
   else
     Result := False;
 end;
@@ -957,13 +951,12 @@ begin
   FModified := False;
   FVersion := CONFIG_VERSION;
   
-  // 创建子管理器，传入 self 作为通知接口
-  // 由于继承 TInterfacedObject，引用计数自动管理生命周期
-  FToolchainManagerImpl := TToolchainManager.Create(Self as IConfigChangeNotifier);
-  FLazarusManagerImpl := TLazarusManager.Create(Self as IConfigChangeNotifier);
-  FCrossTargetManagerImpl := TCrossTargetManager.Create(Self as IConfigChangeNotifier);
-  FRepositoryManagerImpl := TRepositoryManager.Create(Self as IConfigChangeNotifier);
-  FSettingsManagerImpl := TSettingsManager.Create(Self as IConfigChangeNotifier);
+  // 创建子管理器，使用接口引用，完全拥抱引用计数
+  FToolchainManager := TToolchainManager.Create(Self as IConfigChangeNotifier);
+  FLazarusManager := TLazarusManager.Create(Self as IConfigChangeNotifier);
+  FCrossTargetManager := TCrossTargetManager.Create(Self as IConfigChangeNotifier);
+  FRepositoryManager := TRepositoryManager.Create(Self as IConfigChangeNotifier);
+  FSettingsManager := TSettingsManager.Create(Self as IConfigChangeNotifier);
 end;
 
 function TConfigManager.GetDefaultConfigPath: string;
@@ -1010,15 +1003,15 @@ begin
       ForceDirectories(ConfigDir);
       
     // 设置默认仓库
-    FRepositoryManagerImpl.AddRepository('official_fpc', DEFAULT_FPC_REPO);
-    FRepositoryManagerImpl.AddRepository('official_lazarus', DEFAULT_LAZARUS_REPO);
+    FRepositoryManager.AddRepository('official_fpc', DEFAULT_FPC_REPO);
+    FRepositoryManager.AddRepository('official_lazarus', DEFAULT_LAZARUS_REPO);
     
     // 设置默认安装根目录
-    Settings := FSettingsManagerImpl.GetSettings;
+    Settings := FSettingsManager.GetSettings;
     if Settings.InstallRoot = '' then
     begin
       Settings.InstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(FConfigPath));
-      FSettingsManagerImpl.SetSettings(Settings);
+      FSettingsManager.SetSettings(Settings);
     end;
     
     FModified := True;
@@ -1069,21 +1062,21 @@ begin
       FVersion := ConfigJSON.Get('version', CONFIG_VERSION);
       
       // 加载各子管理器数据
-      FToolchainManagerImpl.LoadFromJSON(
+      FToolchainManager.LoadFromJSON(
         ConfigJSON.Objects['toolchains'],
         ConfigJSON.Get('default_toolchain', '')
       );
       
-      FLazarusManagerImpl.LoadFromJSON(ConfigJSON.Objects['lazarus']);
+      FLazarusManager.LoadFromJSON(ConfigJSON.Objects['lazarus']);
       
-      FCrossTargetManagerImpl.LoadFromJSON(ConfigJSON.Objects['cross_targets']);
+      FCrossTargetManager.LoadFromJSON(ConfigJSON.Objects['cross_targets']);
       
-      FRepositoryManagerImpl.LoadFromJSON(
+      FRepositoryManager.LoadFromJSON(
         ConfigJSON.Objects['repositories'],
         ConfigJSON.Get('default_repo', '')
       );
       
-      FSettingsManagerImpl.LoadFromJSON(ConfigJSON.Objects['settings']);
+      FSettingsManager.LoadFromJSON(ConfigJSON.Objects['settings']);
       
       FModified := False;
       Result := True;
@@ -1116,20 +1109,20 @@ begin
       ConfigJSON.Add('version', FVersion);
       
       // 保存各子管理器数据
-      FToolchainManagerImpl.SaveToJSON(ToolchainsJSON, DefaultToolchain);
+      FToolchainManager.SaveToJSON(ToolchainsJSON, DefaultToolchain);
       ConfigJSON.Add('default_toolchain', DefaultToolchain);
       ConfigJSON.Add('toolchains', ToolchainsJSON);
       
-      FLazarusManagerImpl.SaveToJSON(LazarusJSON);
+      FLazarusManager.SaveToJSON(LazarusJSON);
       ConfigJSON.Add('lazarus', LazarusJSON);
       
-      FCrossTargetManagerImpl.SaveToJSON(CrossTargetsJSON);
+      FCrossTargetManager.SaveToJSON(CrossTargetsJSON);
       ConfigJSON.Add('cross_targets', CrossTargetsJSON);
       
-      FRepositoryManagerImpl.SaveToJSON(ReposJSON, DefaultRepo);
+      FRepositoryManager.SaveToJSON(ReposJSON, DefaultRepo);
       ConfigJSON.Add('repositories', ReposJSON);
       
-      FSettingsManagerImpl.SaveToJSON(SettingsJSON);
+      FSettingsManager.SaveToJSON(SettingsJSON);
       ConfigJSON.Add('settings', SettingsJSON);
       
       // 保存到文件
@@ -1163,27 +1156,27 @@ end;
 
 function TConfigManager.GetToolchainManager: IToolchainManager;
 begin
-  Result := FToolchainManagerImpl;
+  Result := FToolchainManager;
 end;
 
 function TConfigManager.GetLazarusManager: ILazarusManager;
 begin
-  Result := FLazarusManagerImpl;
+  Result := FLazarusManager;
 end;
 
 function TConfigManager.GetCrossTargetManager: ICrossTargetManager;
 begin
-  Result := FCrossTargetManagerImpl;
+  Result := FCrossTargetManager;
 end;
 
 function TConfigManager.GetRepositoryManager: IRepositoryManager;
 begin
-  Result := FRepositoryManagerImpl;
+  Result := FRepositoryManager;
 end;
 
 function TConfigManager.GetSettingsManager: ISettingsManager;
 begin
-  Result := FSettingsManagerImpl;
+  Result := FSettingsManager;
 end;
 
 function TConfigManager.IsModified: Boolean;

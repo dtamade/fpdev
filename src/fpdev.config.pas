@@ -255,20 +255,14 @@ begin
 end;
 
 function TFPDevConfigManager.HasRepository(const AName: string): Boolean;
-var
-  RepoMgr: IRepositoryManager;
 begin
-  WriteLn('DEBUG: HasRepository called for: ', AName);
-  WriteLn('DEBUG: Getting repository manager...');
-  RepoMgr := FConfigManager.GetRepositoryManager;
-  WriteLn('DEBUG: Got repository manager, calling HasRepository...');
-  Result := RepoMgr.HasRepository(AName);
-  WriteLn('DEBUG: HasRepository returned: ', Result);
+  Result := FConfigManager.GetRepositoryManager.HasRepository(AName);
 end;
 
 function TFPDevConfigManager.GetDefaultRepository: string;
 begin
-  Result := FConfigManager.GetRepositoryManager.GetDefaultRepository;
+  // 默认仓库实际存储在 Settings 中
+  Result := FConfigManager.GetSettingsManager.GetSettings.DefaultRepo;
 end;
 
 function TFPDevConfigManager.ListRepositories: TStringArray;

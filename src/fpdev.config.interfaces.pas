@@ -18,7 +18,7 @@ unit fpdev.config.interfaces;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpjson;
 
 type
   { IConfigChangeNotifier - 配置修改通知接口 }
@@ -77,6 +77,11 @@ type
     function SetDefaultToolchain(const AName: string): Boolean;
     function GetDefaultToolchain: string;
     function ListToolchains: TStringArray;
+    
+    // 序列化接口
+    procedure LoadFromJSON(AToolchains: TJSONObject; const ADefaultToolchain: string);
+    procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
+    procedure Clear;
   end;
 
   { ILazarusManager - Lazarus版本管理接口 }
@@ -88,6 +93,11 @@ type
     function SetDefaultLazarusVersion(const AName: string): Boolean;
     function GetDefaultLazarusVersion: string;
     function ListLazarusVersions: TStringArray;
+    
+    // 序列化接口
+    procedure LoadFromJSON(ALazarus: TJSONObject);
+    procedure SaveToJSON(out ALazarus: TJSONObject);
+    procedure Clear;
   end;
 
   { ICrossTargetManager - 交叉编译目标管理接口 }
@@ -97,6 +107,11 @@ type
     function RemoveCrossTarget(const ATarget: string): Boolean;
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
     function ListCrossTargets: TStringArray;
+    
+    // 序列化接口
+    procedure LoadFromJSON(ACrossTargets: TJSONObject);
+    procedure SaveToJSON(out ACrossTargets: TJSONObject);
+    procedure Clear;
   end;
 
   { IRepositoryManager - 仓库管理接口 }
@@ -108,6 +123,11 @@ type
     function HasRepository(const AName: string): Boolean;
     function GetDefaultRepository: string;
     function ListRepositories: TStringArray;
+    
+    // 序列化接口
+    procedure LoadFromJSON(ARepos: TJSONObject; const ADefaultRepo: string);
+    procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
+    procedure Clear;
   end;
 
   { ISettingsManager - 设置管理接口 }
@@ -115,6 +135,10 @@ type
     ['{E5F6A7B8-C9D0-1234-EF12-345678901234}']
     function GetSettings: TFPDevSettings;
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
+    
+    // 序列化接口
+    procedure LoadFromJSON(ASettings: TJSONObject);
+    procedure SaveToJSON(out ASettings: TJSONObject);
   end;
 
   { IConfigManager - 配置管理总入口接口 }

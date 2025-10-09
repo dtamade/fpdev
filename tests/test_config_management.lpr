@@ -344,7 +344,7 @@ begin
   
   {$IFDEF MSWINDOWS}
   WriteLn;
-  if FindCmdLineSwitch('pause',['-','/','--'],True) or (GetEnv('FPDEV_DEMO_PAUSE') <> '') then
+  if (ParamStr(1) = '--pause') or (GetEnvironmentVariable('FPDEV_DEMO_PAUSE') <> '') then
   begin
     WriteLn('Press Enter to continue... (--pause or FPDEV_DEMO_PAUSE)');
     ReadLn;
