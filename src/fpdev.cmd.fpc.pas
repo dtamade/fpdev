@@ -35,7 +35,7 @@ interface
 uses
   SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
   fpdev.config, fpdev.utils, fpdev.terminal, fpdev.fpc.source,
-  fphttpclient;
+  fphttpclient, zipper;
 
 type
   { TFPCVersionInfo }
@@ -2075,26 +2075,196 @@ begin
 end;
 
 function TFPCManager.ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
+var
+  Unzipper: TUnZipper;
+  FileExt: string;
 begin
   Result := False;
 
-  // TODO: Implement archive extraction (.tar.gz, .zip)
-  // For now, return false to indicate not implemented
-  WriteLn('Archive extraction not yet implemented');
+  if not FileExists(AArchivePath) then
+  begin
+    WriteLn('Error: Archive file not found: ', AArchivePath);
+    Exit;
+  end;
+
+  try
+    // Ensure destination directory exists
+    if not DirectoryExists(ADestPath) then
+      ForceDirectories(ADestPath);
+
+    FileExt := LowerCase(ExtractFileExt(AArchivePath));
+
+    // Handle ZIP files
+    if FileExt = '.zip' then
+    begin
+      WriteLn('Extracting ZIP archive...');
+      WriteLn('  From: ', AArchivePath);
+      WriteLn('  To: ', ADestPath);
+
+      Unzipper := TUnZipper.Create;
+      try
+        Unzipper.FileName := AArchivePath;
+        Unzipper.OutputPath := ADestPath;
+        Unzipper.Examine;
+        WriteLn('  Files in archive: ', Unzipper.Entries.Count);
+        Unzipper.UnZipAllFiles;
+        Result := True;
+        WriteLn('Extraction completed successfully');
+      finally
+        Unzipper.Free;
+      end;
+    end
+    // Handle .tar.gz files (TODO: requires additional implementation)
+    else if (FileExt = '.gz') or (Pos('.tar', AArchivePath) > 0) then
+    begin
+      WriteLn('Warning: .tar.gz extraction not yet implemented');
+      WriteLn('  Please extract manually or use binary .zip distribution');
+      Result := False;
+    end
+    else
+    begin
+      WriteLn('Error: Unsupported archive format: ', FileExt);
+      Result := False;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error extracting archive: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TFPCManager.InstallFromBinary(const AVersion: string; const APrefix: string): Boolean;
+var
+  TempFile, ExtractDir, InstallPath, FinalPath: string;
+  ExtractedDirs: TStringList;
+  SR: TSearchRec;
+  SourceDir: string;
 begin
   Result := False;
 
-  // TODO: Implement complete binary installation workflow:
-  // 1. Get download URL
-  // 2. Download binary
-  // 3. Verify checksum
-  // 4. Extract archive
-  // 5. Move to install location
-  // 6. Set up environment
-  WriteLn('Binary installation not yet implemented');
+  try
+    WriteLn('===========================================');
+    WriteLn('FPC Binary Installation: ', AVersion);
+    WriteLn('===========================================');
+    WriteLn;
+
+    // Step 1: Download binary
+    WriteLn('[1/5] Downloading binary...');
+    if not DownloadBinary(AVersion, TempFile) then
+    begin
+      WriteLn('Error: Binary download failed');
+      Exit;
+    end;
+    WriteLn;
+
+    // Step 2: Verify checksum (optional, skip for now)
+    WriteLn('[2/5] Verifying checksum...');
+    WriteLn('  Skipped: Checksum verification not yet implemented');
+    WriteLn;
+
+    // Step 3: Extract archive
+    WriteLn('[3/5] Extracting archive...');
+    ExtractDir := GetTempDir + 'fpdev_extract_' + IntToStr(GetTickCount64);
+    if not ExtractArchive(TempFile, ExtractDir) then
+    begin
+      WriteLn('Error: Archive extraction failed');
+      if FileExists(TempFile) then DeleteFile(TempFile);
+      Exit;
+    end;
+    WriteLn;
+
+    // Step 4: Move to installation directory
+    WriteLn('[4/5] Installing to target directory...');
+
+    if APrefix <> '' then
+      InstallPath := ExpandFileName(APrefix)
+    else
+      InstallPath := GetVersionInstallPath(AVersion);
+
+    WriteLn('  Target: ', InstallPath);
+
+    // Find the extracted FPC directory (usually fpc-{version} or just fpc)
+    ExtractedDirs := TStringList.Create;
+    try
+      if FindFirst(ExtractDir + PathDelim + '*', faDirectory, SR) = 0 then
+      begin
+        repeat
+          if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
+          begin
+            SourceDir := ExtractDir + PathDelim + SR.Name;
+            // Check if this looks like an FPC installation (has bin directory)
+            if DirectoryExists(SourceDir + PathDelim + 'bin') then
+            begin
+              WriteLn('  Found FPC directory: ', SR.Name);
+
+              // Ensure parent directory exists
+              ForceDirectories(ExtractFileDir(InstallPath));
+
+              // Move or copy the directory
+              // Note: RenameFile works for directories on same drive
+              if not RenameFile(SourceDir, InstallPath) then
+              begin
+                WriteLn('  Warning: Could not move directory, copying instead...');
+                // TODO: Implement recursive copy if needed
+                WriteLn('  Error: Directory copy not yet implemented');
+                Result := False;
+                Exit;
+              end;
+
+              WriteLn('  Installed successfully');
+              Break;
+            end;
+          end;
+        until FindNext(SR) <> 0;
+        FindClose(SR);
+      end;
+    finally
+      ExtractedDirs.Free;
+    end;
+    WriteLn;
+
+    // Step 5: Setup environment
+    WriteLn('[5/5] Setting up environment...');
+    if SetupEnvironment(AVersion, InstallPath) then
+    begin
+      WriteLn('  Environment configured');
+    end
+    else
+    begin
+      WriteLn('  Warning: Environment setup failed, but installation completed');
+    end;
+    WriteLn;
+
+    // Cleanup
+    WriteLn('Cleaning up temporary files...');
+    if FileExists(TempFile) then DeleteFile(TempFile);
+    if DirectoryExists(ExtractDir) then
+    begin
+      // Try to remove extract directory (may fail if not empty)
+      try
+        RemoveDir(ExtractDir);
+      except
+        WriteLn('  Note: Could not remove temporary directory: ', ExtractDir);
+      end;
+    end;
+
+    WriteLn('===========================================');
+    WriteLn('Installation completed successfully!');
+    WriteLn('FPC ', AVersion, ' installed to: ', InstallPath);
+    WriteLn('===========================================');
+
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error during binary installation: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 // 主要执行函数
