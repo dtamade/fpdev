@@ -34,3 +34,6 @@ lib/*.ppu
 # 测试临时目录
 tests/tmp*/
 tests/bin/tmp*/
+test_install_root_*/
+test_testcmd_temp_*/
+nul
