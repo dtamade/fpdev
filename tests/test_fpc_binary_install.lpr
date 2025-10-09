@@ -97,6 +97,18 @@ begin
   end;
 end;
 
+function GetFileSize(const AFileName: string): Int64;
+var
+  SR: TSearchRec;
+begin
+  Result := 0;
+  if FindFirst(AFileName, faAnyFile, SR) = 0 then
+  begin
+    Result := SR.Size;
+    FindClose(SR);
+  end;
+end;
+
 // ============================================================================
 // Test 1: Binary Download Types Exist
 // ============================================================================
@@ -184,7 +196,7 @@ begin
       'Expected download to succeed');
     AssertTrue(FileExists(TempFile), 'Downloaded file exists',
       'Expected file at: ' + TempFile);
-    AssertTrue(FileSize(TempFile) > 0, 'Downloaded file not empty',
+    AssertTrue(GetFileSize(TempFile) > 0, 'Downloaded file not empty',
       'Expected file size > 0');
 
     FPCManager.Free;

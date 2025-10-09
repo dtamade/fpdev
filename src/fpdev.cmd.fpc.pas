@@ -101,6 +101,14 @@ type
     ErrorMessage: string;
   end;
 
+  { Binary Download Info }
+  TBinaryDownloadInfo = record
+    URL: string;
+    Checksum: string;
+    Platform: string;
+    Architecture: string;
+  end;
+
   { TFPCManager }
   TFPCManager = class
   private
@@ -138,6 +146,13 @@ type
     function SetDefaultVersion(const AVersion: string): Boolean;
     function GetCurrentVersion: string;
     function ActivateVersion(const AVersion: string): TActivationResult;
+
+    // 二进制安装
+    function GetBinaryDownloadURL(const AVersion: string): string;
+    function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+    function VerifyChecksum(const AFilePath, AVersion: string): Boolean;
+    function ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
+    function InstallFromBinary(const AVersion: string; const APrefix: string = ''): Boolean;
 
     // 源码管理
     function UpdateSources(const AVersion: string = ''): Boolean;
@@ -1937,6 +1952,95 @@ begin
       Exit(False);
     end;
   end;
+end;
+
+// ============================================================================
+// Binary Installation Methods
+// ============================================================================
+
+function TFPCManager.GetBinaryDownloadURL(const AVersion: string): string;
+var
+  Platform, Arch: string;
+begin
+  Result := '';
+
+  // Determine platform and architecture
+  {$IFDEF MSWINDOWS}
+    {$IFDEF CPU64}
+    Platform := 'Win64';
+    Arch := 'x86_64-win64';
+    {$ELSE}
+    Platform := 'Win32';
+    Arch := 'i386-win32';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF LINUX}
+    {$IFDEF CPU64}
+    Platform := 'Linux';
+    Arch := 'x86_64-linux';
+    {$ELSE}
+    Platform := 'Linux';
+    Arch := 'i386-linux';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF DARWIN}
+    {$IFDEF CPUAARCH64}
+    Platform := 'macOS';
+    Arch := 'aarch64-darwin';
+    {$ELSE}
+    Platform := 'macOS';
+    Arch := 'x86_64-darwin';
+    {$ENDIF}
+  {$ENDIF}
+
+  // Construct SourceForge download URL
+  // Format: https://sourceforge.net/projects/freepascal/files/<Platform>/<Version>/fpc-<Version>.<Arch>.zip
+  Result := Format('https://sourceforge.net/projects/freepascal/files/%s/%s/fpc-%s.%s.zip/download',
+    [Platform, AVersion, AVersion, Arch]);
+end;
+
+function TFPCManager.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+begin
+  Result := False;
+  ATempFile := '';
+
+  // TODO: Implement HTTP download using fphttpclient or synapse
+  // For now, return false to indicate not implemented
+  WriteLn('Binary download not yet implemented');
+end;
+
+function TFPCManager.VerifyChecksum(const AFilePath, AVersion: string): Boolean;
+begin
+  Result := False;
+
+  // TODO: Implement SHA256 checksum verification
+  // For now, return false to indicate not implemented
+  WriteLn('Checksum verification not yet implemented');
+end;
+
+function TFPCManager.ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
+begin
+  Result := False;
+
+  // TODO: Implement archive extraction (.tar.gz, .zip)
+  // For now, return false to indicate not implemented
+  WriteLn('Archive extraction not yet implemented');
+end;
+
+function TFPCManager.InstallFromBinary(const AVersion: string; const APrefix: string): Boolean;
+begin
+  Result := False;
+
+  // TODO: Implement complete binary installation workflow:
+  // 1. Get download URL
+  // 2. Download binary
+  // 3. Verify checksum
+  // 4. Extract archive
+  // 5. Move to install location
+  // 6. Set up environment
+  WriteLn('Binary installation not yet implemented');
 end;
 
 // 主要执行函数
