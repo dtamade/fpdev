@@ -841,10 +841,117 @@ begin
 end;
 
 function TFPCManager.CleanSources(const AVersion: string): Boolean;
+const
+  // 编译产物扩展名
+  {$IFDEF MSWINDOWS}
+  CLEANABLE_EXTENSIONS: array[0..6] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.dll',      // Dynamic libraries (Windows)
+    '.exe',      // Executables (Windows)
+    '.compiled', // Lazarus state files
+    '.res'       // Resource files
+  );
+  {$ELSE}
+  CLEANABLE_EXTENSIONS: array[0..6] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.so',       // Shared libraries (Linux)
+    '.dylib',    // Dynamic libraries (macOS)
+    '.compiled', // Lazarus state files
+    '.res'       // Resource files
+  );
+  {$ENDIF}
+
+var
+  SourceDir: string;
+  DeletedCount: Integer;
+
+  function CleanDirectory(const ADir: string): Integer;
+  var
+    SR: TSearchRec;
+    FilePath, FileExt: string;
+    I: Integer;
+    ShouldDelete: Boolean;
+  begin
+    Result := 0;
+
+    if not DirectoryExists(ADir) then
+      Exit;
+
+    // 扫描目录中的所有文件和子目录
+    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        // 跳过特殊目录
+        if (SR.Name = '.') or (SR.Name = '..') then
+          Continue;
+
+        FilePath := ADir + PathDelim + SR.Name;
+
+        // 递归处理子目录
+        if (SR.Attr and faDirectory) <> 0 then
+        begin
+          Result := Result + CleanDirectory(FilePath);
+          Continue;
+        end;
+
+        // 检查文件扩展名是否应该被清理
+        FileExt := LowerCase(ExtractFileExt(SR.Name));
+        ShouldDelete := False;
+
+        for I := 0 to High(CLEANABLE_EXTENSIONS) do
+        begin
+          if FileExt = CLEANABLE_EXTENSIONS[I] then
+          begin
+            ShouldDelete := True;
+            Break;
+          end;
+        end;
+
+        // 删除匹配的文件
+        if ShouldDelete then
+        begin
+          if DeleteFile(FilePath) then
+            Inc(Result);
+        end;
+
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+  end;
+
 begin
   Result := False;
-  // WriteLn('清理源码功能暂未实现');  // 调试代码已注释
-  // TODO: 实现源码清理功能
+
+  // 确定源码目录
+  if AVersion = '' then
+    SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-main'
+  else
+    SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
+
+  // 验证源码目录存在
+  if not DirectoryExists(SourceDir) then
+  begin
+    WriteLn('Error: FPC source directory does not exist: ', SourceDir);
+    Exit;
+  end;
+
+  try
+    // 清理目录
+    DeletedCount := CleanDirectory(SourceDir);
+    WriteLn('Cleaned ', DeletedCount, ' build artifact(s) from FPC source: ', SourceDir);
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error cleaning FPC sources: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TFPCManager.ShowVersionInfo(const AVersion: string): Boolean;
