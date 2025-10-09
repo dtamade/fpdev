@@ -58,6 +58,39 @@ type
     ErrorMessage: string;
   end;
 
+  { Installation Scope }
+  TInstallScope = (isUser, isProject, isSystem);
+
+  { Source Mode for installation }
+  TSourceMode = (smAuto, smBinary, smSource);
+
+  { Verification Info for metadata }
+  TVerifyInfo = record
+    Timestamp: TDateTime;
+    OK: Boolean;
+    DetectedVersion: string;
+    SmokeTestPassed: Boolean;
+  end;
+
+  { Origin Info for metadata }
+  TOriginInfo = record
+    RepoURL: string;
+    Commit: string;
+    BuiltFromSource: Boolean;
+  end;
+
+  { FPDev Installation Metadata }
+  TFPDevMetadata = record
+    Version: string;
+    Scope: TInstallScope;
+    SourceMode: TSourceMode;
+    Channel: string;
+    Prefix: string;
+    Verify: TVerifyInfo;
+    Origin: TOriginInfo;
+    InstalledAt: TDateTime;
+  end;
+
   { TFPCManager }
   TFPCManager = class
   private
@@ -70,7 +103,6 @@ type
     function BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
     function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
     function ValidateVersion(const AVersion: string): Boolean;
-    function GetVersionInstallPath(const AVersion: string): string;
     function IsVersionInstalled(const AVersion: string): Boolean;
     function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
 
@@ -93,6 +125,7 @@ type
     function ShowVersionInfo(const AVersion: string): Boolean;
     function TestInstallation(const AVersion: string): Boolean;
     function VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
+    function GetVersionInstallPath(const AVersion: string): string;
   end;
 
 // 主要执行函数
