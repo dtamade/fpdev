@@ -66,6 +66,7 @@ type
     function ValidateProjectName(const AProjectName: string): Boolean;
     function GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
     function SetupProjectEnvironment(const AProjectDir: string): Boolean;
+    function FindExecutableInDirectory(const ADir: string): string;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager);
@@ -543,10 +544,104 @@ begin
 end;
 
 function TProjectManager.CleanProject(const AProjectDir: string): Boolean;
+const
+  // Build artifacts extensions to be cleaned
+  {$IFDEF MSWINDOWS}
+  CLEANABLE_EXTENSIONS: array[0..6] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.dll',      // Dynamic libraries (Windows)
+    '.exe',      // Executables (Windows)
+    '.compiled', // Lazarus state files
+    '.res'       // Resource files
+  );
+  {$ELSE}
+  CLEANABLE_EXTENSIONS: array[0..6] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.so',       // Shared libraries (Linux)
+    '.dylib',    // Dynamic libraries (macOS)
+    '.compiled', // Lazarus state files
+    '.res'       // Resource files
+  );
+  {$ENDIF}
+var
+  SR: TSearchRec;
+  FilePath, FileExt: string;
+  DeletedCount: Integer;
+  I: Integer;
+  ShouldDelete: Boolean;
 begin
   Result := False;
-  // WriteLn('清理项目功能暂未实现');  // 调试代码已注释
-  // TODO: 实现项目清理功能
+  DeletedCount := 0;
+
+  // Validate directory exists
+  if not DirectoryExists(AProjectDir) then
+  begin
+    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    Exit;
+  end;
+
+  try
+    // Scan directory for cleanable files
+    if FindFirst(AProjectDir + PathDelim + '*.*', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        // Skip directories and special entries
+        if (SR.Name = '.') or (SR.Name = '..') or
+           ((SR.Attr and faDirectory) <> 0) then
+          Continue;
+
+        FilePath := AProjectDir + PathDelim + SR.Name;
+        FileExt := LowerCase(ExtractFileExt(SR.Name));
+        ShouldDelete := False;
+
+        // Check if this file extension should be cleaned
+        for I := 0 to High(CLEANABLE_EXTENSIONS) do
+        begin
+          if FileExt = CLEANABLE_EXTENSIONS[I] then
+          begin
+            ShouldDelete := True;
+            Break;
+          end;
+        end;
+
+        {$IFNDEF MSWINDOWS}
+        // On Unix, also check for executables without extension
+        // Only consider files with no extension and no dot in name
+        if (not ShouldDelete) and (FileExt = '') and
+           (Pos('.', SR.Name) = 0) then
+        begin
+          // Conservative check: file is likely executable if it has execute permissions
+          // We can't easily check permissions from Pascal, so we just skip this for now
+          // to avoid accidentally deleting important files
+          ShouldDelete := False;
+        end;
+        {$ENDIF}
+
+        // Delete the file if it matches criteria
+        if ShouldDelete then
+        begin
+          if DeleteFile(FilePath) then
+            Inc(DeletedCount);
+        end;
+
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+
+    WriteLn('Cleaned ', DeletedCount, ' build artifact(s) from: ', AProjectDir);
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error cleaning project: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
@@ -556,11 +651,114 @@ begin
   // TODO: 实现项目测试功能
 end;
 
+function TProjectManager.FindExecutableInDirectory(const ADir: string): string;
+var
+  SR: TSearchRec;
+begin
+  Result := '';
+
+  if not DirectoryExists(ADir) then
+    Exit;
+
+  {$IFDEF MSWINDOWS}
+  // On Windows, look for .exe files
+  if FindFirst(ADir + PathDelim + '*.exe', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      if (SR.Attr and faDirectory) = 0 then
+      begin
+        Result := ADir + PathDelim + SR.Name;
+        Break;
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+  {$ELSE}
+  // On Unix, look for executable corresponding to .lpr files
+  if FindFirst(ADir + PathDelim + '*.lpr', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      if (SR.Attr and faDirectory) = 0 then
+      begin
+        // Try executable with same name but no extension
+        Result := ADir + PathDelim + ChangeFileExt(SR.Name, '');
+        if FileExists(Result) then
+          Break
+        else
+          Result := '';
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+  {$ENDIF}
+end;
+
 function TProjectManager.RunProject(const AProjectDir: string; const AArgs: string): Boolean;
+var
+  Process: TProcess;
+  FoundExe: string;
+  ExitStatus: Integer;
+  Args: TStringList;
+  i: Integer;
 begin
   Result := False;
-  // WriteLn('运行项目功能暂未实现');  // 调试代码已注释
-  // TODO: 实现项目运行功能
+
+  if not DirectoryExists(AProjectDir) then
+  begin
+    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    Exit;
+  end;
+
+  try
+    // Find executable in project directory
+    FoundExe := FindExecutableInDirectory(AProjectDir);
+
+    if FoundExe = '' then
+    begin
+      WriteLn('Error: No executable found in directory: ', AProjectDir);
+      Exit;
+    end;
+
+    // Create and configure process
+    Process := TProcess.Create(nil);
+    try
+      Process.Executable := FoundExe;
+      Process.CurrentDirectory := AProjectDir;
+
+      // Parse and add arguments if provided
+      if AArgs <> '' then
+      begin
+        Args := TStringList.Create;
+        try
+          ExtractStrings([' '], [], PChar(AArgs), Args);
+          for i := 0 to Args.Count - 1 do
+            Process.Parameters.Add(Args[i]);
+        finally
+          Args.Free;
+        end;
+      end;
+
+      // Execute and wait for completion
+      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+      Process.Execute;
+
+      ExitStatus := Process.ExitStatus;
+      Result := ExitStatus = 0;
+
+      if not Result then
+        WriteLn('Warning: Process exited with code: ', ExitStatus);
+
+    finally
+      Process.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      WriteLn('Error running project: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TProjectManager.InstallTemplate(const ATemplatePath: string): Boolean;
