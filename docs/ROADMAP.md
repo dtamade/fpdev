@@ -79,20 +79,25 @@ Following the TODO-FPC-v1.md philosophy:
   - Dependencies: None
 
 #### 2. Lazarus Management (Priority: MEDIUM)
-- [ ] **Source update functionality** (`fpdev.cmd.lazarus.pas:666`)
+- [x] **Source update functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:662`)
   - Impact: HIGH - Users need to update IDE
-  - Complexity: MEDIUM - Similar to FPC update
+  - Complexity: MEDIUM - Git fetch with libgit2 integration
   - Dependencies: None
+  - **Implemented**: Phase 3.4 Week 1 (commits c9de2dc Red, 595e8bc Green)
+  - **Tests**: 3/3 passing (test_lazarus_update.lpr)
 
-- [ ] **Source cleanup functionality** (`fpdev.cmd.lazarus.pas:673`)
+- [x] **Source cleanup functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:757`)
   - Impact: MEDIUM - Disk space management
-  - Complexity: LOW - Delete temp files
+  - Complexity: LOW - Recursive directory cleanup with extension filtering
   - Dependencies: None
+  - **Implemented**: Phase 3.4 Week 1 (commits f830f4a Red, 00e09cd Green)
+  - **Tests**: 15/15 passing (test_lazarus_clean.lpr, 3 test cases with 15 assertions)
 
-- [ ] **IDE configuration functionality** (`fpdev.cmd.lazarus.pas:841`)
+- [ ] **IDE configuration functionality** (`fpdev.cmd.lazarus.pas:1044`)
   - Impact: HIGH - User experience enhancement
   - Complexity: HIGH - XML/INI config manipulation
   - Dependencies: Lazarus installed
+  - **Status**: Deferred (requires 2-3 weeks for complete implementation)
 
 #### 3. Cross-Compilation (Priority: LOW)
 - [ ] **Binutils download logic** (`fpdev.cmd.cross.pas:284`)
