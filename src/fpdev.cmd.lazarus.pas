@@ -755,10 +755,129 @@ begin
 end;
 
 function TLazarusManager.CleanSources(const AVersion: string): Boolean;
+const
+  // Build artifact extensions for Lazarus
+  {$IFDEF MSWINDOWS}
+  CLEANABLE_EXTENSIONS: array[0..7] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.dll',      // Dynamic libraries (Windows)
+    '.exe',      // Executables (Windows)
+    '.compiled', // Lazarus compiled marker files
+    '.rst',      // Resource string files
+    '.rsj'       // Resource JSON files
+  );
+  {$ELSE}
+  CLEANABLE_EXTENSIONS: array[0..7] of string = (
+    '.o',        // Object files
+    '.ppu',      // Compiled Pascal units
+    '.a',        // Static libraries
+    '.so',       // Shared libraries (Linux)
+    '.dylib',    // Dynamic libraries (macOS)
+    '.compiled', // Lazarus compiled marker files
+    '.rst',      // Resource string files
+    '.rsj'       // Resource JSON files
+  );
+  {$ENDIF}
+
+var
+  SourceDir: string;
+  UseVersion: string;
+  DeletedCount: Integer;
+
+  function CleanDirectory(const ADir: string): Integer;
+  var
+    SR: TSearchRec;
+    FilePath, FileExt: string;
+    I: Integer;
+    ShouldDelete: Boolean;
+  begin
+    Result := 0;
+
+    if not DirectoryExists(ADir) then
+      Exit;
+
+    // Scan all files and subdirectories
+    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        // Skip special directories
+        if (SR.Name = '.') or (SR.Name = '..') then
+          Continue;
+
+        FilePath := ADir + PathDelim + SR.Name;
+
+        // Recursively process subdirectories
+        if (SR.Attr and faDirectory) <> 0 then
+        begin
+          Result := Result + CleanDirectory(FilePath);
+          Continue;
+        end;
+
+        // Check if file extension should be cleaned
+        FileExt := LowerCase(ExtractFileExt(SR.Name));
+        ShouldDelete := False;
+
+        for I := 0 to High(CLEANABLE_EXTENSIONS) do
+        begin
+          if FileExt = CLEANABLE_EXTENSIONS[I] then
+          begin
+            ShouldDelete := True;
+            Break;
+          end;
+        end;
+
+        // Delete matching files
+        if ShouldDelete then
+        begin
+          if DeleteFile(FilePath) then
+            Inc(Result);
+        end;
+
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+  end;
+
 begin
   Result := False;
-  // WriteLn('清理源码功能暂未实现');  // 调试代码已注释
-  // TODO: 实现源码清理功能
+
+  // Determine version to clean
+  if AVersion <> '' then
+    UseVersion := AVersion
+  else
+    UseVersion := GetCurrentVersion;
+
+  if UseVersion = '' then
+  begin
+    // WriteLn('Error: No version specified and no default version set');
+    Exit;
+  end;
+
+  // Construct source directory path
+  SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
+
+  // Validate source directory exists
+  if not DirectoryExists(SourceDir) then
+  begin
+    // WriteLn('Error: Lazarus source directory does not exist: ', SourceDir);
+    Exit;
+  end;
+
+  try
+    // Clean directory recursively
+    DeletedCount := CleanDirectory(SourceDir);
+    // WriteLn('Cleaned ', DeletedCount, ' build artifact(s) from Lazarus source: ', SourceDir);
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      // WriteLn('Error cleaning Lazarus sources: ', E.Message);
+      Result := False;
+    end;
+  end;
 end;
 
 function TLazarusManager.ShowVersionInfo(const AVersion: string): Boolean;
