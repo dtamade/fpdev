@@ -148,9 +148,9 @@ begin
   if FInstallRoot = '' then
   begin
     {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + '\.fpdev';
+    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
     {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + '/.fpdev';
+    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
     {$ENDIF}
 
     Settings.InstallRoot := FInstallRoot;
@@ -252,9 +252,9 @@ begin
   SearchPaths[3] := ExpandFileName('~/.local/bin');
   {$ELSE}
   SetLength(SearchPaths, 3);
-  SearchPaths[0] := 'C:\mingw64\bin';
-  SearchPaths[1] := 'C:\mingw32\bin';
-  SearchPaths[2] := GetEnvironmentVariable('MINGW_HOME') + '\bin';
+  SearchPaths[0] := 'C:' + PathDelim + 'mingw64' + PathDelim + 'bin';
+  SearchPaths[1] := 'C:' + PathDelim + 'mingw32' + PathDelim + 'bin';
+  SearchPaths[2] := GetEnvironmentVariable('MINGW_HOME') + PathDelim + 'bin';
   {$ENDIF}
 
   // Search for GCC with the target prefix
