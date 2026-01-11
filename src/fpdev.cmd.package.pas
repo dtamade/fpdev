@@ -73,7 +73,10 @@ type
     function DownloadPackage(const APackageName, AVersion: string): Boolean;
     function InstallPackageFromSource(const APackageName, ASourcePath: string): Boolean;
     function ValidatePackage(const APackageName: string): Boolean;
-    function GetPackageInstallPath(const APackageName: string): string;
+    { Dependency resolution }
+    function ResolveAndInstallDependencies(const APackageInfo: TPackageInfo; Outp, Errp: IOutput): Boolean;
+
+  function GetPackageInstallPath(const APackageName: string): string;
     function IsPackageInstalled(const APackageName: string): Boolean;
     function GetPackageInfo(const APackageName: string): TPackageInfo;
     function ResolveDependencies(const APackageName: string): TStringArray;
@@ -232,6 +235,121 @@ begin
   if Assigned(FResourceRepo) then
     FResourceRepo.Free;
   inherited Destroy;
+end;
+
+function TPackageManager.ResolveAndInstallDependencies(const APackageInfo: TPackageInfo; Outp, Errp: IOutput): Boolean;
+var
+  Graph: TDependencyGraph;
+  Avail: TPackageArray;
+  i, j, DepIdx: Integer;
+  ResolveResult: TResolveResult;
+  DepPkg: TPackageInfo;
+begin
+  Result := False;
+
+  if Length(APackageInfo.Dependencies) = 0 then
+  begin
+    Result := True;  // No dependencies to resolve
+    Exit;
+  end;
+
+  // Get all available packages for dependency lookup
+  Avail := GetAvailablePackages;
+
+  // Build dependency graph
+  Graph := TDependencyGraph.Create;
+  try
+    // Add root package
+    Graph.AddNode(APackageInfo.Name, APackageInfo.Version);
+
+    // Add all dependency nodes and edges
+    for i := 0 to High(APackageInfo.Dependencies) do
+    begin
+      // Find dependency package info
+      DepIdx := -1;
+      for j := 0 to High(Avail) do
+      begin
+        if SameText(Avail[j].Name, APackageInfo.Dependencies[i]) then
+        begin
+          DepIdx := j;
+          Break;
+        end;
+      end;
+
+      if DepIdx < 0 then
+      begin
+        if Errp <> nil then
+          Errp.WriteLn('Error: Dependency package not found: ' + APackageInfo.Dependencies[i]);
+        Exit;
+      end;
+
+      // Add dependency node
+      Graph.AddNode(Avail[DepIdx].Name, Avail[DepIdx].Version);
+
+      // Add edge: root -> dependency
+      Graph.AddDependency(APackageInfo.Name, Avail[DepIdx].Name);
+
+      // Recursively add dependency's dependencies
+      if Length(Avail[DepIdx].Dependencies) > 0 then
+      begin
+      if Outp <> nil then
+        Outp.WriteLn('Adding dependency: ' + Avail[DepIdx].Name);
+        // Note: For now, we only add direct dependencies
+        // Recursive dependency resolution would require a more complex algorithm
+      end;
+    end;
+
+    // Resolve installation order
+    ResolveResult := Graph.Resolve;
+
+    if not ResolveResult.Success then
+    begin
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + ResolveResult.ErrorMessage);
+      Exit;
+    end;
+
+    // Install dependencies in reverse order (dependencies first, root last)
+    if Outp <> nil then
+      Outp.WriteLn('Installing dependencies...');
+
+    for i := High(ResolveResult.ResolvedOrder) downto 0 do
+    begin
+      if SameText(ResolveResult.ResolvedOrder[i], APackageInfo.Name) then
+        Continue;  // Skip the root package
+
+      // Find dependency package
+      DepIdx := -1;
+      for j := 0 to High(Avail) do
+      begin
+        if SameText(Avail[j].Name, ResolveResult.ResolvedOrder[i]) then
+        begin
+          DepIdx := j;
+          Break;
+        end;
+      end;
+
+      if DepIdx < 0 then
+        Continue;
+
+      DepPkg := Avail[DepIdx];
+
+      if Outp <> nil then
+        Outp.WriteLn('Installing dependency: ' + DepPkg.Name);
+
+      // Install dependency
+      if not InstallPackage(DepPkg.Name, DepPkg.Version, Outp, Errp) then
+      begin
+        if Errp <> nil then
+          Errp.WriteLn('Error: Failed to install dependency: ' + DepPkg.Name);
+        Exit;
+      end;
+    end;
+
+    Result := True;
+  finally
+    Graph.Free;
+  end;
 end;
 
 function TPackageManager.GetPackageInstallPath(const APackageName: string): string;
@@ -750,6 +868,17 @@ begin
     if BestIdx < 0 then
     begin
       Exit;
+    end;
+
+    // Resolve dependencies before downloading
+    if Length(Avail[BestIdx].Dependencies) > 0 then
+    begin
+      if Outp <> nil then
+        Outp.WriteLn('Resolving dependencies...');
+      if not ResolveAndInstallDependencies(Avail[BestIdx], Outp, Errp) then
+      begin
+        Exit;
+      end;
     end;
 
     UseVersion := Avail[BestIdx].Version;
