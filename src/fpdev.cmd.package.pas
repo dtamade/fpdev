@@ -142,9 +142,9 @@ begin
   if FInstallRoot = '' then
   begin
     {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + '\.fpdev';
+    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
     {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + '/.fpdev';
+    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
     {$ENDIF}
 
     Settings.InstallRoot := FInstallRoot;

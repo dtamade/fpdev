@@ -184,7 +184,7 @@ begin
   Result := (AProjectName <> '') and
             (Pos(' ', AProjectName) = 0) and
             (Pos('/', AProjectName) = 0) and
-            (Pos('\', AProjectName) = 0);
+            (Pos(PathDelim, AProjectName) = 0);
 end;
 
 function TProjectManager.GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
