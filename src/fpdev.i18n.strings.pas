@@ -1,0 +1,1527 @@
+unit fpdev.i18n.strings;
+
+{$mode objfpc}{$H+}
+
+(*
+  Translation Resources for fpdev
+
+  Usage:
+    T('msg.id', 'English text', '中文文本');  // Simple one-liner
+
+  String ID naming convention:
+  - cmd.<command>.<action> - Command related messages
+  - msg.<category>.<name>  - General messages
+  - err.<category>.<name>  - Error messages
+  - help.<command>         - Help text
+*)
+
+interface
+
+uses
+  fpdev.i18n;
+
+{ String ID constants - use these in code }
+const
+  // General messages
+  MSG_WELCOME = 'msg.welcome';
+  MSG_VERSION = 'msg.version';
+  MSG_DONE = 'msg.done';
+  MSG_FAILED = 'msg.failed';
+  MSG_SUCCESS = 'msg.success';
+  MSG_ERROR = 'msg.error';
+  MSG_WARNING = 'msg.warning';
+  MSG_INFO = 'msg.info';
+  MSG_LOADING = 'msg.loading';
+  MSG_SAVING = 'msg.saving';
+  MSG_PLEASE_WAIT = 'msg.please_wait';
+  MSG_NOT_FOUND = 'msg.not_found';
+  MSG_ALREADY_EXISTS = 'msg.already_exists';
+  MSG_CONFIRM = 'msg.confirm';
+  MSG_YES = 'msg.yes';
+  MSG_NO = 'msg.no';
+  MSG_CANCEL = 'msg.cancel';
+  MSG_CHECKING_FPC_ENV = 'msg.checking_fpc_env';
+  MSG_CHECKING_LAZARUS_ENV = 'msg.checking_lazarus_env';
+  MSG_CHECKING_CROSS_ENV = 'msg.checking_cross_env';
+  MSG_UNINSTALL_SUCCESS = 'msg.uninstall_success';
+  MSG_CLEANED = 'msg.cleaned';
+  MSG_CLEAN_FAILED = 'msg.clean_failed';
+  MSG_AVAILABLE_COMMANDS = 'msg.available_commands';
+  MSG_DOCTOR_COMPLETE = 'msg.doctor_complete';
+  MSG_REPO_ADDED = 'msg.repo_added';
+
+  // Package messages
+  MSG_PKG_NOT_INSTALLED = 'msg.pkg.not_installed';
+  MSG_PKG_UNINSTALLING = 'msg.pkg.uninstalling';
+  MSG_PKG_UNINSTALL_COMPLETE = 'msg.pkg.uninstall_complete';
+  MSG_PKG_REMOVE_WARNING = 'msg.pkg.remove_warning';
+  MSG_PKG_INSTALL_HINT = 'msg.pkg.install_hint';
+  MSG_PKG_CHECKING_UPDATES = 'msg.pkg.checking_updates';
+  MSG_PKG_INSTALLED_VERSION = 'msg.pkg.installed_version';
+  MSG_PKG_LATEST_VERSION = 'msg.pkg.latest_version';
+  MSG_PKG_UP_TO_DATE = 'msg.pkg.up_to_date';
+  MSG_PKG_UPDATING = 'msg.pkg.updating';
+  MSG_PKG_REMOVING_OLD = 'msg.pkg.removing_old';
+  MSG_PKG_INSTALLING_NEW = 'msg.pkg.installing_new';
+  MSG_PKG_REINSTALL_HINT = 'msg.pkg.reinstall_hint';
+  MSG_PKG_UPDATE_SUCCESS = 'msg.pkg.update_success';
+  MSG_PKG_REPO_UPDATE_HINT = 'msg.pkg.repo_update_hint';
+  MSG_PKG_INFO_NAME = 'msg.pkg.info_name';
+  MSG_PKG_INFO_VERSION = 'msg.pkg.info_version';
+  MSG_PKG_INFO_DESC = 'msg.pkg.info_desc';
+  MSG_PKG_INFO_PATH = 'msg.pkg.info_path';
+  MSG_PKG_VERSION_MISSING = 'msg.pkg.version_missing';
+  MSG_PKG_CHECKSUM_OK = 'msg.pkg.checksum_ok';
+  MSG_PKG_CHECKSUM_EXPECTED = 'msg.pkg.checksum_expected';
+  MSG_PKG_CHECKSUM_ACTUAL = 'msg.pkg.checksum_actual';
+  MSG_PKG_VERIFY_SUCCESS = 'msg.pkg.verify_success';
+  MSG_PKG_INSTALL_LOCAL = 'msg.pkg.install_local';
+  MSG_PKG_INSTALL_COMPLETE = 'msg.pkg.install_complete';
+  MSG_PKG_CREATED_JSON = 'msg.pkg.created_json';
+  MSG_PKG_JSON_EXISTS = 'msg.pkg.json_exists';
+  MSG_PKG_CREATE_SUCCESS = 'msg.pkg.create_success';
+  MSG_PKG_NEXT_STEPS = 'msg.pkg.next_steps';
+  MSG_PKG_STEP_EDIT = 'msg.pkg.step_edit';
+  MSG_PKG_STEP_ADD_SOURCE = 'msg.pkg.step_add_source';
+  MSG_PKG_STEP_PUBLISH = 'msg.pkg.step_publish';
+  MSG_PKG_CREATING_ARCHIVE = 'msg.pkg.creating_archive';
+  MSG_PKG_ARCHIVE_CREATED = 'msg.pkg.archive_created';
+  MSG_PKG_READY_PUBLISH = 'msg.pkg.ready_publish';
+  MSG_PKG_TO_PUBLISH = 'msg.pkg.to_publish';
+  MSG_PKG_PUBLISH_STEP1 = 'msg.pkg.publish_step1';
+  MSG_PKG_PUBLISH_STEP2 = 'msg.pkg.publish_step2';
+  MSG_PKG_CLEAN_TMP_FAILED = 'msg.pkg.clean_tmp_failed';
+
+  // Doctor diagnostic messages
+  MSG_DOCTOR_OK = 'msg.doctor.ok';
+  MSG_DOCTOR_FAIL = 'msg.doctor.fail';
+  MSG_DOCTOR_WARN = 'msg.doctor.warn';
+  MSG_DOCTOR_WRITE_OK = 'msg.doctor.write_ok';
+  MSG_DOCTOR_WRITE_FAIL = 'msg.doctor.write_fail';
+  MSG_DOCTOR_GIT_OK = 'msg.doctor.git_ok';
+  MSG_DOCTOR_GIT_FAIL = 'msg.doctor.git_fail';
+  MSG_DOCTOR_MAKE_OK = 'msg.doctor.make_ok';
+  MSG_DOCTOR_MAKE_FAIL = 'msg.doctor.make_fail';
+  MSG_DOCTOR_FPC_OK = 'msg.doctor.fpc_ok';
+  MSG_DOCTOR_FPC_FAIL = 'msg.doctor.fpc_fail';
+  MSG_DOCTOR_LAZBUILD_OK = 'msg.doctor.lazbuild_ok';
+  MSG_DOCTOR_LAZBUILD_WARN = 'msg.doctor.lazbuild_warn';
+  MSG_DOCTOR_GTK2_OK = 'msg.doctor.gtk2_ok';
+  MSG_DOCTOR_GTK3_OK = 'msg.doctor.gtk3_ok';
+  MSG_DOCTOR_GTK_FAIL = 'msg.doctor.gtk_fail';
+
+  // Help system messages
+  HELP_USAGE = 'help.usage';
+  HELP_COMMANDS = 'help.commands';
+  HELP_OPTIONS = 'help.options';
+  HELP_EXAMPLES = 'help.examples';
+  HELP_MORE_INFO = 'help.more_info';
+  HELP_AVAILABLE_SUBCOMMANDS = 'help.available_subcommands';
+  HELP_NO_COMMAND_FOUND = 'help.no_command_found';
+  HELP_MAINTENANCE_SWITCHES = 'help.maintenance_switches';
+  HELP_TIP = 'help.tip';
+  HELP_ALIAS = 'help.alias';
+
+  // Help: Global
+  HELP_GLOBAL_USAGE = 'help.global.usage';
+
+  // Help: FPC commands
+  HELP_FPC_USAGE = 'help.fpc.usage';
+  HELP_FPC_INSTALL_USAGE = 'help.fpc.install.usage';
+  HELP_FPC_INSTALL_DESC = 'help.fpc.install.desc';
+  HELP_FPC_INSTALL_EXAMPLE = 'help.fpc.install.example';
+  HELP_FPC_INSTALL_OPTIONS = 'help.fpc.install.options';
+  HELP_FPC_INSTALL_OPT_SOURCE = 'help.fpc.install.opt.source';
+  HELP_FPC_INSTALL_OPT_BINARY = 'help.fpc.install.opt.binary';
+  HELP_FPC_INSTALL_OPT_FROM = 'help.fpc.install.opt.from';
+  HELP_FPC_INSTALL_OPT_JOBS = 'help.fpc.install.opt.jobs';
+  HELP_FPC_INSTALL_OPT_PREFIX = 'help.fpc.install.opt.prefix';
+  HELP_FPC_INSTALL_OPT_HELP = 'help.fpc.install.opt.help';
+  HELP_FPC_LIST_USAGE = 'help.fpc.list.usage';
+  HELP_FPC_LIST_DESC = 'help.fpc.list.desc';
+  HELP_FPC_LIST_OPTIONS = 'help.fpc.list.options';
+  HELP_FPC_LIST_OPT_ALL = 'help.fpc.list.opt.all';
+  HELP_FPC_LIST_OPT_HELP = 'help.fpc.list.opt.help';
+  HELP_FPC_USE_USAGE = 'help.fpc.use.usage';
+  HELP_FPC_USE_DESC = 'help.fpc.use.desc';
+  HELP_FPC_USE_OPTIONS = 'help.fpc.use.options';
+  HELP_FPC_USE_OPT_ENSURE = 'help.fpc.use.opt.ensure';
+  HELP_FPC_USE_OPT_HELP = 'help.fpc.use.opt.help';
+  HELP_FPC_CURRENT_USAGE = 'help.fpc.current.usage';
+  HELP_FPC_CURRENT_DESC = 'help.fpc.current.desc';
+  HELP_FPC_CURRENT_OPT_HELP = 'help.fpc.current.opt.help';
+  HELP_FPC_SHOW_USAGE = 'help.fpc.show.usage';
+  HELP_FPC_SHOW_DESC = 'help.fpc.show.desc';
+  HELP_FPC_SHOW_OPT_HELP = 'help.fpc.show.opt.help';
+  HELP_FPC_DOCTOR_USAGE = 'help.fpc.doctor.usage';
+  HELP_FPC_DOCTOR_DESC = 'help.fpc.doctor.desc';
+  HELP_FPC_DOCTOR_OPT_HELP = 'help.fpc.doctor.opt.help';
+  HELP_FPC_TEST_USAGE = 'help.fpc.test.usage';
+  HELP_FPC_TEST_DESC = 'help.fpc.test.desc';
+  HELP_FPC_TEST_OPT_HELP = 'help.fpc.test.opt.help';
+  HELP_FPC_UPDATE_USAGE = 'help.fpc.update.usage';
+  HELP_FPC_UPDATE_DESC = 'help.fpc.update.desc';
+  HELP_FPC_UPDATE_OPT_HELP = 'help.fpc.update.opt.help';
+  HELP_FPC_UNINSTALL_USAGE = 'help.fpc.uninstall.usage';
+  HELP_FPC_UNINSTALL_DESC = 'help.fpc.uninstall.desc';
+  HELP_FPC_UNINSTALL_OPT_HELP = 'help.fpc.uninstall.opt.help';
+  HELP_FPC_SUBCOMMANDS = 'help.fpc.subcommands';
+
+  // Help: Lazarus commands
+  HELP_LAZARUS_USAGE = 'help.lazarus.usage';
+  HELP_LAZARUS_INSTALL_USAGE = 'help.lazarus.install.usage';
+  HELP_LAZARUS_INSTALL_DESC = 'help.lazarus.install.desc';
+  HELP_LAZARUS_INSTALL_OPTIONS = 'help.lazarus.install.options';
+  HELP_LAZARUS_INSTALL_OPT_SOURCE = 'help.lazarus.install.opt.source';
+  HELP_LAZARUS_INSTALL_OPT_FROM = 'help.lazarus.install.opt.from';
+  HELP_LAZARUS_INSTALL_OPT_FPC = 'help.lazarus.install.opt.fpc';
+  HELP_LAZARUS_INSTALL_OPT_JOBS = 'help.lazarus.install.opt.jobs';
+  HELP_LAZARUS_INSTALL_OPT_HELP = 'help.lazarus.install.opt.help';
+  HELP_LAZARUS_LIST_USAGE = 'help.lazarus.list.usage';
+  HELP_LAZARUS_LIST_DESC = 'help.lazarus.list.desc';
+  HELP_LAZARUS_LIST_OPTIONS = 'help.lazarus.list.options';
+  HELP_LAZARUS_LIST_OPT_ALL = 'help.lazarus.list.opt.all';
+  HELP_LAZARUS_LIST_OPT_HELP = 'help.lazarus.list.opt.help';
+  HELP_LAZARUS_USE_USAGE = 'help.lazarus.use.usage';
+  HELP_LAZARUS_USE_DESC = 'help.lazarus.use.desc';
+  HELP_LAZARUS_USE_OPT_HELP = 'help.lazarus.use.opt.help';
+  HELP_LAZARUS_CURRENT_USAGE = 'help.lazarus.current.usage';
+  HELP_LAZARUS_CURRENT_DESC = 'help.lazarus.current.desc';
+  HELP_LAZARUS_CURRENT_OPT_HELP = 'help.lazarus.current.opt.help';
+  HELP_LAZARUS_SHOW_USAGE = 'help.lazarus.show.usage';
+  HELP_LAZARUS_SHOW_DESC = 'help.lazarus.show.desc';
+  HELP_LAZARUS_SHOW_OPT_HELP = 'help.lazarus.show.opt.help';
+  HELP_LAZARUS_RUN_USAGE = 'help.lazarus.run.usage';
+  HELP_LAZARUS_RUN_DESC = 'help.lazarus.run.desc';
+  HELP_LAZARUS_RUN_OPT_HELP = 'help.lazarus.run.opt.help';
+  HELP_LAZARUS_CONFIGURE_USAGE = 'help.lazarus.configure.usage';
+  HELP_LAZARUS_CONFIGURE_DESC = 'help.lazarus.configure.desc';
+  HELP_LAZARUS_CONFIGURE_OPT_HELP = 'help.lazarus.configure.opt.help';
+  HELP_LAZARUS_TEST_USAGE = 'help.lazarus.test.usage';
+  HELP_LAZARUS_TEST_DESC = 'help.lazarus.test.desc';
+  HELP_LAZARUS_TEST_OPT_HELP = 'help.lazarus.test.opt.help';
+  HELP_LAZARUS_UNINSTALL_USAGE = 'help.lazarus.uninstall.usage';
+  HELP_LAZARUS_UNINSTALL_DESC = 'help.lazarus.uninstall.desc';
+  HELP_LAZARUS_UNINSTALL_OPT_HELP = 'help.lazarus.uninstall.opt.help';
+  HELP_LAZARUS_DOCTOR_USAGE = 'help.lazarus.doctor.usage';
+  HELP_LAZARUS_DOCTOR_DESC = 'help.lazarus.doctor.desc';
+  HELP_LAZARUS_DOCTOR_OPT_HELP = 'help.lazarus.doctor.opt.help';
+  HELP_LAZARUS_UPDATE_USAGE = 'help.lazarus.update.usage';
+  HELP_LAZARUS_UPDATE_DESC = 'help.lazarus.update.desc';
+  HELP_LAZARUS_UPDATE_OPT_HELP = 'help.lazarus.update.opt.help';
+  HELP_LAZARUS_SUBCOMMANDS = 'help.lazarus.subcommands';
+
+  // Help: Project commands
+  HELP_PROJECT_USAGE = 'help.project.usage';
+  HELP_PROJECT_NEW_USAGE = 'help.project.new.usage';
+  HELP_PROJECT_NEW_DESC = 'help.project.new.desc';
+  HELP_PROJECT_NEW_EXAMPLE = 'help.project.new.example';
+  HELP_PROJECT_NEW_OPT_HELP = 'help.project.new.opt.help';
+  HELP_PROJECT_LIST_USAGE = 'help.project.list.usage';
+  HELP_PROJECT_LIST_DESC = 'help.project.list.desc';
+  HELP_PROJECT_LIST_OPT_HELP = 'help.project.list.opt.help';
+  HELP_PROJECT_BUILD_USAGE = 'help.project.build.usage';
+  HELP_PROJECT_BUILD_DESC = 'help.project.build.desc';
+  HELP_PROJECT_BUILD_OPT_HELP = 'help.project.build.opt.help';
+  HELP_PROJECT_RUN_USAGE = 'help.project.run.usage';
+  HELP_PROJECT_RUN_DESC = 'help.project.run.desc';
+  HELP_PROJECT_RUN_OPT_HELP = 'help.project.run.opt.help';
+  HELP_PROJECT_TEST_USAGE = 'help.project.test.usage';
+  HELP_PROJECT_TEST_DESC = 'help.project.test.desc';
+  HELP_PROJECT_TEST_OPT_HELP = 'help.project.test.opt.help';
+  HELP_PROJECT_CLEAN_USAGE = 'help.project.clean.usage';
+  HELP_PROJECT_CLEAN_DESC = 'help.project.clean.desc';
+  HELP_PROJECT_CLEAN_OPT_HELP = 'help.project.clean.opt.help';
+  HELP_PROJECT_INFO_USAGE = 'help.project.info.usage';
+  HELP_PROJECT_INFO_DESC = 'help.project.info.desc';
+  HELP_PROJECT_INFO_OPT_HELP = 'help.project.info.opt.help';
+  HELP_PROJECT_SUBCOMMANDS = 'help.project.subcommands';
+
+  // Help: Package commands
+  HELP_PACKAGE_USAGE = 'help.package.usage';
+  HELP_PACKAGE_INSTALL_USAGE = 'help.package.install.usage';
+  HELP_PACKAGE_INSTALL_DESC = 'help.package.install.desc';
+  HELP_PACKAGE_INSTALL_OPTIONS = 'help.package.install.options';
+  HELP_PACKAGE_INSTALL_OPT_VERSION = 'help.package.install.opt.version';
+  HELP_PACKAGE_INSTALL_OPT_KEEP = 'help.package.install.opt.keep';
+  HELP_PACKAGE_INSTALL_OPT_HELP = 'help.package.install.opt.help';
+  HELP_PACKAGE_UNINSTALL_USAGE = 'help.package.uninstall.usage';
+  HELP_PACKAGE_UNINSTALL_DESC = 'help.package.uninstall.desc';
+  HELP_PACKAGE_UNINSTALL_OPT_HELP = 'help.package.uninstall.opt.help';
+  HELP_PACKAGE_UPDATE_USAGE = 'help.package.update.usage';
+  HELP_PACKAGE_UPDATE_DESC = 'help.package.update.desc';
+  HELP_PACKAGE_UPDATE_OPT_HELP = 'help.package.update.opt.help';
+  HELP_PACKAGE_LIST_USAGE = 'help.package.list.usage';
+  HELP_PACKAGE_LIST_DESC = 'help.package.list.desc';
+  HELP_PACKAGE_LIST_OPTIONS = 'help.package.list.options';
+  HELP_PACKAGE_LIST_OPT_ALL = 'help.package.list.opt.all';
+  HELP_PACKAGE_LIST_OPT_HELP = 'help.package.list.opt.help';
+  HELP_PACKAGE_SEARCH_USAGE = 'help.package.search.usage';
+  HELP_PACKAGE_SEARCH_DESC = 'help.package.search.desc';
+  HELP_PACKAGE_SEARCH_EXAMPLE = 'help.package.search.example';
+  HELP_PACKAGE_SEARCH_OPT_HELP = 'help.package.search.opt.help';
+  HELP_PACKAGE_INFO_USAGE = 'help.package.info.usage';
+  HELP_PACKAGE_INFO_DESC = 'help.package.info.desc';
+  HELP_PACKAGE_INFO_OPT_HELP = 'help.package.info.opt.help';
+  HELP_PACKAGE_CREATE_USAGE = 'help.package.create.usage';
+  HELP_PACKAGE_CREATE_DESC = 'help.package.create.desc';
+  HELP_PACKAGE_CREATE_OPT_HELP = 'help.package.create.opt.help';
+  HELP_PACKAGE_PUBLISH_USAGE = 'help.package.publish.usage';
+  HELP_PACKAGE_PUBLISH_DESC = 'help.package.publish.desc';
+  HELP_PACKAGE_PUBLISH_OPT_HELP = 'help.package.publish.opt.help';
+  HELP_PACKAGE_CLEAN_USAGE = 'help.package.clean.usage';
+  HELP_PACKAGE_CLEAN_DESC = 'help.package.clean.desc';
+  HELP_PACKAGE_CLEAN_OPTIONS = 'help.package.clean.options';
+  HELP_PACKAGE_CLEAN_OPT_DRYRUN = 'help.package.clean.opt.dryrun';
+  HELP_PACKAGE_CLEAN_OPT_YES = 'help.package.clean.opt.yes';
+  HELP_PACKAGE_CLEAN_OPT_HELP = 'help.package.clean.opt.help';
+  HELP_PACKAGE_INSTALL_LOCAL_USAGE = 'help.package.install_local.usage';
+  HELP_PACKAGE_INSTALL_LOCAL_DESC = 'help.package.install_local.desc';
+  HELP_PACKAGE_INSTALL_LOCAL_OPT_HELP = 'help.package.install_local.opt.help';
+  HELP_PACKAGE_SUBCOMMANDS = 'help.package.subcommands';
+  HELP_PACKAGE_REPO_USAGE = 'help.package.repo.usage';
+  HELP_PACKAGE_REPO_LIST_USAGE = 'help.package.repo.list.usage';
+  HELP_PACKAGE_REPO_LIST_DESC = 'help.package.repo.list.desc';
+  HELP_PACKAGE_REPO_LIST_OPT_HELP = 'help.package.repo.list.opt.help';
+  HELP_PACKAGE_REPO_ADD_USAGE = 'help.package.repo.add.usage';
+  HELP_PACKAGE_REPO_ADD_DESC = 'help.package.repo.add.desc';
+  HELP_PACKAGE_REPO_ADD_OPT_HELP = 'help.package.repo.add.opt.help';
+  HELP_PACKAGE_REPO_REMOVE_USAGE = 'help.package.repo.remove.usage';
+  HELP_PACKAGE_REPO_REMOVE_DESC = 'help.package.repo.remove.desc';
+  HELP_PACKAGE_REPO_REMOVE_OPT_HELP = 'help.package.repo.remove.opt.help';
+  HELP_PACKAGE_REPO_UPDATE_USAGE = 'help.package.repo.update.usage';
+  HELP_PACKAGE_REPO_UPDATE_DESC = 'help.package.repo.update.desc';
+  HELP_PACKAGE_REPO_UPDATE_OPT_HELP = 'help.package.repo.update.opt.help';
+
+  // Help: Cross commands
+  HELP_CROSS_USAGE = 'help.cross.usage';
+  HELP_CROSS_LIST_USAGE = 'help.cross.list.usage';
+  HELP_CROSS_LIST_DESC = 'help.cross.list.desc';
+  HELP_CROSS_LIST_OPTIONS = 'help.cross.list.options';
+  HELP_CROSS_LIST_OPT_ALL = 'help.cross.list.opt.all';
+  HELP_CROSS_LIST_OPT_HELP = 'help.cross.list.opt.help';
+  HELP_CROSS_INSTALL_USAGE = 'help.cross.install.usage';
+  HELP_CROSS_INSTALL_DESC = 'help.cross.install.desc';
+  HELP_CROSS_INSTALL_EXAMPLE = 'help.cross.install.example';
+  HELP_CROSS_INSTALL_OPT_HELP = 'help.cross.install.opt.help';
+  HELP_CROSS_UNINSTALL_USAGE = 'help.cross.uninstall.usage';
+  HELP_CROSS_UNINSTALL_DESC = 'help.cross.uninstall.desc';
+  HELP_CROSS_UNINSTALL_OPT_HELP = 'help.cross.uninstall.opt.help';
+  HELP_CROSS_ENABLE_USAGE = 'help.cross.enable.usage';
+  HELP_CROSS_ENABLE_DESC = 'help.cross.enable.desc';
+  HELP_CROSS_ENABLE_OPT_HELP = 'help.cross.enable.opt.help';
+  HELP_CROSS_DISABLE_USAGE = 'help.cross.disable.usage';
+  HELP_CROSS_DISABLE_DESC = 'help.cross.disable.desc';
+  HELP_CROSS_DISABLE_OPT_HELP = 'help.cross.disable.opt.help';
+  HELP_CROSS_SHOW_USAGE = 'help.cross.show.usage';
+  HELP_CROSS_SHOW_DESC = 'help.cross.show.desc';
+  HELP_CROSS_SHOW_OPT_HELP = 'help.cross.show.opt.help';
+  HELP_CROSS_TEST_USAGE = 'help.cross.test.usage';
+  HELP_CROSS_TEST_DESC = 'help.cross.test.desc';
+  HELP_CROSS_TEST_OPT_HELP = 'help.cross.test.opt.help';
+  HELP_CROSS_CONFIGURE_USAGE = 'help.cross.configure.usage';
+  HELP_CROSS_CONFIGURE_DESC = 'help.cross.configure.desc';
+  HELP_CROSS_CONFIGURE_OPTIONS = 'help.cross.configure.options';
+  HELP_CROSS_CONFIGURE_OPT_BINUTILS = 'help.cross.configure.opt.binutils';
+  HELP_CROSS_CONFIGURE_OPT_LIBRARIES = 'help.cross.configure.opt.libraries';
+  HELP_CROSS_CONFIGURE_OPT_HELP = 'help.cross.configure.opt.help';
+  HELP_CROSS_DOCTOR_USAGE = 'help.cross.doctor.usage';
+  HELP_CROSS_DOCTOR_DESC = 'help.cross.doctor.desc';
+  HELP_CROSS_DOCTOR_OPT_HELP = 'help.cross.doctor.opt.help';
+  HELP_CROSS_SUBCOMMANDS = 'help.cross.subcommands';
+
+  // Help: Repo commands
+  HELP_REPO_USAGE = 'help.repo.usage';
+  HELP_REPO_ADD_USAGE = 'help.repo.add.usage';
+  HELP_REPO_ADD_DESC = 'help.repo.add.desc';
+  HELP_REPO_ADD_OPT_HELP = 'help.repo.add.opt.help';
+  HELP_REPO_REMOVE_USAGE = 'help.repo.remove.usage';
+  HELP_REPO_REMOVE_DESC = 'help.repo.remove.desc';
+  HELP_REPO_REMOVE_OPT_HELP = 'help.repo.remove.opt.help';
+  HELP_REPO_LIST_USAGE = 'help.repo.list.usage';
+  HELP_REPO_LIST_DESC = 'help.repo.list.desc';
+  HELP_REPO_LIST_OPT_HELP = 'help.repo.list.opt.help';
+  HELP_REPO_SHOW_USAGE = 'help.repo.show.usage';
+  HELP_REPO_SHOW_DESC = 'help.repo.show.desc';
+  HELP_REPO_SHOW_OPT_HELP = 'help.repo.show.opt.help';
+  HELP_REPO_VERSIONS_USAGE = 'help.repo.versions.usage';
+  HELP_REPO_VERSIONS_DESC = 'help.repo.versions.desc';
+  HELP_REPO_VERSIONS_OPTIONS = 'help.repo.versions.options';
+  HELP_REPO_VERSIONS_OPT_REPO = 'help.repo.versions.opt.repo';
+  HELP_REPO_VERSIONS_OPT_OS = 'help.repo.versions.opt.os';
+  HELP_REPO_VERSIONS_OPT_ARCH = 'help.repo.versions.opt.arch';
+  HELP_REPO_VERSIONS_OPT_JSON = 'help.repo.versions.opt.json';
+  HELP_REPO_VERSIONS_OPT_OFFLINE = 'help.repo.versions.opt.offline';
+  HELP_REPO_VERSIONS_OPT_REFRESH = 'help.repo.versions.opt.refresh';
+  HELP_REPO_VERSIONS_OPT_HELP = 'help.repo.versions.opt.help';
+  HELP_REPO_DEFAULT_USAGE = 'help.repo.default.usage';
+  HELP_REPO_DEFAULT_DESC = 'help.repo.default.desc';
+  HELP_REPO_DEFAULT_OPT_HELP = 'help.repo.default.opt.help';
+  HELP_REPO_SUBCOMMANDS = 'help.repo.subcommands';
+
+  // FPC command messages
+  CMD_FPC_INSTALL_START = 'cmd.fpc.install.start';
+  CMD_FPC_INSTALL_DONE = 'cmd.fpc.install.done';
+  CMD_FPC_INSTALL_FAILED = 'cmd.fpc.install.failed';
+  CMD_FPC_INSTALL_DOWNLOADING = 'cmd.fpc.install.downloading';
+  CMD_FPC_INSTALL_EXTRACTING = 'cmd.fpc.install.extracting';
+  CMD_FPC_INSTALL_CONFIGURING = 'cmd.fpc.install.configuring';
+  CMD_FPC_LIST_HEADER = 'cmd.fpc.list.header';
+  CMD_FPC_LIST_ALL_HEADER = 'cmd.fpc.list.all_header';
+  CMD_FPC_LIST_EMPTY = 'cmd.fpc.list.empty';
+  CMD_FPC_LIST_CURRENT = 'cmd.fpc.list.current';
+  CMD_FPC_USE_ACTIVATED = 'cmd.fpc.use.activated';
+  CMD_FPC_USE_NOT_FOUND = 'cmd.fpc.use.not_found';
+  CMD_FPC_USE_SCRIPT = 'cmd.fpc.use.script';
+  CMD_FPC_USE_SCRIPT_CREATED = 'cmd.fpc.use.script_created';
+  CMD_FPC_USE_SCRIPT_RUN = 'cmd.fpc.use.script_run';
+  CMD_FPC_USE_VSCODE_UPDATED = 'cmd.fpc.use.vscode_updated';
+  CMD_FPC_USE_AUTOINSTALL = 'cmd.fpc.use.autoinstall';
+  CMD_FPC_USE_AUTOINSTALL_FAILED = 'cmd.fpc.use.autoinstall_failed';
+  CMD_FPC_CURRENT_NONE = 'cmd.fpc.current.none';
+  CMD_FPC_CURRENT_VERSION = 'cmd.fpc.current.version';
+  CMD_FPC_DOCTOR_CHECKING = 'cmd.fpc.doctor.checking';
+  CMD_FPC_DOCTOR_OK = 'cmd.fpc.doctor.ok';
+  CMD_FPC_DOCTOR_ISSUES = 'cmd.fpc.doctor.issues';
+  CMD_FPC_DOCTOR_WRITE_OK = 'cmd.fpc.doctor.write_ok';
+  CMD_FPC_DOCTOR_WRITE_FAILED = 'cmd.fpc.doctor.write_failed';
+  CMD_FPC_DOCTOR_GIT_OK = 'cmd.fpc.doctor.git_ok';
+  CMD_FPC_DOCTOR_GIT_NOT_FOUND = 'cmd.fpc.doctor.git_not_found';
+  CMD_FPC_DOCTOR_MAKE_OK = 'cmd.fpc.doctor.make_ok';
+  CMD_FPC_DOCTOR_MAKE_NOT_FOUND = 'cmd.fpc.doctor.make_not_found';
+  CMD_FPC_DOCTOR_FPC_OK = 'cmd.fpc.doctor.fpc_ok';
+  CMD_FPC_DOCTOR_FPC_NOT_FOUND = 'cmd.fpc.doctor.fpc_not_found';
+  CMD_FPC_CLEAN_START = 'cmd.fpc.clean.start';
+  CMD_FPC_CLEAN_DONE = 'cmd.fpc.clean.done';
+  CMD_FPC_UPDATE_START = 'cmd.fpc.update.start';
+  CMD_FPC_UPDATE_DONE = 'cmd.fpc.update.done';
+  CMD_FPC_UPDATE_NO_UPDATES = 'cmd.fpc.update.no_updates';
+  CMD_FPC_UPDATE_VERSION = 'cmd.fpc.update.version';
+  CMD_FPC_UPDATE_FAILED = 'cmd.fpc.update.failed';
+  CMD_FPC_UPDATE_INDEX = 'cmd.fpc.update.index';
+  CMD_FPC_UNKNOWN_VERSION = 'cmd.fpc.unknown_version';
+  CMD_FPC_NO_GIT_BACKEND = 'cmd.fpc.no_git_backend';
+  CMD_FPC_GIT_CLONE_FAILED = 'cmd.fpc.git_clone_failed';
+  CMD_FPC_GIT_PULL_FAILED = 'cmd.fpc.git_pull_failed';
+  CMD_FPC_REPO_INIT_FAILED = 'cmd.fpc.repo_init_failed';
+  CMD_FPC_BOOTSTRAP_INSTALL_FAILED = 'cmd.fpc.bootstrap_install_failed';
+  CMD_FPC_SOURCE_DIR_NOT_FOUND = 'cmd.fpc.source_dir_not_found';
+  CMD_FPC_BUILD_FAILED = 'cmd.fpc.build_failed';
+  CMD_FPC_DOWNLOAD_FAILED = 'cmd.fpc.download_failed';
+  CMD_FPC_BOOTSTRAP_CHECK_FAILED = 'cmd.fpc.bootstrap_check_failed';
+  CMD_FPC_BUILD_FROM_SOURCE_FAILED = 'cmd.fpc.build_from_source_failed';
+  CMD_FPC_NOT_GIT_REPO = 'cmd.fpc.not_git_repo';
+  CMD_FPC_UNSUPPORTED_VERSION = 'cmd.fpc.unsupported_version';
+  CMD_FPC_DOWNLOAD_URL_FAILED = 'cmd.fpc.download_url_failed';
+  CMD_FPC_FILE_NOT_FOUND = 'cmd.fpc.file_not_found';
+  CMD_FPC_CHECKSUM_FAILED = 'cmd.fpc.checksum_failed';
+  CMD_FPC_ARCHIVE_NOT_FOUND = 'cmd.fpc.archive_not_found';
+  CMD_FPC_TAR_FAILED = 'cmd.fpc.tar_failed';
+  CMD_FPC_ARCHIVE_FORMAT_UNSUPPORTED = 'cmd.fpc.archive_format_unsupported';
+  CMD_FPC_BINARY_DOWNLOAD_FAILED = 'cmd.fpc.binary_download_failed';
+  CMD_FPC_ARCHIVE_EXTRACT_FAILED = 'cmd.fpc.archive_extract_failed';
+  CMD_FPC_DIST_NOT_FOUND = 'cmd.fpc.dist_not_found';
+  CMD_FPC_COPY_FAILED = 'cmd.fpc.copy_failed';
+
+  // Lazarus command messages
+  CMD_LAZARUS_INSTALL_START = 'cmd.lazarus.install.start';
+  CMD_LAZARUS_INSTALL_DONE = 'cmd.lazarus.install.done';
+  CMD_LAZARUS_INSTALL_FAILED = 'cmd.lazarus.install.failed';
+  CMD_LAZARUS_UNSUPPORTED_VERSION = 'cmd.lazarus.unsupported_version';
+  CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED = 'cmd.lazarus.source_download_failed';
+  CMD_LAZARUS_SOURCE_BUILD_FAILED = 'cmd.lazarus.source_build_failed';
+  CMD_LAZARUS_ENV_SETUP_FAILED = 'cmd.lazarus.env_setup_failed';
+  CMD_LAZARUS_BINARY_NOT_IMPL = 'cmd.lazarus.binary_not_implemented';
+  CMD_LAZARUS_LIST_HEADER = 'cmd.lazarus.list.header';
+  CMD_LAZARUS_LIST_EMPTY = 'cmd.lazarus.list.empty';
+  CMD_LAZARUS_USE_SET = 'cmd.lazarus.use.set';
+  CMD_LAZARUS_USE_NOT_INSTALLED = 'cmd.lazarus.use.not_installed';
+  CMD_LAZARUS_USE_FAILED = 'cmd.lazarus.use.failed';
+  CMD_LAZARUS_CURRENT_NONE = 'cmd.lazarus.current.none';
+  CMD_LAZARUS_CURRENT_VERSION = 'cmd.lazarus.current.version';
+  CMD_LAZARUS_TEST_START = 'cmd.lazarus.test.start';
+  CMD_LAZARUS_TEST_PASSED = 'cmd.lazarus.test.passed';
+  CMD_LAZARUS_TEST_FAILED = 'cmd.lazarus.test.failed';
+  CMD_LAZARUS_RUN_START = 'cmd.lazarus.run.start';
+  CMD_LAZARUS_RUN_LAUNCHED = 'cmd.lazarus.run.launched';
+  CMD_LAZARUS_RUN_FAILED = 'cmd.lazarus.run.failed';
+  CMD_LAZARUS_RUN_NO_VERSION = 'cmd.lazarus.run.no_version';
+  CMD_LAZARUS_RUN_NOT_INSTALLED = 'cmd.lazarus.run.not_installed';
+  CMD_LAZARUS_CONFIG_START = 'cmd.lazarus.config.start';
+  CMD_LAZARUS_CONFIG_DONE = 'cmd.lazarus.config.done';
+  CMD_LAZARUS_CONFIG_FAILED = 'cmd.lazarus.config.failed';
+  CMD_LAZARUS_CONFIG_INCOMPLETE = 'cmd.lazarus.config.incomplete';
+  CMD_LAZARUS_CONFIG_VERIFY = 'cmd.lazarus.config.verify';
+  CMD_LAZARUS_SHOW_FPC = 'cmd.lazarus.show.fpc';
+  CMD_LAZARUS_SHOW_URL = 'cmd.lazarus.show.url';
+  CMD_LAZARUS_EXCEPTION = 'cmd.lazarus.exception';
+
+  // Cross compilation messages
+  CMD_CROSS_LIST_HEADER = 'cmd.cross.list.header';
+  CMD_CROSS_LIST_EMPTY = 'cmd.cross.list.empty';
+  CMD_CROSS_INSTALL_START = 'cmd.cross.install.start';
+  CMD_CROSS_INSTALL_DONE = 'cmd.cross.install.done';
+  CMD_CROSS_INSTALL_FAILED = 'cmd.cross.install.failed';
+  CMD_CROSS_UNINSTALL_DONE = 'cmd.cross.uninstall.done';
+  CMD_CROSS_UNINSTALL_FAILED = 'cmd.cross.uninstall.failed';
+  CMD_CROSS_ENABLE_DONE = 'cmd.cross.enable.done';
+  CMD_CROSS_ENABLE_FAILED = 'cmd.cross.enable.failed';
+  CMD_CROSS_DISABLE_DONE = 'cmd.cross.disable.done';
+  CMD_CROSS_DISABLE_FAILED = 'cmd.cross.disable.failed';
+  CMD_CROSS_CONFIGURE_DONE = 'cmd.cross.configure.done';
+  CMD_CROSS_CONFIGURE_FAILED = 'cmd.cross.configure.failed';
+  CMD_CROSS_CONFIGURE_USAGE = 'cmd.cross.configure.usage';
+  CMD_CROSS_TEST_START = 'cmd.cross.test.start';
+  CMD_CROSS_TEST_PASSED = 'cmd.cross.test.passed';
+  CMD_CROSS_TEST_FAILED = 'cmd.cross.test.failed';
+  CMD_CROSS_SHOW_TARGET = 'cmd.cross.show.target';
+  CMD_CROSS_SHOW_NOT_FOUND = 'cmd.cross.show.not_found';
+  CMD_CROSS_TARGET_REQUIRED = 'cmd.cross.target_required';
+  CMD_CROSS_TARGET_NOT_INSTALLED = 'cmd.cross.target_not_installed';
+  CMD_CROSS_TARGET_UNSUPPORTED = 'cmd.cross.target_unsupported';
+  CMD_CROSS_TARGET_NOT_CONFIGURED = 'cmd.cross.target_not_configured';
+  CMD_CROSS_DOWNLOADING_BINUTILS = 'cmd.cross.downloading_binutils';
+  CMD_CROSS_DOWNLOADING_LIBS = 'cmd.cross.downloading_libs';
+  CMD_CROSS_DOWNLOAD_FAILED = 'cmd.cross.download_failed';
+  CMD_CROSS_EXTRACT_FAILED = 'cmd.cross.extract_failed';
+  CMD_CROSS_SETUP_FAILED = 'cmd.cross.setup_failed';
+  CMD_CROSS_SYSTEM_DETECTED = 'cmd.cross.system_detected';
+  CMD_CROSS_SYSTEM_SUGGESTION = 'cmd.cross.system_suggestion';
+  CMD_CROSS_TAR_FAILED = 'cmd.cross.tar_failed';
+  CMD_CROSS_COMPILER_NOT_FOUND = 'cmd.cross.compiler_not_found';
+  CMD_CROSS_CONFIG_GET_FAILED = 'cmd.cross.config_get_failed';
+  CMD_CROSS_BINUTILS_PATH_NOT_FOUND = 'cmd.cross.binutils_path_not_found';
+  CMD_CROSS_LIBS_PATH_NOT_FOUND = 'cmd.cross.libs_path_not_found';
+  CMD_CROSS_TEST_CREATE_FAILED = 'cmd.cross.test_create_failed';
+  CMD_CROSS_NO_FPC_TOOLCHAIN = 'cmd.cross.no_fpc_toolchain';
+  CMD_CROSS_FPC_INFO_FAILED = 'cmd.cross.fpc_info_failed';
+  CMD_CROSS_FPC_NOT_FOUND = 'cmd.cross.fpc_not_found';
+  CMD_CROSS_EXCEPTION = 'cmd.cross.exception';
+
+  // Package command messages
+  CMD_PKG_INSTALL_START = 'cmd.pkg.install.start';
+  CMD_PKG_INSTALL_DONE = 'cmd.pkg.install.done';
+  CMD_PKG_INSTALL_USAGE = 'cmd.pkg.install.usage';
+  CMD_PKG_UNINSTALL_USAGE = 'cmd.pkg.uninstall.usage';
+  CMD_PKG_PUBLISH_USAGE = 'cmd.pkg.publish.usage';
+  CMD_PKG_CREATE_USAGE = 'cmd.pkg.create.usage';
+  CMD_PKG_INFO_USAGE = 'cmd.pkg.info.usage';
+  CMD_PKG_SEARCH_USAGE = 'cmd.pkg.search.usage';
+  CMD_PKG_UPDATE_USAGE = 'cmd.pkg.update.usage';
+  CMD_PKG_CLEAN_USAGE = 'cmd.pkg.clean.usage';
+  CMD_PKG_INSTALL_LOCAL_USAGE = 'cmd.pkg.install_local.usage';
+  CMD_PKG_LIST_HEADER = 'cmd.pkg.list.header';
+  CMD_PKG_LIST_EMPTY = 'cmd.pkg.list.empty';
+  CMD_PKG_LIST_USAGE = 'cmd.pkg.list.usage';
+  CMD_PKG_SEARCH_HEADER = 'cmd.pkg.search.header';
+  CMD_PKG_SEARCH_NO_RESULTS = 'cmd.pkg.search.no_results';
+  CMD_PKG_CLEAN_DRY_RUN = 'cmd.pkg.clean.dry_run';
+  CMD_PKG_CLEAN_REFUSE_ROOT = 'cmd.pkg.clean.refuse_root';
+  CMD_PKG_CLEAN_COMPLETE = 'cmd.pkg.clean.complete';
+  CMD_PKG_CLEAN_ERRORS = 'cmd.pkg.clean.errors';
+
+  // Package repo command messages
+  CMD_PKG_REPO_ADD_USAGE = 'cmd.pkg.repo.add.usage';
+  CMD_PKG_REPO_REMOVE_USAGE = 'cmd.pkg.repo.remove.usage';
+  CMD_PKG_REPO_LIST_USAGE = 'cmd.pkg.repo.list.usage';
+  CMD_PKG_REPO_UPDATE_USAGE = 'cmd.pkg.repo.update.usage';
+  CMD_PKG_UNINSTALL_FAILED = 'cmd.pkg.uninstall.failed';
+  CMD_PKG_INVALID_NAME = 'cmd.pkg.invalid_name';
+  CMD_PKG_NOT_INSTALLED = 'cmd.pkg.not_installed';
+  CMD_PKG_NOT_IN_INDEX = 'cmd.pkg.not_in_index';
+  CMD_PKG_UNINSTALL_OLD_FAILED = 'cmd.pkg.uninstall_old_failed';
+  CMD_PKG_INSTALL_NEW_FAILED = 'cmd.pkg.install_new_failed';
+  CMD_PKG_META_NOT_FOUND = 'cmd.pkg.meta_not_found';
+  CMD_PKG_META_INVALID = 'cmd.pkg.meta_invalid';
+  CMD_PKG_META_NOT_JSON = 'cmd.pkg.meta_not_json';
+  CMD_PKG_NAME_MISSING = 'cmd.pkg.name_missing';
+  CMD_PKG_CHECKSUM_MISMATCH = 'cmd.pkg.checksum_mismatch';
+  CMD_PKG_REPO_ADD_FAILED = 'cmd.pkg.repo.add.failed';
+  CMD_PKG_REPO_REMOVE_FAILED = 'cmd.pkg.repo.remove.failed';
+  CMD_PKG_REPO_UPDATE_FAILED = 'cmd.pkg.repo.update.failed';
+  CMD_PKG_PATH_NOT_FOUND = 'cmd.pkg.path_not_found';
+  CMD_PKG_SOURCE_NOT_FOUND = 'cmd.pkg.source_not_found';
+  CMD_PKG_NOT_FOUND = 'cmd.pkg.not_found';
+  CMD_PKG_ARCHIVE_FAILED = 'cmd.pkg.archive_failed';
+  CMD_PKG_EXCEPTION = 'cmd.pkg.exception';
+
+  // Repo (source repository) command messages
+  CMD_REPO_ADD_USAGE = 'cmd.repo.add.usage';
+  CMD_REPO_ADD_FAILED = 'cmd.repo.add.failed';
+  CMD_REPO_REMOVE_USAGE = 'cmd.repo.remove.usage';
+  CMD_REPO_REMOVE_FAILED = 'cmd.repo.remove.failed';
+  CMD_REPO_DEFAULT_USAGE = 'cmd.repo.default.usage';
+  CMD_REPO_DEFAULT_FAILED = 'cmd.repo.default.failed';
+  CMD_REPO_NOT_FOUND = 'cmd.repo.not_found';
+  CMD_REPO_SHOW_USAGE = 'cmd.repo.show.usage';
+  CMD_REPO_SHOW_DEFAULT = 'cmd.repo.show.default';
+  CMD_REPO_LIST_USAGE = 'cmd.repo.list.usage';
+  CMD_REPO_VERSIONS_FAILED = 'cmd.repo.versions.failed';
+  CMD_REPO_VERSIONS_PARSE_FAILED = 'cmd.repo.versions.parse_failed';
+  CMD_REPO_VERSIONS_OFFLINE_NO_CACHE = 'cmd.repo.versions.offline_no_cache';
+
+  // Project command messages
+  CMD_PROJECT_NEW_START = 'cmd.project.new.start';
+  CMD_PROJECT_NEW_DONE = 'cmd.project.new.done';
+  CMD_PROJECT_NEW_FAILED = 'cmd.project.new.failed';
+  CMD_PROJECT_BUILD_START = 'cmd.project.build.start';
+  CMD_PROJECT_BUILD_DONE = 'cmd.project.build.done';
+  CMD_PROJECT_BUILD_FAILED = 'cmd.project.build.failed';
+  CMD_PROJECT_RUN_START = 'cmd.project.run.start';
+  CMD_PROJECT_CLEAN_DONE = 'cmd.project.clean.done';
+  CMD_PROJECT_DIR_NOT_FOUND = 'cmd.project.dir_not_found';
+  CMD_PROJECT_NO_EXECUTABLE = 'cmd.project.no_executable';
+  CMD_PROJECT_NO_TEST_FOUND = 'cmd.project.no_test_found';
+  CMD_PROJECT_TEST_NOTE = 'cmd.project.test_note';
+  CMD_PROJECT_RUNNING_TESTS = 'cmd.project.running_tests';
+  CMD_PROJECT_TEST_PASSED = 'cmd.project.test_passed';
+  CMD_PROJECT_TEST_FAILED = 'cmd.project.test_failed';
+  CMD_PROJECT_CLEANED = 'cmd.project.cleaned';
+  CMD_PROJECT_TEMPLATE_NOT_FOUND = 'cmd.project.template_not_found';
+  CMD_PROJECT_EXIT_CODE = 'cmd.project.exit_code';
+  CMD_PROJECT_GENERATE_ERROR = 'cmd.project.generate_error';
+
+  // Project type names
+  CMD_PROJECT_TYPE_CONSOLE = 'cmd.project.type.console';
+  CMD_PROJECT_TYPE_GUI = 'cmd.project.type.gui';
+  CMD_PROJECT_TYPE_LIBRARY = 'cmd.project.type.library';
+  CMD_PROJECT_TYPE_PACKAGE = 'cmd.project.type.package';
+  CMD_PROJECT_TYPE_WEBAPP = 'cmd.project.type.webapp';
+  CMD_PROJECT_TYPE_SERVICE = 'cmd.project.type.service';
+  CMD_PROJECT_TYPE_GAME = 'cmd.project.type.game';
+  CMD_PROJECT_TYPE_CUSTOM = 'cmd.project.type.custom';
+
+  // Template management messages
+  CMD_PROJECT_TPL_PATH_NOT_EXIST = 'cmd.project.tpl.path_not_exist';
+  CMD_PROJECT_TPL_INVALID_PATH = 'cmd.project.tpl.invalid_path';
+  CMD_PROJECT_TPL_OVERWRITING = 'cmd.project.tpl.overwriting';
+  CMD_PROJECT_TPL_INSTALLED = 'cmd.project.tpl.installed';
+  CMD_PROJECT_TPL_INSTALL_ERROR = 'cmd.project.tpl.install_error';
+  CMD_PROJECT_TPL_NAME_REQUIRED = 'cmd.project.tpl.name_required';
+  CMD_PROJECT_TPL_BUILTIN_REMOVE = 'cmd.project.tpl.builtin_remove';
+  CMD_PROJECT_TPL_REMOVED = 'cmd.project.tpl.removed';
+  CMD_PROJECT_TPL_REMOVE_ERROR = 'cmd.project.tpl.remove_error';
+  CMD_PROJECT_TPL_NOT_FOUND = 'cmd.project.tpl.not_found';
+  CMD_PROJECT_TPL_REPO_UNAVAIL = 'cmd.project.tpl.repo_unavailable';
+  CMD_PROJECT_TPL_UPDATE_FAILED = 'cmd.project.tpl.update_failed';
+  CMD_PROJECT_TPL_NO_TEMPLATES = 'cmd.project.tpl.no_templates';
+  CMD_PROJECT_TPL_UPDATED = 'cmd.project.tpl.updated';
+  CMD_PROJECT_TPL_UP_TO_DATE = 'cmd.project.tpl.up_to_date';
+  CMD_PROJECT_TPL_UPDATE_ERROR = 'cmd.project.tpl.update_error';
+
+  // Error messages
+  ERR_UNKNOWN_COMMAND = 'err.unknown_command';
+  ERR_MISSING_ARGUMENT = 'err.missing_argument';
+  ERR_INVALID_VERSION = 'err.invalid_version';
+  ERR_INVALID_INSTALL_MODE = 'err.invalid_install_mode';
+  ERR_VALID_INSTALL_MODES = 'err.valid_install_modes';
+  ERR_NETWORK_ERROR = 'err.network_error';
+  ERR_FILE_NOT_FOUND = 'err.file_not_found';
+  ERR_PERMISSION_DENIED = 'err.permission_denied';
+  ERR_ALREADY_INSTALLED = 'err.already_installed';
+  ERR_NOT_INSTALLED = 'err.not_installed';
+  ERR_BUILD_FAILED = 'err.build_failed';
+  ERR_CONFIG_INVALID = 'err.config_invalid';
+
+  // Cross-compilation additional messages (for WriteLn fixes)
+  MSG_CROSS_BINUTILS_INSTALLED = 'msg.cross.binutils_installed';
+  MSG_CROSS_MANIFEST_NOT_FOUND = 'msg.cross.manifest_not_found';
+  MSG_CROSS_TARGET_NOT_IN_MANIFEST = 'msg.cross.target_not_in_manifest';
+  MSG_CROSS_NO_BINUTILS = 'msg.cross.no_binutils';
+  MSG_CROSS_NO_DOWNLOAD_URLS = 'msg.cross.no_download_urls';
+  MSG_CROSS_DOWNLOADING_BINUTILS = 'msg.cross.downloading_binutils';
+  MSG_CROSS_DOWNLOADING_URL = 'msg.cross.downloading_url';
+  MSG_CROSS_EXTRACTING = 'msg.cross.extracting';
+  MSG_CROSS_BINUTILS_SUCCESS = 'msg.cross.binutils_success';
+  MSG_CROSS_LIBS_INSTALLED = 'msg.cross.libs_installed';
+  MSG_CROSS_LIBS_NOTE = 'msg.cross.libs_note';
+  MSG_CROSS_LIBS_MANIFEST_NOT_FOUND = 'msg.cross.libs_manifest_not_found';
+  MSG_CROSS_LIBS_MANUAL_INSTALL = 'msg.cross.libs_manual_install';
+  MSG_CROSS_NO_LIBS_URL = 'msg.cross.no_libs_url';
+  MSG_CROSS_NO_LIBS = 'msg.cross.no_libs';
+  MSG_CROSS_NO_LIBS_URLS = 'msg.cross.no_libs_urls';
+  MSG_CROSS_DOWNLOADING_LIBS = 'msg.cross.downloading_libs';
+  MSG_CROSS_LIBS_SUCCESS = 'msg.cross.libs_success';
+  MSG_CROSS_AVAILABLE_TARGETS = 'msg.cross.available_targets';
+  MSG_CROSS_INSTALLED_TARGETS = 'msg.cross.installed_targets';
+  MSG_CROSS_NO_TARGETS_AVAILABLE = 'msg.cross.no_targets_available';
+  MSG_CROSS_NO_TARGETS_INSTALLED = 'msg.cross.no_targets_installed';
+  MSG_CROSS_LIST_HEADER_FMT = 'msg.cross.list_header_fmt';
+  MSG_CROSS_TOTAL_TARGETS = 'msg.cross.total_targets';
+  MSG_CROSS_TESTING = 'msg.cross.testing';
+  MSG_CROSS_TEST_TARGET_CPU = 'msg.cross.test_target_cpu';
+  MSG_CROSS_TEST_TARGET_OS = 'msg.cross.test_target_os';
+  MSG_CROSS_TEST_COMPILER = 'msg.cross.test_compiler';
+  MSG_CROSS_TEST_BINUTILS = 'msg.cross.test_binutils';
+  MSG_CROSS_TEST_LIBS = 'msg.cross.test_libs';
+  MSG_CROSS_TEST_RESULT = 'msg.cross.test_result';
+  MSG_CROSS_BUILDING_TEST = 'msg.cross.building_test';
+  MSG_CROSS_BUILD_PASSED = 'msg.cross.build_passed';
+  MSG_CROSS_BUILD_FAILED = 'msg.cross.build_failed';
+  MSG_CROSS_OUTPUT_FILE = 'msg.cross.output_file';
+  MSG_CROSS_UPDATING = 'msg.cross.updating';
+  MSG_CROSS_UPDATE_DONE = 'msg.cross.update_done';
+  MSG_CROSS_CLEANING = 'msg.cross.cleaning';
+  MSG_CROSS_CLEAN_DONE = 'msg.cross.clean_done';
+  MSG_CROSS_ALREADY_INSTALLED = 'msg.cross.already_installed';
+  MSG_CROSS_INSTALLING = 'msg.cross.installing';
+  MSG_CROSS_INSTALL_SUCCESS = 'msg.cross.install_success';
+  MSG_CROSS_UNINSTALLED = 'msg.cross.uninstalled';
+  MSG_CROSS_ENABLED = 'msg.cross.enabled';
+  MSG_CROSS_DISABLED = 'msg.cross.disabled';
+  MSG_CROSS_CONFIGURED = 'msg.cross.configured';
+  MSG_CROSS_USE_INSTALL_FIRST = 'msg.cross.use_install_first';
+  MSG_CROSS_UPDATE_STEP1 = 'msg.cross.update_step1';
+  MSG_CROSS_UPDATE_STEP2 = 'msg.cross.update_step2';
+  MSG_CROSS_UPDATE_BINUTILS_WARN = 'msg.cross.update_binutils_warn';
+  MSG_CROSS_UPDATE_LIBS_WARN = 'msg.cross.update_libs_warn';
+  MSG_CROSS_NOT_INSTALLED_NOTHING = 'msg.cross.not_installed_nothing';
+  MSG_CROSS_CLEANING_BINUTILS = 'msg.cross.cleaning_binutils';
+  MSG_CROSS_CLEANING_LIBS = 'msg.cross.cleaning_libs';
+  MSG_CROSS_CLEAN_NOTE = 'msg.cross.clean_note';
+  MSG_CROSS_INSTALL_STEP1 = 'msg.cross.install_step1';
+  MSG_CROSS_INSTALL_STEP2 = 'msg.cross.install_step2';
+  MSG_CROSS_INSTALL_STEP3 = 'msg.cross.install_step3';
+  MSG_CROSS_SYSTEM_FOUND = 'msg.cross.system_found';
+  MSG_CROSS_SYSTEM_NOT_FOUND = 'msg.cross.system_not_found';
+  MSG_CROSS_SKIP_DOWNLOAD = 'msg.cross.skip_download';
+  MSG_CROSS_DOWNLOAD_UNAVAIL = 'msg.cross.download_unavail';
+  MSG_CROSS_AFTER_INSTALL_HINT = 'msg.cross.after_install_hint';
+  MSG_CROSS_MANUAL_CONFIG_HINT = 'msg.cross.manual_config_hint';
+  MSG_CROSS_LIBS_SKIP_NOTE = 'msg.cross.libs_skip_note';
+  MSG_CROSS_USING_SYSTEM = 'msg.cross.using_system';
+  MSG_CROSS_TARGET_NOT_INSTALLED_MSG = 'msg.cross.target_not_installed_msg';
+  MSG_CROSS_LIST_AVAILABLE = 'msg.cross.list_available';
+  MSG_CROSS_LIST_INSTALLED = 'msg.cross.list_installed';
+  MSG_CROSS_LIST_NO_AVAILABLE = 'msg.cross.list_no_available';
+  MSG_CROSS_LIST_NO_INSTALLED = 'msg.cross.list_no_installed';
+  MSG_CROSS_LIST_USE_ALL = 'msg.cross.list_use_all';
+  MSG_CROSS_LIST_TABLE_HEADER = 'msg.cross.list_table_header';
+  MSG_CROSS_LIST_TABLE_LINE = 'msg.cross.list_table_line';
+  MSG_CROSS_LIST_TOTAL = 'msg.cross.list_total';
+  MSG_CROSS_LIST_ERROR = 'msg.cross.list_error';
+  MSG_CROSS_SHOW_DISPLAY_NAME = 'msg.cross.show_display_name';
+  MSG_CROSS_SHOW_CPU = 'msg.cross.show_cpu';
+  MSG_CROSS_SHOW_OS = 'msg.cross.show_os';
+  MSG_CROSS_SHOW_BINUTILS_PREFIX = 'msg.cross.show_binutils_prefix';
+  MSG_CROSS_TEST_TESTING = 'msg.cross.test_testing';
+  MSG_CROSS_TEST_PASSED = 'msg.cross.test_passed';
+  MSG_CROSS_TEST_FAILED_MSG = 'msg.cross.test_failed_msg';
+  MSG_CROSS_STATUS_INSTALLED = 'msg.cross.status_installed';
+  MSG_CROSS_STATUS_AVAILABLE = 'msg.cross.status_available';
+  MSG_CROSS_BUILD_TARGET_CPU = 'msg.cross.build_target_cpu';
+  MSG_CROSS_BUILD_TARGET_OS = 'msg.cross.build_target_os';
+  MSG_CROSS_URL = 'msg.cross.url';
+  MSG_CROSS_INSTALL_HINT = 'msg.cross.install_hint';
+  MSG_CROSS_CONFIGURE_HINT = 'msg.cross.configure_hint';
+
+  // FPC additional messages (for hardcoded string fixes)
+  MSG_FPC_STEP_DOWNLOAD = 'msg.fpc.step_download';
+  MSG_FPC_STEP_BOOTSTRAP = 'msg.fpc.step_bootstrap';
+  MSG_FPC_STEP_BUILD = 'msg.fpc.step_build';
+  MSG_FPC_STEP_SETUP = 'msg.fpc.step_setup';
+  MSG_FPC_STEP_DOWNLOAD_BIN = 'msg.fpc.step_download_bin';
+  MSG_FPC_STEP_EXTRACT_BIN = 'msg.fpc.step_extract_bin';
+  MSG_FPC_STEP_SETUP_BIN = 'msg.fpc.step_setup_bin';
+  MSG_FPC_SOURCE_LOCAL_ONLY = 'msg.fpc.source_local_only';
+  MSG_FPC_INSTALL_DATE = 'msg.fpc.install_date';
+  MSG_FPC_SOURCE_URL = 'msg.fpc.source_url';
+
+  // Lazarus additional messages (for hardcoded string fixes)
+  MSG_STATUS_INSTALLED_DEFAULT = 'msg.status.installed_default';
+  MSG_STATUS_INSTALLED = 'msg.status.installed';
+  MSG_STATUS_AVAILABLE = 'msg.status.available';
+  MSG_LAZARUS_STATUS_INSTALLED = 'msg.lazarus.status_installed';
+  MSG_LAZARUS_STATUS_NOT_INSTALLED = 'msg.lazarus.status_not_installed';
+  MSG_LAZARUS_CONFIGURING = 'msg.lazarus.configuring';
+  MSG_LAZARUS_INSTALL_PATH = 'msg.lazarus.install_path';
+  MSG_LAZARUS_CONFIG_DIR = 'msg.lazarus.config_dir';
+  MSG_LAZARUS_COMPILER_SET = 'msg.lazarus.compiler_set';
+  MSG_LAZARUS_COMPILER_WARN = 'msg.lazarus.compiler_warn';
+  MSG_LAZARUS_FPC_NOT_FOUND = 'msg.lazarus.fpc_not_found';
+  MSG_LAZARUS_DIR_SET = 'msg.lazarus.dir_set';
+  MSG_LAZARUS_DIR_WARN = 'msg.lazarus.dir_warn';
+  MSG_LAZARUS_FPC_SRC_SET = 'msg.lazarus.fpc_src_set';
+  MSG_LAZARUS_MAKE_SET = 'msg.lazarus.make_set';
+  MSG_LAZARUS_MAKE_WARN = 'msg.lazarus.make_warn';
+  MSG_LAZARUS_CONFIG_SUMMARY = 'msg.lazarus.config_summary';
+
+  // Help file additional messages (for hardcoded string fixes)
+  HELP_SHOW_HELP = 'help.show_help';
+  HELP_USE_HELP_CMD_FPC = 'help.use_help_cmd.fpc';
+  HELP_USE_HELP_CMD_LAZARUS = 'help.use_help_cmd.lazarus';
+  HELP_USE_HELP_CMD_CROSS = 'help.use_help_cmd.cross';
+  HELP_USE_HELP_CMD_PACKAGE = 'help.use_help_cmd.package';
+  HELP_USE_HELP_CMD_PROJECT = 'help.use_help_cmd.project';
+  HELP_USE_HELP_CMD_REPO = 'help.use_help_cmd.repo';
+  HELP_PACKAGE_REPO_DESC = 'help.package.repo_desc';
+  HELP_PACKAGE_REPO_SUBCOMMANDS = 'help.package.repo.subcommands';
+
+implementation
+
+procedure RegisterTranslations;
+begin
+  // ========================================
+  // General messages
+  // ========================================
+  T(MSG_WELCOME,        'Welcome to fpdev',           '欢迎使用 fpdev');
+  T(MSG_VERSION,        'fpdev version %s',           'fpdev 版本 %s');
+  T(MSG_DONE,           'Done',                       '完成');
+  T(MSG_FAILED,         'Failed',                     '失败');
+  T(MSG_SUCCESS,        'Success',                    '成功');
+  T(MSG_ERROR,          'Error',                      '错误');
+  T(MSG_WARNING,        'Warning',                    '警告');
+  T(MSG_INFO,           'Info',                       '信息');
+  T(MSG_LOADING,        'Loading...',                 '加载中...');
+  T(MSG_SAVING,         'Saving...',                  '保存中...');
+  T(MSG_PLEASE_WAIT,    'Please wait...',             '请稍候...');
+  T(MSG_NOT_FOUND,      'Not found',                  '未找到');
+  T(MSG_ALREADY_EXISTS, 'Already exists',             '已存在');
+  T(MSG_CONFIRM,        'Are you sure?',              '确定吗？');
+  T(MSG_YES,            'Yes',                        '是');
+  T(MSG_NO,             'No',                         '否');
+  T(MSG_CANCEL,         'Cancel',                     '取消');
+  T(MSG_CHECKING_FPC_ENV,     'Checking FPC installation environment...', '正在检查 FPC 安装环境...');
+  T(MSG_CHECKING_LAZARUS_ENV, 'Checking Lazarus installation environment...', '正在检查 Lazarus 安装环境...');
+  T(MSG_CHECKING_CROSS_ENV,   'Checking cross-compilation environment...', '正在检查交叉编译环境...');
+  T(MSG_UNINSTALL_SUCCESS,    '%s %s uninstalled successfully.', '%s %s 卸载成功。');
+  T(MSG_CLEANED,              'Cleaned: %s',                '已清理: %s');
+  T(MSG_CLEAN_FAILED,         'Warning: Failed to fully clean: %s', '警告: 无法完全清理: %s');
+  T(MSG_AVAILABLE_COMMANDS,   'Available commands:',        '可用命令:');
+  T(MSG_DOCTOR_COMPLETE,      'Doctor check complete.',     '诊断检查完成。');
+  T(MSG_REPO_ADDED,           'Repository "%s" added successfully.', '仓库 "%s" 添加成功。');
+
+  // Package messages
+  T(MSG_PKG_NOT_INSTALLED,    'Package not installed: %s',  '包未安装: %s');
+  T(MSG_PKG_UNINSTALLING,     'Uninstalling: %s',           '正在卸载: %s');
+  T(MSG_PKG_UNINSTALL_COMPLETE, 'Uninstall complete: %s',   '卸载完成: %s');
+  T(MSG_PKG_REMOVE_WARNING,   'Warning: Could not fully remove: %s', '警告: 无法完全删除: %s');
+  T(MSG_PKG_INSTALL_HINT,     'Use "fpdev package install %s" to install it first.', '请先使用 "fpdev package install %s" 安装。');
+  T(MSG_PKG_CHECKING_UPDATES, 'Checking for updates to %s...', '正在检查 %s 的更新...');
+  T(MSG_PKG_INSTALLED_VERSION,'  Installed version: %s',    '  已安装版本: %s');
+  T(MSG_PKG_LATEST_VERSION,   '  Latest version: %s',       '  最新版本: %s');
+  T(MSG_PKG_UP_TO_DATE,       'Package %s is already up to date.', '包 %s 已是最新版本。');
+  T(MSG_PKG_UPDATING,         'Updating %s from %s to %s...', '正在将 %s 从 %s 更新到 %s...');
+  T(MSG_PKG_REMOVING_OLD,     '  [1/2] Removing old version...', '  [1/2] 正在移除旧版本...');
+  T(MSG_PKG_INSTALLING_NEW,   '  [2/2] Installing new version...', '  [2/2] 正在安装新版本...');
+  T(MSG_PKG_REINSTALL_HINT,   'You may need to manually reinstall the package.', '您可能需要手动重新安装该包。');
+  T(MSG_PKG_UPDATE_SUCCESS,   'Package %s updated successfully to version %s.', '包 %s 已成功更新到版本 %s。');
+  T(MSG_PKG_REPO_UPDATE_HINT, 'Run "fpdev package repo update" to refresh the package index.', '运行 "fpdev package repo update" 刷新包索引。');
+  T(MSG_PKG_INFO_NAME,        'Name: %s',                   '名称: %s');
+  T(MSG_PKG_INFO_VERSION,     'Version: %s',                '版本: %s');
+  T(MSG_PKG_INFO_DESC,        'Description: %s',            '描述: %s');
+  T(MSG_PKG_INFO_PATH,        'Install Path: %s',           '安装路径: %s');
+  T(MSG_PKG_VERSION_MISSING,  'Warning: Package version is missing from metadata.', '警告: 包元数据中缺少版本信息。');
+  T(MSG_PKG_CHECKSUM_OK,      'Checksum verified: OK',      '校验和验证: 通过');
+  T(MSG_PKG_CHECKSUM_EXPECTED,'  Expected: %s',             '  期望值: %s');
+  T(MSG_PKG_CHECKSUM_ACTUAL,  '  Actual: %s',               '  实际值: %s');
+  T(MSG_PKG_VERIFY_SUCCESS,   'Package %s verified successfully.', '包 %s 验证成功。');
+  T(MSG_PKG_INSTALL_LOCAL,    'Installing from local path: %s', '正在从本地路径安装: %s');
+  T(MSG_PKG_INSTALL_COMPLETE, 'Install complete: %s',       '安装完成: %s');
+  T(MSG_PKG_CREATED_JSON,     'Created package.json at %s', '已在 %s 创建 package.json');
+  T(MSG_PKG_JSON_EXISTS,      'Package.json already exists at %s', 'package.json 已存在于 %s');
+  T(MSG_PKG_CREATE_SUCCESS,   'Package %s created successfully.', '包 %s 创建成功。');
+  T(MSG_PKG_NEXT_STEPS,       'Next steps:',                '后续步骤:');
+  T(MSG_PKG_STEP_EDIT,        '  1. Edit package.json to add description, dependencies, etc.', '  1. 编辑 package.json 添加描述、依赖等。');
+  T(MSG_PKG_STEP_ADD_SOURCE,  '  2. Add your Pascal source files to the directory.', '  2. 将 Pascal 源文件添加到目录中。');
+  T(MSG_PKG_STEP_PUBLISH,     '  3. Use "fpdev package publish %s" to publish.', '  3. 使用 "fpdev package publish %s" 发布。');
+  T(MSG_PKG_CREATING_ARCHIVE, 'Creating package archive: %s', '正在创建包归档: %s');
+  T(MSG_PKG_ARCHIVE_CREATED,  'Archive created: %s',        '归档已创建: %s');
+  T(MSG_PKG_READY_PUBLISH,    'Package %s v%s is ready for publishing.', '包 %s v%s 已准备好发布。');
+  T(MSG_PKG_TO_PUBLISH,       'To publish:',                '发布方式:');
+  T(MSG_PKG_PUBLISH_STEP1,    '  1. Upload the archive to a package repository', '  1. 将归档上传到包仓库');
+  T(MSG_PKG_PUBLISH_STEP2,    '  2. Or commit to a git repository', '  2. 或提交到 git 仓库');
+
+  // Doctor diagnostic messages
+  T(MSG_DOCTOR_OK,            '[OK]',                       '[OK]');
+  T(MSG_DOCTOR_FAIL,          '[X]',                        '[X]');
+  T(MSG_DOCTOR_WARN,          '[!]',                        '[!]');
+  T(MSG_DOCTOR_WRITE_OK,      '[OK] Write permission OK: %s', '[OK] 写入权限正常: %s');
+  T(MSG_DOCTOR_WRITE_FAIL,    '[X] Write permission failed: %s (%s)', '[X] 写入权限失败: %s (%s)');
+  T(MSG_DOCTOR_GIT_OK,        '[OK] git: %s',               '[OK] git: %s');
+  T(MSG_DOCTOR_GIT_FAIL,      '[X] git not ready (Please install Git and add it to PATH)', '[X] git 未就绪 (请安装 Git 并添加到 PATH)');
+  T(MSG_DOCTOR_MAKE_OK,       '[OK] make: %s',              '[OK] make: %s');
+  T(MSG_DOCTOR_MAKE_FAIL,     '[X] make not ready (Windows: install MSYS2/MinGW)', '[X] make 未就绪 (Windows: 安装 MSYS2/MinGW)');
+  T(MSG_DOCTOR_FPC_OK,        '[OK] FPC compiler: available', '[OK] FPC 编译器: 可用');
+  T(MSG_DOCTOR_FPC_FAIL,      '[X] FPC compiler not found (Lazarus requires FPC to build)', '[X] 未找到 FPC 编译器 (Lazarus 需要 FPC 来构建)');
+  T(MSG_DOCTOR_LAZBUILD_OK,   '[OK] lazbuild: %s',          '[OK] lazbuild: %s');
+  T(MSG_DOCTOR_LAZBUILD_WARN, '[!] lazbuild not found (will be available after Lazarus installation)', '[!] 未找到 lazbuild (安装 Lazarus 后可用)');
+  T(MSG_DOCTOR_GTK2_OK,       '[OK] GTK2 development libraries: available', '[OK] GTK2 开发库: 可用');
+  T(MSG_DOCTOR_GTK3_OK,       '[OK] GTK3 development libraries: available', '[OK] GTK3 开发库: 可用');
+  T(MSG_DOCTOR_GTK_FAIL,      '[!] GTK development libraries not found (install libgtk2.0-dev or libgtk-3-dev)', '[!] 未找到 GTK 开发库 (安装 libgtk2.0-dev 或 libgtk-3-dev)');
+
+  // ========================================
+  // Help system messages
+  // ========================================
+  T(HELP_USAGE,         'Usage: fpdev <command> [options]',               '用法: fpdev <命令> [选项]');
+  T(HELP_COMMANDS,      'Commands:',                                      '命令:');
+  T(HELP_OPTIONS,       'Options:',                                       '选项:');
+  T(HELP_EXAMPLES,      'Examples:',                                      '示例:');
+  T(HELP_MORE_INFO,     'For more information, run: fpdev help <command>','获取更多信息，请运行: fpdev help <命令>');
+  T(HELP_AVAILABLE_SUBCOMMANDS, 'Available subcommands:',                 '可用子命令:');
+  T(HELP_NO_COMMAND_FOUND, 'No command found or no subcommands available.', '未找到命令或没有可用的子命令。');
+  T(HELP_MAINTENANCE_SWITCHES, 'Maintenance switches:',                   '维护开关:');
+  T(HELP_TIP,           'Tip: use "fpdev help <command>" for detailed usage', '提示: 使用 "fpdev help <命令>" 获取详细用法');
+  T(HELP_ALIAS,         '(alias: %s)',                                    '(别名: %s)');
+
+  // Help: Global
+  T(HELP_GLOBAL_USAGE,  'Usage: fpdev [command] [options]',               '用法: fpdev [命令] [选项]');
+
+  // Help: FPC commands
+  T(HELP_FPC_USAGE,             'Usage: fpdev help [command [subcommand]]',                                    '用法: fpdev help [命令 [子命令]]');
+  T(HELP_FPC_INSTALL_USAGE,     'Usage: fpdev fpc install <version> [--from-source] [--jobs=<n>] [--prefix=<dir>]', '用法: fpdev fpc install <版本> [--from-source] [--jobs=<n>] [--prefix=<目录>]');
+  T(HELP_FPC_INSTALL_DESC,      'Install a specific FPC version from source or binary.',                          '安装指定的 FPC 版本（从源码或二进制）。');
+  T(HELP_FPC_INSTALL_EXAMPLE,   'Example: fpdev fpc install 3.2.2 --from-source --jobs=4',                     '示例: fpdev fpc install 3.2.2 --from-source --jobs=4');
+  T(HELP_FPC_INSTALL_OPTIONS,   'Options:',                                                                    '选项:');
+  T(HELP_FPC_INSTALL_OPT_SOURCE,'  --from-source    Build from source code',                                   '  --from-source    从源码编译');
+  T(HELP_FPC_INSTALL_OPT_BINARY,'  --from-binary    Install pre-built binary',                                 '  --from-binary    安装预编译二进制');
+  T(HELP_FPC_INSTALL_OPT_FROM,  '  --from=<mode>    Install mode: binary, source, auto',                       '  --from=<模式>    安装模式: binary, source, auto');
+  T(HELP_FPC_INSTALL_OPT_JOBS,  '  --jobs=<n>       Number of parallel jobs for compilation',                  '  --jobs=<n>       编译并行任务数');
+  T(HELP_FPC_INSTALL_OPT_PREFIX,'  --prefix=<dir>   Custom installation prefix',                               '  --prefix=<目录>  自定义安装路径');
+  T(HELP_FPC_INSTALL_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_LIST_USAGE,        'Usage: fpdev fpc list [--all]',                                               '用法: fpdev fpc list [--all]');
+  T(HELP_FPC_LIST_DESC,         'List installed FPC versions. Use --all to show available remote versions.',   '列出已安装的 FPC 版本。使用 --all 显示可用的远程版本。');
+  T(HELP_FPC_LIST_OPTIONS,      'Options:',                                                                    '选项:');
+  T(HELP_FPC_LIST_OPT_ALL,      '  --all            Show all available versions (local and remote)',          '  --all            显示所有可用版本（本地和远程）');
+  T(HELP_FPC_LIST_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_USE_USAGE,         'Usage: fpdev fpc use <version> [--ensure]',                                   '用法: fpdev fpc use <版本> [--ensure]');
+  T(HELP_FPC_USE_DESC,          'Switch to a specific FPC version and generate activation scripts.',          '切换到指定的 FPC 版本并生成激活脚本。');
+  T(HELP_FPC_USE_OPTIONS,       'Options:',                                                                    '选项:');
+  T(HELP_FPC_USE_OPT_ENSURE,    '  --ensure         Auto-install if version is not installed',                '  --ensure         如果版本未安装则自动安装');
+  T(HELP_FPC_USE_OPT_HELP,      '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_CURRENT_USAGE,     'Usage: fpdev fpc current',                                                    '用法: fpdev fpc current');
+  T(HELP_FPC_CURRENT_DESC,      'Show the currently active FPC version.',                                      '显示当前激活的 FPC 版本。');
+  T(HELP_FPC_CURRENT_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_SHOW_USAGE,        'Usage: fpdev fpc show <version>',                                             '用法: fpdev fpc show <版本>');
+  T(HELP_FPC_SHOW_DESC,         'Show detailed information about a specific FPC version.',                     '显示指定 FPC 版本的详细信息。');
+  T(HELP_FPC_SHOW_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_DOCTOR_USAGE,      'Usage: fpdev fpc doctor',                                                     '用法: fpdev fpc doctor');
+  T(HELP_FPC_DOCTOR_DESC,       'Check system environment and diagnose installation issues.',                  '检查系统环境并诊断安装问题。');
+  T(HELP_FPC_DOCTOR_OPT_HELP,   '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_TEST_USAGE,        'Usage: fpdev fpc test [version]',                                             '用法: fpdev fpc test [版本]');
+  T(HELP_FPC_TEST_DESC,         'Test FPC installation by compiling a simple program.',                        '通过编译简单程序测试 FPC 安装。');
+  T(HELP_FPC_TEST_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_UPDATE_USAGE,      'Usage: fpdev fpc update <version>',                                           '用法: fpdev fpc update <版本>');
+  T(HELP_FPC_UPDATE_DESC,       'Update an installed FPC version to the latest patch.',                        '将已安装的 FPC 版本更新到最新补丁。');
+  T(HELP_FPC_UPDATE_OPT_HELP,   '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_UNINSTALL_USAGE,   'Usage: fpdev fpc uninstall <version>',                                         '用法: fpdev fpc uninstall <版本>');
+  T(HELP_FPC_UNINSTALL_DESC,    'Uninstall an FPC version.',                                                    '卸载指定的 FPC 版本。');
+  T(HELP_FPC_UNINSTALL_OPT_HELP,'  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_SUBCOMMANDS,       'FPC management subcommands: install, uninstall, list, use, current, show, doctor, update, clean', 'FPC 管理子命令: install, uninstall, list, use, current, show, doctor, update, clean');
+
+  // Help: Lazarus commands
+  T(HELP_LAZARUS_USAGE,              'Usage: fpdev lazarus <subcommand>',                                      '用法: fpdev lazarus <子命令>');
+  T(HELP_LAZARUS_INSTALL_USAGE,      'Usage: fpdev lazarus install <version> [options]',                       '用法: fpdev lazarus install <版本> [选项]');
+  T(HELP_LAZARUS_INSTALL_DESC,       'Install a Lazarus IDE version.',                                         '安装 Lazarus IDE 版本。');
+  T(HELP_LAZARUS_INSTALL_OPTIONS,    'Options:',                                                               '选项:');
+  T(HELP_LAZARUS_INSTALL_OPT_SOURCE, '  --from-source    Build from source code',                              '  --from-source    从源码编译');
+  T(HELP_LAZARUS_INSTALL_OPT_FROM,   '  --from=<mode>    Install mode: binary, source',                        '  --from=<mode>    安装模式: binary, source');
+  T(HELP_LAZARUS_INSTALL_OPT_FPC,    '  --fpc=<version>  FPC version to use for building',                     '  --fpc=<version>  用于编译的 FPC 版本');
+  T(HELP_LAZARUS_INSTALL_OPT_JOBS,   '  --jobs=<n>       Number of parallel jobs for compilation',             '  --jobs=<n>       并行编译任务数');
+  T(HELP_LAZARUS_INSTALL_OPT_HELP,   '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_LIST_USAGE,         'Usage: fpdev lazarus list [options]',                                    '用法: fpdev lazarus list [选项]');
+  T(HELP_LAZARUS_LIST_DESC,          'List installed Lazarus versions.',                                       '列出已安装的 Lazarus 版本。');
+  T(HELP_LAZARUS_LIST_OPTIONS,       'Options:',                                                               '选项:');
+  T(HELP_LAZARUS_LIST_OPT_ALL,       '  --all            Show all available versions',                         '  --all            显示所有可用版本');
+  T(HELP_LAZARUS_LIST_OPT_HELP,      '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_USE_USAGE,          'Usage: fpdev lazarus use <version>',                                     '用法: fpdev lazarus use <版本>');
+  T(HELP_LAZARUS_USE_DESC,           'Set the default Lazarus version.',                                       '设置默认 Lazarus 版本。');
+  T(HELP_LAZARUS_USE_OPT_HELP,       '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_CURRENT_USAGE,      'Usage: fpdev lazarus current',                                           '用法: fpdev lazarus current');
+  T(HELP_LAZARUS_CURRENT_DESC,       'Show the current default Lazarus version.',                              '显示当前默认 Lazarus 版本。');
+  T(HELP_LAZARUS_CURRENT_OPT_HELP,   '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_SHOW_USAGE,         'Usage: fpdev lazarus show <version>',                                    '用法: fpdev lazarus show <版本>');
+  T(HELP_LAZARUS_SHOW_DESC,          'Show details of a Lazarus installation.',                                '显示 Lazarus 安装详情。');
+  T(HELP_LAZARUS_SHOW_OPT_HELP,      '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_RUN_USAGE,          'Usage: fpdev lazarus run [version]',                                     '用法: fpdev lazarus run [版本]');
+  T(HELP_LAZARUS_RUN_DESC,           'Launch the Lazarus IDE.',                                                '启动 Lazarus IDE。');
+  T(HELP_LAZARUS_RUN_OPT_HELP,       '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_CONFIGURE_USAGE,    'Usage: fpdev lazarus configure <version>',                               '用法: fpdev lazarus configure <版本>');
+  T(HELP_LAZARUS_CONFIGURE_DESC,     'Configure a Lazarus installation.',                                      '配置 Lazarus 安装。');
+  T(HELP_LAZARUS_CONFIGURE_OPT_HELP, '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_TEST_USAGE,         'Usage: fpdev lazarus test <version>',                                    '用法: fpdev lazarus test <版本>');
+  T(HELP_LAZARUS_TEST_DESC,          'Test a Lazarus installation.',                                           '测试 Lazarus 安装。');
+  T(HELP_LAZARUS_TEST_OPT_HELP,      '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_UNINSTALL_USAGE,    'Usage: fpdev lazarus uninstall <version>',                               '用法: fpdev lazarus uninstall <版本>');
+  T(HELP_LAZARUS_UNINSTALL_DESC,     'Uninstall a Lazarus version.',                                           '卸载 Lazarus 版本。');
+  T(HELP_LAZARUS_UNINSTALL_OPT_HELP, '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_DOCTOR_USAGE,       'Usage: fpdev lazarus doctor',                                            '用法: fpdev lazarus doctor');
+  T(HELP_LAZARUS_DOCTOR_DESC,        'Check Lazarus installation and diagnose issues.',                        '检查 Lazarus 安装并诊断问题。');
+  T(HELP_LAZARUS_DOCTOR_OPT_HELP,    '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_UPDATE_USAGE,       'Usage: fpdev lazarus update [version]',                                  '用法: fpdev lazarus update [版本]');
+  T(HELP_LAZARUS_UPDATE_DESC,        'Update Lazarus sources to the latest version.',                         '更新 Lazarus 源码到最新版本。');
+  T(HELP_LAZARUS_UPDATE_OPT_HELP,    '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_LAZARUS_SUBCOMMANDS,        'Lazarus management subcommands: install, list, use, current, run, configure, test, uninstall, update, show', 'Lazarus 管理子命令: install, list, use, current, run, configure, test, uninstall, update, show');
+
+  // Help: Project commands
+  T(HELP_PROJECT_USAGE,         'Usage: fpdev project <command> [options]',                                    '用法: fpdev project <命令> [选项]');
+  T(HELP_PROJECT_NEW_USAGE,     'Usage: fpdev project new <template> <name> [dir]',                            '用法: fpdev project new <模板> <名称> [目录]');
+  T(HELP_PROJECT_NEW_DESC,      'Create a new project from a template.',                                       '从模板创建新项目。');
+  T(HELP_PROJECT_NEW_EXAMPLE,   'Example: fpdev project new console hello-world',                              '示例: fpdev project new console hello-world');
+  T(HELP_PROJECT_NEW_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_LIST_USAGE,    'Usage: fpdev project list',                                                   '用法: fpdev project list');
+  T(HELP_PROJECT_LIST_DESC,     'List available project templates.',                                           '列出可用的项目模板。');
+  T(HELP_PROJECT_LIST_OPT_HELP, '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_BUILD_USAGE,   'Usage: fpdev project build [dir] [target]',                                   '用法: fpdev project build [目录] [目标]');
+  T(HELP_PROJECT_BUILD_DESC,    'Build the project.',                                                          '构建项目。');
+  T(HELP_PROJECT_BUILD_OPT_HELP,'  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_RUN_USAGE,     'Usage: fpdev project run [dir] [args...]',                                    '用法: fpdev project run [目录] [参数...]');
+  T(HELP_PROJECT_RUN_DESC,      'Build and run the project.',                                                  '构建并运行项目。');
+  T(HELP_PROJECT_RUN_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_TEST_USAGE,    'Usage: fpdev project test [dir]',                                             '用法: fpdev project test [目录]');
+  T(HELP_PROJECT_TEST_DESC,     'Run project tests.',                                                          '运行项目测试。');
+  T(HELP_PROJECT_TEST_OPT_HELP, '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_CLEAN_USAGE,   'Usage: fpdev project clean [dir]',                                            '用法: fpdev project clean [目录]');
+  T(HELP_PROJECT_CLEAN_DESC,    'Clean project build artifacts.',                                              '清理项目构建产物。');
+  T(HELP_PROJECT_CLEAN_OPT_HELP,'  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_INFO_USAGE,    'Usage: fpdev project info <template>',                                        '用法: fpdev project info <模板>');
+  T(HELP_PROJECT_INFO_DESC,     'Show template information.',                                                  '显示模板信息。');
+  T(HELP_PROJECT_INFO_OPT_HELP, '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_PROJECT_SUBCOMMANDS,   'Project subcommands: new, list, build, run, test, clean, info',               '项目管理子命令: new, list, build, run, test, clean, info');
+
+  // Help: Package commands
+  T(HELP_PACKAGE_USAGE,            'Usage: fpdev package <command> [options]',                                  '用法: fpdev package <命令> [选项]');
+  T(HELP_PACKAGE_INSTALL_USAGE,    'Usage: fpdev package install <name> [version] [options]',                  '用法: fpdev package install <名称> [版本] [选项]');
+  T(HELP_PACKAGE_INSTALL_DESC,     'Install a package.',                                                       '安装包。');
+  T(HELP_PACKAGE_INSTALL_OPTIONS,  'Options:',                                                                 '选项:');
+  T(HELP_PACKAGE_INSTALL_OPT_VERSION, '  <version>                 Specific version to install',               '  <版本>                    指定要安装的版本');
+  T(HELP_PACKAGE_INSTALL_OPT_KEEP, '  --keep-build-artifacts    Keep build artifacts after installation',      '  --keep-build-artifacts    安装后保留构建产物');
+  T(HELP_PACKAGE_INSTALL_OPT_HELP, '  --help, -h                Show this help message',                       '  --help, -h                显示此帮助信息');
+  T(HELP_PACKAGE_UNINSTALL_USAGE,  'Usage: fpdev package uninstall <name>',                                    '用法: fpdev package uninstall <名称>');
+  T(HELP_PACKAGE_UNINSTALL_DESC,   'Uninstall a package.',                                                     '卸载包。');
+  T(HELP_PACKAGE_UNINSTALL_OPT_HELP,'  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_UPDATE_USAGE,     'Usage: fpdev package update <name>',                                       '用法: fpdev package update <名称>');
+  T(HELP_PACKAGE_UPDATE_DESC,      'Update a package to the latest version.',                                  '更新包到最新版本。');
+  T(HELP_PACKAGE_UPDATE_OPT_HELP,  '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_LIST_USAGE,       'Usage: fpdev package list [options]',                                      '用法: fpdev package list [选项]');
+  T(HELP_PACKAGE_LIST_DESC,        'List installed packages.',                                                 '列出已安装的包。');
+  T(HELP_PACKAGE_LIST_OPTIONS,     'Options:',                                                                 '选项:');
+  T(HELP_PACKAGE_LIST_OPT_ALL,     '  --all, -a        Show all available packages',                           '  --all, -a        显示所有可用包');
+  T(HELP_PACKAGE_LIST_OPT_HELP,    '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_SEARCH_USAGE,     'Usage: fpdev package search <query>',                                      '用法: fpdev package search <关键词>');
+  T(HELP_PACKAGE_SEARCH_DESC,      'Search for packages.',                                                     '搜索包。');
+  T(HELP_PACKAGE_SEARCH_EXAMPLE,   'Example: fpdev package search json',                                       '示例: fpdev package search json');
+  T(HELP_PACKAGE_SEARCH_OPT_HELP,  '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_INFO_USAGE,       'Usage: fpdev package info <name>',                                         '用法: fpdev package info <名称>');
+  T(HELP_PACKAGE_INFO_DESC,        'Show package information.',                                                '显示包信息。');
+  T(HELP_PACKAGE_INFO_OPT_HELP,    '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_CREATE_USAGE,     'Usage: fpdev package create <name> <path>',                                '用法: fpdev package create <名称> <路径>');
+  T(HELP_PACKAGE_CREATE_DESC,      'Create a new package.',                                                    '创建新包。');
+  T(HELP_PACKAGE_CREATE_OPT_HELP,  '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_PUBLISH_USAGE,    'Usage: fpdev package publish <name>',                                      '用法: fpdev package publish <名称>');
+  T(HELP_PACKAGE_PUBLISH_DESC,     'Publish a package to the repository.',                                     '发布包到仓库。');
+  T(HELP_PACKAGE_PUBLISH_OPT_HELP, '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_CLEAN_USAGE,      'Usage: fpdev package clean <scope> [options]',                             '用法: fpdev package clean <范围> [选项]');
+  T(HELP_PACKAGE_CLEAN_DESC,       'Clean package cache or sandbox. Scope: sandbox, cache, all',               '清理包缓存或沙箱。范围: sandbox, cache, all');
+  T(HELP_PACKAGE_CLEAN_OPTIONS,    'Options:',                                                                 '选项:');
+  T(HELP_PACKAGE_CLEAN_OPT_DRYRUN, '  --dry-run        Show what would be deleted without deleting',           '  --dry-run        显示将要删除的内容但不删除');
+  T(HELP_PACKAGE_CLEAN_OPT_YES,    '  --yes            Confirm deletion without prompting',                    '  --yes            确认删除而不提示');
+  T(HELP_PACKAGE_CLEAN_OPT_HELP,   '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_INSTALL_LOCAL_USAGE, 'Usage: fpdev package install-local <path>',                             '用法: fpdev package install-local <路径>');
+  T(HELP_PACKAGE_INSTALL_LOCAL_DESC,  'Install a package from local path.',                                    '从本地路径安装包。');
+  T(HELP_PACKAGE_INSTALL_LOCAL_OPT_HELP, '  --help, -h       Show this help message',                          '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_SUBCOMMANDS,      'Package subcommands: install, uninstall, update, list, search, info, create, publish, clean, install-local, repo', '包管理子命令: install, uninstall, update, list, search, info, create, publish, clean, install-local, repo');
+  T(HELP_PACKAGE_REPO_LIST_USAGE,  'Usage: fpdev package repo list',                                           '用法: fpdev package repo list');
+  T(HELP_PACKAGE_REPO_LIST_DESC,   'List package repositories.',                                               '列出包仓库。');
+  T(HELP_PACKAGE_REPO_LIST_OPT_HELP, '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_REPO_ADD_USAGE,   'Usage: fpdev package repo add <name> <url>',                               '用法: fpdev package repo add <名称> <URL>');
+  T(HELP_PACKAGE_REPO_ADD_DESC,    'Add a package repository.',                                                '添加包仓库。');
+  T(HELP_PACKAGE_REPO_ADD_OPT_HELP,'  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_REPO_REMOVE_USAGE,'Usage: fpdev package repo remove <name>',                                  '用法: fpdev package repo remove <名称>');
+  T(HELP_PACKAGE_REPO_REMOVE_DESC, 'Remove a package repository.',                                             '移除包仓库。');
+  T(HELP_PACKAGE_REPO_REMOVE_OPT_HELP, '  --help, -h       Show this help message',                            '  --help, -h       显示此帮助信息');
+  T(HELP_PACKAGE_REPO_UPDATE_USAGE,'Usage: fpdev package repo update [name]',                                  '用法: fpdev package repo update [名称]');
+  T(HELP_PACKAGE_REPO_UPDATE_DESC, 'Update package repository index.',                                         '更新包仓库索引。');
+  T(HELP_PACKAGE_REPO_UPDATE_OPT_HELP, '  --help, -h       Show this help message',                            '  --help, -h       显示此帮助信息');
+
+  // Help: Cross commands
+  T(HELP_CROSS_USAGE,                  'Usage: fpdev cross <subcommand>',                                         '用法: fpdev cross <子命令>');
+  T(HELP_CROSS_LIST_USAGE,             'Usage: fpdev cross list [options]',                                       '用法: fpdev cross list [选项]');
+  T(HELP_CROSS_LIST_DESC,              'List cross-compilation targets.',                                         '列出交叉编译目标。');
+  T(HELP_CROSS_LIST_OPTIONS,           'Options:',                                                                '选项:');
+  T(HELP_CROSS_LIST_OPT_ALL,           '  --all            Show all available targets',                           '  --all            显示所有可用目标');
+  T(HELP_CROSS_LIST_OPT_HELP,          '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_INSTALL_USAGE,          'Usage: fpdev cross install <target>',                                     '用法: fpdev cross install <目标>');
+  T(HELP_CROSS_INSTALL_DESC,           'Install a cross-compilation target.',                                     '安装交叉编译目标。');
+  T(HELP_CROSS_INSTALL_EXAMPLE,        'Example: fpdev cross install win64',                                      '示例: fpdev cross install win64');
+  T(HELP_CROSS_INSTALL_OPT_HELP,       '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_UNINSTALL_USAGE,        'Usage: fpdev cross uninstall <target>',                                   '用法: fpdev cross uninstall <目标>');
+  T(HELP_CROSS_UNINSTALL_DESC,         'Uninstall a cross-compilation target.',                                   '卸载交叉编译目标。');
+  T(HELP_CROSS_UNINSTALL_OPT_HELP,     '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_ENABLE_USAGE,           'Usage: fpdev cross enable <target>',                                      '用法: fpdev cross enable <目标>');
+  T(HELP_CROSS_ENABLE_DESC,            'Enable a cross-compilation target.',                                      '启用交叉编译目标。');
+  T(HELP_CROSS_ENABLE_OPT_HELP,        '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_DISABLE_USAGE,          'Usage: fpdev cross disable <target>',                                     '用法: fpdev cross disable <目标>');
+  T(HELP_CROSS_DISABLE_DESC,           'Disable a cross-compilation target.',                                     '禁用交叉编译目标。');
+  T(HELP_CROSS_DISABLE_OPT_HELP,       '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_SHOW_USAGE,             'Usage: fpdev cross show <target>',                                        '用法: fpdev cross show <目标>');
+  T(HELP_CROSS_SHOW_DESC,              'Show details of a cross-compilation target.',                             '显示交叉编译目标详情。');
+  T(HELP_CROSS_SHOW_OPT_HELP,          '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_TEST_USAGE,             'Usage: fpdev cross test <target>',                                        '用法: fpdev cross test <目标>');
+  T(HELP_CROSS_TEST_DESC,              'Test a cross-compilation target.',                                        '测试交叉编译目标。');
+  T(HELP_CROSS_TEST_OPT_HELP,          '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_CONFIGURE_USAGE,        'Usage: fpdev cross configure <target> [options]',                         '用法: fpdev cross configure <目标> [选项]');
+  T(HELP_CROSS_CONFIGURE_DESC,         'Configure a cross-compilation target.',                                   '配置交叉编译目标。');
+  T(HELP_CROSS_CONFIGURE_OPTIONS,      'Options:',                                                                '选项:');
+  T(HELP_CROSS_CONFIGURE_OPT_BINUTILS, '  --binutils=<path>   Path to binutils',                                  '  --binutils=<path>   binutils 路径');
+  T(HELP_CROSS_CONFIGURE_OPT_LIBRARIES,'  --libraries=<path>  Path to libraries',                                 '  --libraries=<path>  库文件路径');
+  T(HELP_CROSS_CONFIGURE_OPT_HELP,     '  --help, -h          Show this help message',                            '  --help, -h          显示此帮助信息');
+  T(HELP_CROSS_DOCTOR_USAGE,           'Usage: fpdev cross doctor',                                               '用法: fpdev cross doctor');
+  T(HELP_CROSS_DOCTOR_DESC,            'Check cross-compilation environment and diagnose issues.',                '检查交叉编译环境并诊断问题。');
+  T(HELP_CROSS_DOCTOR_OPT_HELP,        '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_SUBCOMMANDS,            'Cross-compilation subcommands: list, install, uninstall, enable, disable, show, test, configure', '交叉编译子命令: list, install, uninstall, enable, disable, show, test, configure');
+
+  // Help: Repo commands
+  T(HELP_REPO_USAGE,            'Usage: fpdev repo <command> [options]',                                       '用法: fpdev repo <命令> [选项]');
+  T(HELP_REPO_ADD_USAGE,        'Usage: fpdev repo add <name> <url>',                                          '用法: fpdev repo add <名称> <URL>');
+  T(HELP_REPO_ADD_DESC,         'Add a new repository.',                                                       '添加新仓库。');
+  T(HELP_REPO_ADD_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_REMOVE_USAGE,     'Usage: fpdev repo remove <name>',                                             '用法: fpdev repo remove <名称>');
+  T(HELP_REPO_REMOVE_DESC,      'Remove a repository.',                                                        '移除仓库。');
+  T(HELP_REPO_REMOVE_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_LIST_USAGE,       'Usage: fpdev repo list',                                                      '用法: fpdev repo list');
+  T(HELP_REPO_LIST_DESC,        'List all configured repositories.',                                           '列出所有已配置的仓库。');
+  T(HELP_REPO_LIST_OPT_HELP,    '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_SHOW_USAGE,       'Usage: fpdev repo show <name>',                                               '用法: fpdev repo show <名称>');
+  T(HELP_REPO_SHOW_DESC,        'Show details of a repository.',                                               '显示仓库详情。');
+  T(HELP_REPO_SHOW_OPT_HELP,    '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_VERSIONS_USAGE,   'Usage: fpdev repo versions [--repo=<name>] [--os=<os>] [--arch=<arch>]',      '用法: fpdev repo versions [--repo=<名称>] [--os=<系统>] [--arch=<架构>]');
+  T(HELP_REPO_VERSIONS_DESC,    'List available versions from repositories.',                                  '列出仓库中可用的版本。');
+  T(HELP_REPO_VERSIONS_OPTIONS, 'Options:',                                                                    '选项:');
+  T(HELP_REPO_VERSIONS_OPT_REPO,'  --repo=<name>    Query specific repository',                                '  --repo=<名称>    查询指定仓库');
+  T(HELP_REPO_VERSIONS_OPT_OS,  '  --os=<os>        Filter by operating system',                               '  --os=<系统>      按操作系统过滤');
+  T(HELP_REPO_VERSIONS_OPT_ARCH,'  --arch=<arch>    Filter by architecture',                                   '  --arch=<架构>    按架构过滤');
+  T(HELP_REPO_VERSIONS_OPT_JSON,'  --json           Output in JSON format',                                    '  --json           以 JSON 格式输出');
+  T(HELP_REPO_VERSIONS_OPT_OFFLINE,'  --offline     Use cached data only',                                     '  --offline        仅使用缓存数据');
+  T(HELP_REPO_VERSIONS_OPT_REFRESH,'  --refresh     Force refresh cache',                                      '  --refresh        强制刷新缓存');
+  T(HELP_REPO_VERSIONS_OPT_HELP,'  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_DEFAULT_USAGE,    'Usage: fpdev repo default <name>',                                            '用法: fpdev repo default <名称>');
+  T(HELP_REPO_DEFAULT_DESC,     'Set the default repository.',                                                 '设置默认仓库。');
+  T(HELP_REPO_DEFAULT_OPT_HELP, '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_REPO_SUBCOMMANDS,      'Repository management subcommands: add, remove, list, show, versions, default', '仓库管理子命令: add, remove, list, show, versions, default');
+
+  // ========================================
+  // FPC command messages
+  // ========================================
+  T(CMD_FPC_INSTALL_START,       'Installing FPC %s...',                   '正在安装 FPC %s...');
+  T(CMD_FPC_INSTALL_DONE,        'FPC %s installed successfully',          'FPC %s 安装成功');
+  T(CMD_FPC_INSTALL_FAILED,      'Failed to install FPC %s',               'FPC %s 安装失败');
+  T(CMD_FPC_INSTALL_DOWNLOADING, 'Downloading FPC %s...',                  '正在下载 FPC %s...');
+  T(CMD_FPC_INSTALL_EXTRACTING,  'Extracting files...',                    '正在解压文件...');
+  T(CMD_FPC_INSTALL_CONFIGURING, 'Configuring...',                         '正在配置...');
+  T(CMD_FPC_LIST_HEADER,         'Installed FPC versions:',                '已安装的 FPC 版本:');
+  T(CMD_FPC_LIST_ALL_HEADER,     'Available FPC versions:',                '可用的 FPC 版本:');
+  T(CMD_FPC_LIST_EMPTY,          'No FPC versions installed',              '未安装任何 FPC 版本');
+  T(CMD_FPC_LIST_CURRENT,        '(current)',                              '(当前)');
+  T(CMD_FPC_USE_ACTIVATED,       'Activated FPC %s',                       '已激活 FPC %s');
+  T(CMD_FPC_USE_NOT_FOUND,       'FPC version %s not found',               '未找到 FPC 版本 %s');
+  T(CMD_FPC_USE_SCRIPT,          'Run this command to activate: %s',       '运行以下命令激活: %s');
+  T(CMD_FPC_USE_SCRIPT_CREATED,  'Activation script created: %s',          '激活脚本已创建: %s');
+  T(CMD_FPC_USE_SCRIPT_RUN,      'To activate in current shell, run:',     '在当前 shell 中激活，请运行:');
+  T(CMD_FPC_USE_VSCODE_UPDATED,  'VS Code settings updated: %s',           'VS Code 配置已更新: %s');
+  T(CMD_FPC_USE_AUTOINSTALL,     'Version %s not installed, auto-installing (--ensure)...', '版本 %s 未安装，正在自动安装 (--ensure)...');
+  T(CMD_FPC_USE_AUTOINSTALL_FAILED, 'Auto-install failed, cannot switch',  '自动安装失败，无法切换');
+  T(CMD_FPC_CURRENT_NONE,        'No FPC version is currently active',     '当前没有激活的 FPC 版本');
+  T(CMD_FPC_CURRENT_VERSION,     'Current FPC version: %s',                '当前 FPC 版本: %s');
+  T(CMD_FPC_DOCTOR_CHECKING,     'Checking FPC installation...',           '正在检查 FPC 安装...');
+  T(CMD_FPC_DOCTOR_OK,           'FPC installation is healthy',            'FPC 安装正常');
+  T(CMD_FPC_DOCTOR_ISSUES,       'Found %d issue(s)',                      '发现 %d 个问题');
+  T(CMD_FPC_DOCTOR_WRITE_OK,     '[OK] Write permission OK: %s',           '[OK] 写入权限正常: %s');
+  T(CMD_FPC_DOCTOR_WRITE_FAILED, '[X] Write permission failed: %s (%s)',   '[X] 写入权限失败: %s (%s)');
+  T(CMD_FPC_DOCTOR_GIT_OK,       '[OK] git: %s',                           '[OK] git: %s');
+  T(CMD_FPC_DOCTOR_GIT_NOT_FOUND,'[X] git not ready (Please install Git and add it to PATH)', '[X] git 未就绪 (请安装 Git 并添加到 PATH)');
+  T(CMD_FPC_DOCTOR_MAKE_OK,      '[OK] make: %s',                          '[OK] make: %s');
+  T(CMD_FPC_DOCTOR_MAKE_NOT_FOUND,'[X] make not ready (Windows: install MSYS2/MinGW)', '[X] make 未就绪 (Windows: 安装 MSYS2/MinGW)');
+  T(CMD_FPC_DOCTOR_FPC_OK,       '[OK] bootstrap fpc: available',          '[OK] 引导编译器: 可用');
+  T(CMD_FPC_DOCTOR_FPC_NOT_FOUND,'[!] bootstrap fpc not available (building from source requires an existing fpc)', '[!] 引导编译器不可用 (从源码构建需要现有的 fpc)');
+  T(CMD_FPC_CLEAN_START,         'Cleaning build artifacts...',            '正在清理构建产物...');
+  T(CMD_FPC_CLEAN_DONE,          'Clean completed',                        '清理完成');
+  T(CMD_FPC_UPDATE_START,        'Updating FPC sources...',                '正在更新 FPC 源代码...');
+  T(CMD_FPC_UPDATE_DONE,         'Update completed',                       '更新完成');
+  T(CMD_FPC_UPDATE_NO_UPDATES,   'Already up to date',                     '已是最新版本');
+  T(CMD_FPC_UPDATE_VERSION,      'Updating FPC %s sources...',             '正在更新 FPC %s 源代码...');
+  T(CMD_FPC_UPDATE_FAILED,       'Failed to update FPC %s',                'FPC %s 更新失败');
+  T(CMD_FPC_UPDATE_INDEX,        'Updating version index...',              '正在更新版本索引...');
+  T(CMD_FPC_UNKNOWN_VERSION,     'Unknown FPC version: %s',                '未知的 FPC 版本: %s');
+  T(CMD_FPC_NO_GIT_BACKEND,      'No Git backend available (neither libgit2 nor git command found)', '没有可用的 Git 后端 (未找到 libgit2 或 git 命令)');
+  T(CMD_FPC_GIT_CLONE_FAILED,    'Git clone failed: %s',                   'Git 克隆失败: %s');
+  T(CMD_FPC_GIT_PULL_FAILED,     'Git pull failed: %s',                    'Git 拉取失败: %s');
+  T(CMD_FPC_REPO_INIT_FAILED,    'Failed to initialize resource repository', '初始化资源仓库失败');
+  T(CMD_FPC_BOOTSTRAP_INSTALL_FAILED, 'Failed to install bootstrap compiler: %s', '安装引导编译器失败: %s');
+  T(CMD_FPC_SOURCE_DIR_NOT_FOUND, 'Source directory does not exist: %s',   '源目录不存在: %s');
+  T(CMD_FPC_BUILD_FAILED,        'Build failed with exit code: %d',        '构建失败，退出码: %d');
+  T(CMD_FPC_DOWNLOAD_FAILED,     'Failed to download source code',         '下载源代码失败');
+  T(CMD_FPC_BOOTSTRAP_CHECK_FAILED, 'Bootstrap compiler check failed',     '引导编译器检查失败');
+  T(CMD_FPC_BUILD_FROM_SOURCE_FAILED, 'Failed to build from source',       '从源码构建失败');
+  T(CMD_FPC_NOT_GIT_REPO,        'Directory is not a git repository: %s',  '目录不是 git 仓库: %s');
+  T(CMD_FPC_UNSUPPORTED_VERSION, 'Unsupported FPC version: %s',            '不支持的 FPC 版本: %s');
+  T(CMD_FPC_DOWNLOAD_URL_FAILED, 'Failed to construct download URL for version: %s', '无法构建版本 %s 的下载链接');
+  T(CMD_FPC_FILE_NOT_FOUND,      'File not found for checksum verification', '未找到用于校验的文件');
+  T(CMD_FPC_CHECKSUM_FAILED,     'Failed to calculate checksum',           '计算校验和失败');
+  T(CMD_FPC_ARCHIVE_NOT_FOUND,   'Archive file not found: %s',             '归档文件未找到: %s');
+  T(CMD_FPC_TAR_FAILED,          'tar extraction failed with exit code: %d', 'tar 解压失败，退出码: %d');
+  T(CMD_FPC_ARCHIVE_FORMAT_UNSUPPORTED, 'Unsupported archive format: %s',  '不支持的归档格式: %s');
+  T(CMD_FPC_BINARY_DOWNLOAD_FAILED, 'Binary download failed',              '二进制下载失败');
+  T(CMD_FPC_ARCHIVE_EXTRACT_FAILED, 'Archive extraction failed',           '归档解压失败');
+  T(CMD_FPC_DIST_NOT_FOUND,      'Could not find FPC distribution in extracted archive', '无法在解压的归档中找到 FPC 发行版');
+  T(CMD_FPC_COPY_FAILED,         'Failed to copy FPC files',               '复制 FPC 文件失败');
+
+  // ========================================
+  // Lazarus command messages
+  // ========================================
+  T(CMD_LAZARUS_INSTALL_START,   'Installing Lazarus %s...',               '正在安装 Lazarus %s...');
+  T(CMD_LAZARUS_INSTALL_DONE,    'Lazarus %s installed successfully',      'Lazarus %s 安装成功');
+  T(CMD_LAZARUS_INSTALL_FAILED,  'Installation failed',                    '安装失败');
+  T(CMD_LAZARUS_UNSUPPORTED_VERSION, 'Unsupported Lazarus version: %s',    '不支持的 Lazarus 版本: %s');
+  T(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED, 'Source download failed',          '源码下载失败');
+  T(CMD_LAZARUS_SOURCE_BUILD_FAILED, 'Source compilation failed',          '源码编译失败');
+  T(CMD_LAZARUS_ENV_SETUP_FAILED, 'Environment setup failed',              '环境设置失败');
+  T(CMD_LAZARUS_BINARY_NOT_IMPL, 'Pre-compiled binary installation not implemented, please use --from-source option', '预编译二进制安装未实现，请使用 --from-source 选项');
+  T(CMD_LAZARUS_LIST_HEADER,     'Installed Lazarus versions:',            '已安装的 Lazarus 版本:');
+  T(CMD_LAZARUS_LIST_EMPTY,      'No Lazarus versions installed',          '未安装任何 Lazarus 版本');
+  T(CMD_LAZARUS_USE_SET,         'Default Lazarus version set to: %s',     '默认 Lazarus 版本已设置为: %s');
+  T(CMD_LAZARUS_USE_NOT_INSTALLED, 'Lazarus version %s is not installed',  'Lazarus 版本 %s 未安装');
+  T(CMD_LAZARUS_USE_FAILED,      'Failed to set default version',          '设置默认版本失败');
+  T(CMD_LAZARUS_CURRENT_NONE,    'No Lazarus version is currently active', '当前没有激活的 Lazarus 版本');
+  T(CMD_LAZARUS_CURRENT_VERSION, 'Current Lazarus version: %s',            '当前 Lazarus 版本: %s');
+  T(CMD_LAZARUS_TEST_START,      'Testing Lazarus %s installation...',     '正在测试 Lazarus %s 安装...');
+  T(CMD_LAZARUS_TEST_PASSED,     'Lazarus %s installation test passed',    'Lazarus %s 安装测试通过');
+  T(CMD_LAZARUS_TEST_FAILED,     'Lazarus %s installation test failed',    'Lazarus %s 安装测试失败');
+  T(CMD_LAZARUS_RUN_START,       'Launching Lazarus %s...',                '正在启动 Lazarus %s...');
+  T(CMD_LAZARUS_RUN_LAUNCHED,    'Lazarus %s launched',                    'Lazarus %s 已启动');
+  T(CMD_LAZARUS_RUN_FAILED,      'Failed to launch Lazarus IDE',           '启动 Lazarus IDE 失败');
+  T(CMD_LAZARUS_RUN_NO_VERSION,  'No version specified and no default version set', '未指定版本且未设置默认版本');
+  T(CMD_LAZARUS_RUN_NOT_INSTALLED, 'Lazarus version %s is not installed',  'Lazarus 版本 %s 未安装');
+  T(CMD_LAZARUS_CONFIG_START,    'Configuring Lazarus %s IDE...',          '正在配置 Lazarus %s IDE...');
+  T(CMD_LAZARUS_CONFIG_DONE,     'IDE configuration completed successfully', 'IDE 配置成功完成');
+  T(CMD_LAZARUS_CONFIG_FAILED,   'IDE configuration failed',               'IDE 配置失败');
+  T(CMD_LAZARUS_CONFIG_INCOMPLETE, 'IDE configuration may be incomplete, please verify paths manually', 'IDE 配置可能不完整，请手动验证路径');
+  T(CMD_LAZARUS_CONFIG_VERIFY,   'Please verify paths manually in the IDE', '请在 IDE 中手动验证路径');
+  T(CMD_LAZARUS_SHOW_FPC,        'Associated FPC Version: %s',             '关联的 FPC 版本: %s');
+  T(CMD_LAZARUS_SHOW_URL,        'Source URL: %s',                         '源码 URL: %s');
+  T(CMD_LAZARUS_EXCEPTION,       'Exception in %s: %s',                    '%s 时发生异常: %s');
+
+  // ========================================
+  // Cross compilation messages
+  // ========================================
+  T(CMD_CROSS_LIST_HEADER,       'Cross compilation targets:',             '交叉编译目标:');
+  T(CMD_CROSS_LIST_EMPTY,        'No cross compilation targets configured','未配置交叉编译目标');
+  T(CMD_CROSS_INSTALL_START,     'Installing cross compiler for %s...',    '正在安装 %s 交叉编译器...');
+  T(CMD_CROSS_INSTALL_DONE,      'Cross compiler for %s installed',        '%s 交叉编译器安装完成');
+  T(CMD_CROSS_INSTALL_FAILED,    'Failed to install cross compiler for %s','安装 %s 交叉编译器失败');
+  T(CMD_CROSS_UNINSTALL_DONE,    'Cross compiler for %s uninstalled',      '%s 交叉编译器已卸载');
+  T(CMD_CROSS_UNINSTALL_FAILED,  'Failed to uninstall cross compiler for %s','卸载 %s 交叉编译器失败');
+  T(CMD_CROSS_ENABLE_DONE,       'Cross compiler for %s enabled',          '%s 交叉编译器已启用');
+  T(CMD_CROSS_ENABLE_FAILED,     'Failed to enable cross compiler for %s', '启用 %s 交叉编译器失败');
+  T(CMD_CROSS_DISABLE_DONE,      'Cross compiler for %s disabled',         '%s 交叉编译器已禁用');
+  T(CMD_CROSS_DISABLE_FAILED,    'Failed to disable cross compiler for %s','禁用 %s 交叉编译器失败');
+  T(CMD_CROSS_CONFIGURE_DONE,    'Cross compiler for %s configured',       '%s 交叉编译器配置完成');
+  T(CMD_CROSS_CONFIGURE_FAILED,  'Failed to configure cross compiler for %s','配置 %s 交叉编译器失败');
+  T(CMD_CROSS_CONFIGURE_USAGE,   '--binutils=<path> and --libraries=<path> are required', '需要 --binutils=<路径> 和 --libraries=<路径>');
+  T(CMD_CROSS_TEST_START,        'Testing cross compiler for %s...',       '正在测试 %s 交叉编译器...');
+  T(CMD_CROSS_TEST_PASSED,       'Cross compiler test for %s passed',      '%s 交叉编译器测试通过');
+  T(CMD_CROSS_TEST_FAILED,       'Cross compiler test for %s failed',      '%s 交叉编译器测试失败');
+  T(CMD_CROSS_SHOW_TARGET,       'Target: %s',                              '目标: %s');
+  T(CMD_CROSS_SHOW_NOT_FOUND,    'Cross target not found: %s',             '未找到交叉编译目标: %s');
+  T(CMD_CROSS_TARGET_REQUIRED,   'Please specify a target',                '请指定目标');
+  T(CMD_CROSS_TARGET_NOT_INSTALLED,'Cross target %s is not installed',     '交叉编译目标 %s 未安装');
+  T(CMD_CROSS_TARGET_UNSUPPORTED,  'Unsupported cross target: %s',          '不支持的交叉编译目标: %s');
+  T(CMD_CROSS_TARGET_NOT_CONFIGURED,'Cross target %s is not configured',    '交叉编译目标 %s 未配置');
+  T(CMD_CROSS_DOWNLOADING_BINUTILS,'Downloading binutils for %s...',       '正在下载 %s 的二进制工具...');
+  T(CMD_CROSS_DOWNLOADING_LIBS,  'Downloading libraries for %s...',        '正在下载 %s 的库文件...');
+  T(CMD_CROSS_DOWNLOAD_FAILED,     'Download failed: %s',                   '下载失败: %s');
+  T(CMD_CROSS_EXTRACT_FAILED,      'Extraction failed: %s',                 '解压失败: %s');
+  T(CMD_CROSS_SETUP_FAILED,        'Failed to setup cross environment',     '设置交叉编译环境失败');
+  T(CMD_CROSS_SYSTEM_DETECTED,   'System cross compiler detected at: %s',  '检测到系统交叉编译器位于: %s');
+  T(CMD_CROSS_SYSTEM_SUGGESTION, 'Install via package manager: %s',        '通过包管理器安装: %s');
+  T(CMD_CROSS_TAR_FAILED,        'tar extraction failed with exit code %d', 'tar 解压失败，退出码: %d');
+  T(CMD_CROSS_COMPILER_NOT_FOUND,'Cross-compiler not found: %s',           '未找到交叉编译器: %s');
+  T(CMD_CROSS_CONFIG_GET_FAILED, 'Unable to get cross-compilation target configuration', '无法获取交叉编译目标配置');
+  T(CMD_CROSS_BINUTILS_PATH_NOT_FOUND, 'Binutils path does not exist: %s', 'Binutils 路径不存在: %s');
+  T(CMD_CROSS_LIBS_PATH_NOT_FOUND, 'Libraries path does not exist: %s',    '库文件路径不存在: %s');
+  T(CMD_CROSS_TEST_CREATE_FAILED, 'Cannot create test source file: %s',    '无法创建测试源文件: %s');
+  T(CMD_CROSS_NO_FPC_TOOLCHAIN,  'No default FPC toolchain configured',    '未配置默认 FPC 工具链');
+  T(CMD_CROSS_FPC_INFO_FAILED,   'Cannot get FPC toolchain information',   '无法获取 FPC 工具链信息');
+  T(CMD_CROSS_FPC_NOT_FOUND,     'Cannot find FPC compiler at expected locations', '在预期位置未找到 FPC 编译器');
+  T(CMD_CROSS_EXCEPTION,         'Exception in %s: %s',                    '%s 时发生异常: %s');
+
+  // ========================================
+  // Package command messages
+  // ========================================
+  T(CMD_PKG_INSTALL_START,       'Installing package %s...',               '正在安装包 %s...');
+  T(CMD_PKG_INSTALL_DONE,        'Package %s installed',                   '包 %s 安装完成');
+  T(CMD_PKG_INSTALL_USAGE,       'Usage: fpdev package install <package>', '用法: fpdev package install <包名>');
+  T(CMD_PKG_UNINSTALL_USAGE,     'Usage: fpdev package uninstall <package>','用法: fpdev package uninstall <包名>');
+  T(CMD_PKG_PUBLISH_USAGE,       'Usage: fpdev package publish <package>', '用法: fpdev package publish <包名>');
+  T(CMD_PKG_CREATE_USAGE,        'Usage: fpdev package create <name> [--dir=<path>]', '用法: fpdev package create <名称> [--dir=<路径>]');
+  T(CMD_PKG_INFO_USAGE,          'Usage: fpdev package info <package>',    '用法: fpdev package info <包名>');
+  T(CMD_PKG_SEARCH_USAGE,        'Usage: fpdev package search <query>',    '用法: fpdev package search <查询>');
+  T(CMD_PKG_UPDATE_USAGE,        'Usage: fpdev package update [package]',  '用法: fpdev package update [包名]');
+  T(CMD_PKG_CLEAN_USAGE,         'Usage: fpdev package clean [options]',   '用法: fpdev package clean [选项]');
+  T(CMD_PKG_INSTALL_LOCAL_USAGE, 'Usage: fpdev package install-local <path>', '用法: fpdev package install-local <路径>');
+  T(CMD_PKG_LIST_HEADER,         'Installed packages:',                    '已安装的包:');
+  T(CMD_PKG_LIST_EMPTY,          'No packages installed',                  '未安装任何包');
+  T(CMD_PKG_LIST_USAGE,          'Usage: fpdev package list',              '用法: fpdev package list');
+  T(CMD_PKG_SEARCH_HEADER,       'Search results:',                        '搜索结果:');
+  T(CMD_PKG_SEARCH_NO_RESULTS,   'No packages found',                      '未找到相关包');
+  T(CMD_PKG_CLEAN_DRY_RUN,       '[dry-run] Would clean: %s',              '[试运行] 将清理: %s');
+  T(CMD_PKG_CLEAN_REFUSE_ROOT,   'Refusing to clean root directory',       '拒绝清理根目录');
+  T(CMD_PKG_CLEAN_COMPLETE,      'Clean complete',                         '清理完成');
+  T(CMD_PKG_CLEAN_ERRORS,        'Clean had errors',                       '清理过程中有错误');
+
+  // Package repo command messages
+  T(CMD_PKG_REPO_ADD_USAGE,      'Usage: fpdev package repo add <name> <url>', '用法: fpdev package repo add <名称> <url>');
+  T(CMD_PKG_REPO_REMOVE_USAGE,   'Usage: fpdev package repo remove <name>', '用法: fpdev package repo remove <名称>');
+  T(CMD_PKG_REPO_LIST_USAGE,     'Usage: fpdev package repo list',          '用法: fpdev package repo list');
+  T(CMD_PKG_REPO_UPDATE_USAGE,   'Usage: fpdev package repo update',        '用法: fpdev package repo update');
+  T(CMD_PKG_UNINSTALL_FAILED,    'Uninstall failed: %s',                    '卸载失败: %s');
+  T(CMD_PKG_INVALID_NAME,        'Invalid package name: %s',                '无效的包名: %s');
+  T(CMD_PKG_NOT_INSTALLED,       'Package %s is not installed',             '包 %s 未安装');
+  T(CMD_PKG_NOT_IN_INDEX,        'Package %s not found in package index',   '包 %s 未在包索引中找到');
+  T(CMD_PKG_UNINSTALL_OLD_FAILED,'Failed to uninstall old version',         '卸载旧版本失败');
+  T(CMD_PKG_INSTALL_NEW_FAILED,  'Failed to install new version',           '安装新版本失败');
+  T(CMD_PKG_META_NOT_FOUND,      'Package metadata not found: %s',          '包元数据未找到: %s');
+  T(CMD_PKG_META_INVALID,        'Invalid package metadata: %s',            '无效的包元数据: %s');
+  T(CMD_PKG_META_NOT_JSON,       'Package metadata is not a valid JSON object', '包元数据不是有效的 JSON 对象');
+  T(CMD_PKG_NAME_MISSING,        'Package name is missing from metadata',   '元数据中缺少包名');
+  T(CMD_PKG_CHECKSUM_MISMATCH,   'SHA256 checksum mismatch!',               'SHA256 校验和不匹配!');
+  T(CMD_PKG_REPO_ADD_FAILED,     'Failed to add repository: %s',            '添加仓库失败: %s');
+  T(CMD_PKG_REPO_REMOVE_FAILED,  'Repository not found or remove failed: %s', '仓库未找到或删除失败: %s');
+  T(CMD_PKG_REPO_UPDATE_FAILED,  'Update repositories failed: %s',          '更新仓库失败: %s');
+  T(CMD_PKG_PATH_NOT_FOUND,      'Package path not found: %s',              '包路径未找到: %s');
+  T(CMD_PKG_SOURCE_NOT_FOUND,    'Source directory not found: %s',          '源目录未找到: %s');
+  T(CMD_PKG_NOT_FOUND,           'Package %s not found',                    '包 %s 未找到');
+  T(CMD_PKG_ARCHIVE_FAILED,      'Failed to create archive: %s',            '创建归档失败: %s');
+  T(CMD_PKG_EXCEPTION,           'Exception in %s: %s',                     '%s 时发生异常: %s');
+
+  // ========================================
+  // Repo (source repository) command messages
+  // ========================================
+  T(CMD_REPO_ADD_USAGE,          'Usage: fpdev repo add <name> <index_url_or_path>', '用法: fpdev repo add <名称> <索引url或路径>');
+  T(CMD_REPO_ADD_FAILED,         'Error: failed to add repository: %s',    '错误: 添加仓库失败: %s');
+  T(CMD_REPO_REMOVE_USAGE,       'Usage: fpdev repo remove <name>  (alias: rm, del)', '用法: fpdev repo remove <名称>  (别名: rm, del)');
+  T(CMD_REPO_REMOVE_FAILED,      'Error: repository not found or cannot remove: %s', '错误: 仓库未找到或无法删除: %s');
+  T(CMD_REPO_DEFAULT_USAGE,      'Usage: fpdev repo default <name>',        '用法: fpdev repo default <名称>');
+  T(CMD_REPO_DEFAULT_FAILED,     'Error: failed to set default repository: %s', '错误: 设置默认仓库失败: %s');
+  T(CMD_REPO_NOT_FOUND,          'Error: repository not found: %s',         '错误: 仓库未找到: %s');
+  T(CMD_REPO_SHOW_USAGE,         'Usage: fpdev repo show <name>',           '用法: fpdev repo show <名称>');
+  T(CMD_REPO_SHOW_DEFAULT,       '(default)',                               '(默认)');
+  T(CMD_REPO_LIST_USAGE,         'Usage: fpdev repo list  (alias: ls)',     '用法: fpdev repo list  (别名: ls)');
+  T(CMD_REPO_VERSIONS_FAILED,    'Error: failed to read manifest: %s',      '错误: 读取清单失败: %s');
+  T(CMD_REPO_VERSIONS_PARSE_FAILED, 'Error: failed to parse manifest JSON from: %s', '错误: 解析清单JSON失败: %s');
+  T(CMD_REPO_VERSIONS_OFFLINE_NO_CACHE, 'Error: offline mode enabled and no cache available for: %s', '错误: 离线模式已启用，但无缓存可用: %s');
+
+  // ========================================
+  // Project command messages
+  // ========================================
+  T(CMD_PROJECT_NEW_START,       'Creating project %s...',                 '正在创建项目 %s...');
+  T(CMD_PROJECT_NEW_DONE,        'Project %s created successfully',        '项目 %s 创建成功');
+  T(CMD_PROJECT_NEW_FAILED,      'Failed to create project',               '项目创建失败');
+  T(CMD_PROJECT_BUILD_START,     'Building project...',                    '正在构建项目...');
+  T(CMD_PROJECT_BUILD_DONE,      'Build succeeded',                        '构建成功');
+  T(CMD_PROJECT_BUILD_FAILED,    'Build failed',                           '构建失败');
+  T(CMD_PROJECT_RUN_START,       'Running project...',                     '正在运行项目...');
+  T(CMD_PROJECT_CLEAN_DONE,      'Project cleaned',                        '项目清理完成');
+  T(CMD_PROJECT_DIR_NOT_FOUND,   'Project directory does not exist: %s',   '项目目录不存在: %s');
+  T(CMD_PROJECT_NO_EXECUTABLE,   'No executable found in directory: %s',   '目录中未找到可执行文件: %s');
+  T(CMD_PROJECT_NO_TEST_FOUND,   'No test executable found in directory: %s', '目录中未找到测试可执行文件: %s');
+  T(CMD_PROJECT_TEST_NOTE,       'Test executables should start with "test" or "test_"', '测试可执行文件应以 "test" 或 "test_" 开头');
+  T(CMD_PROJECT_RUNNING_TESTS,   'Running tests: %s',                      '正在运行测试: %s');
+  T(CMD_PROJECT_TEST_PASSED,     'Tests passed (exit code: 0)',            '测试通过 (退出码: 0)');
+  T(CMD_PROJECT_TEST_FAILED,     'Tests failed (exit code: %s)',           '测试失败 (退出码: %s)');
+  T(CMD_PROJECT_CLEANED,         'Cleaned %d build artifact(s) from: %s',  '已从 %2:s 清理 %0:d 个构建产物');
+  T(CMD_PROJECT_TEMPLATE_NOT_FOUND, 'Template not found: %s',              '未找到模板: %s');
+  T(CMD_PROJECT_EXIT_CODE,       'Process exited with code: %s',           '进程退出，退出码: %s');
+  T(CMD_PROJECT_GENERATE_ERROR,  'Error generating project files: %s',     '生成项目文件出错: %s');
+
+  // Project type names
+  T(CMD_PROJECT_TYPE_CONSOLE,    'Console Application',                    '控制台应用程序');
+  T(CMD_PROJECT_TYPE_GUI,        'GUI Application',                        'GUI 应用程序');
+  T(CMD_PROJECT_TYPE_LIBRARY,    'Library',                                '库');
+  T(CMD_PROJECT_TYPE_PACKAGE,    'Lazarus Package',                        'Lazarus 包');
+  T(CMD_PROJECT_TYPE_WEBAPP,     'Web Application',                        'Web 应用程序');
+  T(CMD_PROJECT_TYPE_SERVICE,    'System Service',                         '系统服务');
+  T(CMD_PROJECT_TYPE_GAME,       'Game Project',                           '游戏项目');
+  T(CMD_PROJECT_TYPE_CUSTOM,     'Custom',                                 '自定义');
+
+  // Template management messages
+  T(CMD_PROJECT_TPL_PATH_NOT_EXIST, 'Template path does not exist: %s',    '模板路径不存在: %s');
+  T(CMD_PROJECT_TPL_INVALID_PATH,   'Invalid template path',               '无效的模板路径');
+  T(CMD_PROJECT_TPL_OVERWRITING,    'Template already exists, overwriting: %s', '模板已存在，正在覆盖: %s');
+  T(CMD_PROJECT_TPL_INSTALLED,      'Template installed successfully: %s', '模板安装成功: %s');
+  T(CMD_PROJECT_TPL_INSTALL_ERROR,  'Error installing template: %s',       '安装模板出错: %s');
+  T(CMD_PROJECT_TPL_NAME_REQUIRED,  'Template name is required',           '需要模板名称');
+  T(CMD_PROJECT_TPL_BUILTIN_REMOVE, 'Cannot remove built-in template: %s', '无法删除内置模板: %s');
+  T(CMD_PROJECT_TPL_REMOVED,        'Template removed successfully: %s',   '模板删除成功: %s');
+  T(CMD_PROJECT_TPL_REMOVE_ERROR,   'Error removing template: %s',         '删除模板出错: %s');
+  T(CMD_PROJECT_TPL_NOT_FOUND,      'Template not found: %s',              '未找到模板: %s');
+  T(CMD_PROJECT_TPL_REPO_UNAVAIL,   'Resource repository not available, skipping online update', '资源仓库不可用，跳过在线更新');
+  T(CMD_PROJECT_TPL_UPDATE_FAILED,  'Failed to update resource repository','更新资源仓库失败');
+  T(CMD_PROJECT_TPL_NO_TEMPLATES,   'No templates directory found in resource repository', '资源仓库中未找到模板目录');
+  T(CMD_PROJECT_TPL_UPDATED,        'Templates updated: %d added, %d updated', '模板已更新: 添加 %0:d 个，更新 %1:d 个');
+  T(CMD_PROJECT_TPL_UP_TO_DATE,     'Templates are up to date',            '模板已是最新');
+  T(CMD_PROJECT_TPL_UPDATE_ERROR,   'Error updating templates: %s',        '更新模板出错: %s');
+
+  // ========================================
+  // Error messages
+  // ========================================
+  T(ERR_UNKNOWN_COMMAND,         'Unknown command: %s',                    '未知命令: %s');
+  T(ERR_MISSING_ARGUMENT,        'Missing argument: %s',                   '缺少参数: %s');
+  T(ERR_INVALID_VERSION,         'Invalid version: %s',                    '无效版本: %s');
+  T(ERR_INVALID_INSTALL_MODE,    'Invalid install mode: %s',               '无效安装模式: %s');
+  T(ERR_VALID_INSTALL_MODES,     'Valid modes: binary, source, auto',      '有效模式: binary, source, auto');
+  T(ERR_NETWORK_ERROR,           'Network error: %s',                      '网络错误: %s');
+  T(ERR_FILE_NOT_FOUND,          'File not found: %s',                     '文件未找到: %s');
+  T(ERR_PERMISSION_DENIED,       'Permission denied: %s',                  '权限不足: %s');
+  T(ERR_ALREADY_INSTALLED,       '%s is already installed',                '%s 已安装');
+  T(ERR_NOT_INSTALLED,           '%s is not installed',                    '%s 未安装');
+  T(ERR_BUILD_FAILED,            'Build failed: %s',                       '构建失败: %s');
+  T(ERR_CONFIG_INVALID,          'Invalid configuration: %s',              '配置无效: %s');
+
+  // ========================================
+  // Cross-compilation additional messages
+  // ========================================
+  T(MSG_CROSS_BINUTILS_INSTALLED,    'Binutils installed from fpdev-repo.',    'Binutils 已从 fpdev-repo 安装。');
+  T(MSG_CROSS_MANIFEST_NOT_FOUND,    'Warning: Cross-compilation manifest not found, using system detection only.', '警告: 未找到交叉编译清单，仅使用系统检测。');
+  T(MSG_CROSS_TARGET_NOT_IN_MANIFEST,'Warning: Target %s not found in manifest, using system detection.', '警告: 清单中未找到目标 %s，使用系统检测。');
+  T(MSG_CROSS_NO_BINUTILS,           'Warning: No binutils available for %s on %s.', '警告: %s 在 %s 上没有可用的 binutils。');
+  T(MSG_CROSS_NO_DOWNLOAD_URLS,      'Warning: No download URLs available for %s binutils.', '警告: %s binutils 没有可用的下载链接。');
+  T(MSG_CROSS_DOWNLOADING_BINUTILS,  'Downloading binutils for %s...',        '正在下载 %s 的 binutils...');
+  T(MSG_CROSS_DOWNLOADING_URL,       '  URL: %s',                              '  URL: %s');
+  T(MSG_CROSS_EXTRACTING,            'Download complete. Extracting...',      '下载完成。正在解压...');
+  T(MSG_CROSS_BINUTILS_SUCCESS,      'Binutils installed successfully.',      'Binutils 安装成功。');
+  T(MSG_CROSS_LIBS_INSTALLED,        'Libraries installed from fpdev-repo.',  '库文件已从 fpdev-repo 安装。');
+  T(MSG_CROSS_LIBS_NOTE,             'Note: Libraries may need manual configuration for your target.', '注意: 库文件可能需要针对目标进行手动配置。');
+  T(MSG_CROSS_LIBS_MANIFEST_NOT_FOUND, 'Warning: Cross-compilation manifest not found.', '警告: 未找到交叉编译清单文件。');
+  T(MSG_CROSS_LIBS_MANUAL_INSTALL,   'Please install libraries manually and use "fpdev cross configure" to set paths.', '请手动安装库文件并使用 "fpdev cross configure" 设置路径。');
+  T(MSG_CROSS_NO_LIBS_URL,           'Note: No libraries download URL specified for target %s.', '注意: 目标 %s 没有指定库文件下载链接。');
+  T(MSG_CROSS_NO_LIBS,               'Warning: No libraries available for %s on %s.', '警告: %s 在 %s 上没有可用的库文件。');
+  T(MSG_CROSS_NO_LIBS_URLS,          'Warning: No download URLs available for %s libraries.', '警告: %s 库文件没有可用的下载链接。');
+  T(MSG_CROSS_DOWNLOADING_LIBS,      'Downloading libraries for %s...',       '正在下载 %s 的库文件...');
+  T(MSG_CROSS_LIBS_SUCCESS,          'Libraries installed successfully.',     '库文件安装成功。');
+  T(MSG_CROSS_AVAILABLE_TARGETS,     'Available cross-compilation targets:',  '可用的交叉编译目标:');
+  T(MSG_CROSS_INSTALLED_TARGETS,     'Installed cross-compilation targets:',  '已安装的交叉编译目标:');
+  T(MSG_CROSS_NO_TARGETS_AVAILABLE,  'No cross-compilation targets available.', '没有可用的交叉编译目标。');
+  T(MSG_CROSS_NO_TARGETS_INSTALLED,  'No cross-compilation targets installed.', '没有已安装的交叉编译目标。');
+  T(MSG_CROSS_LIST_HEADER_FMT,       '%-12s %-12s %-24s %-10s %-10s',         '%-12s %-12s %-24s %-10s %-10s');
+  T(MSG_CROSS_TOTAL_TARGETS,         'Total: %d target(s)',                   '共计: %d 个目标');
+  T(MSG_CROSS_TESTING,               'Testing cross-compilation for %s...',   '正在测试 %s 的交叉编译...');
+  T(MSG_CROSS_TEST_TARGET_CPU,       '  Target CPU: %s',                      '  目标 CPU: %s');
+  T(MSG_CROSS_TEST_TARGET_OS,        '  Target OS: %s',                       '  目标 OS: %s');
+  T(MSG_CROSS_TEST_COMPILER,         '  Compiler: %s',                        '  编译器: %s');
+  T(MSG_CROSS_TEST_BINUTILS,         '  Binutils: %s',                        '  Binutils: %s');
+  T(MSG_CROSS_TEST_LIBS,             '  Libraries: %s',                       '  库文件: %s');
+  T(MSG_CROSS_TEST_RESULT,           '  Result: %s',                          '  结果: %s');
+  T(MSG_CROSS_BUILDING_TEST,         'Building cross-compile test for %s...', '正在为 %s 构建交叉编译测试...');
+  T(MSG_CROSS_BUILD_PASSED,          'Cross-compile test PASSED for %s.',     '交叉编译测试通过: %s。');
+  T(MSG_CROSS_BUILD_FAILED,          'Cross-compile test failed: %s',         '交叉编译测试失败: %s');
+  T(MSG_CROSS_OUTPUT_FILE,           'Output file created: %s',               '输出文件已创建: %s');
+  T(MSG_CROSS_UPDATING,              'Updating cross-compilation target %s...', '正在更新交叉编译目标 %s...');
+  T(MSG_CROSS_UPDATE_DONE,           'Cross-compilation target %s updated.',  '交叉编译目标 %s 已更新。');
+  T(MSG_CROSS_CLEANING,              'Cleaning cross-compilation target %s...', '正在清理交叉编译目标 %s...');
+  T(MSG_CROSS_CLEAN_DONE,            'Cross-compilation target %s cleaned.',  '交叉编译目标 %s 已清理。');
+  T(MSG_CROSS_ALREADY_INSTALLED,     'Cross-compilation target %s is already installed.', '交叉编译目标 %s 已安装。');
+  T(MSG_CROSS_INSTALLING,            'Installing cross-compilation target %s...', '正在安装交叉编译目标 %s...');
+  T(MSG_CROSS_INSTALL_SUCCESS,       'Cross-compilation target %s installed successfully.', '交叉编译目标 %s 安装成功。');
+  T(MSG_CROSS_UNINSTALLED,           'Cross-compilation target %s uninstalled.', '交叉编译目标 %s 已卸载。');
+  T(MSG_CROSS_ENABLED,               'Cross-compilation target %s enabled.',  '交叉编译目标 %s 已启用。');
+  T(MSG_CROSS_DISABLED,              'Cross-compilation target %s disabled.', '交叉编译目标 %s 已禁用。');
+  T(MSG_CROSS_CONFIGURED,            'Cross-compilation target %s configured.', '交叉编译目标 %s 已配置。');
+  T(MSG_CROSS_USE_INSTALL_FIRST,     'Use "fpdev cross install %s" to install it first.', '请先使用 "fpdev cross install %s" 安装。');
+  T(MSG_CROSS_UPDATE_STEP1,          '[1/2] Updating binutils...',            '[1/2] 正在更新 binutils...');
+  T(MSG_CROSS_UPDATE_STEP2,          '[2/2] Updating libraries...',           '[2/2] 正在更新库文件...');
+  T(MSG_CROSS_UPDATE_BINUTILS_WARN,  'Warning: Could not update binutils for %s (may be manual installation).', '警告: 无法更新 %s 的 binutils（可能是手动安装）。');
+  T(MSG_CROSS_UPDATE_LIBS_WARN,      'Warning: Could not update libraries for %s (may be manual installation).', '警告: 无法更新 %s 的库文件（可能是手动安装）。');
+  T(MSG_CROSS_NOT_INSTALLED_NOTHING, 'Cross-compilation target %s is not installed. Nothing to clean.', '交叉编译目标 %s 未安装，无需清理。');
+  T(MSG_CROSS_CLEANING_BINUTILS,     '  Cleaning binutils: %s',               '  正在清理 binutils: %s');
+  T(MSG_CROSS_CLEANING_LIBS,         '  Cleaning libraries: %s',              '  正在清理库文件: %s');
+  T(MSG_CROSS_CLEAN_NOTE,            'Note: Configuration for %s is preserved. Use "fpdev cross uninstall" to remove completely.', '注意: %s 的配置已保留。使用 "fpdev cross uninstall" 完全移除。');
+  T(MSG_CROSS_INSTALL_STEP1,         '[1/3] Checking for system-installed cross compiler...', '[1/3] 正在检查系统已安装的交叉编译器...');
+  T(MSG_CROSS_INSTALL_STEP2,         '[2/3] Attempting to download cross toolchain...', '[2/3] 正在尝试下载交叉工具链...');
+  T(MSG_CROSS_INSTALL_STEP3,         '[3/3] Configuring environment...',       '[3/3] 正在配置环境...');
+  T(MSG_CROSS_SYSTEM_FOUND,          '  Found system cross compiler at: %s',   '  在以下位置找到系统交叉编译器: %s');
+  T(MSG_CROSS_SYSTEM_NOT_FOUND,      '  No system cross compiler found.',      '  未找到系统交叉编译器。');
+  T(MSG_CROSS_SKIP_DOWNLOAD,         '[2/3] Skipping download (using system compiler)', '[2/3] 跳过下载（使用系统编译器）');
+  T(MSG_CROSS_DOWNLOAD_UNAVAIL,      'Cross toolchain download not available.', '交叉工具链下载不可用。');
+  T(MSG_CROSS_AFTER_INSTALL_HINT,    'After installing, run:',                 '安装后运行:');
+  T(MSG_CROSS_MANUAL_CONFIG_HINT,    'or manually configure:',                 '或手动配置:');
+  T(MSG_CROSS_LIBS_SKIP_NOTE,        '  Note: Libraries download skipped (may need manual setup)', '  注意: 库文件下载已跳过（可能需要手动设置）');
+  T(MSG_CROSS_USING_SYSTEM,          'Using system cross compiler at: %s',     '使用系统交叉编译器: %s');
+  T(MSG_CROSS_TARGET_NOT_INSTALLED_MSG, 'Cross-compilation target %s is not installed', '交叉编译目标 %s 未安装');
+  T(MSG_CROSS_LIST_AVAILABLE,        'Available cross-compilation targets:',   '可用的交叉编译目标:');
+  T(MSG_CROSS_LIST_INSTALLED,        'Installed cross-compilation targets:',   '已安装的交叉编译目标:');
+  T(MSG_CROSS_LIST_NO_AVAILABLE,     '  No targets available in resource repository', '  资源仓库中没有可用目标');
+  T(MSG_CROSS_LIST_NO_INSTALLED,     '  No targets installed',                 '  没有已安装的目标');
+  T(MSG_CROSS_LIST_USE_ALL,          'Use "fpdev cross list --all" to see available targets', '使用 "fpdev cross list --all" 查看可用目标');
+  T(MSG_CROSS_LIST_TABLE_HEADER,     'Target      Status      Display Name          CPU       OS', '目标        状态        显示名称              CPU       OS');
+  T(MSG_CROSS_LIST_TABLE_LINE,       '------------------------------------------------------------', '------------------------------------------------------------');
+  T(MSG_CROSS_LIST_TOTAL,            'Total: %d target(s)',                    '共计: %d 个目标');
+  T(MSG_CROSS_LIST_ERROR,            'Error listing targets: %s',              '列出目标时出错: %s');
+  T(MSG_CROSS_SHOW_DISPLAY_NAME,     'Display Name: %s',                       '显示名称: %s');
+  T(MSG_CROSS_SHOW_CPU,              'CPU Architecture: %s',                   'CPU 架构: %s');
+  T(MSG_CROSS_SHOW_OS,               'Operating System: %s',                   '操作系统: %s');
+  T(MSG_CROSS_SHOW_BINUTILS_PREFIX,  'Binutils Prefix: %s',                    'Binutils 前缀: %s');
+  T(MSG_CROSS_TEST_TESTING,          'Testing cross-compilation target %s...', '正在测试交叉编译目标 %s...');
+  T(MSG_CROSS_TEST_PASSED,           'Cross-compilation target %s test passed', '交叉编译目标 %s 测试通过');
+  T(MSG_CROSS_TEST_FAILED_MSG,       'Cross-compilation target %s test failed', '交叉编译目标 %s 测试失败');
+  T(MSG_CROSS_STATUS_INSTALLED,      'Installed   ',                       '已安装   ');
+  T(MSG_CROSS_STATUS_AVAILABLE,      'Available   ',                       '可用     ');
+  T(MSG_CROSS_BUILD_TARGET_CPU,      '  Target CPU: %s',                   '  目标 CPU: %s');
+  T(MSG_CROSS_BUILD_TARGET_OS,       '  Target OS: %s',                    '  目标 OS: %s');
+  T(MSG_CROSS_URL,                   '  URL: %s',                          '  URL: %s');
+  T(MSG_CROSS_INSTALL_HINT,          '  fpdev cross install %s',           '  fpdev cross install %s');
+  T(MSG_CROSS_CONFIGURE_HINT,        '  fpdev cross configure %s --binutils=/path/to/bin --libs=/path/to/libs', '  fpdev cross configure %s --binutils=/path/to/bin --libs=/path/to/libs');
+
+  // ========================================
+  // FPC additional messages
+  // ========================================
+  T(MSG_FPC_STEP_DOWNLOAD,       'Step 1/4: Downloading source code...',   '步骤 1/4: 正在下载源代码...');
+  T(MSG_FPC_STEP_BOOTSTRAP,      'Step 2/4: Checking bootstrap compiler...', '步骤 2/4: 正在检查引导编译器...');
+  T(MSG_FPC_STEP_BUILD,          'Step 3/4: Building from source...',      '步骤 3/4: 正在从源码构建...');
+  T(MSG_FPC_STEP_SETUP,          'Step 4/4: Setting up environment...',    '步骤 4/4: 正在设置环境...');
+  T(MSG_FPC_STEP_DOWNLOAD_BIN,   'Step 1/3: Downloading binary package...', '步骤 1/3: 正在下载二进制包...');
+  T(MSG_FPC_STEP_EXTRACT_BIN,    'Step 2/3: Extracting files...',          '步骤 2/3: 正在解压文件...');
+  T(MSG_FPC_STEP_SETUP_BIN,      'Step 3/3: Setting up environment...',    '步骤 3/3: 正在设置环境...');
+  T(MSG_FPC_SOURCE_LOCAL_ONLY,   'FPC source is local-only, cannot update from remote.', 'FPC 源码仅限本地，无法从远程更新。');
+  T(MSG_FPC_INSTALL_DATE,        'Install Date: %s',                       '安装日期: %s');
+  T(MSG_FPC_SOURCE_URL,          'Source URL: %s',                         '源码 URL: %s');
+
+  // ========================================
+  // Lazarus additional messages
+  // ========================================
+  T(MSG_STATUS_INSTALLED_DEFAULT,'Installed*  ',                           '已安装*  ');
+  T(MSG_STATUS_INSTALLED,        'Installed   ',                           '已安装   ');
+  T(MSG_STATUS_AVAILABLE,        'Available   ',                           '可用     ');
+  T(MSG_LAZARUS_STATUS_INSTALLED,'Status:       Installed',                '状态:       已安装');
+  T(MSG_LAZARUS_STATUS_NOT_INSTALLED, 'Status:       Not installed',       '状态:       未安装');
+  T(MSG_LAZARUS_CONFIGURING,     'Configuring Lazarus IDE %s...',          '正在配置 Lazarus IDE %s...');
+  T(MSG_LAZARUS_INSTALL_PATH,    '  Install path: %s',                     '  安装路径: %s');
+  T(MSG_LAZARUS_CONFIG_DIR,      '  Config directory: %s',                 '  配置目录: %s');
+  T(MSG_LAZARUS_COMPILER_SET,    '  Compiler path set: %s',                '  编译器路径已设置: %s');
+  T(MSG_LAZARUS_COMPILER_WARN,   '  Warning: Failed to set compiler path', '  警告: 设置编译器路径失败');
+  T(MSG_LAZARUS_FPC_NOT_FOUND,   '  Warning: FPC compiler not found at: %s', '  警告: 未在以下位置找到 FPC 编译器: %s');
+  T(MSG_LAZARUS_DIR_SET,         '  Lazarus directory set: %s',            '  Lazarus 目录已设置: %s');
+  T(MSG_LAZARUS_DIR_WARN,        '  Warning: Failed to set Lazarus directory', '  警告: 设置 Lazarus 目录失败');
+  T(MSG_LAZARUS_FPC_SRC_SET,     '  FPC source path set',                  '  FPC 源码路径已设置');
+  T(MSG_LAZARUS_MAKE_SET,        '  Make path set: %s',                    '  Make 路径已设置: %s');
+  T(MSG_LAZARUS_MAKE_WARN,       '  Warning: make not found',              '  警告: 未找到 make');
+  T(MSG_LAZARUS_CONFIG_SUMMARY,  'Configuration summary:',                 '配置摘要:');
+
+  // ========================================
+  // Help file additional messages
+  // ========================================
+  T(HELP_SHOW_HELP,              'Show this help or help for a subcommand.', '显示此帮助或子命令的帮助。');
+  T(HELP_USE_HELP_CMD_FPC,       'Use "fpdev fpc help <command>" for more information about a command.', '使用 "fpdev fpc help <命令>" 获取命令的更多信息。');
+  T(HELP_USE_HELP_CMD_LAZARUS,   'Use "fpdev lazarus help <command>" for more information about a command.', '使用 "fpdev lazarus help <命令>" 获取命令的更多信息。');
+  T(HELP_USE_HELP_CMD_CROSS,     'Use "fpdev cross help <command>" for more information about a command.', '使用 "fpdev cross help <命令>" 获取命令的更多信息。');
+  T(HELP_USE_HELP_CMD_PACKAGE,   'Use "fpdev package help <command>" for more information about a command.', '使用 "fpdev package help <命令>" 获取命令的更多信息。');
+  T(HELP_USE_HELP_CMD_PROJECT,   'Use "fpdev project help <command>" for more information about a command.', '使用 "fpdev project help <命令>" 获取命令的更多信息。');
+  T(HELP_USE_HELP_CMD_REPO,      'Use "fpdev repo help <command>" for more information about a command.', '使用 "fpdev repo help <命令>" 获取命令的更多信息。');
+  T(HELP_PACKAGE_REPO_DESC,      'Manage package repositories.',           '管理包仓库。');
+  T(HELP_PACKAGE_REPO_SUBCOMMANDS, 'Package repository subcommands: list, add, remove, update', '包仓库子命令: list, add, remove, update');
+end;
+
+initialization
+  RegisterTranslations;
+
+end.

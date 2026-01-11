@@ -1,28 +1,10 @@
 unit fpdev.cmd.version;
 
 {
+  FPDev Version Command
 
-```text
-   ______   ______     ______   ______     ______   ______
-  /\  ___\ /\  __ \   /\  ___\ /\  __ \   /\  ___\ /\  __ \
-  \ \  __\ \ \  __ \  \ \  __\ \ \  __ \  \ \  __\ \ \  __ \
-   \ \_\    \ \_\ \_\  \ \_\    \ \_\ \_\  \ \_\    \ \_\ \_\
-    \/_/     \/_/\/_/   \/_/     \/_/\/_/   \/_/     \/_/\/_/  Studio
-
-```
-# fpdev.version
-
-版本
-
-
-## 声明
-
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
-
-fafafaStudio
-Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
-
+  Displays detailed version and system information.
+  Uses centralized version constants from fpdev.version.pas.
 }
 
 {$I fpdev.settings.inc}
@@ -32,53 +14,73 @@ interface
 
 uses
   sysutils,
-  fpdev.utils;
-
-const
-  VERSION_MAJOR = 0;
-  VERSION_MINOR = 0;
-  VERSION_BUILD = 1;
+  Classes,
+  fpdev.utils,
+  fpdev.version,
+  fpdev.command.intf,
+  fpdev.command.registry;
 
 resourcestring
-  S_PLATFORM     = 'platform:';
-  S_MACHINE      = 'machine:';
-  S_VERSION      = 'version:';
-  S_BUILD_TIME   = 'build time:';
-  S_COMPILER     = 'compiler:';
-  S_PATH         = 'path:    ';
-  S_FPC          = 'fpc:';
-  S_FPC_PATH     = 'fpc path:';
-  S_LAZARUS      = 'lazarus:';
-  S_LAZARUS_PATH = 'lazarus path:';
-  S_CROSS        = 'cross:';
-  S_CROSS_PATH   = 'cross path:';
+  S_PLATFORM     = 'Platform:    ';
+  S_VERSION      = 'Version:     ';
+  S_BUILD_TIME   = 'Build Time:  ';
+  S_COMPILER     = 'Compiler:    ';
+  S_PATH         = 'Executable:  ';
+  S_LICENSE      = 'License:     ';
+  S_HOMEPAGE     = 'Homepage:    ';
 
-
-procedure execute(const aParams: array of string);
-
-var
-  BUILD_DATE:  String = {$I %date%};
-  BUILD_TIME:  string = {$I %time%};
-  FPC_VERSION: string = {$I %FPCVERSION%};
+type
+  TVersionCommand = class(TInterfacedObject, ICommand)
+  public
+    function Name: string;
+    function Aliases: TStringArray;
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+  end;
 
 implementation
 
-procedure execute(const aParams: array of string);
-var
-  LUName:utsname_t;
+function TVersionCommand.Name: string;
 begin
-  WriteLn(S_VERSION, #9,     VERSION_MAJOR,'.',VERSION_MINOR,'.',VERSION_BUILD);
-  WriteLn(S_BUILD_TIME, #9,  BUILD_DATE,' ', BUILD_TIME);
-  WriteLn(S_COMPILER, #9,    'fpc-',FPC_VERSION);
-  WriteLn(S_PATH, #9,        exepath());
-
-  if uname(@LUName) then
-  begin
-    WriteLn(S_PLATFORM, #9, LUName.version,' ', LUName.sysname,' ',LUName.release,' ');
-    WriteLn(S_machine,#9, LUName.machine);
-  end;
-
+  Result := 'version';
 end;
 
+function TVersionCommand.Aliases: TStringArray;
+begin
+  Result := nil; // Aliases registered via GlobalCommandRegistry
+end;
 
+function TVersionCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil; // No subcommands
+end;
+
+function TVersionCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+begin
+  Result := 0;
+  if Length(AParams) = 0 then;
+
+  Ctx.Out.WriteLn;
+  Ctx.Out.WriteLn(FPDEV_NAME + ' - ' + FPDEV_DESCRIPTION);
+  Ctx.Out.WriteLn('================================================');
+  Ctx.Out.WriteLn;
+  Ctx.Out.WriteLnFmt(S_VERSION + '%s', [GetFullVersionString]);
+  Ctx.Out.WriteLnFmt(S_BUILD_TIME + '%s %s', [FPDEV_BUILD_DATE, FPDEV_BUILD_TIME]);
+  Ctx.Out.WriteLnFmt(S_COMPILER + 'Free Pascal %s', [FPDEV_FPC_VERSION]);
+  Ctx.Out.WriteLnFmt(S_PLATFORM + '%s-%s', [FPDEV_TARGET_CPU, FPDEV_TARGET_OS]);
+  Ctx.Out.WriteLnFmt(S_PATH + '%s', [exepath]);
+  Ctx.Out.WriteLn;
+  Ctx.Out.WriteLnFmt(S_LICENSE + '%s', [FPDEV_LICENSE]);
+  Ctx.Out.WriteLnFmt(S_HOMEPAGE + '%s', [FPDEV_HOMEPAGE]);
+  Ctx.Out.WriteLn;
+end;
+
+function VersionFactory: ICommand;
+begin
+  Result := TVersionCommand.Create;
+end;
+
+initialization
+  GlobalCommandRegistry.RegisterPath(['version'], @VersionFactory, ['-v', '--version']);
 end.

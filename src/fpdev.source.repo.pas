@@ -1,12 +1,12 @@
 unit fpdev.source.repo;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
 
 uses
   SysUtils, Classes,
-  git2.api, git2.impl, fpdev.git2;
+  fpdev.git2, fpdev.utils.fs;
 
 type
   { TSourceRepoManager }
@@ -40,7 +40,7 @@ begin
   else
     FSourceRoot := 'sources' + PathDelim + 'fpc';
   if not DirectoryExists(FSourceRoot) then
-    ForceDirectories(FSourceRoot);
+    EnsureDir(FSourceRoot);
 end;
 
 function TSourceRepoManager.GetSourcePath(const AVersion: string): string;

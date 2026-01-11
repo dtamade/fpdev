@@ -1,11 +1,11 @@
 unit fpdev.toolchain.fetcher;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes, fphttpclient, openssl, fpdev.hash, fpdev.paths; // HTTPS + SHA256 + paths
+  SysUtils, Classes, fphttpclient, openssl, fpdev.hash, fpdev.paths, fpdev.utils.fs; // HTTPS + SHA256 + paths
 
 type
   TMirrorResult = (mrOK, mrFail);
@@ -15,6 +15,10 @@ type
     SHA256: string;      // 期望的 sha256（可空）
     TimeoutMS: Integer;  // 超时（毫秒）
   end;
+
+const
+  { Default timeout for HTTP downloads (30 seconds) }
+  DEFAULT_DOWNLOAD_TIMEOUT_MS = 30000;
 
 // 从多个镜像依次尝试下载，成功返回 True，文件保存到 DestFile。
 function FetchWithMirrors(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
@@ -32,17 +36,19 @@ var
   Dig: TMD5Digest;
   S: string;
   F: TFileStream;
-  Buf: array[0..8191] of byte;
+  Buf: array of byte;
   R: Integer;
 begin
   Result := '';
   if (AFile='') or (not FileExists(AFile)) then Exit;
+  Buf := nil;
+  SetLength(Buf, 8192);
   MD5Init(Ctx);
   F := TFileStream.Create(AFile, fmOpenRead or fmShareDenyWrite);
   try
     repeat
-      R := F.Read(Buf, SizeOf(Buf));
-      if R > 0 then MD5Update(Ctx, Buf, R);
+      R := F.Read(Buf[0], Length(Buf));
+      if R > 0 then MD5Update(Ctx, Buf[0], R);
     until R = 0;
   finally
     F.Free;
@@ -60,7 +66,7 @@ begin
   Result := False;
   if (ASrc='') or (ADest='') then Exit(False);
   try
-    ForceDirectories(ExtractFileDir(ADest));
+    EnsureDir(ExtractFileDir(ADest));
     LIn := TFileStream.Create(ASrc, fmOpenRead or fmShareDenyNone);
     try
       LOut := TFileStream.Create(ADest, fmCreate);
@@ -88,7 +94,7 @@ begin
   Result := False;
   AErr := '';
   if Length(AURLs)=0 then Exit(False);
-  ForceDirectories(ExtractFileDir(DestFile));
+  EnsureDir(ExtractFileDir(DestFile));
   Tmp := DestFile + '.part';
 
   for i := Low(AURLs) to High(AURLs) do
@@ -155,6 +161,7 @@ var
   Opt: TFetchOptions;
 begin
   AErr := '';
+  if GetDataRoot = '' then;
   if (DestFile<>'') and FileExists(DestFile) then
   begin
     if (ASha256<>'') and (Length(ASha256)=64) then

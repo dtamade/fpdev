@@ -208,11 +208,13 @@ end;
 
 procedure TGitManagerImpl.SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
 begin
+  if Assigned(AHandler) then;
   // 暂无直接映射：先忽略（后续在 fpdev.git2 增加回调适配）
 end;
 
 procedure TGitManagerImpl.SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
 begin
+  if Assigned(AHandler) then;
   // 暂无直接映射：先忽略（后续在 fpdev.git2 增加回调适配）
 end;
 

@@ -6,41 +6,28 @@ interface
 
 uses
   SysUtils, Classes, DateUtils, fpjson, jsonparser, fphttpclient, openssl,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config,
-  fpdev.toolchain.manifest, fpdev.paths;
+  fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces,
+  fpdev.toolchain.manifest, fpdev.utils.fs,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoVersionsCommand = class(TInterfacedObject, IFpdevCommand)
+  TRepoVersionsCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
+uses fpdev.cmd.utils;
+
 function TRepoVersionsCommand.Name: string; begin Result := 'versions'; end;
-function TRepoVersionsCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TRepoVersionsCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+function TRepoVersionsCommand.Aliases: TStringArray; begin Result := nil; end;
+function TRepoVersionsCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
-function GetFlagValue(const Params: array of string; const Key: string; out Value: string): Boolean;
-var i,p: Integer; s,k: string;
-begin
-  Result := False; Value := '';
-  k := '--'+Key+'=';
-  for i := Low(Params) to High(Params) do begin s:=Params[i]; p:=Pos(k,s); if p=1 then begin Value:=Copy(s,Length(k)+1,MaxInt); Exit(True); end; end;
-end;
-
-function HasFlag(const Params: array of string; const Flag: string): Boolean;
-var i: Integer;
-begin
-  Result := False;
-  for i := Low(Params) to High(Params) do
-    if (Params[i]='--'+Flag) or (Params[i]='-'+Flag) then Exit(True);
-end;
-
-procedure TRepoVersionsCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TRepoVersionsCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   RepoArg, OsArg, ArchArg, LimitStr: string;
   AsJson, Offline, Refresh: Boolean;
@@ -55,7 +42,7 @@ var
   Cli: TFPHTTPClient;
   Settings: TFPDevSettings;
   CacheDir, CacheFile: string;
-  FTime: Longint;
+  FTime: TDateTime;
 
   function SanitizeFileName(const S: string): string;
   var k: Integer; c: Char; R: string;
@@ -69,16 +56,16 @@ var
     Result := R;
   end;
 
-  function ReadManifestFromPathOrHttp(const PathOrURL: string; out Text: string): Boolean;
+  function ReadManifestFromPathOrHttp(const PathOrURL: string; out AText: string): Boolean;
   begin
-    Result := False; Text := '';
+    Result := False; AText := '';
     try
       if FileExists(PathOrURL) then
       begin
         with TStringList.Create do
         try
           LoadFromFile(PathOrURL);
-          Text := Self.Text;
+          AText := Text;
           Result := True;
         finally
           Free;
@@ -88,7 +75,7 @@ var
       begin
         Cli := TFPHTTPClient.Create(nil);
         try
-          Text := Cli.Get(PathOrURL);
+          AText := Cli.Get(PathOrURL);
           Result := True;
         finally
           Cli.Free;
@@ -99,6 +86,26 @@ var
     end;
   end;
 begin
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPTIONS));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_REPO));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_OS));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_ARCH));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_JSON));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_OFFLINE));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_REFRESH));
+    Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_HELP));
+    Exit(0);
+  end;
+
   GetFlagValue(AParams, 'repo', RepoArg);
   GetFlagValue(AParams, 'os', OsArg);
   GetFlagValue(AParams, 'arch', ArchArg);
@@ -114,25 +121,29 @@ begin
     // 默认仓库优先
     if RepoArg='' then
     begin
-      Settings := Ctx.Config.GetSettings;
+      Settings := Ctx.Config.GetSettingsManager.GetSettings;
       if Settings.DefaultRepo<>'' then RepoArg := Settings.DefaultRepo;
     end;
 
     if RepoArg<>'' then
     begin
       // 直接 URL 或 名称
-      if Pos('http', LowerCase(RepoArg))=1 then URL := RepoArg else URL := Ctx.Config.GetRepository(RepoArg);
-      if URL='' then Exit; // 未找到
+      if Pos('http', LowerCase(RepoArg))=1 then URL := RepoArg else URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoArg);
+      if URL='' then
+      begin
+        Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoArg]));
+        Exit(2);
+      end;
       // 计算缓存文件
-      CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
-      if not DirectoryExists(CacheDir) then ForceDirectories(CacheDir);
+      CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
+      if not DirectoryExists(CacheDir) then EnsureDir(CacheDir);
       CacheFile := IncludeTrailingPathDelimiter(CacheDir) + SanitizeFileName(URL) + '.json';
 
       if Offline and FileExists(CacheFile) then
       begin
         SL := TStringList.Create; try SL.LoadFromFile(CacheFile); S := SL.Text; finally SL.Free; end;
       end
-      else if (not Refresh) and FileExists(CacheFile) and (FileAge(CacheFile, FTime)) and (Now - FileDateToDateTime(FTime) < 1) then
+      else if (not Refresh) and FileExists(CacheFile) and (FileAge(CacheFile, FTime)) and (Now - FTime < 1) then
       begin
         // 缓存小于24小时
         SL := TStringList.Create; try SL.LoadFromFile(CacheFile); S := SL.Text; finally SL.Free; end;
@@ -141,7 +152,11 @@ begin
       begin
         if not Offline then
         begin
-          if not ReadManifestFromPathOrHttp(URL, S) then begin ExitCode := 10; Exit; end;
+          if not ReadManifestFromPathOrHttp(URL, S) then
+          begin
+            Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_FAILED, [URL]));
+            Exit(10);
+          end;
           // 写缓存
           with TStringList.Create do
           try
@@ -150,7 +165,11 @@ begin
             Free;
           end;
         end
-        else begin ExitCode := 10; Exit; end;
+        else
+        begin
+          Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_OFFLINE_NO_CACHE, [URL]));
+          Exit(10);
+        end;
       end;
 
       if S<>'' then
@@ -163,19 +182,23 @@ begin
                  ((ArchArg='') or SameText(M.Components[i].Arch, LowerCase(ArchArg))) then
                 VersSet.Add(M.Components[i].Version);
         end
-        else begin ExitCode := 11; Exit; end;
+        else
+        begin
+          Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_PARSE_FAILED, [URL]));
+          Exit(11);
+        end;
       end;
     end
     else
     begin
       // 遍历配置里的所有仓库
-      Names := Ctx.Config.ListRepositories;
+      Names := Ctx.Config.GetRepositoryManager.ListRepositories;
       for j := 0 to High(Names) do
       begin
-        RepoName := Names[j]; URL := Ctx.Config.GetRepository(RepoName);
+        RepoName := Names[j]; URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
         if URL='' then Continue;
-        CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
-        if not DirectoryExists(CacheDir) then ForceDirectories(CacheDir);
+        CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
+        if not DirectoryExists(CacheDir) then EnsureDir(CacheDir);
         CacheFile := IncludeTrailingPathDelimiter(CacheDir) + SanitizeFileName(URL) + '.json';
 
         S := '';
@@ -183,7 +206,7 @@ begin
         begin
           SL := TStringList.Create; try SL.LoadFromFile(CacheFile); S := SL.Text; finally SL.Free; end;
         end
-        else if (not Refresh) and FileExists(CacheFile) and (FileAge(CacheFile, FTime)) and (Now - FileDateToDateTime(FTime) < 1) then
+        else if (not Refresh) and FileExists(CacheFile) and (FileAge(CacheFile, FTime)) and (Now - FTime < 1) then
         begin
           SL := TStringList.Create; try SL.LoadFromFile(CacheFile); S := SL.Text; finally SL.Free; end;
         end
@@ -209,16 +232,16 @@ begin
     // 输出
     if AsJson then
     begin
-      Write('{"items":[');
+      Ctx.Out.Write('{"items":[');
       Count := 0;
       for i := 0 to VersSet.Count-1 do
       begin
         if (Limit>0) and (Count>=Limit) then Break;
-        if Count>0 then Write(',');
-        Write('{"version":"', VersSet[i], '"}');
+        if Count>0 then Ctx.Out.Write(',');
+        Ctx.Out.Write('{"version":"' + VersSet[i] + '"}');
         Inc(Count);
       end;
-      WriteLn(']}');
+      Ctx.Out.WriteLn(']}');
     end
     else
     begin
@@ -226,7 +249,7 @@ begin
       for i := 0 to VersSet.Count-1 do
       begin
         if (Limit>0) and (Count>=Limit) then Break;
-        WriteLn(VersSet[i]);
+        Ctx.Out.WriteLn(VersSet[i]);
         Inc(Count);
       end;
     end;
@@ -235,7 +258,7 @@ begin
   end;
 end;
 
-function RepoVersionsFactory: IFpdevCommand;
+function RepoVersionsFactory: ICommand;
 begin
   Result := TRepoVersionsCommand.Create;
 end;

@@ -6,46 +6,58 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config, fpdev.cmd.lazarus;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TLazCurrentCommand }
-  TLazCurrentCommand = class(TInterfacedObject, IFpdevCommand)
+  TLazCurrentCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TLazCurrentCommand.Name: string; begin Result := 'current'; end;
-function TLazCurrentCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TLazCurrentCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TLazCurrentCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TLazCurrentCommand.Name: string; begin Result := 'current'; end;
+function TLazCurrentCommand.Aliases: TStringArray; begin Result := nil; end;
+function TLazCurrentCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TLazCurrentCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LVer: string;
   LMgr: TLazarusManager;
 begin
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_HELP));
+    Exit(0);
+  end;
+
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
     LVer := LMgr.GetCurrentVersion;
     if LVer <> '' then
-    begin
-      // WriteLn('当前Lazarus版本: ', LVer)  // 调试代码已注释
-    end
+      Ctx.Out.WriteLn(_Fmt(CMD_LAZARUS_CURRENT_VERSION, [LVer]))
     else
-    begin
-      // WriteLn('未设置默认Lazarus版本');  // 调试代码已注释
-    end;
+      Ctx.Out.WriteLn(_(CMD_LAZARUS_CURRENT_NONE));
   finally
     LMgr.Free;
   end;
 end;
 
-function LazCurrentFactory: IFpdevCommand;
+function LazCurrentFactory: ICommand;
 begin
   Result := TLazCurrentCommand.Create;
 end;

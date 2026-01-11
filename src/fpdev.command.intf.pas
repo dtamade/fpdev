@@ -5,7 +5,7 @@ unit fpdev.command.intf;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils, fpdev.config;
+  SysUtils, Classes, fpdev.config.interfaces, fpdev.output.intf, fpdev.logger.intf;
 
 type
   // 新统一的接口命名（推荐使用）
@@ -13,7 +13,10 @@ type
   // 命令上下文接口
   IContext = interface
     ['{7C3B2C0F-0D95-4D8C-9D13-3B8D1E1E6F0E}']
-    function Config: TFPDevConfigManager;
+    function Config: IConfigManager;
+    function Out: IOutput;
+    function Err: IOutput;
+    function Logger: ILogger;
     procedure SaveIfModified;
   end;
 
@@ -23,17 +26,8 @@ type
     function Name: string;
     function Aliases: TStringArray; // 可返回空数组
     function FindSub(const AName: string): ICommand; // 若无子命令可返回 nil
-    procedure Execute(const AParams: array of string; const Ctx: IContext);
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
-
-  // 旧接口（向后兼容，已弃用）
-  {$IFDEF FPC}
-  ICommandContext = IContext deprecated 'Use IContext instead';
-  IFpdevCommand = ICommand deprecated 'Use ICommand instead';
-  {$ELSE}
-  ICommandContext = interface(IContext) end deprecated 'Use IContext instead';
-  IFpdevCommand = interface(ICommand) end deprecated 'Use ICommand instead';
-  {$ENDIF}
 
 implementation
 

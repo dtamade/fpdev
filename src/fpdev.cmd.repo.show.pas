@@ -6,39 +6,62 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config;
+  fpdev.command.intf, fpdev.command.registry,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoShowCommand = class(TInterfacedObject, IFpdevCommand)
+  TRepoShowCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TRepoShowCommand.Name: string; begin Result := 'show'; end;
-function TRepoShowCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TRepoShowCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TRepoShowCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TRepoShowCommand.Name: string; begin Result := 'show'; end;
+function TRepoShowCommand.Aliases: TStringArray; begin Result := nil; end;
+function TRepoShowCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TRepoShowCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  Name, URL: string;
+  RepoName, URL: string;
 begin
-  if Length(AParams) < 1 then Exit;
-  Name := AParams[0];
-  URL := Ctx.Config.GetRepository(Name);
-  if URL<>'' then
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
-    WriteLn(Name, ' = ', URL);
-    if SameText(Ctx.Config.GetSettings.DefaultRepo, Name) then
-      WriteLn('(default)');
+    Ctx.Out.WriteLn(_(HELP_REPO_SHOW_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_SHOW_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_SHOW_OPT_HELP));
+    Exit(0);
   end;
+
+  if Length(AParams) < 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_SHOW_USAGE));
+    Exit(2);
+  end;
+  RepoName := AParams[0];
+  URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
+  if URL='' then
+  begin
+    Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoName]));
+    Exit(2);
+  end;
+
+  Ctx.Out.WriteLn(RepoName + ' = ' + URL);
+  if SameText(Ctx.Config.GetSettingsManager.GetSettings.DefaultRepo, RepoName) then
+    Ctx.Out.WriteLn(_(CMD_REPO_SHOW_DEFAULT));
 end;
 
-function RepoShowFactory: IFpdevCommand;
+function RepoShowFactory: ICommand;
 begin
   Result := TRepoShowCommand.Create;
 end;

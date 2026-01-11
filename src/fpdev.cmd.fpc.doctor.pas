@@ -5,59 +5,53 @@ unit fpdev.cmd.fpc.doctor;
 interface
 
 uses
-  SysUtils, Classes, Process, fpdev.command.intf, fpdev.config;
+  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces,
+  fpdev.utils.fs, fpdev.utils.process,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TFPCDoctorCommand }
-  TFPCDoctorCommand = class(TInterfacedObject, IFpdevCommand)
+  TFPCDoctorCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-uses fpdev.command.registry;
+uses fpdev.command.registry, fpdev.cmd.utils;
 
 function TFPCDoctorCommand.Name: string; begin Result := 'doctor'; end;
 
-function TFPCDoctorCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TFPCDoctorCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+function TFPCDoctorCommand.Aliases: TStringArray; begin Result := nil; end;
+function TFPCDoctorCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;  // Unused parameter
+end;
 
 
 function RunToolVersion(const AExe: string; const AArg: string; out AOut: string): Boolean;
 var
-  LProc: TProcess;
-  LOut: TStringList;
+  LResult: TProcessResult;
 begin
-  Result := False;
   AOut := '';
-  LProc := TProcess.Create(nil);
-  LOut := TStringList.Create;
-  try
-    LProc.Executable := AExe;
-    if AArg <> '' then LProc.Parameters.Add(AArg);
-    LProc.Options := [poUsePipes, poWaitOnExit];
-    try
-      LProc.Execute;
-      if LProc.ExitStatus = 0 then
-      begin
-        LOut.LoadFromStream(LProc.Output);
-        AOut := Trim(LOut.Text);
-        Exit(True);
-      end;
-    except
-      on E: Exception do
-      begin
-        AOut := E.Message;
-        Exit(False);
-      end;
-    end;
-  finally
-    LOut.Free;
-    LProc.Free;
+  if AArg <> '' then
+    LResult := TProcessExecutor.Execute(AExe, [AArg], '')
+  else
+    LResult := TProcessExecutor.Execute(AExe, [], '');
+
+  if LResult.Success then
+  begin
+    AOut := LResult.StdOut;
+    Result := True;
+  end
+  else
+  begin
+    AOut := LResult.ErrorMessage;
+    Result := False;
   end;
 end;
 
@@ -70,7 +64,7 @@ begin
   AErr := '';
   LPath := IncludeTrailingPathDelimiter(ADir);
   try
-    if not DirectoryExists(LPath) then ForceDirectories(LPath);
+    if not DirectoryExists(LPath) then EnsureDir(LPath);
     if not DirectoryExists(LPath) then
     begin
       AErr := 'Cannot create directory';
@@ -95,50 +89,61 @@ begin
   end;
 end;
 
-procedure TFPCDoctorCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TFPCDoctorCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LOut, LErr: string;
   LOk: Boolean;
   LRoot: string;
   LSettings: TFPDevSettings;
 begin
-  // WriteLn('fpdev fpc doctor');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
+  Result := 0;
 
-  // 1) 写权限检查（安装根）
-  LSettings := Ctx.Config.GetSettings;
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_DOCTOR_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_DOCTOR_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_DOCTOR_OPT_HELP));
+    Exit(0);
+  end;
+
+  // 1) Write permission check (install root)
+  LSettings := Ctx.Config.GetSettingsManager.GetSettings;
   LRoot := LSettings.InstallRoot;
   if LRoot = '' then
     LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
   LOk := CheckWriteableDir(LRoot, LErr);
   if LOk then
-    WriteLn('[OK] Write permission OK: ', LRoot)
+    Ctx.Out.WriteLn(_Fmt(CMD_FPC_DOCTOR_WRITE_OK, [LRoot]))
   else
-    WriteLn('[X] Write permission failed: ', LRoot, ' (', LErr, ')');
+    Ctx.Out.WriteLn(_Fmt(CMD_FPC_DOCTOR_WRITE_FAILED, [LRoot, LErr]));
 
   // 2) git
   LOk := RunToolVersion('git', '--version', LOut);
-  if LOk then WriteLn('[OK] git: ', LOut) else WriteLn('[X] git not ready (Please install Git and add it to PATH)');
+  if LOk then
+    Ctx.Out.WriteLn(_Fmt(CMD_FPC_DOCTOR_GIT_OK, [Trim(LOut)]))
+  else
+    Ctx.Out.WriteLn(_(CMD_FPC_DOCTOR_GIT_NOT_FOUND));
 
   // 3) make
   LOk := RunToolVersion('make', '--version', LOut);
-  if LOk then WriteLn('[OK] make: ', Copy(LOut,1,80), '...') else WriteLn('[X] make not ready (Windows: install MSYS2/MinGW and add make to PATH)');
+  if LOk then
+    Ctx.Out.WriteLn(_Fmt(CMD_FPC_DOCTOR_MAKE_OK, [Copy(Trim(LOut), 1, 80) + '...']))
+  else
+    Ctx.Out.WriteLn(_(CMD_FPC_DOCTOR_MAKE_NOT_FOUND));
 
   // 4) bootstrap fpc (optional)
   LOk := RunToolVersion('fpc', '-i', LOut);
-  if LOk then WriteLn('[OK] bootstrap fpc: available') else WriteLn('[!] bootstrap fpc not available (building from source requires an existing fpc)');
-
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('建议:');  // 调试代码已注释
-  {$IFDEF MSWINDOWS}
-  // WriteLn('- Windows: 安装 Git；安装 MSYS2/MinGW 并确保 make 可用；可从 FreePascal 官网上安装一个稳定版 FPC 用作引导');  // 调试代码已注释
-  {$ELSE}
-  // WriteLn('- Linux/macOS: 使用包管理器安装 git/make/fpc；确保当前用户对安装根目录有写权限');  // 调试代码已注释
-  {$ENDIF}
+  if LOk then
+    Ctx.Out.WriteLn(_(CMD_FPC_DOCTOR_FPC_OK))
+  else
+    Ctx.Out.WriteLn(_(CMD_FPC_DOCTOR_FPC_NOT_FOUND));
 end;
 
 
-function FPCDoctorFactory: IFpdevCommand;
+function FPCDoctorFactory: ICommand;
 begin
   Result := TFPCDoctorCommand.Create;
 end;

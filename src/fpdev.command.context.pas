@@ -5,17 +5,24 @@ unit fpdev.command.context;
 interface
 
 uses
-  SysUtils, Classes, fpdev.command.intf, fpdev.config;
+  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers,
+  fpdev.output.intf, fpdev.output.console, fpdev.logger.intf, fpdev.logger.console;
 
 type
   { TDefaultCommandContext }
-  TDefaultCommandContext = class(TInterfacedObject, ICommandContext)
+  TDefaultCommandContext = class(TInterfacedObject, IContext)
   private
-    FConfig: TFPDevConfigManager;
+    FConfig: IConfigManager;
+    FOut: IOutput;
+    FErr: IOutput;
+    FLogger: ILogger;
   public
     constructor Create;
     destructor Destroy; override;
-    function Config: TFPDevConfigManager;
+    function Config: IConfigManager;
+    function Out: IOutput;
+    function Err: IOutput;
+    function Logger: ILogger;
     procedure SaveIfModified;
   end;
 
@@ -26,25 +33,46 @@ implementation
 constructor TDefaultCommandContext.Create;
 begin
   inherited Create;
-  FConfig := TFPDevConfigManager.Create('');
+  FConfig := TConfigManager.Create('') as IConfigManager;
   FConfig.LoadConfig;
+
+  FOut := TConsoleOutput.Create(False) as IOutput;
+  FErr := TConsoleOutput.Create(True) as IOutput;
+  FLogger := TConsoleLogger.Create(FErr) as ILogger;
 end;
 
 destructor TDefaultCommandContext.Destroy;
 begin
-  if FConfig.Modified then FConfig.SaveConfig;
-  FConfig.Free;
+  FLogger := nil;
+  FErr := nil;
+  FOut := nil;
+  FConfig := nil;
   inherited Destroy;
 end;
 
-function TDefaultCommandContext.Config: TFPDevConfigManager;
+function TDefaultCommandContext.Config: IConfigManager;
 begin
   Result := FConfig;
 end;
 
+function TDefaultCommandContext.Out: IOutput;
+begin
+  Result := FOut;
+end;
+
+function TDefaultCommandContext.Err: IOutput;
+begin
+  Result := FErr;
+end;
+
+function TDefaultCommandContext.Logger: ILogger;
+begin
+  Result := FLogger;
+end;
+
 procedure TDefaultCommandContext.SaveIfModified;
 begin
-  if FConfig.Modified then FConfig.SaveConfig;
+  if FConfig.IsModified then FConfig.SaveConfig;
 end;
 
 end.

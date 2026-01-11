@@ -1,7 +1,5 @@
 unit fpdev.cmd.package;
 
-{$codepage utf8}
-
 {
 
 ```text
@@ -33,9 +31,11 @@ QQ群:685403987  QQ:179033731
 interface
 
 uses
-  SysUtils, Classes, Process, fpjson, jsonparser, StrUtils,
-  fpdev.config, fpdev.utils, fpdev.terminal,
-  fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths;
+  SysUtils, Classes, fpjson, jsonparser,
+  fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
+  fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths, fpdev.hash,
+  fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils, fpdev.utils.process,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository;
 
 type
   { TPackageInfo }
@@ -61,12 +61,12 @@ type
   { TPackageManager }
   TPackageManager = class
   private
-    FConfigManager: TFPDevConfigManager;
+    FConfigManager: IConfigManager;
     FInstallRoot: string;
     FPackageRegistry: string;
-    FLastBuildTool: string;
-    FLastBuildLog: string;
-    FKeepArtifacts: Boolean;
+    FResourceRepo: TResourceRepository;  // fpdev-repo integration
+    FBuilder: TPackageBuilder;  // Build service (Facade delegation)
+    FRepoService: TPackageRepositoryService;  // Repository service (Facade delegation)
 
     function GetAvailablePackages: TPackageArray;
     function GetInstalledPackages: TPackageArray;
@@ -78,12 +78,12 @@ type
     function GetPackageInfo(const APackageName: string): TPackageInfo;
     function ResolveDependencies(const APackageName: string): TStringArray;
     function BuildPackage(const ASourcePath: string): Boolean;
-    function RemoveDirRecursive(const Dir: string): Boolean;
 
     function WritePackageMetadata(const AInstallPath: string; const Info: TPackageInfo): Boolean;
 
   public
-    constructor Create(AConfigManager: TFPDevConfigManager);
+    constructor Create(AConfigManager: TFPDevConfigManager); overload;
+    constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
     // 设置
@@ -93,58 +93,50 @@ type
     function GetAvailablePackageList: TPackageArray;
 
     // 清理
-    function Clean(const Scope: string): Boolean; // 'sandbox' | 'cache' | 'all'
+    function Clean(const Scope: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean; // 'sandbox' | 'cache' | 'all'
 
     // 包管理
-    function InstallPackage(const APackageName: string; const AVersion: string = ''): Boolean;
-    function UninstallPackage(const APackageName: string): Boolean;
-    function UpdatePackage(const APackageName: string): Boolean;
-    function ListPackages(const AShowAll: Boolean = False): Boolean;
-    function SearchPackages(const AQuery: string): Boolean;
+    function InstallPackage(const APackageName: string; const AVersion: string = ''; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function UninstallPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function UpdatePackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function ListPackages(const AShowAll: Boolean = False; Outp: IOutput = nil): Boolean;
+    function SearchPackages(const AQuery: string; Outp: IOutput = nil): Boolean;
 
     // 包信息
-    function ShowPackageInfo(const APackageName: string): Boolean;
+    function ShowPackageInfo(const APackageName: string; Outp: IOutput = nil): Boolean;
     function ShowPackageDependencies(const APackageName: string): Boolean;
-    function VerifyPackage(const APackageName: string): Boolean;
+    function VerifyPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
     // 仓库管理
-    function AddRepository(const AName, AURL: string): Boolean;
-    function RemoveRepository(const AName: string): Boolean;
-    function UpdateRepositories: Boolean;
-    function ListRepositories: Boolean;
+    function AddRepository(const AName, AURL: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function RemoveRepository(const AName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function UpdateRepositories(Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function ListRepositories(Outp: IOutput = nil): Boolean;
 
     // 本地包管理
-    function InstallFromLocal(const APackagePath: string): Boolean;
-    function CreatePackage(const APackageName, APath: string): Boolean;
-    function PublishPackage(const APackageName: string): Boolean;
+    function InstallFromLocal(const APackagePath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function CreatePackage(const APackageName, APath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function PublishPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
   end;
 
-// 主要执行函数
-procedure execute(const aParams: array of string);
-
 implementation
-
-const
-  // 默认包仓库
-  DEFAULT_REPOSITORIES: array[0..2] of record
-    Name: string;
-    URL: string;
-  end = (
-    (Name: 'official'; URL: 'https://packages.freepascal.org/'),
-    (Name: 'lazarus'; URL: 'https://packages.lazarus-ide.org/'),
-    (Name: 'community'; URL: 'https://github.com/freepascal-packages/')
-  );
 
 { TPackageManager }
 
 constructor TPackageManager.Create(AConfigManager: TFPDevConfigManager);
+begin
+  Create(AConfigManager.AsConfigManager);
+end;
+
+constructor TPackageManager.Create(AConfigManager: IConfigManager);
 var
   Settings: TFPDevSettings;
+  RepoConfig: TResourceRepoConfig;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
 
-  Settings := FConfigManager.GetSettings;
+  Settings := FConfigManager.GetSettingsManager.GetSettings;
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
@@ -156,29 +148,39 @@ begin
     {$ENDIF}
 
     Settings.InstallRoot := FInstallRoot;
-    FConfigManager.SetSettings(Settings);
+    FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
 
   FPackageRegistry := FInstallRoot + PathDelim + 'packages';
-  FLastBuildTool := '';
-  FKeepArtifacts := False;
-  FLastBuildLog := '';
 
-  // 确保包目录存在
-  if not DirectoryExists(FPackageRegistry) then
-    ForceDirectories(FPackageRegistry);
+  // Ensure package directory exists
+  EnsureDir(FPackageRegistry);
+
+  // Initialize fpdev-repo integration
+  RepoConfig := CreateDefaultConfig;
+  FResourceRepo := TResourceRepository.Create(RepoConfig);
+  if DirectoryExists(RepoConfig.LocalPath) then
+    FResourceRepo.LoadManifest;
+
+  // Initialize build service
+  FBuilder := TPackageBuilder.Create;
+
+  // Initialize repository service
+  FRepoService := TPackageRepositoryService.Create(FConfigManager, FPackageRegistry);
 end;
 
 procedure TPackageManager.SetKeepBuildArtifacts(const AValue: Boolean);
 begin
-  FKeepArtifacts := AValue;
+  FBuilder.KeepArtifacts := AValue;
 end;
 
-function TPackageManager.Clean(const Scope: string): Boolean;
+function TPackageManager.Clean(const Scope: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   S: string;
   Ok: Boolean;
   Path: string;
+  Existed: Boolean;
+  SectionOk: Boolean;
 begin
   Result := True;
   S := LowerCase(Trim(Scope));
@@ -186,18 +188,36 @@ begin
   if (S='sandbox') or (S='all') then
   begin
     Path := GetSandboxDir;
-    if DirectoryExists(Path) then
-      Ok := RemoveDirRecursive(Path) and Ok
+    Existed := DirectoryExists(Path);
+    if Existed then
+      SectionOk := DeleteDirRecursive(Path)
     else
-      Ok := True and Ok;
+      SectionOk := True;
+    Ok := Ok and SectionOk;
+    if Existed then
+    begin
+      if (Outp <> nil) and SectionOk then
+        Outp.WriteLn(_Fmt(MSG_CLEANED, [Path]))
+      else if (Errp <> nil) and (not SectionOk) then
+        Errp.WriteLn(_Fmt(MSG_CLEAN_FAILED, [Path]));
+    end;
   end;
   if (S='cache') or (S='all') then
   begin
     Path := IncludeTrailingPathDelimiter(GetCacheDir) + 'packages';
-    if DirectoryExists(Path) then
-      Ok := RemoveDirRecursive(Path) and Ok
+    Existed := DirectoryExists(Path);
+    if Existed then
+      SectionOk := DeleteDirRecursive(Path)
     else
-      Ok := True and Ok;
+      SectionOk := True;
+    Ok := Ok and SectionOk;
+    if Existed then
+    begin
+      if (Outp <> nil) and SectionOk then
+        Outp.WriteLn(_Fmt(MSG_CLEANED, [Path]))
+      else if (Errp <> nil) and (not SectionOk) then
+        Errp.WriteLn(_Fmt(MSG_CLEAN_FAILED, [Path]));
+    end;
   end;
   Result := Ok;
 end;
@@ -205,6 +225,12 @@ end;
 
 destructor TPackageManager.Destroy;
 begin
+  if Assigned(FRepoService) then
+    FRepoService.Free;
+  if Assigned(FBuilder) then
+    FBuilder.Free;
+  if Assigned(FResourceRepo) then
+    FResourceRepo.Free;
   inherited Destroy;
 end;
 
@@ -235,7 +261,7 @@ var
   O: TJSONObject;
 begin
   // 初始化包信息
-  FillChar(Result, SizeOf(Result), 0);
+  Initialize(Result);
   Result.Name := APackageName;
   Result.Installed := IsPackageInstalled(APackageName);
 
@@ -285,10 +311,10 @@ var
   i, j, Count: Integer;
   Pkg: TPackageInfo;
   Names: TStringList;
+  RepoPackages: SysUtils.TStringArray;
+  RepoInfo: fpdev.resource.repo.TPackageInfo;
 
-// 占位，避免在嵌套函数区域出现不合法定义（真正实现位于文件末尾）
-// function TPackageManager.GetAvailablePackageList: TPackageArray; forward;
-
+// Internal helper functions
   function TryGetArray(AData: TJSONData): TJSONArray;
   begin
     Result := nil;
@@ -296,29 +322,6 @@ var
     if AData.JSONType=jtArray then Exit(TJSONArray(AData));
     if (AData.JSONType=jtObject) and Assigned(TJSONObject(AData).Arrays['packages']) then
       Exit(TJSONObject(AData).Arrays['packages']);
-  end;
-
-  function ParseVersionParts(const S: string; out A, B, C: Integer): Boolean;
-  var parts: TStringArray;
-  begin
-    A := 0; B := 0; C := 0;
-    Result := False;
-    if S='' then Exit;
-    parts := S.Split(['.']);
-    if Length(parts) >= 1 then Val(parts[0], A);
-    if Length(parts) >= 2 then Val(parts[1], B);
-    if Length(parts) >= 3 then Val(parts[2], C);
-    Result := True;
-  end;
-
-  function IsHigherVersion(const V1, V2: string): Boolean;
-  var a1,b1,c1,a2,b2,c2: Integer;
-  begin
-    ParseVersionParts(V1,a1,b1,c1);
-    ParseVersionParts(V2,a2,b2,c2);
-    if a1<>a2 then Exit(a1>a2);
-    if b1<>b2 then Exit(b1>b2);
-    Exit(c1>c2);
   end;
 
   procedure MaybeReadURLsAndSha(const O: TJSONObject; var P: TPackageInfo);
@@ -344,11 +347,44 @@ var
   end;
 
 begin
+  Initialize(Result);
   SetLength(Result, 0);
+
+  // First try to get packages from fpdev-repo
+  if Assigned(FResourceRepo) then
+  begin
+    RepoPackages := FResourceRepo.ListPackages('');
+    if Length(RepoPackages) > 0 then
+    begin
+      SetLength(Result, Length(RepoPackages));
+      Count := 0;
+      for i := 0 to High(RepoPackages) do
+      begin
+        // Skip category entries (ending with /)
+        if (Length(RepoPackages[i]) > 0) and (RepoPackages[i][Length(RepoPackages[i])] = '/') then
+          Continue;
+
+        Initialize(Pkg);
+        if FResourceRepo.GetPackageInfo(RepoPackages[i], '', RepoInfo) then
+        begin
+          Pkg.Name := RepoInfo.Name;
+          Pkg.Version := RepoInfo.Version;
+          Pkg.Description := RepoInfo.Description;
+          Pkg.Installed := IsPackageInstalled(Pkg.Name);
+          Result[Count] := Pkg;
+          Inc(Count);
+        end;
+      end;
+      SetLength(Result, Count);
+      if Count > 0 then
+        Exit;  // Found packages in fpdev-repo
+    end;
+  end;
+
+  // Fallback to local index.json
   IndexPath := FPackageRegistry + PathDelim + 'index.json';
   if not FileExists(IndexPath) then
   begin
-  // WriteLn('提示: 未找到仓库索引，请先运行: fpdev package repo update');  // 调试代码已注释
     Exit;
   end;
   try
@@ -367,6 +403,7 @@ begin
     // 去重：按 name 选择最高版本
     Names := TStringList.Create;
     try
+      Initialize(Pkg);
       Names.Sorted := True; Names.Duplicates := dupIgnore; Names.CaseSensitive := False;
       for i := 0 to Arr.Count-1 do
       begin
@@ -388,7 +425,8 @@ begin
       SetLength(Result, Names.Count);
       for i := 0 to Names.Count-1 do
       begin
-        FillChar(Pkg, SizeOf(Pkg), 0);
+        Finalize(Pkg);
+        Initialize(Pkg);
         for j := 0 to Arr.Count-1 do
         begin
           if Arr.Items[j].JSONType<>jtObject then Continue;
@@ -403,7 +441,7 @@ begin
           else Continue;
 
           // 选择最高版本
-          if (Pkg.Name='') or IsHigherVersion(TJSONObject(Arr.Items[j]).Get('version',''), Pkg.Version) then
+          if (Pkg.Name='') or IsVersionHigher(TJSONObject(Arr.Items[j]).Get('version',''), Pkg.Version) then
           begin
             Pkg.Name := TJSONObject(Arr.Items[j]).Get('name','');
             Pkg.Version := TJSONObject(Arr.Items[j]).Get('version','');
@@ -422,6 +460,7 @@ begin
       end;
       SetLength(Result, Count);
     finally
+      Finalize(Pkg);
       Names.Free;
     end;
   finally
@@ -434,6 +473,7 @@ var
   SearchRec: TSearchRec;
   Count: Integer;
 begin
+  Initialize(Result);
   SetLength(Result, 0);
   Count := 0;
 
@@ -453,141 +493,67 @@ begin
 end;
 
 function TPackageManager.DownloadPackage(const APackageName, AVersion: string): Boolean;
+var
+  Avail: TPackageArray;
+  i, BestIdx: Integer;
+  UseVersion, ZipPath, Err: string;
+  Opt: TFetchOptions;
+  URLs: array of string;
+
 begin
   Result := False;
-  // WriteLn('正在下载包 ', APackageName, ' 版本 ', AVersion, '...');  // 调试代码已注释
+  URLs := nil;
 
-  // TODO: 实现实际的下载逻辑
-  // WriteLn('注意: 包下载功能暂未实现');  // 调试代码已注释
-  // WriteLn('请使用 install-local 命令安装本地包');  // 调试代码已注释
+  if (APackageName = '') then
+    Exit;
 
-  Result := True; // 暂时返回成功，允许本地安装
+  // Find package in available index
+  Avail := GetAvailablePackages;
+  BestIdx := -1;
+  for i := 0 to High(Avail) do
+  begin
+    if SameText(Avail[i].Name, APackageName) then
+    begin
+      if (AVersion='') then
+      begin
+        if (BestIdx<0) or IsVersionHigher(Avail[i].Version, Avail[BestIdx].Version) then
+          BestIdx := i;
+      end
+      else if SameText(Avail[i].Version, AVersion) then
+        BestIdx := i;
+    end;
+  end;
+
+  if BestIdx < 0 then
+    Exit;  // Package not found in index
+
+  UseVersion := Avail[BestIdx].Version;
+  if Length(Avail[BestIdx].URLs) = 0 then
+    Exit;  // No download URLs available
+
+  // Construct cache path
+  ZipPath := IncludeTrailingPathDelimiter(GetCacheDir) + 'packages' + PathDelim +
+             APackageName + '-' + UseVersion + '.zip';
+  EnsureDir(ExtractFileDir(ZipPath));
+
+  // Prepare URLs array
+  SetLength(URLs, Length(Avail[BestIdx].URLs));
+  for i := 0 to High(URLs) do
+    URLs[i] := Avail[BestIdx].URLs[i];
+
+  // Setup fetch options
+  Opt.DestDir := ExtractFileDir(ZipPath);
+  Opt.SHA256 := Avail[BestIdx].Sha256;
+  Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+
+  // Download with mirror fallback and SHA256 verification
+  Result := EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err);
 end;
 
 function TPackageManager.BuildPackage(const ASourcePath: string): Boolean;
-var
-  Process: TProcess;
-  FoundLPK: string;
-  SR: TSearchRec;
-  LogPath: string;
-  Log: TStringList;
 begin
-  Result := False;
-
-  if not DirectoryExists(ASourcePath) then
-  begin
-  // WriteLn('错误: 源码路径不存在: ', ASourcePath);  // 调试代码已注释
-    Exit;
-  end;
-
-  try
-  // WriteLn('正在编译包...');  // 调试代码已注释
-
-    // 查找并编译包
-    Process := TProcess.Create(nil);
-    try
-      Process.CurrentDirectory := ASourcePath;
-
-      // 优先使用 lazbuild 编译 Lazarus 包：查找首个 .lpk
-      FoundLPK := '';
-      if FindFirst(ASourcePath + PathDelim + '*.lpk', faAnyFile, SR) = 0 then
-      begin
-        repeat
-          if (SR.Attr and faDirectory) = 0 then
-          begin
-            FoundLPK := ASourcePath + PathDelim + SR.Name;
-            Break;
-          end;
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-
-      if FoundLPK <> '' then
-      begin
-        Process.Executable := 'lazbuild';
-        Process.Parameters.Add(FoundLPK);
-        FLastBuildTool := 'lazbuild';
-      end
-      else if FileExists(ASourcePath + PathDelim + 'Makefile') then
-      begin
-        // 否则回退使用 make
-        Process.Executable := 'make';
-        Process.Parameters.Add('install');
-        FLastBuildTool := 'make';
-      end
-      else
-      begin
-  // WriteLn('警告: 找不到 .lpk 或 Makefile，跳过编译步骤');  // 调试代码已注释
-        FLastBuildTool := 'none';
-        Exit(True);
-      end;
-
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-      // 捕获输出
-      Log := TStringList.Create;
-      try
-  // WriteLn('执行命令: ', Process.Executable, ' ', Process.Parameters.Text);  // 调试代码已注释
-        Process.Execute;
-        // 读取标准输出与错误
-        if Process.Output.NumBytesAvailable > 0 then
-          Log.LoadFromStream(Process.Output);
-        if Process.Stderr.NumBytesAvailable > 0 then
-        begin
-          Log.Add('--- STDERR ---');
-          Log.LoadFromStream(Process.Stderr);
-        end;
-
-        // 写入构建日志到缓存目录
-        LogPath := IncludeTrailingPathDelimiter(GetLogsDir) + 'build_' + IntToStr(GetTickCount64) + '.log';
-        ForceDirectories(ExtractFileDir(LogPath));
-        Log.SaveToFile(LogPath);
-        FLastBuildLog := LogPath;
-      finally
-        Log.Free;
-      end;
-
-      Result := Process.ExitStatus = 0;
-      if not Result then
-  // WriteLn('错误: 编译失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
-
-    finally
-      Process.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 编译包时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
-end;
-
-function TPackageManager.RemoveDirRecursive(const Dir: string): Boolean;
-var
-  SR: TSearchRec;
-  P: string;
-begin
-  Result := True;
-  if not DirectoryExists(Dir) then Exit(True);
-  if FindFirst(IncludeTrailingPathDelimiter(Dir) + '*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name='.') or (SR.Name='..') then Continue;
-      P := IncludeTrailingPathDelimiter(Dir) + SR.Name;
-      if (SR.Attr and faDirectory)<>0 then
-      begin
-        if not RemoveDirRecursive(P) then Result := False;
-      end
-      else
-      begin
-        if not DeleteFile(P) then Result := False;
-      end;
-    until FindNext(SR)<>0;
-    FindClose(SR);
-  end;
-  if not RemoveDir(Dir) then Result := False;
+  // Delegate to build service
+  Result := FBuilder.BuildPackage(ASourcePath);
 end;
 
 
@@ -601,20 +567,17 @@ begin
 
   try
     InstallPath := GetPackageInstallPath(APackageName);
-  // WriteLn('安装包 ', APackageName, ' 到: ', InstallPath);  // 调试代码已注释
 
     // 确保安装目录存在
     if not DirectoryExists(InstallPath) then
-      ForceDirectories(InstallPath);
+      EnsureDir(InstallPath);
 
     // 复制源码到安装目录（后续实现为递归拷贝；当前保留源路径记录）
     Info := GetPackageInfo(APackageName);
     Info.SourcePath := ASourcePath;
 
-  // WriteLn('步骤 1/2: 编译包');  // 调试代码已注释
     if not BuildPackage(ASourcePath) then
     begin
-  // WriteLn('错误: 编译包失败');  // 调试代码已注释
       Exit;
     end;
 
@@ -624,28 +587,117 @@ begin
     Info.Version := Info.Version; // 保持占位逻辑
     Info.Description := Info.Description;
     if not WritePackageMetadata(InstallPath, Info) then
-  // WriteLn('警告: 写入包元数据失败');  // 调试代码已注释
 
-  // WriteLn('✓ 包 ', APackageName, ' 安装完成');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 安装包时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
 function TPackageManager.ResolveDependencies(const APackageName: string): TStringArray;
+var
+  Graph: TDependencyGraph;
+  ResolveResult: TResolveResult;
+  Avail: TPackageArray;
+  Visited: TStringList;
+  i: Integer;
+
+  procedure BuildDependencyTree(const APkgName: string);
+  var
+    Idx, k: Integer;
+    PkgInfo: TPackageInfo;
+  begin
+    // Avoid infinite recursion
+    if Visited.IndexOf(APkgName) >= 0 then
+      Exit;
+    Visited.Add(APkgName);
+
+    // Find package in available packages
+    Idx := -1;
+    for k := 0 to High(Avail) do
+    begin
+      if SameText(Avail[k].Name, APkgName) then
+      begin
+        Idx := k;
+        Break;
+      end;
+    end;
+
+    if Idx < 0 then
+    begin
+      // Try to get from installed packages
+      PkgInfo := GetPackageInfo(APkgName);
+      if PkgInfo.Name = '' then
+        Exit;  // Package not found
+      Graph.AddNode(APkgName, PkgInfo.Version);
+      // Add dependencies from installed package
+      for k := 0 to High(PkgInfo.Dependencies) do
+      begin
+        Graph.AddDependency(APkgName, PkgInfo.Dependencies[k]);
+        BuildDependencyTree(PkgInfo.Dependencies[k]);
+      end;
+    end
+    else
+    begin
+      // Add node from available packages
+      Graph.AddNode(APkgName, Avail[Idx].Version);
+      // Add dependencies
+      for k := 0 to High(Avail[Idx].Dependencies) do
+      begin
+        Graph.AddDependency(APkgName, Avail[Idx].Dependencies[k]);
+        BuildDependencyTree(Avail[Idx].Dependencies[k]);
+      end;
+    end;
+  end;
+
 begin
-  // TODO: 实现依赖解析
+  Initialize(Result);
   SetLength(Result, 0);
-  // WriteLn('注意: 依赖解析功能暂未实现');  // 调试代码已注释
+
+  if APackageName = '' then
+    Exit;
+
+  // Get all available packages for dependency lookup
+  Avail := GetAvailablePackages;
+
+  Graph := TDependencyGraph.Create;
+  Visited := TStringList.Create;
+  try
+    Visited.CaseSensitive := False;
+
+    // Build dependency tree starting from root package
+    BuildDependencyTree(APackageName);
+
+    // Resolve dependencies with topological sort
+    ResolveResult := Graph.Resolve;
+
+    if ResolveResult.Success then
+    begin
+      // Copy resolved order to result (dependencies first, then dependents)
+      SetLength(Result, Length(ResolveResult.ResolvedOrder));
+      for i := 0 to High(ResolveResult.ResolvedOrder) do
+        Result[i] := ResolveResult.ResolvedOrder[i];
+    end
+    else
+    begin
+      // On failure (e.g., cycle detected), return just the root package
+      // and log the error
+      if ResolveResult.HasCycle then
+      begin
+        // Cycle detected - falling back to root package only
+      end;
+      SetLength(Result, 1);
+      Result[0] := APackageName;
+    end;
+  finally
+    Visited.Free;
+    Graph.Free;
+  end;
 end;
 
-function TPackageManager.InstallPackage(const APackageName: string; const AVersion: string): Boolean;
+function TPackageManager.InstallPackage(const APackageName: string; const AVersion: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   UseVersion: string;
   Avail: TPackageArray;
@@ -654,37 +706,26 @@ var
   Opt: TFetchOptions;
   URLs: array of string;
   InstalledOK: Boolean;
-
-  function IsHigher(const V1, V2: string): Boolean;
-  var a1,b1,c1,a2,b2,c2: Integer;
-    procedure Parse(const S: string; out A,B,C: Integer);
-    var parts: TStringArray;
-    begin
-      A:=0;B:=0;C:=0;
-      parts := S.Split(['.']);
-      if Length(parts)>=1 then Val(parts[0],A);
-      if Length(parts)>=2 then Val(parts[1],B);
-      if Length(parts)>=3 then Val(parts[2],C);
-    end;
-  begin
-    Parse(V1,a1,b1,c1); Parse(V2,a2,b2,c2);
-    if a1<>a2 then Exit(a1>a2);
-    if b1<>b2 then Exit(b1>b2);
-    Exit(c1>c2);
-  end;
+  LO, LE: IOutput;
 
 begin
   Result := False;
+  URLs := nil;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   if not ValidatePackage(APackageName) then
   begin
-  // WriteLn('错误: 无效的包名: ', APackageName);  // 调试代码已注释
     Exit;
   end;
 
   if IsPackageInstalled(APackageName) then
   begin
-  // WriteLn('包 ', APackageName, ' 已经安装');  // 调试代码已注释
     Exit(True);
   end;
 
@@ -698,7 +739,7 @@ begin
       begin
         if (AVersion='') then
         begin
-          if (BestIdx<0) or IsHigher(Avail[i].Version, Avail[BestIdx].Version) then
+          if (BestIdx<0) or IsVersionHigher(Avail[i].Version, Avail[BestIdx].Version) then
             BestIdx := i;
         end
         else if SameText(Avail[i].Version, AVersion) then
@@ -708,33 +749,29 @@ begin
 
     if BestIdx < 0 then
     begin
-  // WriteLn('错误: 在索引中未找到包: ', APackageName);  // 调试代码已注释
       Exit;
     end;
 
     UseVersion := Avail[BestIdx].Version;
-  // WriteLn('安装包 ', APackageName, ' 版本 ', UseVersion);  // 调试代码已注释
 
     if Length(Avail[BestIdx].URLs)=0 then
     begin
-  // WriteLn('错误: 索引未提供下载 URL');  // 调试代码已注释
       Exit;
     end;
 
     // 下载到缓存 zip
     ZipPath := IncludeTrailingPathDelimiter(GetCacheDir) + 'packages' + PathDelim + APackageName + '-' + UseVersion + '.zip';
-    ForceDirectories(ExtractFileDir(ZipPath));
+    EnsureDir(ExtractFileDir(ZipPath));
 
     SetLength(URLs, Length(Avail[BestIdx].URLs));
     for i := 0 to High(URLs) do URLs[i] := Avail[BestIdx].URLs[i];
 
     Opt.DestDir := ExtractFileDir(ZipPath);
     Opt.SHA256 := Avail[BestIdx].Sha256;
-    Opt.TimeoutMS := 30000;
+    Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
 
     if not EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err) then
     begin
-  // WriteLn('错误: 下载失败: ', Err);  // 调试代码已注释
       Exit;
     end;
 
@@ -745,9 +782,7 @@ begin
 
     if not ZipExtract(ZipPath, TmpDir, Err) then
     begin
-  // WriteLn('错误: 解压失败: ', Err);  // 调试代码已注释
-  // WriteLn('保留临时目录以便排查: ', TmpDir);  // 调试代码已注释
-      FLastBuildLog := Err; // 复用 Err 文本为日志路径/信息占位
+      // Extract failed, error message is in Err
       Exit;
     end;
 
@@ -755,40 +790,37 @@ begin
     InstalledOK := InstallPackageFromSource(APackageName, TmpDir);
     if not InstalledOK then
     begin
-  // WriteLn('安装失败，保留临时目录: ', TmpDir);  // 调试代码已注释
       Exit(False);
     end
     else
     begin
-      // 安装成功，根据配置清理临时目录
-      if not FKeepArtifacts then
+      // Install succeeded, clean up temp directory if configured
+      if not FBuilder.KeepArtifacts then
       begin
         if DirectoryExists(TmpDir) then
         begin
           try
-            if not RemoveDirRecursive(TmpDir) then WriteLn('Warning: Could not clean some temporary files: ', TmpDir);
+            if not DeleteDirRecursive(TmpDir) then
+            begin
+              LE.WriteLn(_(MSG_WARNING) + ': ' + _Fmt(MSG_PKG_CLEAN_TMP_FAILED, [TmpDir]));
+            end;
           except
             on E: Exception do
-  // WriteLn('警告: 清理临时目录失败: ', E.Message);  // 调试代码已注释
           end;
         end;
       end
       else
-  // WriteLn('按要求保留构建产物: ', TmpDir);  // 调试代码已注释
     end;
 
     Result := True;
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 安装包时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
-function TPackageManager.UninstallPackage(const APackageName: string): Boolean;
+function TPackageManager.UninstallPackage(const APackageName: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   InstallPath: string;
 begin
@@ -796,7 +828,7 @@ begin
 
   if not IsPackageInstalled(APackageName) then
   begin
-  // WriteLn('包 ', APackageName, ' 未安装');  // 调试代码已注释
+    if Outp <> nil then Outp.WriteLn(_Fmt(MSG_PKG_NOT_INSTALLED, [APackageName]));
     Result := True;
     Exit;
   end;
@@ -804,72 +836,139 @@ begin
   try
     InstallPath := GetPackageInstallPath(APackageName);
 
-  // WriteLn('正在卸载包 ', APackageName, '...');  // 调试代码已注释
+    if Outp <> nil then Outp.WriteLn(_Fmt(MSG_PKG_UNINSTALLING, [APackageName]));
 
     // 删除安装目录
     if DirectoryExists(InstallPath) then
     begin
-      try
-        {$IFDEF MSWINDOWS}
-        with TProcess.Create(nil) do
-        try
-          Executable := 'cmd';
-          Parameters.Add('/c');
-          Parameters.Add('rmdir');
-          Parameters.Add('/s');
-          Parameters.Add('/q');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ELSE}
-        with TProcess.Create(nil) do
-        try
-          Executable := 'rm';
-          Parameters.Add('-rf');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ENDIF}
-      except
-  // WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);  // 调试代码已注释
+      if not DeleteDirRecursive(InstallPath) then
+      begin
+        if Errp <> nil then Errp.WriteLn(_Fmt(MSG_PKG_REMOVE_WARNING, [InstallPath]));
       end;
     end;
 
-  // WriteLn('✓ 包 ', APackageName, ' 卸载完成');  // 调试代码已注释
+    if Outp <> nil then Outp.WriteLn(_Fmt(MSG_PKG_UNINSTALL_COMPLETE, [APackageName]));
     Result := True;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 卸载包时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_UNINSTALL_FAILED, [E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TPackageManager.UpdatePackage(const APackageName: string): Boolean;
+function TPackageManager.UpdatePackage(const APackageName: string; Outp: IOutput; Errp: IOutput): Boolean;
+var
+  InstalledInfo: TPackageInfo;
+  Avail: TPackageArray;
+  i, BestIdx: Integer;
+  InstalledVersion, LatestVersion: string;
+  LO, LE: IOutput;
+
 begin
   Result := False;
-  // WriteLn('提示: 包更新功能开发中');  // 调试代码已注释
-  // 未来：对比已安装版本与索引最新版本；如较低则自动升级
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  // Validate package name
+  if not ValidatePackage(APackageName) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_INVALID_NAME, [APackageName]));
+    Exit;
+  end;
+
+  // Check if package is installed
+  if not IsPackageInstalled(APackageName) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_INSTALLED, [APackageName]));
+    LE.WriteLn(_Fmt(MSG_PKG_INSTALL_HINT, [APackageName]));
+    Exit;
+  end;
+
+  // Get installed package info
+  InstalledInfo := GetPackageInfo(APackageName);
+  InstalledVersion := InstalledInfo.Version;
+  if InstalledVersion = '' then
+    InstalledVersion := '0.0.0';
+
+  LO.WriteLn(_Fmt(MSG_PKG_CHECKING_UPDATES, [APackageName]));
+  LO.WriteLn(_Fmt(MSG_PKG_INSTALLED_VERSION, [InstalledVersion]));
+
+  // Get available packages from index
+  Avail := GetAvailablePackages;
+  BestIdx := -1;
+
+  // Find the latest version in available packages
+  for i := 0 to High(Avail) do
+  begin
+    if SameText(Avail[i].Name, APackageName) then
+    begin
+      if (BestIdx < 0) or IsVersionHigher(Avail[i].Version, Avail[BestIdx].Version) then
+        BestIdx := i;
+    end;
+  end;
+
+  if BestIdx < 0 then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_IN_INDEX, [APackageName]));
+    LE.WriteLn(_(MSG_PKG_REPO_UPDATE_HINT));
+    Exit;
+  end;
+
+  LatestVersion := Avail[BestIdx].Version;
+  LO.WriteLn(_Fmt(MSG_PKG_LATEST_VERSION, [LatestVersion]));
+
+  // Check if update is needed
+  if not IsVersionHigher(LatestVersion, InstalledVersion) then
+  begin
+    LO.WriteLn(_Fmt(MSG_PKG_UP_TO_DATE, [APackageName]));
+    Result := True;
+    Exit;
+  end;
+
+  // Perform update: uninstall old, install new
+  LO.WriteLn(_Fmt(MSG_PKG_UPDATING, [APackageName, InstalledVersion, LatestVersion]));
+
+  // Uninstall old version
+  LO.WriteLn(_(MSG_PKG_REMOVING_OLD));
+  if not UninstallPackage(APackageName, nil, LE) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PKG_UNINSTALL_OLD_FAILED));
+    Exit;
+  end;
+
+  // Install new version
+  LO.WriteLn(_(MSG_PKG_INSTALLING_NEW));
+  if not InstallPackage(APackageName, LatestVersion, nil, LE) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PKG_INSTALL_NEW_FAILED));
+    LE.WriteLn(_(MSG_PKG_REINSTALL_HINT));
+    Exit;
+  end;
+
+  LO.WriteLn(_Fmt(MSG_PKG_UPDATE_SUCCESS, [APackageName, LatestVersion]));
+  Result := True;
 end;
 
-function TPackageManager.ListPackages(const AShowAll: Boolean): Boolean;
+function TPackageManager.ListPackages(const AShowAll: Boolean; Outp: IOutput): Boolean;
 var
   Packages: TPackageArray;
   i: Integer;
+  Line: string;
+  LO: IOutput;
 begin
   Result := True;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
   try
     if AShowAll then
@@ -878,56 +977,48 @@ begin
       Packages := GetInstalledPackages;
 
     if AShowAll then
-  // WriteLn('可用的包:')  // 调试代码已注释
     else
-  // WriteLn('已安装的包:');  // 调试代码已注释
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('包名          版本      描述');  // 调试代码已注释
-  // WriteLn('----------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Packages) do
     begin
-      Write(Format('%-12s  ', [Packages[i].Name]));
-      Write(Format('%-8s  ', [Packages[i].Version]));
-      WriteLn(Packages[i].Description);
+      Line := Format('%-12s  ', [Packages[i].Name]) +
+              Format('%-8s  ', [Packages[i].Version]) +
+              Packages[i].Description;
+      LO.WriteLn(Line);
     end;
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('总计: ', Length(Packages), ' 个包');  // 调试代码已注释
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 列出包时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
-function TPackageManager.SearchPackages(const AQuery: string): Boolean;
+function TPackageManager.SearchPackages(const AQuery: string; Outp: IOutput): Boolean;
 var
   Packages: TPackageArray;
   i, Matches: Integer;
   Q: string;
+  Line: string;
+  LO: IOutput;
 begin
   Result := True;
   Matches := 0;
   Q := LowerCase(Trim(AQuery));
   if Q = '' then
   begin
-  // WriteLn('错误: 搜索关键词不能为空');  // 调试代码已注释
     Exit(False);
   end;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
   try
     // 先在本地已安装包中搜索；远程仓库搜索后续实现
     Packages := GetInstalledPackages;
 
-  // WriteLn('搜索已安装的包，关键词: ', AQuery);  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('包名          版本      描述');  // 调试代码已注释
-  // WriteLn('----------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Packages) do
     begin
@@ -935,59 +1026,52 @@ begin
          (Pos(Q, LowerCase(Packages[i].Description)) > 0) then
       begin
         Inc(Matches);
-        Write(Format('%-12s  ', [Packages[i].Name]));
-        Write(Format('%-8s  ', [Packages[i].Version]));
-        WriteLn(Packages[i].Description);
+        Line := Format('%-12s  ', [Packages[i].Name]) +
+                Format('%-8s  ', [Packages[i].Version]) +
+                Packages[i].Description;
+        LO.WriteLn(Line);
       end;
     end;
 
     if Matches = 0 then
-  // WriteLn('未找到匹配的包');  // 调试代码已注释
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('匹配结果: ', Matches, ' 个包');  // 调试代码已注释
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 搜索包时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
-function TPackageManager.ShowPackageInfo(const APackageName: string): Boolean;
+function TPackageManager.ShowPackageInfo(const APackageName: string; Outp: IOutput): Boolean;
 var
   PackageInfo: TPackageInfo;
+  LO: IOutput;
 begin
   Result := False;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
   try
     PackageInfo := GetPackageInfo(APackageName);
 
-  // WriteLn('Package info: ', APackageName);  // Debug code commented out
-  // WriteLn('');  // Debug code commented out
-    WriteLn('Name: ', PackageInfo.Name);
-    WriteLn('Version: ', PackageInfo.Version);
-    WriteLn('Description: ', PackageInfo.Description);
+    LO.WriteLn(_Fmt(MSG_PKG_INFO_NAME, [PackageInfo.Name]));
+    LO.WriteLn(_Fmt(MSG_PKG_INFO_VERSION, [PackageInfo.Version]));
+    LO.WriteLn(_Fmt(MSG_PKG_INFO_DESC, [PackageInfo.Description]));
 
     if PackageInfo.Installed then
     begin
-  // WriteLn('Status: Installed');  // Debug code commented out
-      WriteLn('Install Path: ', PackageInfo.InstallPath);
+      LO.WriteLn(_Fmt(MSG_PKG_INFO_PATH, [PackageInfo.InstallPath]));
     end else
     begin
-  // WriteLn('状态: 未安装');  // 调试代码已注释
     end;
 
     Result := True;
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 显示包信息时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
@@ -1001,33 +1085,120 @@ begin
   try
     Dependencies := ResolveDependencies(APackageName);
 
-  // WriteLn('包 ', APackageName, ' 的依赖:');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
 
     if Length(Dependencies) = 0 then
-  // WriteLn('无依赖')  // 调试代码已注释
     else
     begin
       for i := 0 to High(Dependencies) do
-  // WriteLn('  - ', Dependencies[i]);  // 调试代码已注释
     end;
 
     Result := True;
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 显示包依赖时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
-function TPackageManager.VerifyPackage(const APackageName: string): Boolean;
+function TPackageManager.VerifyPackage(const APackageName: string; Outp: IOutput; Errp: IOutput): Boolean;
+var
+  InstallPath, MetaPath: string;
+  SL: TStringList;
+  J: TJSONData;
+  O: TJSONObject;
+  ExpectedSha256, ActualSha256: string;
+  FilePath: string;
+  LO, LE: IOutput;
 begin
   Result := False;
-  // WriteLn('验证包功能暂未实现');  // 调试代码已注释
-  // TODO: 实现包验证功能
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  // Check if package is installed
+  if not IsPackageInstalled(APackageName) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_INSTALLED, [APackageName]));
+    Exit;
+  end;
+
+  InstallPath := GetPackageInstallPath(APackageName);
+  MetaPath := IncludeTrailingPathDelimiter(InstallPath) + 'package.json';
+
+  // Check if metadata exists
+  if not FileExists(MetaPath) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, [MetaPath]));
+    Exit;
+  end;
+
+  // Validate metadata JSON
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(MetaPath);
+    try
+      J := GetJSON(SL.Text);
+    except
+      on E: Exception do
+      begin
+        LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_INVALID, [E.Message]));
+        Exit;
+      end;
+    end;
+
+    try
+      if J.JSONType <> jtObject then
+      begin
+        LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PKG_META_NOT_JSON));
+        Exit;
+      end;
+
+      O := TJSONObject(J);
+
+      // Verify required fields
+      if O.Get('name', '') = '' then
+      begin
+        LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PKG_NAME_MISSING));
+        Exit;
+      end;
+
+      if O.Get('version', '') = '' then
+      begin
+        LO.WriteLn(_(MSG_PKG_VERSION_MISSING));
+      end;
+
+      // Verify SHA256 if present
+      ExpectedSha256 := O.Get('sha256', '');
+      if ExpectedSha256 <> '' then
+      begin
+        FilePath := O.Get('source_path', '');
+        if (FilePath <> '') and FileExists(FilePath) then
+        begin
+          ActualSha256 := SHA256FileHex(FilePath);
+          if not SameText(ExpectedSha256, ActualSha256) then
+          begin
+            LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PKG_CHECKSUM_MISMATCH));
+            LE.WriteLn(_Fmt(MSG_PKG_CHECKSUM_EXPECTED, [ExpectedSha256]));
+            LE.WriteLn(_Fmt(MSG_PKG_CHECKSUM_ACTUAL, [ActualSha256]));
+            Exit;
+          end;
+          LO.WriteLn(_(MSG_PKG_CHECKSUM_OK));
+        end;
+      end;
+
+      LO.WriteLn(_Fmt(MSG_PKG_VERIFY_SUCCESS, [APackageName]));
+      Result := True;
+
+    finally
+      J.Free;
+    end;
+  finally
+    SL.Free;
+  end;
 end;
 
 function TPackageManager.WritePackageMetadata(const AInstallPath: string; const Info: TPackageInfo): Boolean;
@@ -1051,8 +1222,8 @@ begin
       O.Add('install_path', AInstallPath);
       O.Add('install_date', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', Now));
       O.Add('source_path', Info.SourcePath);
-      if FLastBuildTool<>'' then O.Add('build_tool', FLastBuildTool);
-      if FLastBuildLog<>'' then O.Add('build_log', FLastBuildLog);
+      if FBuilder.LastBuildTool<>'' then O.Add('build_tool', FBuilder.LastBuildTool);
+      if FBuilder.LastBuildLog<>'' then O.Add('build_log', FBuilder.LastBuildLog);
       if Length(Info.URLs)>0 then
       begin
         begin
@@ -1079,7 +1250,7 @@ begin
       SL := TStringList.Create;
       try
         SL.Text := O.FormatJSON;
-        ForceDirectories(AInstallPath);
+        EnsureDir(AInstallPath);
         SL.SaveToFile(MetaPath);
         Result := True;
       finally
@@ -1090,10 +1261,7 @@ begin
     end;
   except
     on E: Exception do
-    begin
-  // WriteLn('警告: 写入包元数据失败: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
@@ -1102,210 +1270,31 @@ end;
 
 
 
-function TPackageManager.AddRepository(const AName, AURL: string): Boolean;
+function TPackageManager.AddRepository(const AName, AURL: string; Outp: IOutput; Errp: IOutput): Boolean;
 begin
-  Result := False;
-
-
-
-  try
-    Result := FConfigManager.AddRepository(AName, AURL);
-    if Result then
-    begin
-      // WriteLn('✓ 仓库 ', AName, ' 添加成功')  // 调试代码已注释
-    end
-    else
-    begin
-      // WriteLn('错误: 添加仓库失败');  // 调试代码已注释
-    end;
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 添加仓库时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+  // Delegate to repository service
+  Result := FRepoService.AddRepository(AName, AURL, Outp, Errp);
 end;
 
-function TPackageManager.RemoveRepository(const AName: string): Boolean;
+function TPackageManager.RemoveRepository(const AName: string; Outp: IOutput; Errp: IOutput): Boolean;
 begin
-  Result := False;
-  try
-    if FConfigManager.RemoveRepository(AName) then
-    begin
-      // WriteLn('✓ 仓库 ', AName, ' 已删除');  // 调试代码已注释
-      Result := True;
-    end
-    else
-    begin
-      // WriteLn('错误: 找不到仓库或删除失败: ', AName);  // 调试代码已注释
-    end;
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 删除仓库时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+  // Delegate to repository service
+  Result := FRepoService.RemoveRepository(AName, Outp, Errp);
 end;
 
-function TPackageManager.UpdateRepositories: Boolean;
-var
-  Names: TStringArray;
-  i, j: Integer;
-  RepoURL: string;
-  Combined: TJSONArray;
-  Err: string;
-  CacheDir, IndexPath, TmpPath: string;
-  SL: TStringList;
-  JSONData: TJSONData = nil;
-  Arr: TJSONArray;
-  Opt: TFetchOptions;
-  URLs: array of string;
-  IsFileURL: Boolean;
-  LocalFile: string;
+function TPackageManager.UpdateRepositories(Outp: IOutput; Errp: IOutput): Boolean;
 begin
-  Result := False;
-  try
-    // 目标缓存目录与索引文件
-    CacheDir := FPackageRegistry;
-    ForceDirectories(CacheDir);
-    IndexPath := CacheDir + PathDelim + 'index.json';
-    TmpPath := CacheDir + PathDelim + 'index.json.tmp';
-
-    Combined := TJSONArray.Create;
-    try
-      Names := FConfigManager.ListRepositories;
-      if Length(Names)=0 then
-      begin
-  // WriteLn('提示: 尚未配置任何仓库。使用: fpdev package repo add <name> <url>');  // 调试代码已注释
-      end;
-
-      for i := 0 to High(Names) do
-      begin
-        RepoURL := Trim(FConfigManager.GetRepository(Names[i]));
-        if RepoURL='' then Continue;
-
-        // 假设仓库 URL 直接指向 JSON 索引；若为目录/站点，可在末尾补 index.json
-        if (RightStr(RepoURL, 5) <> '.json') then
-          RepoURL := IncludeTrailingPathDelimiter(RepoURL) + 'index.json';
-
-        // 支持 file:// 本地索引；否则使用 HTTP(S) 下载
-        IsFileURL := (LeftStr(LowerCase(RepoURL), 7) = 'file://');
-        SL := TStringList.Create;
-        try
-          if IsFileURL then
-          begin
-            LocalFile := Copy(RepoURL, 8, MaxInt); // 去掉 file://
-            // Windows 可能是 file:///C:/... 开头，去除多余的前导 '/'
-            while (Length(LocalFile) > 0) and ((LocalFile[1] = '/') or (LocalFile[1] = '\\')) do
-              Delete(LocalFile, 1, 1);
-            LocalFile := StringReplace(LocalFile, '/', PathDelim, [rfReplaceAll]);
-            if FileExists(LocalFile) then
-              SL.LoadFromFile(LocalFile)
-            else
-            begin
-  // WriteLn('警告: 本地索引文件不存在: ', LocalFile);  // 调试代码已注释
-              Continue;
-            end;
-          end
-          else
-          begin
-            // 下载到临时文件
-            SetLength(URLs, 1);
-            URLs[0] := RepoURL;
-            Opt.DestDir := CacheDir; Opt.SHA256 := ''; Opt.TimeoutMS := 15000;
-            if not EnsureDownloadedCached(URLs, TmpPath, '', 15000, Err) then
-            begin
-  // WriteLn('警告: 无法获取仓库索引: ', Names[i], ' (', Err, ')');  // 调试代码已注释
-              Continue;
-            end;
-            SL.LoadFromFile(TmpPath);
-          end;
-
-          // 读取并合并 packages 数组
-          JSONData := GetJSON(SL.Text);
-          Arr := nil;
-          if JSONData.JSONType=jtArray then Arr := TJSONArray(JSONData)
-          else if (JSONData.JSONType=jtObject) and Assigned(TJSONObject(JSONData).Arrays['packages']) then
-            Arr := TJSONObject(JSONData).Arrays['packages'];
-          if Arr<>nil then
-          begin
-            // 合并到 Combined：逐元素克隆加入
-            for j := 0 to Arr.Count-1 do
-              Combined.Add(Arr.Items[j].Clone as TJSONData);
-          end
-          else
-          begin
-            // 如果是对象且没有 packages 数组，尝试将对象当作单包信息
-            if JSONData.JSONType=jtObject then
-              Combined.Add(JSONData.Clone as TJSONData)
-            else
-  // WriteLn('警告: 仓库索引格式无法识别: ', Names[i]);  // 调试代码已注释
-          end;
-        finally
-          if Assigned(JSONData) then JSONData.Free;
-          SL.Free;
-        end;
-      end;
-
-      // 将 Combined 写入 index.json
-      SL := TStringList.Create;
-      try
-        SL.Text := Combined.FormatJSON;
-        SL.SaveToFile(IndexPath);
-      finally
-        SL.Free;
-      end;
-
-  // WriteLn('✓ 仓库索引已更新: ', IndexPath);  // 调试代码已注释
-      Result := True;
-    finally
-      Combined.Free;
-    end;
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 更新仓库索引失败: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+  // Delegate to repository service
+  Result := FRepoService.UpdateRepositories(Outp, Errp);
 end;
 
-function TPackageManager.ListRepositories: Boolean;
-var
-  Names: TStringArray;
-  i: Integer;
-  URL: string;
+function TPackageManager.ListRepositories(Outp: IOutput): Boolean;
 begin
-  Result := True;
-  try
-    Names := FConfigManager.ListRepositories;
-
-  // WriteLn('已配置的仓库:');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-    if Length(Names) = 0 then
-    begin
-  // WriteLn('  (暂无仓库)');  // 调试代码已注释
-      Exit(True);
-    end;
-
-    for i := 0 to High(Names) do
-    begin
-      URL := FConfigManager.GetRepository(Names[i]);
-  // WriteLn('  - ', Names[i], ': ', URL);  // 调试代码已注释
-    end;
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 列出仓库时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+  // Delegate to repository service
+  Result := FRepoService.ListRepositories(Outp);
 end;
 
-function TPackageManager.InstallFromLocal(const APackagePath: string): Boolean;
+function TPackageManager.InstallFromLocal(const APackagePath: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   PackageName: string;
 begin
@@ -1313,7 +1302,7 @@ begin
 
   if not DirectoryExists(APackagePath) then
   begin
-  // WriteLn('错误: 包路径不存在: ', APackagePath);  // 调试代码已注释
+    if Errp <> nil then Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_PATH_NOT_FOUND, [APackagePath]));
     Exit;
   end;
 
@@ -1323,336 +1312,191 @@ begin
     if PackageName = '' then
       PackageName := 'local_package';
 
-  // WriteLn('从本地安装包: ', PackageName);  // 调试代码已注释
+    if Outp <> nil then Outp.WriteLn(_Fmt(MSG_PKG_INSTALL_LOCAL, [APackagePath]));
     Result := InstallPackageFromSource(PackageName, APackagePath);
+    if Result and (Outp <> nil) then Outp.WriteLn(_Fmt(MSG_PKG_INSTALL_COMPLETE, [PackageName]));
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 从本地安装包时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_EXCEPTION, ['install-local', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TPackageManager.CreatePackage(const APackageName, APath: string): Boolean;
-begin
-  Result := False;
-  // WriteLn('创建包功能暂未实现');  // 调试代码已注释
-  // TODO: 实现创建包功能
-end;
-
-function TPackageManager.PublishPackage(const APackageName: string): Boolean;
-begin
-  Result := False;
-  // WriteLn('发布包功能暂未实现');  // 调试代码已注释
-  // TODO: 实现发布包功能
-end;
-
-// 主要执行函数
-procedure execute(const aParams: array of string);
+function TPackageManager.CreatePackage(const APackageName, APath: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
-  ConfigManager: TFPDevConfigManager;
-  PackageManager: TPackageManager;
-  Command: string;
-  PackageName: string;
-  Version: string;
-  ShowAll: Boolean;
+  PackageDir, MetaPath, SourceDir: string;
+  O: TJSONObject;
+  SL: TStringList;
+  LO: IOutput;
 begin
-  if Length(aParams) = 0 then
-  begin
-  // WriteLn('FreePascal 包管理系统');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('用法:');  // 调试代码已注释
-  // WriteLn('  fpdev package install <package> [version]       安装包');  // 调试代码已注释
-  // WriteLn('  fpdev package install <package> [version] [--keep-build-artifacts]  安装包');  // 调试代码已注释
+  Result := False;
 
-  // WriteLn('  fpdev package uninstall <package>               卸载包');  // 调试代码已注释
-  // WriteLn('  fpdev package update <package>                  更新包');  // 调试代码已注释
-  // WriteLn('  fpdev package list [--all]                      列出包');  // 调试代码已注释
-  // WriteLn('  fpdev package search <query>                    搜索包');  // 调试代码已注释
-    WriteLn('  fpdev package info <package>                    Show package information');
-  // WriteLn('  fpdev package deps <package>                    显示包依赖');  // 调试代码已注释
-  // WriteLn('  fpdev package verify <package>                  验证包');  // 调试代码已注释
-  // WriteLn('  fpdev package install-local <path>              从本地安装包');  // 调试代码已注释
-  // WriteLn('  fpdev package create <name> <path>              创建包');  // 调试代码已注释
-  // WriteLn('  fpdev package publish <package>                 发布包');  // 调试代码已注释
-  // WriteLn('  fpdev package repo add <name> <url>             添加仓库');  // 调试代码已注释
-  // WriteLn('  fpdev package repo remove <name>                删除仓库');  // 调试代码已注释
-  // WriteLn('  fpdev package repo update                       更新仓库');  // 调试代码已注释
-  // WriteLn('  fpdev package repo list                         列出仓库');  // 调试代码已注释
-  // WriteLn('  fpdev package clean <sandbox|cache|all>         清理构建/缓存目录');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('示例:');  // 调试代码已注释
-  // WriteLn('  fpdev package install synapse                   安装synapse包');  // 调试代码已注释
-  // WriteLn('  fpdev package install synapse 1.2.0             安装指定版本');  // 调试代码已注释
-  // WriteLn('  fpdev package list --all                        列出所有可用包');  // 调试代码已注释
-  // WriteLn('  fpdev package install-local ./mypackage         从本地安装包');  // 调试代码已注释
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+
+  // Validate package name
+  if not ValidatePackage(APackageName) then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_INVALID_NAME, [APackageName]));
     Exit;
   end;
 
-  ConfigManager := TFPDevConfigManager.Create;
-  try
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+  // Determine source directory
+  if APath = '' then
+    SourceDir := GetCurrentDir
+  else
+    SourceDir := ExpandFileName(APath);
 
-    PackageManager := TPackageManager.Create(ConfigManager);
-    try
-      Command := LowerCase(aParams[0]);
-
-      case Command of
-        'install':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要安装的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package install <package> [version] [--keep-build-artifacts]');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          Version := '';
-          // 解析可选参数 [version] [--keep-build-artifacts]
-          if Length(aParams) > 2 then
-          begin
-            if (LeftStr(aParams[2], 2) = '--') then
-            begin
-              // 直接是 flag，无版本
-              if SameText(aParams[2], '--keep-build-artifacts') then
-                PackageManager.SetKeepBuildArtifacts(True);
-            end
-            else
-              Version := aParams[2];
-          end;
-          if Length(aParams) > 3 then
-          begin
-            if SameText(aParams[3], '--keep-build-artifacts') then
-              PackageManager.SetKeepBuildArtifacts(True);
-          end;
-
-          PackageManager.InstallPackage(PackageName, Version);
-        end;
-
-        'uninstall':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要卸载的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package uninstall <package>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.UninstallPackage(PackageName);
-        end;
-
-        'update':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要更新的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package update <package>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.UpdatePackage(PackageName);
-        end;
-
-        'list':
-        begin
-          ShowAll := (Length(aParams) > 1) and SameText(aParams[1], '--all');
-          PackageManager.ListPackages(ShowAll);
-        end;
-
-        'search':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定搜索关键词');  // 调试代码已注释
-  // WriteLn('用法: fpdev package search <query>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageManager.SearchPackages(aParams[1]);
-        end;
-
-        'info':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要查看信息的包名');  // 调试代码已注释
-            WriteLn('Usage: fpdev package info <package>');
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.ShowPackageInfo(PackageName);
-        end;
-
-        'deps':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要查看依赖的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package deps <package>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.ShowPackageDependencies(PackageName);
-        end;
-
-        'verify':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要验证的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package verify <package>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.VerifyPackage(PackageName);
-        end;
-        'clean':
-        begin
-          if (Length(aParams) < 2) or ((LowerCase(aParams[1])<>'sandbox') and (LowerCase(aParams[1])<>'cache') and (LowerCase(aParams[1])<>'all')) then
-          begin
-  // WriteLn('用法: fpdev package clean <sandbox|cache|all>');  // 调试代码已注释
-            Exit;
-          end;
-          // 可选: [--dry-run] [--yes]
-          if Length(aParams)>=3 then
-          begin
-            if SameText(aParams[2], '--dry-run') then
-            begin
-              if (LowerCase(aParams[1])='sandbox') or (LowerCase(aParams[1])='all') then
-  // WriteLn('[dry-run] 将清理: ', GetSandboxDir);  // 调试代码已注释
-              if (LowerCase(aParams[1])='cache') or (LowerCase(aParams[1])='all') then
-  // WriteLn('[dry-run] 将清理: ', IncludeTrailingPathDelimiter(GetCacheDir)+'packages');  // 调试代码已注释
-              Exit;
-            end
-            else if SameText(aParams[2], '--yes') then
-            begin
-              if PackageManager.Clean(aParams[1]) then
-  // WriteLn('✓ 清理完成')  // 调试代码已注释
-              else
-  // WriteLn('警告: 清理过程中有部分文件无法删除');  // 调试代码已注释
-              Exit;
-            end;
-          end;
-          Write('确定要清理吗? [y/N] ');
-          ReadLn(Version);
-          if SameText(Trim(Version), 'y') or SameText(Trim(Version), 'yes') then
-          begin
-            if PackageManager.Clean(aParams[1]) then
-  // WriteLn('✓ 清理完成')  // 调试代码已注释
-            else
-  // WriteLn('警告: 清理过程中有部分文件无法删除');  // 调试代码已注释
-          end
-          else
-  // WriteLn('已取消');  // 调试代码已注释
-
-        end;
-
-
-        'install-local':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定包的本地路径');  // 调试代码已注释
-  // WriteLn('用法: fpdev package install-local <path>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageManager.InstallFromLocal(aParams[1]);
-        end;
-
-        'create':
-        begin
-          if Length(aParams) < 3 then
-          begin
-  // WriteLn('错误: 请指定包名和路径');  // 调试代码已注释
-  // WriteLn('用法: fpdev package create <name> <path>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageManager.CreatePackage(aParams[1], aParams[2]);
-        end;
-
-        'publish':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要发布的包名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package publish <package>');  // 调试代码已注释
-            Exit;
-          end;
-
-          PackageName := aParams[1];
-          PackageManager.PublishPackage(PackageName);
-        end;
-
-        'repo':
-        begin
-          if Length(aParams) < 2 then
-
-          begin
-  // WriteLn('错误: 请指定仓库操作');  // 调试代码已注释
-  // WriteLn('用法: fpdev package repo <add|remove|update|list> [args]');  // 调试代码已注释
-            Exit;
-          end;
-
-          case LowerCase(aParams[1]) of
-            'add':
-            begin
-              if Length(aParams) < 4 then
-              begin
-  // WriteLn('错误: 请指定仓库名和URL');  // 调试代码已注释
-  // WriteLn('用法: fpdev package repo add <name> <url>');  // 调试代码已注释
-                Exit;
-              end;
-              PackageManager.AddRepository(aParams[2], aParams[3]);
-            end;
-
-            'remove':
-            begin
-              if Length(aParams) < 3 then
-              begin
-  // WriteLn('错误: 请指定要删除的仓库名');  // 调试代码已注释
-  // WriteLn('用法: fpdev package repo remove <name>');  // 调试代码已注释
-                Exit;
-              end;
-              PackageManager.RemoveRepository(aParams[2]);
-            end;
-
-            'update':
-              PackageManager.UpdateRepositories;
-
-            'list':
-              PackageManager.ListRepositories;
-
-          else
-  // WriteLn('错误: 未知的仓库操作: ', aParams[1]);  // 调试代码已注释
-          end;
-        end;
-
-      else
-  // WriteLn('错误: 未知的命令: ', Command);  // 调试代码已注释
-  // WriteLn('使用 "fpdev package" 查看帮助信息');  // 调试代码已注释
-      end;
-
-    finally
-      PackageManager.Free;
-    end;
-
-    ConfigManager.SaveConfig;
-
-  finally
-    ConfigManager.Free;
+  if not DirectoryExists(SourceDir) then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_SOURCE_NOT_FOUND, [SourceDir]));
+    Exit;
   end;
 
+  // Create package directory structure
+  PackageDir := SourceDir;
+  MetaPath := IncludeTrailingPathDelimiter(PackageDir) + 'package.json';
+
+  // Create package.json if it doesn't exist
+  if not FileExists(MetaPath) then
+  begin
+    O := TJSONObject.Create;
+    try
+      O.Add('name', APackageName);
+      O.Add('version', '1.0.0');
+      O.Add('description', 'A FreePascal package');
+      O.Add('author', '');
+      O.Add('license', 'MIT');
+      O.Add('homepage', '');
+      O.Add('repository', '');
+      O.Add('dependencies', TJSONArray.Create);
+      O.Add('keywords', TJSONArray.Create);
+
+      SL := TStringList.Create;
+      try
+        SL.Text := O.FormatJSON;
+        SL.SaveToFile(MetaPath);
+        LO.WriteLn(_Fmt(MSG_PKG_CREATED_JSON, [MetaPath]));
+      finally
+        SL.Free;
+      end;
+    finally
+      O.Free;
+    end;
+  end
+  else
+  begin
+    LO.WriteLn(_Fmt(MSG_PKG_JSON_EXISTS, [MetaPath]));
+  end;
+
+  LO.WriteLn(_Fmt(MSG_PKG_CREATE_SUCCESS, [APackageName]));
+  LO.WriteLn('');
+  LO.WriteLn(_(MSG_PKG_NEXT_STEPS));
+  LO.WriteLn(_(MSG_PKG_STEP_EDIT));
+  LO.WriteLn(_(MSG_PKG_STEP_ADD_SOURCE));
+  LO.WriteLn(_Fmt(MSG_PKG_STEP_PUBLISH, [APackageName]));
+
+  Result := True;
+end;
+
+function TPackageManager.PublishPackage(const APackageName: string; Outp: IOutput; Errp: IOutput): Boolean;
+var
+  InstallPath, MetaPath, ArchivePath: string;
+  SL: TStringList;
+  J: TJSONData;
+  O: TJSONObject;
+  Version, ArchiveName: string;
+  LResult: TProcessResult;
+  LO: IOutput;
+begin
+  Result := False;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+
+  // Check if package is installed/created
+  if not IsPackageInstalled(APackageName) then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [APackageName]));
+    Exit;
+  end;
+
+  InstallPath := GetPackageInstallPath(APackageName);
+  MetaPath := IncludeTrailingPathDelimiter(InstallPath) + 'package.json';
+
+  // Check if metadata exists
+  if not FileExists(MetaPath) then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, ['Run "fpdev package create" first']));
+    Exit;
+  end;
+
+  // Read version from metadata
+  Version := '1.0.0';
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(MetaPath);
+    try
+      J := GetJSON(SL.Text);
+      if J.JSONType = jtObject then
+      begin
+        O := TJSONObject(J);
+        Version := O.Get('version', '1.0.0');
+      end;
+      J.Free;
+    except
+      // Use default version
+    end;
+  finally
+    SL.Free;
+  end;
+
+  // Create archive name
+  ArchiveName := APackageName + '-' + Version + '.tar.gz';
+  ArchivePath := IncludeTrailingPathDelimiter(FInstallRoot) + 'publish' + PathDelim + ArchiveName;
+
+  // Ensure publish directory exists
+  if not DirectoryExists(ExtractFileDir(ArchivePath)) then
+    EnsureDir(ExtractFileDir(ArchivePath));
+
+  LO.WriteLn(_Fmt(MSG_PKG_CREATING_ARCHIVE, [ArchiveName]));
+
+  // Create tar.gz archive
+  LResult := TProcessExecutor.Execute('tar',
+    ['-czf', ArchivePath, '-C', ExtractFileDir(InstallPath), ExtractFileName(InstallPath)], '');
+
+  if not LResult.Success then
+  begin
+    if Errp <> nil then
+    begin
+      if LResult.ErrorMessage <> '' then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, [LResult.ErrorMessage]))
+      else
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, ['exit code ' + IntToStr(LResult.ExitCode)]));
+    end;
+    Exit;
+  end;
+
+  // Calculate SHA256 of archive
+  LO.WriteLn(_Fmt(MSG_PKG_ARCHIVE_CREATED, [ArchivePath]));
+  LO.WriteLn('SHA256: ' + SHA256FileHex(ArchivePath));
+  LO.WriteLn('');
+  LO.WriteLn(_Fmt(MSG_PKG_READY_PUBLISH, [APackageName, Version]));
+  LO.WriteLn('');
+  LO.WriteLn(_(MSG_PKG_TO_PUBLISH));
+  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP1));
+  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP2));
+
+  Result := True;
 end;
 
 

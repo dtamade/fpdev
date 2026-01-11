@@ -1,11 +1,11 @@
 unit fpdev.toolchain.extract;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes, zipper;
+  SysUtils, Classes, zipper, fpdev.utils.fs;
 
 // 解压 ZIP 到目标目录（自动创建目录），成功返回 True
 function ZipExtract(const AArchive, ADestDir: string; out AErr: string): boolean;
@@ -29,7 +29,7 @@ begin
     Exit(False);
   end;
   if not DirectoryExists(ADestDir) then
-    if not ForceDirectories(ADestDir) then
+    if not EnsureDir(ADestDir) then
     begin
       AErr := 'cannot create dest dir';
       Exit(False);
