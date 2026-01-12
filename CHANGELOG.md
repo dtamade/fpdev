@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.1] - 2026-01-12
+### Added
+- **Package Dependency Resolution**
+  - TDependencyGraph class for dependency graph management
+  - Topological sort (Kahn's algorithm) for installation order
+  - Circular dependency detection (DFS-based)
+  - Version constraint support (^, >=, <, =, etc.)
+  - Optional dependencies support
+  - ResolveAndInstallDependencies method integrated into package install flow
+  - Automatic dependency installation before main package
+
+- **Documentation**
+  - docs/PACKAGE_DEPENDENCY_SPEC.md: Complete dependency metadata specification
+  - .fpdev-package.json schema definition
+  - Version constraint syntax and examples
+  - Dependency resolution strategy documentation
+
+- **Testing**
+  - tests/test_dependency_resolver.lpr: 8 test scenarios, 22 assertions, 100% pass rate
+  - Test coverage:
+    * Dependency graph creation
+    * Dependency edge creation
+    * Simple dependency resolution (A -> B -> C)
+    * Complex dependency resolution (diamond pattern)
+    * Circular dependency detection
+    * Self dependency handling
+    * Multiple dependencies
+    * Empty graph handling
+
+### Changed
+- **Package Installation**
+  - Auto-resolve and install dependencies before main package
+  - Install dependencies in topological order (leaves first, root last)
+  - Improved error messages for missing dependencies and circular dependencies
+
+### Notes
+- All 22 dependency resolver tests passing
+- Integration with TPackageManager.InstallPackage
+- Follows TDD Red-Green-Refactor methodology
+
 ## [2.0.0] - 2026-01-11
 ### Added
 - **Architecture Refactor**
