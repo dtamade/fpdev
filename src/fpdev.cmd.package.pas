@@ -1106,15 +1106,25 @@ begin
       Packages := GetInstalledPackages;
 
     if AShowAll then
+      LO.WriteLn('Available packages:')
     else
+      LO.WriteLn('Installed packages:');
 
-
-    for i := 0 to High(Packages) do
+    if Length(Packages) = 0 then
     begin
-      Line := Format('%-12s  ', [Packages[i].Name]) +
-              Format('%-8s  ', [Packages[i].Version]) +
-              Packages[i].Description;
-      LO.WriteLn(Line);
+      if AShowAll then
+        LO.WriteLn('  No packages available in index')
+      else
+        LO.WriteLn('  No packages installed');
+    end
+    else
+    begin
+      for i := 0 to High(Packages) do
+      begin
+        Line := Format('  %-16s  %-10s  %s',
+                [Packages[i].Name, Packages[i].Version, Packages[i].Description]);
+        LO.WriteLn(Line);
+      end;
     end;
 
 
