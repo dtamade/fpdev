@@ -17,9 +17,9 @@
 
 ### 主机平台 (Host)
 - [x] linux-x86_64
-- [ ] windows-x86_64
-- [ ] darwin-x86_64
-- [ ] darwin-aarch64
+- [x] windows-x86_64
+- [x] darwin-x86_64
+- [x] darwin-aarch64
 
 ### FPC/Lazarus 版本
 - FPC: 3.2.2, 3.2.0
@@ -42,29 +42,29 @@
 - [x] 上传到 GitHub Releases v3.3.1
 - [x] 更新 manifest.json
 
-### 1.2 Windows x86_64 [待做]
-- [ ] 从 SourceForge 下载 FPC 3.2.2 Windows 安装包
-- [ ] 提取 ppcx64.exe 和 fpc.exe
-- [ ] 打包 bootstrap-3.2.2-windows-x86_64.zip
-- [ ] 计算 SHA256
-- [ ] 上传到 GitHub Releases
-- [ ] 更新 manifest.json
+### 1.2 Windows x86_64 [已完成]
+- [x] 从 SourceForge 下载 FPC 3.2.2 Windows 安装包
+- [x] 提取 ppcrossx64.exe
+- [x] 打包 bootstrap-3.2.2-windows-x86_64.zip
+- [x] 计算 SHA256: aa9154a342ffa5d98d53c15f60a596944ea18bfffe3b8216aec7a356cd4043b6
+- [x] 上传到 GitHub Releases v3.2.2
+- [x] 更新 manifest.json
 
-### 1.3 macOS x86_64 [待做]
-- [ ] 从 SourceForge 下载 FPC 3.2.2 macOS Intel 包
-- [ ] 提取 ppcx64 和 fpc
-- [ ] 打包 bootstrap-3.2.2-darwin-x86_64.tar.gz
-- [ ] 计算 SHA256
-- [ ] 上传到 GitHub Releases
-- [ ] 更新 manifest.json
+### 1.3 macOS x86_64 [已完成]
+- [x] 从 SourceForge 下载 FPC 3.2.2 macOS 包
+- [x] 提取 ppcx64
+- [x] 打包 bootstrap-3.2.2-darwin-x86_64.tar.gz
+- [x] 计算 SHA256: 62f786b2e464a0a048f453bf0b4194f1b2cf4a9bbb250f4100f78a3c190d0dcc
+- [x] 上传到 GitHub Releases v3.2.2
+- [x] 更新 manifest.json
 
-### 1.4 macOS ARM64 [待做]
-- [ ] 从 SourceForge 下载 FPC 3.2.2 macOS ARM64 包
-- [ ] 提取 ppca64 和 fpc
-- [ ] 打包 bootstrap-3.2.2-darwin-aarch64.tar.gz
-- [ ] 计算 SHA256
-- [ ] 上传到 GitHub Releases
-- [ ] 更新 manifest.json
+### 1.4 macOS ARM64 [已完成]
+- [x] 从 SourceForge 下载 FPC 3.2.2 macOS 包 (同 1.3，包含双架构)
+- [x] 提取 ppca64
+- [x] 打包 bootstrap-3.2.2-darwin-aarch64.tar.gz
+- [x] 计算 SHA256: ba427f37e52983b3fad5d4c0736bffac19eaaba140062f47d000e832bf0e0c0b
+- [x] 上传到 GitHub Releases v3.2.2
+- [x] 更新 manifest.json
 
 ---
 
@@ -205,9 +205,9 @@ https://github.com/LongDirtyAnimAlf/fpcupdeluxe/releases/tag/linux_amd64_crossbi
 | Phase | 任务 | 状态 | 完成日期 |
 |-------|------|------|----------|
 | 1.1 | Bootstrap Linux x86_64 | 完成 | 2026-01-14 |
-| 1.2 | Bootstrap Windows x86_64 | 待做 | - |
-| 1.3 | Bootstrap macOS x86_64 | 待做 | - |
-| 1.4 | Bootstrap macOS ARM64 | 待做 | - |
+| 1.2 | Bootstrap Windows x86_64 | 完成 | 2026-01-14 |
+| 1.3 | Bootstrap macOS x86_64 | 完成 | 2026-01-14 |
+| 1.4 | Bootstrap macOS ARM64 | 完成 | 2026-01-14 |
 | 2.1 | FPC 3.2.2 全平台 | 待做 | - |
 | 3.1 | Lazarus 3.6 全平台 | 待做 | - |
 | 4.1 | Cross Binutils | 待做 | - |
