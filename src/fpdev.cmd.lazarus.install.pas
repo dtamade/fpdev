@@ -31,6 +31,7 @@ function TLazInstallCommand.Execute(const AParams: array of string; const Ctx: I
 var
   LVer, LFPCVer, LJobs, LFrom: string;
   LFromSource: Boolean;
+  LNoConfigure: Boolean;
   LSettings: TFPDevSettings;
   LMgr: TLazarusManager;
 begin
@@ -48,6 +49,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_OPT_FROM));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_OPT_FPC));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_OPT_JOBS));
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_OPT_NOCONFIG));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_OPT_HELP));
     Exit(0);
   end;
@@ -64,6 +66,8 @@ begin
   if GetFlagValue(AParams, 'from', LFrom) then
     LFromSource := LFromSource or SameText(LFrom, 'source');
 
+  LNoConfigure := HasFlag(AParams, 'no-configure');
+
   LFPCVer := '';
   GetFlagValue(AParams, 'fpc', LFPCVer);
 
@@ -78,7 +82,7 @@ begin
 
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
-    if LMgr.InstallVersion(Ctx.Out, Ctx.Err, LVer, LFPCVer, LFromSource) then
+    if LMgr.InstallVersion(Ctx.Out, Ctx.Err, LVer, LFPCVer, LFromSource, not LNoConfigure) then
       Exit(0);
     Ctx.Err.WriteLn(_(CMD_LAZARUS_INSTALL_FAILED));
     Result := 3;

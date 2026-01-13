@@ -58,6 +58,10 @@ type
     function ExportConfig(const AExportPath: string): Boolean;
     function ImportConfig(const AImportPath: string): Boolean;
 
+    // Backup/Restore
+    function BackupConfig: string;  // Returns backup path or empty on failure
+    function RestoreConfig(const ABackupPath: string): Boolean;
+
     // Utility
     function ValidateConfig: Boolean;
     function GetConfigSummary: string;
@@ -640,6 +644,48 @@ begin
     on E: Exception do
       Result := False;
   end;
+end;
+
+function TLazarusIDEConfig.BackupConfig: string;
+var
+  BackupDir, BackupPath: string;
+  Timestamp: string;
+begin
+  Result := '';
+
+  // Only backup if config file exists
+  if not FileExists(FEnvOptionsPath) then
+    Exit;
+
+  try
+    // Create backup directory
+    BackupDir := FConfigDir + PathDelim + 'backups';
+    if not DirectoryExists(BackupDir) then
+      if not EnsureDir(BackupDir) then
+        Exit;
+
+    // Generate timestamp-based backup name
+    Timestamp := FormatDateTime('yyyymmdd_hhnnss', Now);
+    BackupPath := BackupDir + PathDelim + 'environmentoptions_' + Timestamp + '.xml';
+
+    // Copy config file to backup
+    if ExportConfig(BackupDir + PathDelim + Timestamp) then
+      Result := BackupDir + PathDelim + Timestamp;
+
+  except
+    on E: Exception do
+      Result := '';
+  end;
+end;
+
+function TLazarusIDEConfig.RestoreConfig(const ABackupPath: string): Boolean;
+begin
+  Result := False;
+
+  if not DirectoryExists(ABackupPath) then
+    Exit;
+
+  Result := ImportConfig(ABackupPath);
 end;
 
 function TLazarusIDEConfig.ValidateConfig: Boolean;

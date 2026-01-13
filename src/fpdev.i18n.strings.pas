@@ -176,6 +176,7 @@ const
   HELP_LAZARUS_INSTALL_OPT_FROM = 'help.lazarus.install.opt.from';
   HELP_LAZARUS_INSTALL_OPT_FPC = 'help.lazarus.install.opt.fpc';
   HELP_LAZARUS_INSTALL_OPT_JOBS = 'help.lazarus.install.opt.jobs';
+  HELP_LAZARUS_INSTALL_OPT_NOCONFIG = 'help.lazarus.install.opt.noconfig';
   HELP_LAZARUS_INSTALL_OPT_HELP = 'help.lazarus.install.opt.help';
   HELP_LAZARUS_LIST_USAGE = 'help.lazarus.list.usage';
   HELP_LAZARUS_LIST_DESC = 'help.lazarus.list.desc';
@@ -918,6 +919,7 @@ begin
   T(HELP_LAZARUS_INSTALL_OPT_FROM,   '  --from=<mode>    Install mode: binary, source',                        '  --from=<mode>    安装模式: binary, source');
   T(HELP_LAZARUS_INSTALL_OPT_FPC,    '  --fpc=<version>  FPC version to use for building',                     '  --fpc=<version>  用于编译的 FPC 版本');
   T(HELP_LAZARUS_INSTALL_OPT_JOBS,   '  --jobs=<n>       Number of parallel jobs for compilation',             '  --jobs=<n>       并行编译任务数');
+  T(HELP_LAZARUS_INSTALL_OPT_NOCONFIG,'  --no-configure   Skip automatic IDE configuration after install',       '  --no-configure   安装后跳过自动 IDE 配置');
   T(HELP_LAZARUS_INSTALL_OPT_HELP,   '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
   T(HELP_LAZARUS_LIST_USAGE,         'Usage: fpdev lazarus list [options]',                                    '用法: fpdev lazarus list [选项]');
   T(HELP_LAZARUS_LIST_DESC,          'List installed Lazarus versions.',                                       '列出已安装的 Lazarus 版本。');

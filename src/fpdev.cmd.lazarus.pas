@@ -72,8 +72,8 @@ type
     destructor Destroy; override;
 
     // 版本管理
-    function InstallVersion(const AVersion: string; const AFPCVersion: string = ''; const AFromSource: Boolean = False): Boolean; overload;
-    function InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean): Boolean; overload;
+    function InstallVersion(const AVersion: string; const AFPCVersion: string = ''; const AFromSource: Boolean = False; const AConfigure: Boolean = True): Boolean; overload;
+    function InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean = True): Boolean; overload;
     function UninstallVersion(const AVersion: string): Boolean; overload;
     function UninstallVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
@@ -346,12 +346,12 @@ begin
   end;
 end;
 
-function TLazarusManager.InstallVersion(const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean): Boolean;
+function TLazarusManager.InstallVersion(const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean): Boolean;
 begin
-  Result := InstallVersion(nil, nil, AVersion, AFPCVersion, AFromSource);
+  Result := InstallVersion(nil, nil, AVersion, AFPCVersion, AFromSource, AConfigure);
 end;
 
-function TLazarusManager.InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean): Boolean;
+function TLazarusManager.InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean): Boolean;
 var
   InstallPath, SourceDir: string;
   FPCVer: string;
@@ -414,7 +414,18 @@ begin
       Result := False;
     end;
 
-    if Result then
+    // Auto-configure IDE after successful installation
+    if Result and AConfigure then
+    begin
+      if Outp <> nil then
+        Outp.WriteLn('');
+      if not ConfigureIDE(Outp, Errp, AVersion) then
+      begin
+        // Configuration failure is non-fatal, just warn
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_WARNING) + ': IDE configuration incomplete, run "fpdev lazarus configure ' + AVersion + '" manually');
+      end;
+    end;
 
   except
     on E: Exception do
@@ -888,6 +899,7 @@ var
   FPCPath: string;
   Settings: TFPDevSettings;
   LO, LE: IOutput;
+  BackupPath: string;
 begin
   Result := False;
 
@@ -922,6 +934,11 @@ begin
 
     IDEConfig := TLazarusIDEConfig.Create(ConfigDir);
     try
+      // Backup existing configuration before making changes
+      BackupPath := IDEConfig.BackupConfig;
+      if BackupPath <> '' then
+        LO.WriteLn('Configuration backed up to: ' + BackupPath);
+
       // Set FPC compiler path
       FPCPath := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + FPCVersion +
                  PathDelim + 'bin' + PathDelim + 'fpc';
