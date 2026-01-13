@@ -25,8 +25,8 @@ uses
   fpdev.cmd.cross,
   fpdev.cmd.project,
 
-  // 强引用：FPC/Lazarus 子命令对象（确保 initialization 注册生效）
-  fpdev.cmd.fpc.root2,
+  // Force reference: FPC/Lazarus subcommand objects (ensure initialization registration)
+  fpdev.cmd.fpc.root,
   fpdev.cmd.fpc.install,
   fpdev.cmd.fpc.list,
   fpdev.cmd.fpc.use,

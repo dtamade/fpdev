@@ -3,8 +3,7 @@ unit fpdev.i18n;
 {$mode objfpc}{$H+}
 
 (*
-  fpdev i18n wrapper - Wraps the standalone fpc.i18n library
-  for backward compatibility with existing fpdev code.
+  fpdev i18n wrapper - Wraps the standalone fpc.i18n library.
 *)
 
 interface
@@ -17,7 +16,7 @@ type
   TLanguage = fpc.i18n.TLanguage;
   TI18nManager = fpc.i18n.TI18nManager;
 
-  { Legacy type for batch registration }
+  { Type for batch registration }
   TTranslation = record
     ID: string;
     Text: string;

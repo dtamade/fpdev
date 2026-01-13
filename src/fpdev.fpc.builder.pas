@@ -58,6 +58,11 @@ type
     { Gets the installation path for a given FPC version. }
     function GetVersionInstallPath(const AVersion: string): string;
 
+  public
+    constructor Create(AConfigManager: IConfigManager;
+      AOut: IOutput = nil; AErr: IOutput = nil);
+    destructor Destroy; override;
+
     { Gets the current FPC version from system PATH. }
     function GetCurrentFPCVersion: string;
 
@@ -66,11 +71,6 @@ type
 
     { Checks if bootstrap compiler is locally available. }
     function IsBootstrapAvailable(const AVersion: string): Boolean;
-
-  public
-    constructor Create(AConfigManager: IConfigManager;
-      AOut: IOutput = nil; AErr: IOutput = nil);
-    destructor Destroy; override;
 
     { Gets the required bootstrap compiler version for building a target version.
       ATargetVersion: FPC version to build

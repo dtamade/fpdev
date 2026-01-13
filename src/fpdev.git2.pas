@@ -5,25 +5,15 @@ unit fpdev.git2;
 {$I fpdev.config.inc}
 
 {
-  **NOTE**: This unit provides concrete class-based Git wrapper (legacy compatible).
+  Git wrapper using libgit2 library.
 
-  For new code, prefer the interface-based API in git2.api + git2.impl which provides:
-  - Better testability (interface-based design)
-  - Cleaner separation of concerns
-  - Future-proof abstraction
+  This unit provides concrete class-based Git operations.
+  For interface-based API, see git2.api + git2.impl.
 
-  Migration example:
-    Old (fpdev.git2):
-      var Mgr: TGitManager; Repo: TGitRepository;
-      Mgr := GitManager;
-      Repo := Mgr.OpenRepository('.');
-
-    New (git2.api + git2.impl):
-      var Mgr: IGitManager; Repo: IGitRepository;
-      Mgr := NewGitManager();
-      Repo := Mgr.OpenRepository('.');
-
-  This unit is maintained for backward compatibility and will not be removed.
+  Usage example:
+    var Mgr: TGitManager; Repo: TGitRepository;
+    Mgr := GitManager;
+    Repo := Mgr.OpenRepository('.');
 }
 
 interface

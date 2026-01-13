@@ -8,9 +8,9 @@ uses
   SysUtils;
 
 const
-  // FPC相关常量
+  // FPC related constants
   DEFAULT_FPC_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  FPC_OFFICIAL_REPO = DEFAULT_FPC_REPO;  // Alias for backward compatibility
+  FPC_OFFICIAL_REPO = DEFAULT_FPC_REPO;  // Alias
   DEFAULT_FPC_VERSION = '3.2.2';
   FALLBACK_FPC_VERSION = '3.2.0';
 

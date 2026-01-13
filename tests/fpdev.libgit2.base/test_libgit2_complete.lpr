@@ -14,17 +14,17 @@ var
 
 procedure TestLibGit2Initialization;
 begin
-  WriteLn('=== 测试libgit2初始化 ===');
+  WriteLn('=== Test libgit2 Initialization ===');
   WriteLn;
 
   if Manager.Initialize then
   begin
-    WriteLn('✓ libgit2初始化成功');
-    WriteLn('版本: ', Manager.GetVersion);
+    WriteLn('[OK] libgit2 initialized successfully');
+    WriteLn('Version: ', Manager.GetVersion);
   end
   else
   begin
-    WriteLn('✗ libgit2初始化失败');
+    WriteLn('[FAIL] libgit2 initialization failed');
     Exit;
   end;
   WriteLn;
@@ -37,15 +37,15 @@ var
   Branches: TStringArray;
   Branch: string;
 begin
-  WriteLn('=== 测试仓库操作 ===');
+  WriteLn('=== Test Repository Operations ===');
   WriteLn;
 
   TestDir := 'test_complete_repo';
 
-  // 清理已存在的测试目录
+  // Clean up existing test directory
   if DirectoryExists(TestDir) then
   begin
-    WriteLn('删除已存在的测试目录...');
+    WriteLn('Deleting existing test directory...');
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
     {$ELSE}
@@ -54,28 +54,28 @@ begin
   end;
 
   try
-    WriteLn('克隆测试仓库...');
+    WriteLn('Cloning test repository...');
     Repo := Manager.CloneRepository('https://github.com/octocat/Hello-World.git', TestDir);
     try
-      WriteLn('✓ 仓库克隆成功');
+      WriteLn('[OK] Repository cloned successfully');
 
-      // 测试仓库信息
-      WriteLn('仓库路径: ', Repo.Path);
-      WriteLn('工作目录: ', Repo.WorkDir);
-      // TGitRepository 暂无 IsBare/IsEmpty 暴露，这里输出路径/工作区代替
-      WriteLn('仓库路径(用于替代 IsBare/IsEmpty 检查): ', Repo.Path);
-      WriteLn('工作目录(用于替代 IsBare/IsEmpty 检查): ', Repo.WorkDir);
-      WriteLn('当前分支: ', Repo.GetCurrentBranch);
+      // Test repository info
+      WriteLn('Repository path: ', Repo.Path);
+      WriteLn('Working directory: ', Repo.WorkDir);
+      // TGitRepository does not expose IsBare/IsEmpty, output path/workdir instead
+      WriteLn('Repository path (for IsBare/IsEmpty check): ', Repo.Path);
+      WriteLn('Working directory (for IsBare/IsEmpty check): ', Repo.WorkDir);
+      WriteLn('Current branch: ', Repo.GetCurrentBranch);
 
-      // 测试分支列表
+      // Test branch listing
       WriteLn;
-      WriteLn('本地分支:');
+      WriteLn('Local branches:');
       Branches := Repo.ListBranches(GIT_BRANCH_LOCAL);
       for Branch in Branches do
         WriteLn('  - ', Branch);
 
       WriteLn;
-      WriteLn('远程分支:');
+      WriteLn('Remote branches:');
       Branches := Repo.ListBranches(GIT_BRANCH_REMOTE);
       for Branch in Branches do
         WriteLn('  - ', Branch);
@@ -87,12 +87,12 @@ begin
   except
     on E: EGitError do
     begin
-      WriteLn('✗ Git错误: ', E.Message);
-      WriteLn('错误代码: ', E.ErrorCode);
+      WriteLn('[FAIL] Git error: ', E.Message);
+      WriteLn('Error code: ', E.ErrorCode);
     end;
     on E: Exception do
     begin
-      WriteLn('✗ 异常: ', E.Message);
+      WriteLn('[FAIL] Exception: ', E.Message);
     end;
   end;
 
@@ -106,39 +106,39 @@ var
   Commit: TGitCommit;
   HeadRef: TGitReference;
 begin
-  WriteLn('=== 测试提交操作 ===');
+  WriteLn('=== Test Commit Operations ===');
   WriteLn;
 
   TestDir := 'test_complete_repo';
 
   if not DirectoryExists(TestDir) then
   begin
-    WriteLn('✗ 测试仓库不存在，跳过提交测试');
+    WriteLn('[SKIP] Test repository does not exist, skipping commit test');
     Exit;
   end;
 
   try
     Repo := Manager.OpenRepository(TestDir);
     try
-      // 获取HEAD引用
+      // Get HEAD reference
       HeadRef := Repo.GetHead;
       try
-        WriteLn('HEAD引用: ', HeadRef.Name);
-        WriteLn('引用类型: ', Ord(HeadRef.RefType));
-        WriteLn('是否为分支: ', (HeadRef.RefType = GIT_REFERENCE_DIRECT) and (Pos('refs/heads/', HeadRef.Name) = 1));
+        WriteLn('HEAD reference: ', HeadRef.Name);
+        WriteLn('Reference type: ', Ord(HeadRef.RefType));
+        WriteLn('Is branch: ', (HeadRef.RefType = GIT_REFERENCE_DIRECT) and (Pos('refs/heads/', HeadRef.Name) = 1));
 
-        // 获取最新提交
+        // Get latest commit
         Commit := Repo.GetLastCommit;
         try
           WriteLn;
-          WriteLn('最新提交信息:');
+          WriteLn('Latest commit info:');
           WriteLn('OID: ', GitOIDToString(Commit.OID));
-          WriteLn('短OID: ', GitOIDToShortString(Commit.OID));
-          WriteLn('消息: ', Commit.ShortMessage);
-          WriteLn('作者: ', Commit.Author.ToString);
-          WriteLn('提交者: ', Commit.Committer.ToString);
-          WriteLn('时间: ', FormatDateTime('yyyy-mm-dd hh:nn:ss', Commit.Time));
-          WriteLn('父提交数: ', Commit.ParentCount);
+          WriteLn('Short OID: ', GitOIDToShortString(Commit.OID));
+          WriteLn('Message: ', Commit.ShortMessage);
+          WriteLn('Author: ', Commit.Author.ToString);
+          WriteLn('Committer: ', Commit.Committer.ToString);
+          WriteLn('Time: ', FormatDateTime('yyyy-mm-dd hh:nn:ss', Commit.Time));
+          WriteLn('Parent count: ', Commit.ParentCount);
 
         finally
           Commit.Free;
@@ -155,11 +155,11 @@ begin
   except
     on E: EGitError do
     begin
-      WriteLn('✗ Git错误: ', E.Message);
+      WriteLn('[FAIL] Git error: ', E.Message);
     end;
     on E: Exception do
     begin
-      WriteLn('✗ 异常: ', E.Message);
+      WriteLn('[FAIL] Exception: ', E.Message);
     end;
   end;
 
@@ -172,14 +172,14 @@ var
   Repo: TGitRepository;
   Remote: TGitRemote;
 begin
-  WriteLn('=== 测试远程操作 ===');
+  WriteLn('=== Test Remote Operations ===');
   WriteLn;
 
   TestDir := 'test_complete_repo';
 
   if not DirectoryExists(TestDir) then
   begin
-    WriteLn('✗ 测试仓库不存在，跳过远程测试');
+    WriteLn('[SKIP] Test repository does not exist, skipping remote test');
     Exit;
   end;
 
@@ -188,8 +188,8 @@ begin
     try
       Remote := Repo.GetRemote('origin');
       try
-        WriteLn('远程仓库信息:');
-        WriteLn('名称: ', Remote.Name);
+        WriteLn('Remote repository info:');
+        WriteLn('Name: ', Remote.Name);
         WriteLn('URL: ', Remote.URL);
 
       finally
@@ -203,11 +203,11 @@ begin
   except
     on E: EGitError do
     begin
-      WriteLn('✗ Git错误: ', E.Message);
+      WriteLn('[FAIL] Git error: ', E.Message);
     end;
     on E: Exception do
     begin
-      WriteLn('✗ 异常: ', E.Message);
+      WriteLn('[FAIL] Exception: ', E.Message);
     end;
   end;
 
@@ -218,27 +218,26 @@ procedure TestGitManagerFeatures;
 var
   RepoPath: string;
 begin
-  WriteLn('=== 测试Git管理器功能 ===');
+  WriteLn('=== Test Git Manager Features ===');
   WriteLn;
 
-  WriteLn('libgit2版本: ', Manager.GetVersion);
-  WriteLn('是否已初始化: ', Manager.Initialized);
+  WriteLn('libgit2 version: ', Manager.GetVersion);
+  WriteLn('Is initialized: ', Manager.Initialized);
 
-  // 测试仓库发现
-  // 旧编译器不支持 begin..end 内部声明变量，使用外部声明
+  // Test repository discovery
   RepoPath := Manager.DiscoverRepository('.');
   if RepoPath <> '' then
   begin
-    WriteLn('发现仓库: ', RepoPath)
+    WriteLn('Discovered repository: ', RepoPath)
   end
   else
   begin
-    WriteLn('当前目录不在Git仓库中');
+    WriteLn('Current directory is not in a Git repository');
   end;
 
-  // 测试仓库检查
-  WriteLn('test_complete_repo是否为仓库: ', Manager.IsRepository('test_complete_repo'));
-  WriteLn('当前目录是否为仓库: ', Manager.IsRepository('.'));
+  // Test repository check
+  WriteLn('test_complete_repo is repository: ', Manager.IsRepository('test_complete_repo'));
+  WriteLn('Current directory is repository: ', Manager.IsRepository('.'));
 
   WriteLn;
 end;
@@ -248,27 +247,27 @@ var
   OID1, OID2: TGitOID;
   HashString: string;
 begin
-  WriteLn('=== 测试OID操作 ===');
+  WriteLn('=== Test OID Operations ===');
   WriteLn;
 
   try
-    // 测试从字符串创建OID
+    // Test creating OID from string
     HashString := '7fd1a60b01f91b314f59955a4e4d4e80d8edf11d';
     OID1 := CreateGitOIDFromString(HashString);
-    WriteLn('原始哈希: ', HashString);
-    WriteLn('OID字符串: ', GitOIDToString(OID1));
-    WriteLn('短OID: ', GitOIDToShortString(OID1));
-    WriteLn('是否为零: ', IsGitOIDZero(OID1));
+    WriteLn('Original hash: ', HashString);
+    WriteLn('OID string: ', GitOIDToString(OID1));
+    WriteLn('Short OID: ', GitOIDToShortString(OID1));
+    WriteLn('Is zero: ', IsGitOIDZero(OID1));
 
-    // 测试OID比较
+    // Test OID comparison
     OID2 := CreateGitOIDFromString(HashString);
-    WriteLn('OID相等: ', GitOIDEquals(OID1, OID2));
-    WriteLn('OID不等: ', not GitOIDEquals(OID1, OID2));
+    WriteLn('OID equal: ', GitOIDEquals(OID1, OID2));
+    WriteLn('OID not equal: ', not GitOIDEquals(OID1, OID2));
 
   except
     on E: Exception do
     begin
-      WriteLn('✗ OID操作异常: ', E.Message);
+      WriteLn('[FAIL] OID operation exception: ', E.Message);
     end;
   end;
 
@@ -279,26 +278,26 @@ procedure CleanupTest;
 var
   TestDir: string;
 begin
-  WriteLn('=== 清理测试文件 ===');
+  WriteLn('=== Cleanup Test Files ===');
 
   TestDir := 'test_complete_repo';
   if DirectoryExists(TestDir) then
   begin
-    WriteLn('删除测试目录: ', TestDir);
+    WriteLn('Deleting test directory: ', TestDir);
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
     {$ELSE}
     ExecuteProcess('rm', ['-rf', TestDir]);
     {$ENDIF}
-    WriteLn('✓ 清理完成');
+    WriteLn('[OK] Cleanup completed');
   end;
   WriteLn;
 end;
 
 begin
   try
-    WriteLn('libgit2完整功能测试程序');
-    WriteLn('========================');
+    WriteLn('libgit2 Complete Feature Test Program');
+    WriteLn('=====================================');
     WriteLn;
 
     Manager := TGitManager.Create;
@@ -311,9 +310,9 @@ begin
       TestRemoteOperations;
       CleanupTest;
 
-      WriteLn('=== 测试完成 ===');
-      WriteLn('libgit2现代接口封装测试完成！');
-      WriteLn('所有功能已验证，可以开始实际使用。');
+      WriteLn('=== Test Complete ===');
+      WriteLn('libgit2 modern interface wrapper test completed!');
+      WriteLn('All features verified, ready for actual use.');
 
     finally
       Manager.Free;
@@ -322,12 +321,12 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('测试过程中发生错误: ', E.ClassName, ': ', E.Message);
+      WriteLn('Error during test: ', E.ClassName, ': ', E.Message);
       ExitCode := 1;
     end;
   end;
 
   WriteLn;
-  WriteLn('按Enter键退出...');
+  WriteLn('Press Enter to exit...');
   ReadLn;
 end.

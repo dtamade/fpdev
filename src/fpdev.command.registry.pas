@@ -34,14 +34,14 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    // Legacy single-level API
+    // Single-level API
     procedure Register(const ACmd: ICommand);
     function Resolve(const AName: string): ICommand;
     function Dispatch(const AArgs: array of string; const Ctx: IContext): Integer; reintroduce;
-    // New path-based API
+    // Path-based API
     procedure RegisterPath(const APath: array of string; AFactory: TCommandFactory; const Aliases: array of string);
     function DispatchPath(const AArgs: array of string; const Ctx: IContext): Integer;
-    // 列出指定路径节点下的子命令名；路径为空表示根
+    // List subcommand names under specified path; empty path means root
     function ListChildren(const APath: array of string): TStringArray;
   end;
 
@@ -106,6 +106,78 @@ end;
 var
   GRegistry: TCommandRegistry = nil;
 
+{ Calculate Levenshtein distance between two strings for fuzzy matching }
+function LevenshteinDistance(const S1, S2: string): Integer;
+var
+  D: array of array of Integer;
+  I, J, Cost: Integer;
+  Len1, Len2: Integer;
+begin
+  Len1 := Length(S1);
+  Len2 := Length(S2);
+
+  // Handle edge cases
+  if Len1 = 0 then Exit(Len2);
+  if Len2 = 0 then Exit(Len1);
+
+  // Initialize distance matrix
+  SetLength(D, Len1 + 1, Len2 + 1);
+
+  for I := 0 to Len1 do
+    D[I, 0] := I;
+  for J := 0 to Len2 do
+    D[0, J] := J;
+
+  // Calculate distances
+  for I := 1 to Len1 do
+    for J := 1 to Len2 do
+    begin
+      if LowerCase(S1[I]) = LowerCase(S2[J]) then
+        Cost := 0
+      else
+        Cost := 1;
+
+      D[I, J] := D[I - 1, J] + 1;  // Deletion
+      if D[I, J - 1] + 1 < D[I, J] then
+        D[I, J] := D[I, J - 1] + 1;  // Insertion
+      if D[I - 1, J - 1] + Cost < D[I, J] then
+        D[I, J] := D[I - 1, J - 1] + Cost;  // Substitution
+    end;
+
+  Result := D[Len1, Len2];
+end;
+
+{ Find the most similar command from available commands }
+function FindSimilarCommand(const AInput: string; const ACommands: TStringArray): string;
+var
+  I, Dist, MinDist: Integer;
+  BestMatch: string;
+  MaxDist: Integer;
+begin
+  Result := '';
+  if Length(ACommands) = 0 then Exit;
+
+  BestMatch := '';
+  MinDist := MaxInt;
+
+  // Maximum distance threshold: allow up to 40% of the input length or 3 chars
+  MaxDist := Length(AInput) * 2 div 5;
+  if MaxDist < 2 then MaxDist := 2;
+  if MaxDist > 4 then MaxDist := 4;
+
+  for I := 0 to High(ACommands) do
+  begin
+    Dist := LevenshteinDistance(AInput, ACommands[I]);
+    if (Dist < MinDist) and (Dist <= MaxDist) then
+    begin
+      MinDist := Dist;
+      BestMatch := ACommands[I];
+    end;
+  end;
+
+  Result := BestMatch;
+end;
+
 { TCommandRegistry }
 
 constructor TCommandRegistry.Create;
@@ -141,33 +213,41 @@ end;
 function TCommandRegistry.DispatchPath(const AArgs: array of string; const Ctx: IContext): Integer;
 var
   i, ExecIndex: Integer;
-  Node, Child, LastNode, MatchedNode, EffNode: TCommandNode;
+  Node, Child, LastNode, MatchedNode, EffNode, ParentNode: TCommandNode;
   Rest: array of string;
   Cmd: ICommand;
   j: Integer;
   SubCmds: TStringArray;
+  Suggestion, UnknownCmd: string;
 begin
   Result := 0;
   Rest := nil;
   Node := FRoot;
   LastNode := nil;
   MatchedNode := nil;
+  ParentNode := nil;
   ExecIndex := 0;
-  // 最长可执行前缀匹配：匹配到最近的含 Factory 的节点，剩余作为参数
+  // Longest executable prefix matching: match to the nearest node with Factory, rest as parameters
   i := 0;
   while (i <= High(AArgs)) and (Node <> nil) do
   begin
     if (i > High(AArgs)) or (AArgs[i] = '') then Break;
     Child := Node.FindChild(LowerCase(AArgs[i]));
-    if Child = nil then Break;
-    // 如果是别名节点，使用其目标节点
+    if Child = nil then
+    begin
+      // Command not found at this level - save context for suggestion
+      ParentNode := Node;
+      UnknownCmd := AArgs[i];
+      Break;
+    end;
+    // If it's an alias node, use its target node
     Node := Child.GetEffectiveNode;
     MatchedNode := Node;  // Track the last matched node
     Inc(i);
     if Assigned(Node.Factory) then
     begin
       LastNode := Node;
-      ExecIndex := i; // 执行点后的参数起始索引
+      ExecIndex := i; // Parameter start index after execution point
     end;
   end;
 
@@ -186,7 +266,7 @@ begin
   end
   else if (MatchedNode <> nil) then
   begin
-    // 获取有效节点（可能是别名目标）
+    // Get effective node (may be alias target)
     EffNode := MatchedNode.GetEffectiveNode;
     if EffNode.Children.Count > 0 then
     begin
@@ -207,9 +287,28 @@ begin
     else
       Result := 1;
   end
+  else if (ParentNode <> nil) and (UnknownCmd <> '') then
+  begin
+    // Command not found - try to suggest a similar command
+    SubCmds := nil;
+    SetLength(SubCmds, ParentNode.Children.Count);
+    for j := 0 to ParentNode.Children.Count - 1 do
+      SubCmds[j] := ParentNode.Children[j];
+
+    Suggestion := FindSimilarCommand(UnknownCmd, SubCmds);
+    if Suggestion <> '' then
+    begin
+      Ctx.Err.WriteLn('Unknown command: ' + UnknownCmd);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Did you mean "' + Suggestion + '"?');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Run "fpdev help" for available commands.');
+    end;
+    Result := 1;
+  end
   else
   begin
-    // 未匹配到可执行命令：返回非0，交由上层输出帮助/错误
+    // No match found: return non-zero, let upper layer output help/error
     Result := 1;
   end;
 end;

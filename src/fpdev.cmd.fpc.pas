@@ -99,7 +99,6 @@ type
     function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
     function ValidateVersion(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
-    function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
 
     // Bootstrap compiler management (delegated to FBuilderMgr)
     function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
@@ -602,33 +601,28 @@ begin
   Result := FBuilderMgr.GetRequiredBootstrapVersion(ATargetVersion);
 end;
 
-function TFPCManager.GetCurrentFPCVersion: string;
-begin
-  // Note: This is now handled internally by FBuilderMgr
-  // Keep for backward compatibility but it's not used
-  Result := '';
-end;
-
-function TFPCManager.GetBootstrapCompilerPath(const AVersion: string): string;
-begin
-  // Note: This is now handled internally by FBuilderMgr
-  // Keep for backward compatibility but it's not used
-  Result := '';
-  if AVersion = '' then; // Suppress unused parameter hint
-end;
-
-function TFPCManager.IsBootstrapAvailable(const AVersion: string): Boolean;
-begin
-  // Note: This is now handled internally by FBuilderMgr
-  // Keep for backward compatibility but it's not used
-  Result := False;
-  if AVersion = '' then; // Suppress unused parameter hint
-end;
-
 function TFPCManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 begin
   // Delegate to builder service
   Result := FBuilderMgr.EnsureBootstrapCompiler(ATargetVersion);
+end;
+
+function TFPCManager.GetCurrentFPCVersion: string;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.GetCurrentFPCVersion;
+end;
+
+function TFPCManager.GetBootstrapCompilerPath(const AVersion: string): string;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.GetBootstrapCompilerPath(AVersion);
+end;
+
+function TFPCManager.IsBootstrapAvailable(const AVersion: string): Boolean;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.IsBootstrapAvailable(AVersion);
 end;
 
 function TFPCManager.BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
@@ -1178,16 +1172,6 @@ function TFPCManager.VerifyInstallation(const AVersion: string; out VerifResult:
 begin
   // Delegate to validator service
   Result := FValidatorMgr.VerifyInstallation(AVersion, VerifResult);
-end;
-
-function TFPCManager.RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
-begin
-  // Note: RunSmokeTest is now handled internally by FValidatorMgr.VerifyInstallation
-  // This method is kept for backward compatibility but should not be called directly
-  Result := False;
-  VerifResult.SmokeTestPassed := False;
-  VerifResult.ErrorMessage := 'RunSmokeTest should not be called directly - use VerifyInstallation instead';
-  if AFPCExe = '' then; // Suppress unused parameter hint
 end;
 
 // ============================================================================

@@ -54,20 +54,60 @@ const
 var
   ConsoleInitialized: Boolean = False;
   ConsoleColorEnabled: Boolean = False;
+  ConsoleSupportsUTF8: Boolean = False;
+
+{ Detect if running in a modern terminal that supports UTF-8 properly.
+  Modern terminals: Windows Terminal, VSCode integrated terminal, etc.
+  Legacy terminals: cmd.exe, PowerShell in conhost may have issues with UTF-8. }
+function IsModernWindowsTerminal: Boolean;
+var
+  EnvWT, EnvTerm, EnvVSCode: string;
+begin
+  Result := False;
+
+  // Windows Terminal sets WT_SESSION environment variable
+  EnvWT := GetEnvironmentVariable('WT_SESSION');
+  if EnvWT <> '' then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  // VSCode integrated terminal sets TERM_PROGRAM
+  EnvVSCode := GetEnvironmentVariable('TERM_PROGRAM');
+  if (EnvVSCode = 'vscode') or (Pos('vscode', LowerCase(EnvVSCode)) > 0) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  // Check for other modern terminal indicators
+  EnvTerm := GetEnvironmentVariable('TERM');
+  if (EnvTerm = 'xterm-256color') or (EnvTerm = 'xterm') then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  // ConEmu/Cmder sets ConEmuANSI
+  if GetEnvironmentVariable('ConEmuANSI') = 'ON' then
+  begin
+    Result := True;
+    Exit;
+  end;
+end;
 
 procedure InitConsole;
 var
   hOut: THandle;
   dwMode: DWORD;
+  VTEnabled: Boolean;
 begin
   if ConsoleInitialized then Exit;
   ConsoleInitialized := True;
+  VTEnabled := False;
 
-  // Set UTF-8 code page
-  SetConsoleOutputCP(CP_UTF8);
-  SetConsoleCP(CP_UTF8);
-
-  // Enable ANSI escape sequences on Windows 10+
+  // Enable ANSI escape sequences on Windows 10+ first
   hOut := GetStdHandle(STD_OUTPUT_HANDLE);
   if hOut <> INVALID_HANDLE_VALUE then
   begin
@@ -75,8 +115,28 @@ begin
     begin
       // ENABLE_VIRTUAL_TERMINAL_PROCESSING = $0004
       if SetConsoleMode(hOut, dwMode or $0004) then
+      begin
         ConsoleColorEnabled := True;
+        VTEnabled := True;
+      end;
     end;
+  end;
+
+  // Only set UTF-8 code page if:
+  // 1. Running in a modern terminal (Windows Terminal, VSCode, etc.), OR
+  // 2. Virtual Terminal Processing was successfully enabled (Windows 10+)
+  // This prevents I/O errors when outputting non-ASCII characters in legacy terminals
+  if IsModernWindowsTerminal or VTEnabled then
+  begin
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    ConsoleSupportsUTF8 := True;
+  end
+  else
+  begin
+    // Keep system default code page for legacy terminals
+    // This avoids "Disk Full" I/O errors when outputting Chinese/Unicode
+    ConsoleSupportsUTF8 := False;
   end;
 end;
 {$ENDIF}

@@ -93,7 +93,7 @@ begin
   else if HasFlag(AParams, 'from-binary') then
     LMode := imBinary;
 
-  // Convert mode to legacy boolean (until TFPCManager is refactored)
+  // Convert mode to boolean for TFPCManager
   LFromSource := (LMode = imSource);
 
   // Parse other flags
