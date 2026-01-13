@@ -1131,6 +1131,7 @@ var
   Q: string;
   Line: string;
   LO: IOutput;
+  StatusStr: string;
 begin
   Result := True;
   Matches := 0;
@@ -1145,8 +1146,8 @@ begin
     LO := TConsoleOutput.Create(False) as IOutput;
 
   try
-    // 先在本地已安装包中搜索；远程仓库搜索后续实现
-    Packages := GetInstalledPackages;
+    // Search in all available packages (including remote index)
+    Packages := GetAvailablePackages;
 
 
     for i := 0 to High(Packages) do
@@ -1155,14 +1156,18 @@ begin
          (Pos(Q, LowerCase(Packages[i].Description)) > 0) then
       begin
         Inc(Matches);
-        Line := Format('%-12s  ', [Packages[i].Name]) +
-                Format('%-8s  ', [Packages[i].Version]) +
-                Packages[i].Description;
+        if Packages[i].Installed then
+          StatusStr := 'Installed'
+        else
+          StatusStr := 'Available';
+        Line := Format('%-16s  %-10s  %-10s  %s',
+                [Packages[i].Name, Packages[i].Version, StatusStr, Packages[i].Description]);
         LO.WriteLn(Line);
       end;
     end;
 
     if Matches = 0 then
+      LO.WriteLn('No packages found matching: ' + AQuery);
 
 
   except
