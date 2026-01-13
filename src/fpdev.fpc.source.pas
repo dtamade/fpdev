@@ -799,9 +799,6 @@ begin
   finally
     LBM.Free;
   end;
-
-  if Result then
-  else
 end;
 
 function TFPCSourceManager.BuildFPCRTL(const AVersion: string): Boolean;
@@ -814,8 +811,6 @@ begin
   finally
     LBM.Free;
   end;
-  if Result then
-  else
 end;
 
 function TFPCSourceManager.BuildFPCPackages(const AVersion: string): Boolean;
@@ -840,8 +835,6 @@ begin
   finally
     LBM.Free;
   end;
-  if Result then
-  else
 end;
 
 function TFPCSourceManager.ConfigureFPCEnvironment(const AVersion: string): Boolean;
@@ -854,8 +847,6 @@ begin
   finally
     LBM.Free;
   end;
-  if Result then
-  else
 end;
 
 function TFPCSourceManager.TestBuildResults(const AVersion: string): Boolean;
@@ -900,9 +891,6 @@ var
 begin
   CachePath := FSourceRoot + PathDelim + 'cache' + PathDelim + 'fpc-' + AVersion + '.cache';
   Result := FileExists(CachePath);
-
-  if Result then
-  else
 end;
 
 function TFPCSourceManager.UseCachedBuild(const AVersion: string): Boolean;
