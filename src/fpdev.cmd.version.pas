@@ -52,14 +52,14 @@ end;
 
 function TVersionCommand.FindSub(const AName: string): ICommand;
 begin
-  if AName <> '' then;
+  // AName parameter not used - no subcommands
   Result := nil; // No subcommands
 end;
 
 function TVersionCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 begin
   Result := 0;
-  if Length(AParams) = 0 then;
+  // AParams parameter not used - version command ignores arguments
 
   Ctx.Out.WriteLn;
   Ctx.Out.WriteLn(FPDEV_NAME + ' - ' + FPDEV_DESCRIPTION);

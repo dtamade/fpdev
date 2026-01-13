@@ -161,7 +161,8 @@ var
   Opt: TFetchOptions;
 begin
   AErr := '';
-  if GetDataRoot = '' then;
+  // Ensure data root is initialized
+  GetDataRoot;
   if (DestFile<>'') and FileExists(DestFile) then
   begin
     if (ASha256<>'') and (Length(ASha256)=64) then

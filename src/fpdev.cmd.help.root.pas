@@ -36,7 +36,7 @@ end;
 
 function THelpCommand.FindSub(const AName: string): ICommand;
 begin
-  if AName <> '' then;
+  // AName parameter not used - help command has no subcommands
   Result := nil; // help命令没有子命令
 end;
 

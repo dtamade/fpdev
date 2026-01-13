@@ -857,8 +857,8 @@ end;
 
 function TBuildManager.Configure(const AVersion: string): Boolean;
 begin
-  // 保持占位：配置通常写 fpc.cfg，不在此阶段触及系统目录
-  if AVersion = '' then;
+  // AVersion parameter reserved for future use
+  // Configuration typically writes fpc.cfg, not touching system directories at this stage
   Result := True;
 end;
 

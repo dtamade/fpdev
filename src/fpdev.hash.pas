@@ -137,7 +137,7 @@ begin
   bits[2] := byte(beLen and $FF); beLen := beLen shr 8;
   bits[1] := byte(beLen and $FF); beLen := beLen shr 8;
   bits[0] := byte(beLen and $FF);
-  if bits[0] = 0 then;
+  // bits[0] is always set, no need for additional check
 
   // padding
   idx := (ctx.count shr 3) and 63;

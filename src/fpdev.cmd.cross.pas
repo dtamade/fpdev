@@ -687,7 +687,7 @@ var
   InstallPath: string;
 begin
   Result := False;
-  if ATargetInfo.Name = '' then;
+  // ATargetInfo parameter reserved for future use
 
   try
     InstallPath := GetTargetInstallPath(ATarget);
@@ -1055,8 +1055,8 @@ begin
     if TargetInfo.Installed then
     begin
       InstallPath := GetTargetInstallPath(ATarget);
-      if InstallPath = '' then;
-      // Note: CrossTarget info retrieved but not currently displayed
+      if InstallPath <> '' then
+        LO.WriteLn('Install Path: ' + InstallPath);
     end;
 
     Result := True;

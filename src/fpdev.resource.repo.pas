@@ -202,7 +202,8 @@ end;
 
 function CreateDefaultConfig: TResourceRepoConfig;
 begin
-  if GetDataRoot = '' then;
+  // Ensure data root is initialized
+  GetDataRoot;
   Result.URL := FPDEV_REPO_URL;  // Use central constant
   SetLength(Result.Mirrors, 1);
   Result.Mirrors[0] := FPDEV_REPO_MIRROR;  // Use central constant

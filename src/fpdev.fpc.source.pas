@@ -779,7 +779,7 @@ end;
 // Step-by-step build process (FPCUpDeluxe-inspired)
 function TFPCSourceManager.InitializeInstall(const AVersion: string): Boolean;
 begin
-  if AVersion = '' then;
+  // AVersion parameter reserved for future use
   // Create necessary directories
   EnsureDir(FSourceRoot);
   EnsureDir(FSourceRoot + PathDelim + 'bootstrap');
@@ -1006,7 +1006,7 @@ end;
 
 function TFPCSourceManager.CheckBuildPrerequisites(const AVersion: string): Boolean;
 begin
-  if AVersion = '' then;
+  // AVersion parameter reserved for future use
 
   // Check if make is available
   if not ExecuteCommand('make', ['--version'], '') then
