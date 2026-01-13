@@ -36,7 +36,7 @@ uses
   fpdev.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
-  fpdev.fpc.builder, fpdev.constants, fpdev.build.cache;
+  fpdev.fpc.builder, fpdev.constants, fpdev.build.cache, fpdev.paths;
 
 type
   { Source Mode for installation }
@@ -558,8 +558,8 @@ begin
     end;
   end;
 
-  // Default to user scope
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  // Default to user scope - use unified path from fpdev.paths
+  Result := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVersion;
 end;
 
 function TFPCManager.IsVersionInstalled(const AVersion: string): Boolean;

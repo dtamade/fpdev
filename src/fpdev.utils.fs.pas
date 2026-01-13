@@ -10,7 +10,7 @@ unit fpdev.utils.fs;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fphttpclient, opensslsockets;
 
 // Directory operations
 function DeleteDirRecursive(const ADir: string): Boolean;
@@ -19,6 +19,14 @@ function EnsureDir(const ADir: string): Boolean;
 
 // File operations
 function CopyFileSafe(const ASrc, ADest: string): Boolean;
+
+// Network operations
+{ Downloads a file from URL to local path.
+  @param AURL URL to download from
+  @param ADestPath Local file path to save to
+  @param ATimeoutMS Optional timeout in milliseconds (default 30000)
+  @returns True if download succeeded }
+function DownloadFile(const AURL, ADestPath: string; ATimeoutMS: Integer = 30000): Boolean;
 
 // Build artifact cleaning
 type
@@ -227,6 +235,53 @@ function CleanBuildArtifacts(const ADir: string;
 
 begin
   Result := CleanDir(ADir);
+end;
+
+function DownloadFile(const AURL, ADestPath: string; ATimeoutMS: Integer): Boolean;
+var
+  HTTPClient: TFPHTTPClient;
+  FileStream: TFileStream;
+  DestDir: string;
+begin
+  Result := False;
+
+  if (AURL = '') or (ADestPath = '') then
+    Exit;
+
+  try
+    // Ensure destination directory exists
+    DestDir := ExtractFileDir(ADestPath);
+    if (DestDir <> '') and not DirectoryExists(DestDir) then
+      ForceDirectories(DestDir);
+
+    HTTPClient := TFPHTTPClient.Create(nil);
+    try
+      HTTPClient.AllowRedirect := True;
+      HTTPClient.ConnectTimeout := ATimeoutMS;
+      HTTPClient.IOTimeout := ATimeoutMS;
+
+      // Add common headers
+      HTTPClient.AddHeader('User-Agent', 'fpdev/2.0');
+
+      FileStream := TFileStream.Create(ADestPath, fmCreate);
+      try
+        HTTPClient.Get(AURL, FileStream);
+        Result := True;
+      finally
+        FileStream.Free;
+      end;
+    finally
+      HTTPClient.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      // Clean up partial download
+      if FileExists(ADestPath) then
+        DeleteFile(ADestPath);
+      Result := False;
+    end;
+  end;
 end;
 
 end.

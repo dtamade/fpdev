@@ -6,10 +6,18 @@ unit fpdev.fpc.installer;
 ================================================================================
 
   Provides FPC binary package download and installation capabilities:
-  - Download binary packages from SourceForge
-  - Verify checksums
+  - Download binary packages from fpdev-repo (GitHub/Gitee mirrors)
+  - Verify checksums via manifest.json
   - Extract archives (ZIP, TAR, TAR.GZ)
   - Install from binary packages
+
+  IMPORTANT: This service ONLY downloads from fpdev-repo.
+  SourceForge and other external sources are NOT supported.
+  See docs/REPO_SPECIFICATION.md for repository format.
+
+  Mirror configuration:
+    China users: fpdev config set mirror gitee
+    Global users: fpdev config set mirror github
 
   This service is extracted from TFPCManager as part of the Facade pattern
   refactoring to reduce god class complexity.
@@ -35,7 +43,8 @@ interface
 uses
   SysUtils, Classes, fphttpclient, zipper,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
-  fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants;
+  fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
+  fpdev.paths;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -58,16 +67,20 @@ type
       AOut: IOutput = nil; AErr: IOutput = nil);
     destructor Destroy; override;
 
-    { Gets the download URL for a binary FPC package.
+    { DEPRECATED: Gets the download URL for a binary FPC package.
+      This method is kept for backward compatibility only.
+      New code should use InstallFromBinary which downloads from fpdev-repo.
       AVersion: FPC version to download
-      Returns: Platform-specific SourceForge URL }
-    function GetBinaryDownloadURL(const AVersion: string): string;
+      Returns: Platform-specific URL (legacy SourceForge format) }
+    function GetBinaryDownloadURL(const AVersion: string): string; deprecated 'Use InstallFromBinary instead';
 
-    { Downloads a binary FPC package.
+    { DEPRECATED: Downloads a binary FPC package from legacy sources.
+      This method is kept for backward compatibility only.
+      New code should use InstallFromBinary which downloads from fpdev-repo.
       AVersion: FPC version to download
       ATempFile: Output path where file was saved
       Returns: True if download succeeded }
-    function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+    function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean; deprecated 'Use InstallFromBinary instead';
 
     { Verifies checksum of downloaded file.
       AFilePath: Path to file to verify
@@ -137,7 +150,8 @@ end;
 
 function TFPCBinaryInstaller.GetVersionInstallPath(const AVersion: string): string;
 begin
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  // Use unified path from fpdev.paths to ensure consistency across all services
+  Result := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVersion;
 end;
 
 function TFPCBinaryInstaller.SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
@@ -427,17 +441,10 @@ end;
 
 function TFPCBinaryInstaller.InstallFromBinary(const AVersion: string; const APrefix: string): Boolean;
 var
-  TempFile, ExtractDir, InstallPath: string;
-  SR: TSearchRec;
-  SourceDir, InstallScript: string;
-  LResult: TProcessResult;
-  UseResourceRepo: Boolean;
-  {$IFDEF MSWINDOWS}
-  FileExt: string;
-  {$ENDIF}
+  InstallPath: string;
+  Platform: string;
 begin
   Result := False;
-  UseResourceRepo := False;
 
   try
     FOut.WriteLn('===========================================');
@@ -450,236 +457,112 @@ begin
     else
       InstallPath := GetVersionInstallPath(AVersion);
 
-    // Step 1: Try resource repository first (fpdev-repo)
-    FOut.WriteLn('[1/4] Checking fpdev-repo for binary release...');
+    Platform := GetCurrentPlatform;
+    FOut.WriteLn('Target: ' + InstallPath);
+    FOut.WriteLn('Platform: ' + Platform);
+    FOut.WriteLn;
+
+    // Step 1: Initialize fpdev-repo
+    FOut.WriteLn('[1/3] Initializing fpdev-repo...');
 
     if not Assigned(FResourceRepo) then
     begin
-      FResourceRepo := TResourceRepository.Create(CreateDefaultConfig);
+      // Use configured mirror settings from user config
+      FResourceRepo := TResourceRepository.Create(
+        CreateConfigWithMirror(
+          FConfigManager.GetSettingsManager.GetSettings.Mirror,
+          FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
+        )
+      );
       if not FResourceRepo.Initialize then
       begin
-        FOut.WriteLn('  Resource repository not available, trying external sources...');
+        FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
+        FErr.WriteLn('');
+        FErr.WriteLn('fpdev-repo is required for binary installation.');
+        FErr.WriteLn('Please check your network connection and try again.');
+        FErr.WriteLn('');
+        FErr.WriteLn('Mirror configuration:');
+        FErr.WriteLn('  China users: fpdev config set mirror gitee');
+        FErr.WriteLn('  Global users: fpdev config set mirror github');
         FResourceRepo.Free;
         FResourceRepo := nil;
-      end;
-    end;
-
-    if Assigned(FResourceRepo) and FResourceRepo.HasBinaryRelease(AVersion, GetCurrentPlatform) then
-    begin
-      FOut.WriteLn('  Found in fpdev-repo!');
-      FOut.WriteLn('  Installing from local resource repository...');
-
-      if FResourceRepo.InstallBinaryRelease(AVersion, GetCurrentPlatform, InstallPath) then
-      begin
-        UseResourceRepo := True;
-        FOut.WriteLn;
-        FOut.WriteLn('[2/4] Skipped (installed from fpdev-repo)');
-        FOut.WriteLn('[3/4] Skipped (installed from fpdev-repo)');
-      end
-      else
-        FOut.WriteLn('  Installation from fpdev-repo failed, trying external sources...');
-    end
-    else
-      FOut.WriteLn('  Not found in fpdev-repo, trying external sources...');
-
-    // Fall back to external download if resource repo didn't work
-    if not UseResourceRepo then
-    begin
-      FOut.WriteLn('[1/4] Downloading binary package...');
-      if not DownloadBinary(AVersion, TempFile) then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BINARY_DOWNLOAD_FAILED));
         Exit;
       end;
-      FOut.WriteLn;
-
-    {$IFDEF MSWINDOWS}
-    FileExt := LowerCase(ExtractFileExt(TempFile));
-    if FileExt = '.exe' then
-    begin
-      FOut.WriteLn('[2/4] Windows installer downloaded.');
-      FOut.WriteLn('');
-      FOut.WriteLn('The FPC installer has been downloaded to:');
-      FOut.WriteLn('  ' + TempFile);
-      FOut.WriteLn('');
-      FOut.WriteLn('Please run the installer manually and choose:');
-      FOut.WriteLn('  ' + InstallPath);
-      FOut.WriteLn('as the installation directory.');
-      FOut.WriteLn('');
-      FOut.WriteLn('After installation completes, run:');
-      FOut.WriteLn('  fpdev fpc use ' + AVersion);
-      FOut.WriteLn('to configure the environment.');
-      FOut.WriteLn('');
-      FOut.WriteLn('===========================================');
-      FOut.WriteLn('Download completed. Please run the installer.');
-      FOut.WriteLn('===========================================');
-      Result := True;
-      Exit;
     end;
-    {$ENDIF}
-
-    // Step 2: Extract archive (Linux/macOS)
-    FOut.WriteLn('[2/4] Extracting archive...');
-    ExtractDir := GetTempDir + 'fpdev_extract_' + IntToStr(GetTickCount64);
-    if not ExtractArchive(TempFile, ExtractDir) then
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_ARCHIVE_EXTRACT_FAILED));
-      if FileExists(TempFile) then DeleteFile(TempFile);
-      Exit;
-    end;
+    FOut.WriteLn('  fpdev-repo initialized');
     FOut.WriteLn;
 
-    // Step 3: Run install script (Linux) or copy files
-    FOut.WriteLn('[3/4] Running installation...');
-    FOut.WriteLn('  Target: ' + InstallPath);
+    // Step 2: Check if binary release exists
+    FOut.WriteLn('[2/3] Checking for FPC ' + AVersion + ' binary...');
 
-    SourceDir := '';
-    if FindFirst(ExtractDir + PathDelim + '*', faDirectory, SR) = 0 then
+    if not FResourceRepo.HasBinaryRelease(AVersion, Platform) then
     begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
-        begin
-          InstallScript := ExtractDir + PathDelim + SR.Name + PathDelim + 'install.sh';
-          if FileExists(InstallScript) then
-          begin
-            SourceDir := ExtractDir + PathDelim + SR.Name;
-            FOut.WriteLn('  Found FPC distribution: ' + SR.Name);
-            Break;
-          end;
-          if DirectoryExists(ExtractDir + PathDelim + SR.Name + PathDelim + 'bin') then
-          begin
-            SourceDir := ExtractDir + PathDelim + SR.Name;
-            FOut.WriteLn('  Found FPC directory: ' + SR.Name);
-            Break;
-          end;
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-
-    if SourceDir = '' then
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_DIST_NOT_FOUND));
-      if FileExists(TempFile) then DeleteFile(TempFile);
+      FErr.WriteLn(_(MSG_ERROR) + ': FPC ' + AVersion + ' binary not found in fpdev-repo');
+      FErr.WriteLn('');
+      FErr.WriteLn('The requested version is not available for your platform.');
+      FErr.WriteLn('');
+      FErr.WriteLn('Available options:');
+      FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
+      FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
+      FErr.WriteLn('  3. Update fpdev-repo: fpdev repo update');
+      FErr.WriteLn('');
+      FErr.WriteLn('If you need this version, please request it at:');
+      FErr.WriteLn('  https://github.com/dtamade/fpdev-repo/issues');
       Exit;
     end;
 
-    InstallScript := SourceDir + PathDelim + 'install.sh';
-    if FileExists(InstallScript) then
-    begin
-      FOut.WriteLn('  FPC Linux distribution detected, extracting nested archives...');
-      EnsureDir(InstallPath);
-
-      if FindFirst(SourceDir + PathDelim + 'binary.*.tar', faAnyFile, SR) = 0 then
-      begin
-        FOut.WriteLn('  Extracting: ' + SR.Name);
-        LResult := TProcessExecutor.Execute('tar', ['-xf', SourceDir + PathDelim + SR.Name, '-C', SourceDir], '');
-        if not LResult.Success then
-          FErr.WriteLn('  Warning: Error extracting ' + SR.Name);
-        FindClose(SR);
-      end;
-
-      if FindFirst(SourceDir + PathDelim + 'base.*.tar.gz', faAnyFile, SR) = 0 then
-      begin
-        FOut.WriteLn('  Installing base package: ' + SR.Name);
-        LResult := TProcessExecutor.Execute('tar', ['-xzf', SourceDir + PathDelim + SR.Name, '-C', InstallPath], '');
-        if LResult.Success then
-          FOut.WriteLn('  Base package installed successfully')
-        else
-          FErr.WriteLn('  Warning: Error extracting base package');
-        FindClose(SR);
-      end;
-
-      if FindFirst(SourceDir + PathDelim + 'units-rtl*.tar.gz', faAnyFile, SR) = 0 then
-      begin
-        repeat
-          FOut.WriteLn('  Installing: ' + SR.Name);
-          LResult := TProcessExecutor.Execute('tar', ['-xzf', SourceDir + PathDelim + SR.Name, '-C', InstallPath], '');
-          if not LResult.Success then
-            FErr.WriteLn('  Warning: Error extracting ' + SR.Name);
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-
-      if FindFirst(SourceDir + PathDelim + 'units-fcl*.tar.gz', faAnyFile, SR) = 0 then
-      begin
-        repeat
-          FOut.WriteLn('  Installing: ' + SR.Name);
-          LResult := TProcessExecutor.Execute('tar', ['-xzf', SourceDir + PathDelim + SR.Name, '-C', InstallPath], '');
-          if not LResult.Success then
-            FErr.WriteLn('  Warning: Error extracting ' + SR.Name);
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-    end;
-
-    if not DirectoryExists(InstallPath + PathDelim + 'bin') then
-    begin
-      if DirectoryExists(SourceDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion) then
-      begin
-        FOut.WriteLn('  Performing manual installation...');
-        EnsureDir(ExtractFileDir(InstallPath));
-
-        LResult := TProcessExecutor.Execute('cp', ['-r',
-          SourceDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion,
-          InstallPath], '');
-
-        if not LResult.Success then
-        begin
-          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_COPY_FAILED));
-          Exit;
-        end;
-
-        if DirectoryExists(SourceDir + PathDelim + 'bin') then
-        begin
-          EnsureDir(InstallPath + PathDelim + 'bin');
-          LResult := TProcessExecutor.Execute('cp', ['-r',
-            SourceDir + PathDelim + 'bin' + PathDelim + '.',
-            InstallPath + PathDelim + 'bin'], '');
-        end;
-      end;
-    end;
+    FOut.WriteLn('  Found FPC ' + AVersion + ' for ' + Platform);
     FOut.WriteLn;
 
-    FOut.WriteLn('Cleaning up temporary files...');
-    if FileExists(TempFile) then DeleteFile(TempFile);
+    // Step 3: Install from fpdev-repo
+    FOut.WriteLn('[3/3] Installing FPC ' + AVersion + '...');
 
-    end;  // End of: if not UseResourceRepo
+    if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Installation failed');
+      FErr.WriteLn('');
+      FErr.WriteLn('Please try again or report the issue at:');
+      FErr.WriteLn('  https://github.com/dtamade/fpdev-repo/issues');
+      Exit;
+    end;
+
+    FOut.WriteLn('  Binary package installed');
+    FOut.WriteLn;
 
     // Generate fpc.cfg configuration file if bin directory exists
     if DirectoryExists(InstallPath + PathDelim + 'bin') then
     begin
-      FOut.WriteLn('  Generating fpc.cfg...');
-    with TStringList.Create do
-    try
-      Add('# FPC configuration file generated by fpdev');
-      Add('# FPC version: ' + AVersion);
-      Add('');
-      Add('# Compiler binary path');
-      Add('-FD' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion);
-      Add('');
-      Add('# Unit search paths');
-      Add('-Fu' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + '*');
-      Add('-Fu' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
-      Add('');
-      Add('# Library search path');
-      Add('-Fl' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
-      Add('');
-      Add('# Include search path');
-      Add('-Fi' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
-      SaveToFile(InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.cfg');
-      FOut.WriteLn('  fpc.cfg created');
-    finally
-      Free;
-    end;
+      FOut.WriteLn('Generating fpc.cfg...');
+      with TStringList.Create do
+      try
+        Add('# FPC configuration file generated by fpdev');
+        Add('# FPC version: ' + AVersion);
+        Add('');
+        Add('# Compiler binary path');
+        Add('-FD' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion);
+        Add('');
+        Add('# Unit search paths');
+        Add('-Fu' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + '*');
+        Add('-Fu' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
+        Add('');
+        Add('# Library search path');
+        Add('-Fl' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
+        Add('');
+        Add('# Include search path');
+        Add('-Fi' + InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'units' + PathDelim + '$fpctarget' + PathDelim + 'rtl');
+        SaveToFile(InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.cfg');
+        FOut.WriteLn('  fpc.cfg created');
+      finally
+        Free;
+      end;
     end;
 
-    // Step 4: Setup environment
-    FOut.WriteLn('[4/4] Setting up environment...');
+    // Setup environment
+    FOut.WriteLn('Setting up environment...');
     if SetupEnvironment(AVersion, InstallPath) then
       FOut.WriteLn('  Environment configured')
     else
-      FErr.WriteLn('  Warning: Environment setup failed, but installation may have completed');
+      FErr.WriteLn('  Warning: Environment setup incomplete');
     FOut.WriteLn;
 
     FOut.WriteLn('===========================================');

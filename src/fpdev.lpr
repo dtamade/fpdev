@@ -106,6 +106,9 @@ uses
   fpdev.cmd.project.run,
   fpdev.cmd.project.help,
 
+  // Config command
+  fpdev.cmd.config,
+
   // 新的命令注册表与上下文
   fpdev.command.intf,
   fpdev.command.registry,

@@ -27,9 +27,12 @@ const
   LAZARUS_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
   DEFAULT_LAZARUS_REPO = LAZARUS_OFFICIAL_REPO;  // Alias for backward compatibility
 
-  // FPDev Resource Repository
-  FPDEV_REPO_URL = 'https://github.com/dtamade/fpdev-repo.git';
-  FPDEV_REPO_MIRROR = 'https://gitee.com/dtamade/fpdev-repo';
+  // FPDev Resource Repository - Mirror URLs
+  FPDEV_REPO_GITHUB = 'https://github.com/dtamade/fpdev-repo.git';
+  FPDEV_REPO_GITEE = 'https://gitee.com/dtamade/fpdev-repo.git';
+  // Default URLs (GitHub as primary, Gitee as mirror)
+  FPDEV_REPO_URL = FPDEV_REPO_GITHUB;
+  FPDEV_REPO_MIRROR = FPDEV_REPO_GITEE;
 
   // ============================================================
   // Version Constants

@@ -101,8 +101,9 @@ type
     // Bootstrap compiler management (FPCUpDeluxe-inspired) - for testing
     function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
     function GetBootstrapPath(const AVersion: string): string;
-    function GetBootstrapDownloadURL(const AVersion: string): string;
-    function DownloadBootstrapCompiler(const AVersion: string): Boolean;
+    { DEPRECATED: Use fpdev-repo for bootstrap compilers instead }
+    function GetBootstrapDownloadURL(const AVersion: string): string; deprecated 'Use fpdev-repo instead';
+    function DownloadBootstrapCompiler(const AVersion: string): Boolean; deprecated 'Use fpdev-repo instead';
 
     // 属性
     property SourceRoot: string read FSourceRoot write FSourceRoot;
@@ -638,10 +639,14 @@ function TFPCSourceManager.GetBootstrapDownloadURL(const AVersion: string): stri
 var
   PlatformInfo: TPlatformInfo;
 begin
+  // DEPRECATED: This function uses SourceForge URLs which are no longer supported.
+  // Bootstrap compilers should be downloaded from fpdev-repo instead.
+  // See docs/REPO_SPECIFICATION.md for the new repository format.
+
   // Detect platform and architecture
   PlatformInfo := DetectPlatformArch;
 
-  // Construct SourceForge download URL
+  // Legacy SourceForge download URL (kept for backward compatibility)
   // Format: https://sourceforge.net/projects/freepascal/files/{Platform}/{Version}/fpc-{Version}.{Arch}.zip/download
   Result := Format('https://sourceforge.net/projects/freepascal/files/%s/%s/fpc-%s.%s.zip/download',
     [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);

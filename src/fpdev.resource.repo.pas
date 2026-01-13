@@ -31,10 +31,15 @@ type
     UpdateIntervalHours: Integer;  // 更新间隔（小时）
   end;
 
-  { 平台信息 }
+  { 平台信息 - 支持 manifest v2.0 格式 }
   TPlatformInfo = record
-    Path: string;             // 资源在仓库中的路径
-    Executable: string;       // 可执行文件相对路径（或存档路径）
+    // v2.0 字段（推荐）
+    URL: string;              // 主下载 URL（完整 HTTP/HTTPS URL）
+    Mirrors: array of string; // 备用镜像 URL 列表（故障转移）
+    // v1.0 字段（向后兼容）
+    Path: string;             // 资源在仓库中的相对路径（当 URL 为空时使用）
+    // 通用字段
+    Executable: string;       // 可执行文件相对路径（仅 bootstrap）
     SHA256: string;           // 校验和
     Size: Int64;              // 大小（字节）
     Tested: Boolean;          // 是否经过测试
@@ -156,6 +161,10 @@ type
   { 辅助函数 }
   function GetCurrentPlatform: string;
   function CreateDefaultConfig: TResourceRepoConfig;
+  { Creates config based on user mirror settings.
+    AMirror: 'auto', 'github', 'gitee', or custom URL
+    ACustomURL: Custom repository URL (highest priority, overrides AMirror) }
+  function CreateConfigWithMirror(const AMirror: string; const ACustomURL: string = ''): TResourceRepoConfig;
 
 implementation
 
@@ -219,6 +228,48 @@ begin
   Result.Branch := 'main';
   Result.AutoUpdate := True;
   Result.UpdateIntervalHours := 24;
+end;
+
+function CreateConfigWithMirror(const AMirror: string; const ACustomURL: string): TResourceRepoConfig;
+begin
+  // Start with default config
+  Result := CreateDefaultConfig;
+
+  // Custom URL has highest priority
+  if ACustomURL <> '' then
+  begin
+    Result.URL := ACustomURL;
+    SetLength(Result.Mirrors, 0);  // No fallback mirrors for custom URL
+    Exit;
+  end;
+
+  // Handle mirror selection
+  if SameText(AMirror, 'github') then
+  begin
+    Result.URL := FPDEV_REPO_GITHUB;
+    SetLength(Result.Mirrors, 1);
+    Result.Mirrors[0] := FPDEV_REPO_GITEE;
+  end
+  else if SameText(AMirror, 'gitee') then
+  begin
+    Result.URL := FPDEV_REPO_GITEE;
+    SetLength(Result.Mirrors, 1);
+    Result.Mirrors[0] := FPDEV_REPO_GITHUB;
+  end
+  else if SameText(AMirror, 'auto') or (AMirror = '') then
+  begin
+    // Auto-detect: use default (GitHub primary, Gitee fallback)
+    // Future: could detect region and swap order for China users
+    Result.URL := FPDEV_REPO_GITHUB;
+    SetLength(Result.Mirrors, 1);
+    Result.Mirrors[0] := FPDEV_REPO_GITEE;
+  end
+  else
+  begin
+    // Treat as custom URL
+    Result.URL := AMirror;
+    SetLength(Result.Mirrors, 0);
+  end;
 end;
 
 { TResourceRepository }
@@ -528,6 +579,8 @@ var
   VersionData: TJSONObject;
   Platforms: TJSONObject;
   PlatformData: TJSONObject;
+  MirrorsArray: TJSONArray;
+  i: Integer;
 begin
   Result := False;
   System.Initialize(AInfo);
@@ -554,12 +607,29 @@ begin
     if not Assigned(PlatformData) then
       Exit;
 
+    // v2.0 fields: url and mirrors
+    AInfo.URL := PlatformData.Get('url', '');
+    MirrorsArray := PlatformData.Arrays['mirrors'];
+    if Assigned(MirrorsArray) then
+    begin
+      SetLength(AInfo.Mirrors, MirrorsArray.Count);
+      for i := 0 to MirrorsArray.Count - 1 do
+        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
+    end
+    else
+      SetLength(AInfo.Mirrors, 0);
+
+    // v1.0 backward compatibility: archive field
+    if AInfo.URL = '' then
+      AInfo.Path := PlatformData.Get('archive', AInfo.Path);
+
+    // Common fields
     AInfo.Executable := PlatformData.Get('executable', '');
     AInfo.SHA256 := PlatformData.Get('sha256', '');
     AInfo.Size := PlatformData.Get('size', Int64(0));
     AInfo.Tested := PlatformData.Get('tested', False);
 
-    Result := (AInfo.Executable <> '');
+    Result := (AInfo.Executable <> '') or (AInfo.URL <> '') or (AInfo.Path <> '');
   except
     Result := False;
   end;
@@ -893,6 +963,8 @@ var
   VersionData: TJSONObject;
   Platforms: TJSONObject;
   PlatformData: TJSONObject;
+  MirrorsArray: TJSONArray;
+  i: Integer;
 begin
   Result := False;
   System.Initialize(AInfo);
@@ -901,7 +973,10 @@ begin
     Exit;
 
   try
-    BinaryReleases := FManifestData.Objects['binary_releases'];
+    // Try fpc_releases first (v2.0 format), then binary_releases (v1.0 format)
+    BinaryReleases := FManifestData.Objects['fpc_releases'];
+    if not Assigned(BinaryReleases) then
+      BinaryReleases := FManifestData.Objects['binary_releases'];
     if not Assigned(BinaryReleases) then
       Exit;
 
@@ -919,12 +994,28 @@ begin
     if not Assigned(PlatformData) then
       Exit;
 
-    AInfo.Executable := PlatformData.Get('archive', '');
+    // v2.0 fields: url and mirrors
+    AInfo.URL := PlatformData.Get('url', '');
+    MirrorsArray := PlatformData.Arrays['mirrors'];
+    if Assigned(MirrorsArray) then
+    begin
+      SetLength(AInfo.Mirrors, MirrorsArray.Count);
+      for i := 0 to MirrorsArray.Count - 1 do
+        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
+    end
+    else
+      SetLength(AInfo.Mirrors, 0);
+
+    // v1.0 backward compatibility: archive field
+    if AInfo.URL = '' then
+      AInfo.Path := PlatformData.Get('archive', AInfo.Path);
+
+    // Common fields
     AInfo.SHA256 := PlatformData.Get('sha256', '');
     AInfo.Size := PlatformData.Get('size', Int64(0));
     AInfo.Tested := PlatformData.Get('tested', False);
 
-    Result := (AInfo.Executable <> '');
+    Result := (AInfo.URL <> '') or (AInfo.Path <> '');
   except
     Result := False;
   end;
@@ -943,6 +1034,10 @@ function TResourceRepository.InstallBinaryRelease(const AVersion, APlatform, ADe
 var
   Info: TPlatformInfo;
   ArchivePath: string;
+  TempFile: string;
+  DownloadURL: string;
+  i: Integer;
+  DownloadSuccess: Boolean;
 begin
   Result := False;
 
@@ -955,29 +1050,77 @@ begin
     Exit;
   end;
 
-  // Archive path in resource repository
-  ArchivePath := FLocalPath + PathDelim + Info.Executable;
-  if not FileExists(ArchivePath) then
-  begin
-    LogFmt('Error: Binary release archive not found: %s', [ArchivePath]);
-    Exit;
-  end;
-
   // Ensure destination directory exists
   if not DirectoryExists(ADestDir) then
     EnsureDir(ADestDir);
 
+  // Determine archive path - either download from URL or use local file
+  if Info.URL <> '' then
+  begin
+    // v2.0: Download from URL with mirror fallback
+    TempFile := GetTempDir + 'fpdev_download_' + IntToStr(GetTickCount64) + ExtractFileExt(Info.URL);
+    DownloadSuccess := False;
+
+    // Try primary URL first
+    LogFmt('Downloading from: %s', [Info.URL]);
+    DownloadSuccess := DownloadFile(Info.URL, TempFile);
+
+    // If primary URL fails, try mirrors
+    if not DownloadSuccess then
+    begin
+      for i := 0 to High(Info.Mirrors) do
+      begin
+        DownloadURL := Info.Mirrors[i];
+        LogFmt('Primary URL failed, trying mirror %d: %s', [i + 1, DownloadURL]);
+        DownloadSuccess := DownloadFile(DownloadURL, TempFile);
+        if DownloadSuccess then
+          Break;
+      end;
+    end;
+
+    if not DownloadSuccess then
+    begin
+      Log('Error: Failed to download binary release from all sources');
+      if FileExists(TempFile) then
+        DeleteFile(TempFile);
+      Exit;
+    end;
+
+    ArchivePath := TempFile;
+    Log('Download completed');
+  end
+  else if Info.Path <> '' then
+  begin
+    // v1.0 backward compatibility: use local file from repository
+    ArchivePath := FLocalPath + PathDelim + Info.Path;
+    if not FileExists(ArchivePath) then
+    begin
+      LogFmt('Error: Binary release archive not found: %s', [ArchivePath]);
+      Exit;
+    end;
+    TempFile := '';  // No temp file to clean up
+  end
+  else
+  begin
+    Log('Error: No URL or archive path specified in manifest');
+    Exit;
+  end;
+
   LogFmt('Source: %s', [ArchivePath]);
   LogFmt('Destination: %s', [ADestDir]);
 
-  // Verify checksum first
+  // Verify checksum
   if Info.SHA256 <> '' then
   begin
+    Log('Verifying checksum...');
     if not VerifyChecksum(ArchivePath, Info.SHA256) then
     begin
       Log('Error: Checksum verification failed');
+      if TempFile <> '' then
+        DeleteFile(TempFile);
       Exit;
     end;
+    Log('Checksum verified');
   end;
 
   // Extract based on file extension
@@ -1000,8 +1143,14 @@ begin
   else
   begin
     LogFmt('Error: Unsupported archive format: %s', [ExtractFileExt(ArchivePath)]);
+    if TempFile <> '' then
+      DeleteFile(TempFile);
     Exit;
   end;
+
+  // Clean up temp file
+  if TempFile <> '' then
+    DeleteFile(TempFile);
 
   if Result then
     Log('Binary release installed successfully')

@@ -459,13 +459,15 @@ constructor TSettingsManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
   FNotifier := ANotifier;
-  
+
   // 设置默认值
   FSettings.AutoUpdate := False;
   FSettings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
   FSettings.KeepSources := True;
   FSettings.InstallRoot := '';
   FSettings.DefaultRepo := '';
+  FSettings.Mirror := 'auto';        // Default to auto-detect
+  FSettings.CustomRepoURL := '';     // No custom repo by default
 end;
 
 function TSettingsManager.GetSettings: TFPDevSettings;
@@ -496,6 +498,9 @@ begin
     FSettings.KeepSources := ASettings.Get('keep_sources', True);
     FSettings.InstallRoot := ExcludeTrailingPathDelimiter(ASettings.Get('install_root', ''));
     FSettings.DefaultRepo := ASettings.Get('default_repo', '');
+    // Mirror configuration
+    FSettings.Mirror := ASettings.Get('mirror', 'auto');
+    FSettings.CustomRepoURL := ASettings.Get('custom_repo_url', '');
   end;
 end;
 
@@ -507,6 +512,9 @@ begin
   ASettings.Add('keep_sources', FSettings.KeepSources);
   ASettings.Add('install_root', FSettings.InstallRoot);
   ASettings.Add('default_repo', FSettings.DefaultRepo);
+  // Mirror configuration
+  ASettings.Add('mirror', FSettings.Mirror);
+  ASettings.Add('custom_repo_url', FSettings.CustomRepoURL);
 end;
 
 { TToolchainManager }
