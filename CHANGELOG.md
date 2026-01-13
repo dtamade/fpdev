@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.2] - 2026-01-13
+### Added
+- **Build Cache for Fast Version Switching**
+  - Artifact caching system in TBuildCache (save/restore tar.gz archives)
+  - Platform-aware cache keys (fpc-{version}-{cpu}-{os}.tar.gz)
+  - Metadata tracking for cached artifacts
+  - Integrated into TFPCManager.InstallVersion for instant restores
+  - Cache statistics tracking (hits/misses)
+
+### Changed
+- **FPC Installation Flow**
+  - Check for cached artifacts before building from source
+  - Automatically save build artifacts after successful compilation
+  - Instant version switching when cache is available
+
+### Documentation
+- Added deprecated notice to fpdev.git2.pas pointing to modern interface (git2.api + git2.impl)
+
 ## [2.0.1] - 2026-01-12
 ### Added
 - **Package Dependency Resolution**
