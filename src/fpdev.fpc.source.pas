@@ -5,7 +5,7 @@ unit fpdev.fpc.source;
 interface
 
 uses
-  SysUtils, Classes, StrUtils, fpdev.source.repo, fpdev.build.manager;
+  SysUtils, Classes, StrUtils, fpdev.source.repo, fpdev.build.manager, fpdev.constants;
 
 type
   // FPCUpDeluxe-inspired build steps
@@ -110,8 +110,8 @@ type
   end;
 
 const
-  // FPC Git仓库信息
-  FPC_GIT_URL = 'https://gitlab.com/freepascal.org/fpc/source.git';
+  // FPC Git仓库信息 - 使用中央常量
+  FPC_GIT_URL = FPC_OFFICIAL_REPO;
 
   // 支持的FPC版本分支
   FPC_VERSIONS: array[0..6] of record

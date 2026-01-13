@@ -5,7 +5,7 @@ unit fpdev.lazarus.source;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process;
+  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.constants;
 
 type
   { TLazarusSourceManager }
@@ -62,8 +62,8 @@ type
   end;
 
 const
-  // Lazarus Git仓库信息
-  LAZARUS_GIT_URL = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+  // Lazarus Git仓库信息 - 使用中央常量
+  LAZARUS_GIT_URL = LAZARUS_OFFICIAL_REPO;
 
   // 支持的Lazarus版本分支
   LAZARUS_VERSIONS: array[0..8] of record

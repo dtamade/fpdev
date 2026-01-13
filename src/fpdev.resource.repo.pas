@@ -203,9 +203,9 @@ end;
 function CreateDefaultConfig: TResourceRepoConfig;
 begin
   if GetDataRoot = '' then;
-  Result.URL := 'https://github.com/dtamade/fpdev-repo.git';
+  Result.URL := FPDEV_REPO_URL;  // Use central constant
   SetLength(Result.Mirrors, 1);
-  Result.Mirrors[0] := 'https://gitee.com/dtamade/fpdev-repo';
+  Result.Mirrors[0] := FPDEV_REPO_MIRROR;  // Use central constant
 
   {$IFDEF MSWINDOWS}
   Result.LocalPath := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +

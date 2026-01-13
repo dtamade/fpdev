@@ -100,10 +100,7 @@ type
 implementation
 
 uses
-  fpdev.version.registry;
-
-const
-  LAZARUS_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+  fpdev.version.registry, fpdev.constants;
 
 { TLazarusManager }
 

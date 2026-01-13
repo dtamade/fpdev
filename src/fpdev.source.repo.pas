@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.git2, fpdev.utils.fs;
+  fpdev.git2, fpdev.utils.fs, fpdev.constants;
 
 type
   { TSourceRepoManager }
@@ -26,7 +26,7 @@ type
   end;
 
 const
-  FPC_GIT_URL = 'https://gitlab.com/freepascal.org/fpc/source.git';
+  FPC_GIT_URL = FPC_OFFICIAL_REPO;  // Use central constant
 
 implementation
 

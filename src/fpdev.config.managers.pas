@@ -36,7 +36,7 @@ interface
 
 uses
   SysUtils, Classes, fpjson, jsonparser, DateUtils,
-  fpdev.config.interfaces, fpdev.paths, fpdev.utils.fs;
+  fpdev.config.interfaces, fpdev.paths, fpdev.utils.fs, fpdev.constants;
 
 type
   TConfigChangeNotifier = class(TInterfacedObject, IConfigChangeNotifier)
@@ -311,8 +311,7 @@ type
 const
   CONFIG_VERSION = '1.0';
   DEFAULT_PARALLEL_JOBS = 4;
-  DEFAULT_FPC_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  DEFAULT_LAZARUS_REPO = 'https://gitlab.com/freepascal.org/lazarus.git';
+  // Note: DEFAULT_FPC_REPO and DEFAULT_LAZARUS_REPO are defined in fpdev.constants
 
 implementation
 

@@ -28,7 +28,7 @@ unit fpdev.version.registry;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.constants;
 
 type
   { TFPCReleaseInfo - FPC version release information }
@@ -245,7 +245,7 @@ begin
       begin
         FPCObj := Root.Objects['fpc'];
         FFPCDefaultVersion := FPCObj.Get('default_version', '3.2.2');
-        FFPCRepository := FPCObj.Get('repository', 'https://gitlab.com/freepascal.org/fpc/source.git');
+        FFPCRepository := FPCObj.Get('repository', FPC_OFFICIAL_REPO);  // Use central constant
         if FPCObj.Find('releases') <> nil then
           ParseFPCReleases(FPCObj.Arrays['releases']);
       end;
@@ -255,7 +255,7 @@ begin
       begin
         LazObj := Root.Objects['lazarus'];
         FLazarusDefaultVersion := LazObj.Get('default_version', '3.6');
-        FLazarusRepository := LazObj.Get('repository', 'https://gitlab.com/freepascal.org/lazarus/lazarus.git');
+        FLazarusRepository := LazObj.Get('repository', LAZARUS_OFFICIAL_REPO);  // Use central constant
         if LazObj.Find('releases') <> nil then
           ParseLazarusReleases(LazObj.Arrays['releases']);
       end;
@@ -354,7 +354,7 @@ begin
 
   // FPC defaults
   FFPCDefaultVersion := '3.2.2';
-  FFPCRepository := 'https://gitlab.com/freepascal.org/fpc/source.git';
+  FFPCRepository := FPC_OFFICIAL_REPO;  // Use central constant
   SetLength(FFPCReleases, 5);
 
   FFPCReleases[0].Version := '3.2.2';
@@ -394,7 +394,7 @@ begin
 
   // Lazarus defaults
   FLazarusDefaultVersion := '3.6';
-  FLazarusRepository := 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+  FLazarusRepository := LAZARUS_OFFICIAL_REPO;  // Use central constant
   SetLength(FLazarusReleases, 2);
 
   FLazarusReleases[0].Version := '3.6';

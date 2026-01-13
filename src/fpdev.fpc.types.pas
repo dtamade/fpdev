@@ -13,7 +13,7 @@ unit fpdev.fpc.types;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.constants;
 
 type
   { TFPCErrorCode - Error codes for FPC operations }
@@ -129,9 +129,6 @@ type
   end;
 
 const
-  { FPC Official Git Repository URL }
-  FPC_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-
   { FPC Release Catalog }
   FPC_RELEASES: array[0..4] of TFPCVersionInfo = (
     (Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'3_2_2'; Branch:'fixes_3_2'; Available:True; Installed:False),

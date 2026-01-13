@@ -2,28 +2,57 @@ unit fpdev.constants;
 
 {$mode objfpc}{$H+}
 
+{
+  Central Constants Definition
+
+  This module is the SINGLE SOURCE OF TRUTH for all shared constants.
+  Other modules should import from here instead of defining their own.
+}
+
 interface
 
 uses
   SysUtils;
 
 const
-  // FPC related constants
-  DEFAULT_FPC_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  FPC_OFFICIAL_REPO = DEFAULT_FPC_REPO;  // Alias
+  // ============================================================
+  // Official Repository URLs (SINGLE SOURCE OF TRUTH)
+  // ============================================================
+
+  // FPC Official Git Repository
+  FPC_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
+  DEFAULT_FPC_REPO = FPC_OFFICIAL_REPO;  // Alias for backward compatibility
+
+  // Lazarus Official Git Repository
+  LAZARUS_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+  DEFAULT_LAZARUS_REPO = LAZARUS_OFFICIAL_REPO;  // Alias for backward compatibility
+
+  // FPDev Resource Repository
+  FPDEV_REPO_URL = 'https://github.com/dtamade/fpdev-repo.git';
+  FPDEV_REPO_MIRROR = 'https://gitee.com/dtamade/fpdev-repo';
+
+  // ============================================================
+  // Version Constants
+  // ============================================================
   DEFAULT_FPC_VERSION = '3.2.2';
   FALLBACK_FPC_VERSION = '3.2.0';
+  DEFAULT_LAZARUS_VERSION = '3.6';
 
-  // 路径相关常量
+  // ============================================================
+  // Path Constants
+  // ============================================================
   FPDEV_CONFIG_DIR = '.fpdev';
-  // 注意: 推荐直接使用 SysUtils.PathDelim 而非此常量
   PATH_SEPARATOR = PathDelim;
 
-  // 命令行参数
+  // ============================================================
+  // Command Line Switches
+  // ============================================================
   CMD_SWITCH_CLEAN = '/c';
   CMD_SWITCH_SILENT = '/s';
 
-  // 日志相关
+  // ============================================================
+  // Logging
+  // ============================================================
   LOG_TIMESTAMP_FORMAT = 'yyyy-mm-dd hh:nn:ss.zzz';
 
 implementation
