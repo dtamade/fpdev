@@ -27,12 +27,28 @@ const
   LAZARUS_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
   DEFAULT_LAZARUS_REPO = LAZARUS_OFFICIAL_REPO;  // Alias for backward compatibility
 
-  // FPDev Resource Repository - Mirror URLs
-  FPDEV_REPO_GITHUB = 'https://github.com/dtamade/fpdev-repo.git';
-  FPDEV_REPO_GITEE = 'https://gitee.com/dtamade/fpdev-repo.git';
+  // FPDev Resource Repository - Multi-Repository Architecture v2.0
+  // Main index repository (entry point)
+  FPDEV_INDEX_GITHUB = 'https://github.com/dtamade/fpdev-index.git';
+  FPDEV_INDEX_GITEE = 'https://gitee.com/dtamade/fpdev-index.git';
+
+  // Sub-repositories (referenced from index.json)
+  FPDEV_BOOTSTRAP_GITHUB = 'https://github.com/dtamade/fpdev-bootstrap.git';
+  FPDEV_BOOTSTRAP_GITEE = 'https://gitee.com/dtamade/fpdev-bootstrap.git';
+  FPDEV_FPC_GITHUB = 'https://github.com/dtamade/fpdev-fpc.git';
+  FPDEV_FPC_GITEE = 'https://gitee.com/dtamade/fpdev-fpc.git';
+  FPDEV_LAZARUS_GITHUB = 'https://github.com/dtamade/fpdev-lazarus.git';
+  FPDEV_LAZARUS_GITEE = 'https://gitee.com/dtamade/fpdev-lazarus.git';
+  FPDEV_CROSS_GITHUB = 'https://github.com/dtamade/fpdev-cross.git';
+  FPDEV_CROSS_GITEE = 'https://gitee.com/dtamade/fpdev-cross.git';
+
   // Default URLs (GitHub as primary, Gitee as mirror)
-  FPDEV_REPO_URL = FPDEV_REPO_GITHUB;
-  FPDEV_REPO_MIRROR = FPDEV_REPO_GITEE;
+  FPDEV_REPO_URL = FPDEV_INDEX_GITHUB;
+  FPDEV_REPO_MIRROR = FPDEV_INDEX_GITEE;
+
+  // Legacy aliases for backward compatibility
+  FPDEV_REPO_GITHUB = FPDEV_INDEX_GITHUB;
+  FPDEV_REPO_GITEE = FPDEV_INDEX_GITEE;
 
   // ============================================================
   // Version Constants
