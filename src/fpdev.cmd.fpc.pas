@@ -36,7 +36,7 @@ uses
   fpdev.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
-  fpdev.fpc.builder, fpdev.constants;
+  fpdev.fpc.builder, fpdev.constants, fpdev.build.cache;
 
 type
   { Source Mode for installation }
@@ -88,6 +88,7 @@ type
     FVersionMgr: TFPCVersionManager;  // Version service (Facade delegation)
     FInstallerMgr: TFPCBinaryInstaller;  // Binary installation service (Facade delegation)
     FBuilderMgr: TFPCSourceBuilder;  // Source build service (Facade delegation)
+    FBuildCache: TBuildCache;  // Build artifact cache for fast version switching
 
     FOut: IOutput;
     FErr: IOutput;
@@ -326,6 +327,7 @@ end;
 constructor TFPCManager.Create(AConfigManager: IConfigManager; const AOut: IOutput; const AErr: IOutput);
 var
   Settings: TFPDevSettings;
+  CacheDir: string;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
@@ -358,10 +360,16 @@ begin
   // 确保安装目录存在
   if not DirectoryExists(FInstallRoot) then
     EnsureDir(FInstallRoot);
+
+  // Initialize build cache
+  CacheDir := FInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
+  FBuildCache := TBuildCache.Create(CacheDir);
 end;
 
 destructor TFPCManager.Destroy;
 begin
+  if Assigned(FBuildCache) then
+    FBuildCache.Free;
   if Assigned(FBuilderMgr) then
     FBuilderMgr.Free;
   if Assigned(FInstallerMgr) then
@@ -680,6 +688,7 @@ end;
 function TFPCManager.InstallVersion(const AVersion: string; const AFromSource: Boolean; const APrefix: string; const AEnsure: Boolean): Boolean;
 var
   InstallPath, SourceDir: string;
+  CacheRestored: Boolean;
 begin
   Result := False;
 
@@ -707,32 +716,63 @@ begin
 
     if AFromSource then
     begin
-      // Install from source
-      SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
+      CacheRestored := False;
 
-      FOut.WriteLn(_(MSG_FPC_STEP_DOWNLOAD));
-      if not DownloadSource(AVersion, SourceDir) then
+      // Try to restore from build cache first (fast path)
+      if Assigned(FBuildCache) and FBuildCache.HasArtifacts(AVersion) then
       begin
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_DOWNLOAD_FAILED));
-        Exit;
+        FOut.WriteLn('Restoring from build cache...');
+        if FBuildCache.RestoreArtifacts(AVersion, InstallPath) then
+        begin
+          FOut.WriteLn('Build cache restored successfully');
+          CacheRestored := True;
+          FOut.WriteLn(_(MSG_FPC_STEP_SETUP));
+          Result := SetupEnvironment(AVersion, InstallPath);
+        end
+        else
+          FOut.WriteLn('Cache restore failed, building from source...');
       end;
 
-      FOut.WriteLn(_(MSG_FPC_STEP_BOOTSTRAP));
-      if not EnsureBootstrapCompiler(AVersion) then
+      // If cache restore failed or no cache, build from source
+      if not CacheRestored then
       begin
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BOOTSTRAP_CHECK_FAILED));
-        Exit;
-      end;
+        // Install from source
+        SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
 
-      FOut.WriteLn(_(MSG_FPC_STEP_BUILD));
-      if not BuildFromSource(SourceDir, InstallPath) then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BUILD_FROM_SOURCE_FAILED));
-        Exit;
-      end;
+        FOut.WriteLn(_(MSG_FPC_STEP_DOWNLOAD));
+        if not DownloadSource(AVersion, SourceDir) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_DOWNLOAD_FAILED));
+          Exit;
+        end;
 
-      FOut.WriteLn(_(MSG_FPC_STEP_SETUP));
-      Result := SetupEnvironment(AVersion, InstallPath);
+        FOut.WriteLn(_(MSG_FPC_STEP_BOOTSTRAP));
+        if not EnsureBootstrapCompiler(AVersion) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BOOTSTRAP_CHECK_FAILED));
+          Exit;
+        end;
+
+        FOut.WriteLn(_(MSG_FPC_STEP_BUILD));
+        if not BuildFromSource(SourceDir, InstallPath) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BUILD_FROM_SOURCE_FAILED));
+          Exit;
+        end;
+
+        FOut.WriteLn(_(MSG_FPC_STEP_SETUP));
+        Result := SetupEnvironment(AVersion, InstallPath);
+
+        // Save to build cache after successful build
+        if Result and Assigned(FBuildCache) then
+        begin
+          FOut.WriteLn('Saving build artifacts to cache...');
+          if FBuildCache.SaveArtifacts(AVersion, InstallPath) then
+            FOut.WriteLn('Build artifacts cached successfully')
+          else
+            FOut.WriteLn('Warning: Failed to cache build artifacts');
+        end;
+      end;
 
     end else
     begin

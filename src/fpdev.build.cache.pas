@@ -6,15 +6,22 @@ unit fpdev.build.cache;
   TBuildCache - Build cache management service
 
   Extracted from fpdev.build.manager to handle:
-  - Build artifact caching
+  - Build artifact caching (bin/lib directories)
   - Incremental build detection
   - Cache invalidation
+  - Fast version switching via cached artifacts
+
+  Cache Structure:
+    ~/.fpdev/cache/builds/
+    ├── fpc-3.2.2-x86_64-linux.tar.gz    # Compressed artifacts
+    ├── fpc-3.2.2-x86_64-linux.meta      # Metadata file
+    └── build-cache.txt                   # Entry index
 }
 
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, Process;
 
 type
   { TBuildStep - Build stage state machine }
@@ -43,6 +50,17 @@ type
     Status: TBuildStep;       // Build stage reached
   end;
 
+  { TArtifactInfo - Cached artifact metadata }
+  TArtifactInfo = record
+    Version: string;          // FPC version
+    CPU: string;              // Target CPU
+    OS: string;               // Target OS
+    ArchivePath: string;      // Path to .tar.gz archive
+    ArchiveSize: Int64;       // Archive size in bytes
+    CreatedAt: TDateTime;     // When cached
+    SourcePath: string;       // Original install path
+  end;
+
   { TBuildCache - Build cache management }
   TBuildCache = class
   private
@@ -55,15 +73,33 @@ type
     procedure LoadEntries;
     procedure SaveEntries;
     function FindEntry(const AVersion: string): Integer;
+    function GetCurrentCPU: string;
+    function GetCurrentOS: string;
+    function GetArtifactKey(const AVersion: string): string;
+    function GetArtifactArchivePath(const AVersion: string): string;
+    function GetArtifactMetaPath(const AVersion: string): string;
+    function RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
   public
     constructor Create(const ACacheDir: string);
     destructor Destroy; override;
+
+    { Metadata cache (build status tracking) }
     function IsCacheValid(const AVersion: string): Boolean;
     function GetCachedBuild(const AVersion: string): string;
     procedure InvalidateCache(const AVersion: string);
     procedure UpdateCache(const AVersion: string; const AEntry: TBuildCacheEntry);
     function NeedsRebuild(const AVersion: string; AStep: TBuildStep): Boolean;
     function GetRevision(const AVersion: string): string;
+
+    { Artifact cache (compiled binaries) }
+    function HasArtifacts(const AVersion: string): Boolean;
+    function SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
+    function RestoreArtifacts(const AVersion, ADestPath: string): Boolean;
+    function GetArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+    function DeleteArtifacts(const AVersion: string): Boolean;
+    function GetTotalCacheSize: Int64;
+    function ListCachedVersions: TStringArray;
+
     { Cache statistics }
     function GetCacheStats: string;
     procedure ClearStats;
@@ -97,6 +133,84 @@ destructor TBuildCache.Destroy;
 begin
   FEntries.Free;
   inherited Destroy;
+end;
+
+function TBuildCache.GetCurrentCPU: string;
+begin
+  {$IFDEF CPUX86_64}
+  Result := 'x86_64';
+  {$ELSE}
+  {$IFDEF CPUI386}
+  Result := 'i386';
+  {$ELSE}
+  {$IFDEF CPUARM}
+  Result := 'arm';
+  {$ELSE}
+  {$IFDEF CPUAARCH64}
+  Result := 'aarch64';
+  {$ELSE}
+  Result := 'unknown';
+  {$ENDIF}
+  {$ENDIF}
+  {$ENDIF}
+  {$ENDIF}
+end;
+
+function TBuildCache.GetCurrentOS: string;
+begin
+  {$IFDEF LINUX}
+  Result := 'linux';
+  {$ELSE}
+  {$IFDEF MSWINDOWS}
+  Result := 'win64';
+  {$ELSE}
+  {$IFDEF DARWIN}
+  Result := 'darwin';
+  {$ELSE}
+  Result := 'unknown';
+  {$ENDIF}
+  {$ENDIF}
+  {$ENDIF}
+end;
+
+function TBuildCache.GetArtifactKey(const AVersion: string): string;
+begin
+  Result := 'fpc-' + AVersion + '-' + GetCurrentCPU + '-' + GetCurrentOS;
+end;
+
+function TBuildCache.GetArtifactArchivePath(const AVersion: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.tar.gz';
+end;
+
+function TBuildCache.GetArtifactMetaPath(const AVersion: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.meta';
+end;
+
+function TBuildCache.RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
+var
+  P: TProcess;
+  i: Integer;
+begin
+  Result := False;
+  P := TProcess.Create(nil);
+  try
+    P.Executable := ACmd;
+    for i := Low(AArgs) to High(AArgs) do
+      P.Parameters.Add(AArgs[i]);
+    if AWorkDir <> '' then
+      P.CurrentDirectory := AWorkDir;
+    P.Options := [poWaitOnExit, poUsePipes];
+    try
+      P.Execute;
+      Result := (P.ExitStatus = 0);
+    except
+      Result := False;
+    end;
+  finally
+    P.Free;
+  end;
 end;
 
 function TBuildCache.GetCacheFilePath: string;
@@ -269,6 +383,239 @@ procedure TBuildCache.ClearStats;
 begin
   FCacheHits := 0;
   FCacheMisses := 0;
+end;
+
+{ Artifact Cache Methods }
+
+function TBuildCache.HasArtifacts(const AVersion: string): Boolean;
+begin
+  Result := FileExists(GetArtifactArchivePath(AVersion));
+end;
+
+function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
+var
+  ArchivePath, MetaPath: string;
+  MetaFile: TStringList;
+  SR: TSearchRec;
+begin
+  Result := False;
+
+  if not DirectoryExists(AInstallPath) then
+    Exit;
+
+  // Ensure cache directory exists
+  ForceDirectories(FCacheDir);
+
+  ArchivePath := GetArtifactArchivePath(AVersion);
+  MetaPath := GetArtifactMetaPath(AVersion);
+
+  // Create tar.gz archive using system tar command
+  // tar -czf archive.tar.gz -C /path/to/install .
+  {$IFDEF MSWINDOWS}
+  // On Windows, try tar (available in Windows 10+) or fall back to 7z
+  if not RunCommand('tar', ['--version'], '') then
+  begin
+    // Try 7z as fallback
+    Result := RunCommand('7z', ['a', '-ttar', ArchivePath + '.tar', AInstallPath + PathDelim + '*'], '');
+    if Result then
+      Result := RunCommand('7z', ['a', '-tgzip', ArchivePath, ArchivePath + '.tar'], '');
+    if FileExists(ArchivePath + '.tar') then
+      DeleteFile(ArchivePath + '.tar');
+  end
+  else
+    Result := RunCommand('tar', ['-czf', ArchivePath, '-C', AInstallPath, '.'], '');
+  {$ELSE}
+  Result := RunCommand('tar', ['-czf', ArchivePath, '-C', AInstallPath, '.'], '');
+  {$ENDIF}
+
+  if not Result then
+    Exit;
+
+  // Write metadata file
+  MetaFile := TStringList.Create;
+  try
+    MetaFile.Add('version=' + AVersion);
+    MetaFile.Add('cpu=' + GetCurrentCPU);
+    MetaFile.Add('os=' + GetCurrentOS);
+    MetaFile.Add('source_path=' + AInstallPath);
+    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+
+    // Get archive size
+    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+    begin
+      MetaFile.Add('archive_size=' + IntToStr(SR.Size));
+      FindClose(SR);
+    end;
+
+    MetaFile.SaveToFile(MetaPath);
+    Result := True;
+  finally
+    MetaFile.Free;
+  end;
+end;
+
+function TBuildCache.RestoreArtifacts(const AVersion, ADestPath: string): Boolean;
+var
+  ArchivePath: string;
+begin
+  Result := False;
+
+  ArchivePath := GetArtifactArchivePath(AVersion);
+  if not FileExists(ArchivePath) then
+    Exit;
+
+  // Ensure destination directory exists
+  ForceDirectories(ADestPath);
+
+  // Extract tar.gz archive
+  {$IFDEF MSWINDOWS}
+  if not RunCommand('tar', ['--version'], '') then
+  begin
+    // Try 7z as fallback
+    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, ArchivePath], '');
+  end
+  else
+    Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+  {$ELSE}
+  Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+  {$ENDIF}
+
+  if Result then
+    Inc(FCacheHits)
+  else
+    Inc(FCacheMisses);
+end;
+
+function TBuildCache.GetArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+var
+  MetaPath: string;
+  MetaFile: TStringList;
+  i: Integer;
+  Line, Key, Value: string;
+  EqPos: Integer;
+begin
+  Result := False;
+  Initialize(AInfo);
+
+  MetaPath := GetArtifactMetaPath(AVersion);
+  if not FileExists(MetaPath) then
+    Exit;
+
+  MetaFile := TStringList.Create;
+  try
+    MetaFile.LoadFromFile(MetaPath);
+
+    AInfo.ArchivePath := GetArtifactArchivePath(AVersion);
+
+    for i := 0 to MetaFile.Count - 1 do
+    begin
+      Line := MetaFile[i];
+      EqPos := Pos('=', Line);
+      if EqPos > 0 then
+      begin
+        Key := Copy(Line, 1, EqPos - 1);
+        Value := Copy(Line, EqPos + 1, Length(Line));
+
+        if Key = 'version' then
+          AInfo.Version := Value
+        else if Key = 'cpu' then
+          AInfo.CPU := Value
+        else if Key = 'os' then
+          AInfo.OS := Value
+        else if Key = 'source_path' then
+          AInfo.SourcePath := Value
+        else if Key = 'archive_size' then
+          AInfo.ArchiveSize := StrToInt64Def(Value, 0);
+        // Note: CreatedAt parsing omitted for simplicity
+      end;
+    end;
+
+    Result := AInfo.Version <> '';
+  finally
+    MetaFile.Free;
+  end;
+end;
+
+function TBuildCache.DeleteArtifacts(const AVersion: string): Boolean;
+var
+  ArchivePath, MetaPath: string;
+begin
+  Result := True;
+
+  ArchivePath := GetArtifactArchivePath(AVersion);
+  MetaPath := GetArtifactMetaPath(AVersion);
+
+  if FileExists(ArchivePath) then
+    Result := DeleteFile(ArchivePath);
+
+  if FileExists(MetaPath) then
+    Result := Result and DeleteFile(MetaPath);
+end;
+
+function TBuildCache.GetTotalCacheSize: Int64;
+var
+  SR: TSearchRec;
+begin
+  Result := 0;
+
+  if not DirectoryExists(FCacheDir) then
+    Exit;
+
+  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.tar.gz', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      Result := Result + SR.Size;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+end;
+
+function TBuildCache.ListCachedVersions: TStringArray;
+var
+  SR: TSearchRec;
+  FileName, Version: string;
+  List: TStringList;
+  i, DashPos, LastDashPos: Integer;
+begin
+  Result := nil;
+
+  if not DirectoryExists(FCacheDir) then
+    Exit;
+
+  List := TStringList.Create;
+  try
+    if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + 'fpc-*.tar.gz', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        FileName := SR.Name;
+        // Extract version from filename: fpc-3.2.2-x86_64-linux.tar.gz
+        // Find second dash (after version)
+        DashPos := Pos('-', FileName);
+        if DashPos > 0 then
+        begin
+          LastDashPos := DashPos;
+          for i := DashPos + 1 to Length(FileName) do
+          begin
+            if FileName[i] = '-' then
+            begin
+              LastDashPos := i;
+              Break;
+            end;
+          end;
+          Version := Copy(FileName, DashPos + 1, LastDashPos - DashPos - 1);
+          if (Version <> '') and (List.IndexOf(Version) < 0) then
+            List.Add(Version);
+        end;
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+
+    SetLength(Result, List.Count);
+    for i := 0 to List.Count - 1 do
+      Result[i] := List[i];
+  finally
+    List.Free;
+  end;
 end;
 
 end.
