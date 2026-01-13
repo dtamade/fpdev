@@ -357,11 +357,7 @@ begin
         LArgs[0] := LParam;
         for LI := 0 to High(LParams) do LArgs[LI+1] := LParams[LI];
         ExitCode := GlobalCommandRegistry.Dispatch(LArgs, LCtx);
-        if ExitCode = 1 then
-        begin
-          LCtx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(ERR_UNKNOWN_COMMAND, [LParam]));
-          LCtx.Err.WriteLn(_(HELP_MORE_INFO));
-        end;
+        // Note: Command registry handles error messages including "Did you mean?" suggestions
       finally
         LCtx := nil;
       end;

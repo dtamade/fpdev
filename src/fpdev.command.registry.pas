@@ -264,6 +264,34 @@ begin
     if Result = 0 then
       Ctx.SaveIfModified;
   end
+  else if (ParentNode <> nil) and (UnknownCmd <> '') then
+  begin
+    // Command not found - try to suggest a similar command (prioritize over showing subcommands)
+    SubCmds := nil;
+    SetLength(SubCmds, ParentNode.Children.Count);
+    for j := 0 to ParentNode.Children.Count - 1 do
+      SubCmds[j] := ParentNode.Children[j];
+
+    Suggestion := FindSimilarCommand(UnknownCmd, SubCmds);
+    if Suggestion <> '' then
+    begin
+      Ctx.Err.WriteLn('Unknown command: ' + UnknownCmd);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Did you mean "' + Suggestion + '"?');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Run "fpdev help" for available commands.');
+    end
+    else
+    begin
+      // No similar command found, show available subcommands
+      Ctx.Err.WriteLn('Unknown command: ' + UnknownCmd);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Available commands:');
+      for j := 0 to High(SubCmds) do
+        Ctx.Err.WriteLn('  ' + SubCmds[j]);
+    end;
+    Result := 1;
+  end
   else if (MatchedNode <> nil) then
   begin
     // Get effective node (may be alias target)
@@ -286,25 +314,6 @@ begin
     end
     else
       Result := 1;
-  end
-  else if (ParentNode <> nil) and (UnknownCmd <> '') then
-  begin
-    // Command not found - try to suggest a similar command
-    SubCmds := nil;
-    SetLength(SubCmds, ParentNode.Children.Count);
-    for j := 0 to ParentNode.Children.Count - 1 do
-      SubCmds[j] := ParentNode.Children[j];
-
-    Suggestion := FindSimilarCommand(UnknownCmd, SubCmds);
-    if Suggestion <> '' then
-    begin
-      Ctx.Err.WriteLn('Unknown command: ' + UnknownCmd);
-      Ctx.Err.WriteLn('');
-      Ctx.Err.WriteLn('Did you mean "' + Suggestion + '"?');
-      Ctx.Err.WriteLn('');
-      Ctx.Err.WriteLn('Run "fpdev help" for available commands.');
-    end;
-    Result := 1;
   end
   else
   begin
