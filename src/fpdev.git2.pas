@@ -571,7 +571,8 @@ var
   LP: TStatusListPayload;
   function StatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): cint; cdecl;
   begin
-    if APayload = nil then;
+    // APayload parameter reserved for callback context (unused in this implementation)
+    if APayload <> nil then; // Suppress unused parameter hint
     if (AFlags <> GIT_STATUS_CURRENT) then
       LList.Add(string(APath));
     Result := 0; // 继续
