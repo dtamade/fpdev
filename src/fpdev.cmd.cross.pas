@@ -1026,7 +1026,6 @@ end;
 function TCrossCompilerManager.ShowTargetInfo(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   TargetInfo: TCrossTargetInfo;
-  CrossTarget: TCrossTarget;
   InstallPath: string;
   LO: IOutput;
   LE: IOutput;
@@ -1057,12 +1056,7 @@ begin
     begin
       InstallPath := GetTargetInstallPath(ATarget);
       if InstallPath = '' then;
-
-      if FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
-      begin
-      end;
-    end else
-    begin
+      // Note: CrossTarget info retrieved but not currently displayed
     end;
 
     Result := True;

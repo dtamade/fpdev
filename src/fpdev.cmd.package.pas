@@ -1205,11 +1205,7 @@ begin
     LO.WriteLn(_Fmt(MSG_PKG_INFO_DESC, [PackageInfo.Description]));
 
     if PackageInfo.Installed then
-    begin
       LO.WriteLn(_Fmt(MSG_PKG_INFO_PATH, [PackageInfo.InstallPath]));
-    end else
-    begin
-    end;
 
     Result := True;
 

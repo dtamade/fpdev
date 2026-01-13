@@ -475,13 +475,6 @@ begin
       end;
     end;
 
-    if Result then
-    begin
-    end
-    else
-    begin
-    end;
-
   except
     on E: Exception do
     begin

@@ -213,13 +213,6 @@ begin
     ExitCode := ExecuteProcess('git', ACommand.Split(' '));
     Result := ExitCode = 0;
 
-    if Result then
-    begin
-    end
-    else
-    begin
-    end;
-
   finally
     SetCurrentDir(OldDir);
   end;
@@ -249,13 +242,6 @@ begin
 
     ExitCode := ExecuteProcess(AProgram, Args);
     Result := ExitCode = 0;
-
-    if Result then
-    begin
-    end
-    else
-    begin
-    end;
 
   finally
     SetCurrentDir(OldDir);
@@ -403,13 +389,6 @@ begin
 
   // Build FPC using make (requires bootstrap compiler)
   Result := ExecuteCommand('make', ['clean', 'all'], SourcePath);
-
-  if Result then
-  begin
-  end
-  else
-  begin
-  end;
 end;
 
 function TFPCSourceManager.InstallFPCVersion(const AVersion: string): Boolean;
