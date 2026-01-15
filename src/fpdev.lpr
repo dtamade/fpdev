@@ -109,6 +109,14 @@ uses
   // Config command
   fpdev.cmd.config,
 
+  // New rustup/nvm-style commands
+  fpdev.cmd.doctor,
+  fpdev.cmd.default,
+  fpdev.cmd.show,
+  fpdev.cmd.shellhook,
+  fpdev.cmd.resolveversion,
+  fpdev.config.project,
+
   // 新的命令注册表与上下文
   fpdev.command.intf,
   fpdev.command.registry,

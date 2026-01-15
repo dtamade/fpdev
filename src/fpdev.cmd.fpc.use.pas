@@ -1,5 +1,14 @@
 unit fpdev.cmd.fpc.use;
 
+{
+  fpdev fpc use 命令
+
+  增强功能:
+  - 智能安装: 版本未安装时提示用户或自动安装
+  - 项目配置支持: 读取 .fpdevrc 中的 auto_install 设置
+  - 版本别名支持: stable, lts, trunk
+}
+
 {$mode objfpc}{$H+}
 
 interface
@@ -20,7 +29,7 @@ type
   end;
 
 implementation
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.cmd.utils, fpdev.config.project;
 
 function TFPCUseCommand.Name: string; begin Result := 'use'; end;
 
@@ -65,6 +74,10 @@ var
   LVer: string;
   LMgr: TFPCManager;
   LResult: TActivationResult;
+  LResolver: TProjectConfigResolver;
+  LResolved: TResolvedConfig;
+  LAutoInstall, LEnsure: Boolean;
+  LGlobalFPC: string;
 begin
   Result := 0;
 
@@ -78,29 +91,98 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_USE_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_FPC_USE_OPT_ENSURE));
     Ctx.Out.WriteLn(_(HELP_FPC_USE_OPT_HELP));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Version aliases:');
+    Ctx.Out.WriteLn('  stable    Latest stable version');
+    Ctx.Out.WriteLn('  lts       Long-term support version');
+    Ctx.Out.WriteLn('  trunk     Development version (main branch)');
     Exit(0);
   end;
 
-  if Length(AParams) < 1 then
+  // 获取全局默认值
+  LGlobalFPC := '';
+  if Ctx.Config <> nil then
   begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
-    Ctx.Err.WriteLn(_(HELP_FPC_USE_USAGE));
-    Exit(2);
+    LGlobalFPC := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
+    if Pos('fpc-', LGlobalFPC) = 1 then
+      LGlobalFPC := Copy(LGlobalFPC, 5, Length(LGlobalFPC));
   end;
-  LVer := AParams[0];
 
-  if HasFlag(AParams, 'ensure') and (not GuessInstalled(LVer, Ctx)) then
-  begin
-    LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
-    try
-      Ctx.Out.WriteLn(_Fmt(CMD_FPC_USE_AUTOINSTALL, [LVer]));
-      if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
+  // 创建配置解析器
+  LResolver := TProjectConfigResolver.Create(LGlobalFPC, '');
+  try
+    // 无参数时: 使用项目配置或全局默认
+    if Length(AParams) < 1 then
+    begin
+      LResolved := LResolver.ResolveConfig(GetCurrentDir);
+      LVer := LResolved.FPCVersion;
+
+      if LVer = '' then
       begin
-        Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_USE_AUTOINSTALL_FAILED));
-        Exit(3);
+        Ctx.Err.WriteLn('Error: No version specified and no default configured.');
+        Ctx.Err.WriteLn('');
+        Ctx.Err.WriteLn('Usage: fpdev fpc use <version>');
+        Ctx.Err.WriteLn('');
+        Ctx.Err.WriteLn('Or set a default: fpdev default fpc <version>');
+        Ctx.Err.WriteLn('Or create a .fpdevrc file in your project.');
+        Exit(2);
       end;
-    finally
-      LMgr.Free;
+
+      Ctx.Out.WriteLn('Using version from ' + ConfigSourceToString(LResolved.FPCSource) + ': ' + LVer);
+      LAutoInstall := LResolved.AutoInstall;
+    end
+    else
+    begin
+      LVer := AParams[0];
+      // 解析版本别名
+      LVer := LResolver.ResolveVersionAlias(LVer);
+
+      // 检查项目配置中的 auto_install 设置
+      LResolved := LResolver.ResolveConfig(GetCurrentDir);
+      LAutoInstall := LResolved.AutoInstall;
+    end;
+  finally
+    LResolver.Free;
+  end;
+
+  LEnsure := HasFlag(AParams, 'ensure');
+
+  // 检查版本是否已安装
+  if not GuessInstalled(LVer, Ctx) then
+  begin
+    // 如果有 --ensure 标志或项目配置了 auto_install，则自动安装
+    if LEnsure or LAutoInstall then
+    begin
+      LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
+      try
+        Ctx.Out.WriteLn('');
+        Ctx.Out.WriteLn('FPC ' + LVer + ' is not installed. Installing...');
+        Ctx.Out.WriteLn('');
+        if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
+        begin
+          Ctx.Err.WriteLn('Error: Failed to install FPC ' + LVer);
+          Exit(3);
+        end;
+      finally
+        LMgr.Free;
+      end;
+    end
+    else
+    begin
+      // 提示用户安装
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Error: FPC ' + LVer + ' is not installed.');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('To install it, run:');
+      Ctx.Err.WriteLn('  fpdev fpc install ' + LVer);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Or use --ensure to auto-install:');
+      Ctx.Err.WriteLn('  fpdev fpc use ' + LVer + ' --ensure');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Or enable auto_install in your .fpdevrc:');
+      Ctx.Err.WriteLn('  [settings]');
+      Ctx.Err.WriteLn('  auto_install = true');
+      Exit(3);
     end;
   end;
 
