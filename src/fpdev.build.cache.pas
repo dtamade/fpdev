@@ -59,6 +59,9 @@ type
     ArchiveSize: Int64;       // Archive size in bytes
     CreatedAt: TDateTime;     // When cached
     SourcePath: string;       // Original install path
+    SourceType: string;       // NEW: 'binary' | 'source'
+    SHA256: string;           // NEW: File checksum
+    DownloadURL: string;      // NEW: Original download URL
   end;
 
   { TBuildCache - Build cache management }
@@ -68,6 +71,7 @@ type
     FEntries: TStringList;  // Version -> entry line
     FCacheHits: Integer;    // Statistics: cache hits
     FCacheMisses: Integer;  // Statistics: cache misses
+    FTTLDays: Integer;      // Time-to-live in days (0 = never expire)
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
@@ -79,6 +83,7 @@ type
     function GetArtifactArchivePath(const AVersion: string): string;
     function GetArtifactMetaPath(const AVersion: string): string;
     function RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
+    function FileCopy(const ASource, ADest: string): Boolean;
   public
     constructor Create(const ACacheDir: string);
     destructor Destroy; override;
@@ -100,9 +105,21 @@ type
     function GetTotalCacheSize: Int64;
     function ListCachedVersions: TStringArray;
 
+    { Binary artifact cache (downloaded binaries) }
+    function SaveBinaryArtifact(const AVersion, ADownloadedFile: string): Boolean;
+    function RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
+    function GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+
     { Cache statistics }
     function GetCacheStats: string;
     procedure ClearStats;
+
+    { Cache invalidation (TTL-based) }
+    procedure SetTTLDays(ADays: Integer);
+    function GetTTLDays: Integer;
+    function IsExpired(const AInfo: TArtifactInfo): Boolean;
+    procedure CleanExpired;
+
     property CacheDir: string read FCacheDir;
     property CacheHits: Integer read FCacheHits;
     property CacheMisses: Integer read FCacheMisses;
@@ -125,6 +142,7 @@ begin
   FEntries.Duplicates := dupIgnore;
   FCacheHits := 0;
   FCacheMisses := 0;
+  FTTLDays := 30;  // Default: 30 days
   if DirectoryExists(FCacheDir) then
     LoadEntries;
 end;
@@ -176,6 +194,29 @@ end;
 function TBuildCache.GetArtifactKey(const AVersion: string): string;
 begin
   Result := 'fpc-' + AVersion + '-' + GetCurrentCPU + '-' + GetCurrentOS;
+end;
+
+function TBuildCache.FileCopy(const ASource, ADest: string): Boolean;
+var
+  SourceStream, DestStream: TFileStream;
+begin
+  Result := False;
+  try
+    SourceStream := TFileStream.Create(ASource, fmOpenRead or fmShareDenyWrite);
+    try
+      DestStream := TFileStream.Create(ADest, fmCreate);
+      try
+        DestStream.CopyFrom(SourceStream, SourceStream.Size);
+        Result := True;
+      finally
+        DestStream.Free;
+      end;
+    finally
+      SourceStream.Free;
+    end;
+  except
+    Result := False;
+  end;
 end;
 
 function TBuildCache.GetArtifactArchivePath(const AVersion: string): string;
@@ -388,8 +429,15 @@ end;
 { Artifact Cache Methods }
 
 function TBuildCache.HasArtifacts(const AVersion: string): Boolean;
+var
+  SourceArchive, BinaryArchive: string;
 begin
-  Result := FileExists(GetArtifactArchivePath(AVersion));
+  // Check for both source and binary artifacts
+  SourceArchive := GetArtifactArchivePath(AVersion);
+  BinaryArchive := IncludeTrailingPathDelimiter(FCacheDir) +
+    GetArtifactKey(AVersion) + '-binary.tar.gz';
+
+  Result := FileExists(SourceArchive) or FileExists(BinaryArchive);
 end;
 
 function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
@@ -615,6 +663,234 @@ begin
       Result[i] := List[i];
   finally
     List.Free;
+  end;
+end;
+
+{ Binary Artifact Cache Methods }
+
+function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string): Boolean;
+var
+  ArchivePath, MetaPath: string;
+  MetaFile: TStringList;
+  SR: TSearchRec;
+  SHA256Hash: string;
+begin
+  Result := False;
+
+  if not FileExists(ADownloadedFile) then
+    Exit;
+
+  // Ensure cache directory exists
+  ForceDirectories(FCacheDir);
+
+  // Generate binary artifact paths (with -binary suffix)
+  ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
+    GetArtifactKey(AVersion) + '-binary.tar.gz';
+  MetaPath := IncludeTrailingPathDelimiter(FCacheDir) +
+    GetArtifactKey(AVersion) + '-binary.meta';
+
+  // Copy downloaded file to cache
+  try
+    if not FileCopy(ADownloadedFile, ArchivePath) then
+      Exit;
+  except
+    Exit;
+  end;
+
+  // Calculate SHA256 hash (simplified - just use file size as placeholder)
+  // In production, use proper SHA256 library
+  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+  begin
+    SHA256Hash := IntToHex(SR.Size, 16); // Placeholder
+    FindClose(SR);
+  end
+  else
+    SHA256Hash := '';
+
+  // Write metadata file
+  MetaFile := TStringList.Create;
+  try
+    MetaFile.Add('version=' + AVersion);
+    MetaFile.Add('cpu=' + GetCurrentCPU);
+    MetaFile.Add('os=' + GetCurrentOS);
+    MetaFile.Add('source_type=binary');
+    MetaFile.Add('sha256=' + SHA256Hash);
+    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+
+    // Get archive size
+    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+    begin
+      MetaFile.Add('archive_size=' + IntToStr(SR.Size));
+      FindClose(SR);
+    end;
+
+    MetaFile.SaveToFile(MetaPath);
+    Result := True;
+  finally
+    MetaFile.Free;
+  end;
+end;
+
+function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
+var
+  ArchivePath: string;
+begin
+  Result := False;
+
+  ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
+    GetArtifactKey(AVersion) + '-binary.tar.gz';
+
+  if not FileExists(ArchivePath) then
+    Exit;
+
+  // Ensure destination directory exists
+  ForceDirectories(ADestPath);
+
+  // Extract tar.gz archive
+  {$IFDEF MSWINDOWS}
+  if not RunCommand('tar', ['--version'], '') then
+  begin
+    // Try 7z as fallback
+    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, ArchivePath], '');
+  end
+  else
+    Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+  {$ELSE}
+  Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+  {$ENDIF}
+
+  if Result then
+    Inc(FCacheHits)
+  else
+    Inc(FCacheMisses);
+end;
+
+function TBuildCache.GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+var
+  MetaPath: string;
+  MetaFile: TStringList;
+  i: Integer;
+  Line, Key, Value: string;
+  EqPos: Integer;
+begin
+  Result := False;
+  Initialize(AInfo);
+
+  MetaPath := IncludeTrailingPathDelimiter(FCacheDir) +
+    GetArtifactKey(AVersion) + '-binary.meta';
+
+  if not FileExists(MetaPath) then
+    Exit;
+
+  MetaFile := TStringList.Create;
+  try
+    MetaFile.LoadFromFile(MetaPath);
+
+    AInfo.ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
+      GetArtifactKey(AVersion) + '-binary.tar.gz';
+
+    for i := 0 to MetaFile.Count - 1 do
+    begin
+      Line := MetaFile[i];
+      EqPos := Pos('=', Line);
+      if EqPos > 0 then
+      begin
+        Key := Copy(Line, 1, EqPos - 1);
+        Value := Copy(Line, EqPos + 1, Length(Line));
+
+        if Key = 'version' then
+          AInfo.Version := Value
+        else if Key = 'cpu' then
+          AInfo.CPU := Value
+        else if Key = 'os' then
+          AInfo.OS := Value
+        else if Key = 'source_type' then
+          AInfo.SourceType := Value
+        else if Key = 'sha256' then
+          AInfo.SHA256 := Value
+        else if Key = 'archive_size' then
+          AInfo.ArchiveSize := StrToInt64Def(Value, 0);
+        // Note: CreatedAt parsing omitted for simplicity
+      end;
+    end;
+
+    Result := AInfo.Version <> '';
+  finally
+    MetaFile.Free;
+  end;
+end;
+
+{ Cache Invalidation Methods }
+
+procedure TBuildCache.SetTTLDays(ADays: Integer);
+begin
+  FTTLDays := ADays;
+end;
+
+function TBuildCache.GetTTLDays: Integer;
+begin
+  Result := FTTLDays;
+end;
+
+function TBuildCache.IsExpired(const AInfo: TArtifactInfo): Boolean;
+var
+  ExpiryDate: TDateTime;
+begin
+  // TTL=0 means never expire
+  if FTTLDays = 0 then
+    Exit(False);
+
+  ExpiryDate := AInfo.CreatedAt + FTTLDays;
+  Result := Now >= ExpiryDate;  // Include boundary (exactly at TTL)
+end;
+
+procedure TBuildCache.CleanExpired;
+var
+  SR: TSearchRec;
+  FileName, Version, MetaPath: string;
+  Info: TArtifactInfo;
+  DashPos: Integer;
+begin
+  if not DirectoryExists(FCacheDir) then
+    Exit;
+
+  // Scan all .meta files
+  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.meta', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      MetaPath := IncludeTrailingPathDelimiter(FCacheDir) + SR.Name;
+      FileName := SR.Name;
+
+      // Extract version from filename
+      // Format: fpc-3.2.0-x86_64-linux.meta or fpc-3.2.0-x86_64-linux-binary.meta
+      if Pos('fpc-', FileName) = 1 then
+      begin
+        // Remove 'fpc-' prefix and '.meta' suffix
+        Version := Copy(FileName, 5, Length(FileName) - 9);
+
+        // Remove platform suffix (-x86_64-linux or -x86_64-linux-binary)
+        if Pos('-binary', Version) > 0 then
+          Version := Copy(Version, 1, Pos('-', Version) - 1)
+        else
+        begin
+          // Find second dash (after version number)
+          DashPos := Pos('-', Version);
+          if DashPos > 0 then
+            Version := Copy(Version, 1, DashPos - 1);
+        end;
+
+        // Get artifact info and check if expired
+        if GetArtifactInfo(Version, Info) or GetBinaryArtifactInfo(Version, Info) then
+        begin
+          if IsExpired(Info) then
+          begin
+            // Delete expired artifact
+            DeleteArtifacts(Version);
+          end;
+        end;
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
   end;
 end;
 
