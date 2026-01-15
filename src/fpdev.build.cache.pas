@@ -135,6 +135,13 @@ type
     procedure SaveArtifactMetadata(const AInfo: TArtifactInfo);
     procedure CleanupLRU;
 
+    { JSON metadata format (Phase 2) }
+    function GetJSONMetaPath(const AVersion: string): string;
+    function HasMetadataJSON(const AVersion: string): Boolean;
+    procedure SaveMetadataJSON(const AInfo: TArtifactInfo);
+    function LoadMetadataJSON(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+    function MigrateMetadataToJSON(const AVersion: string): Boolean;
+
     property CacheDir: string read FCacheDir;
     property CacheHits: Integer read FCacheHits;
     property CacheMisses: Integer read FCacheMisses;
@@ -144,7 +151,7 @@ type
 implementation
 
 uses
-  StrUtils, DateUtils;
+  StrUtils, DateUtils, fpjson, jsonparser;
 
 { Helper function to parse date string manually }
 function ParseDateTimeString(const ADateStr: string): TDateTime;
@@ -1175,6 +1182,142 @@ begin
       Entries[j] := Entries[j + 1];
     Dec(Count);
   end;
+end;
+
+{ JSON Metadata Format Methods }
+
+function TBuildCache.GetJSONMetaPath(const AVersion: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.json';
+end;
+
+function TBuildCache.HasMetadataJSON(const AVersion: string): Boolean;
+begin
+  Result := FileExists(GetJSONMetaPath(AVersion));
+end;
+
+procedure TBuildCache.SaveMetadataJSON(const AInfo: TArtifactInfo);
+var
+  JSONObj: TJSONObject;
+  JSONStr: TStringList;
+begin
+  ForceDirectories(FCacheDir);
+
+  JSONObj := TJSONObject.Create;
+  try
+    JSONObj.Add('version', AInfo.Version);
+    JSONObj.Add('cpu', AInfo.CPU);
+    JSONObj.Add('os', AInfo.OS);
+    JSONObj.Add('archive_path', AInfo.ArchivePath);
+    JSONObj.Add('archive_size', AInfo.ArchiveSize);
+    JSONObj.Add('created_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.CreatedAt));
+    JSONObj.Add('source_type', AInfo.SourceType);
+    JSONObj.Add('sha256', AInfo.SHA256);
+    JSONObj.Add('download_url', AInfo.DownloadURL);
+    JSONObj.Add('source_path', AInfo.SourcePath);
+
+    JSONStr := TStringList.Create;
+    try
+      JSONStr.Text := JSONObj.FormatJSON;
+      JSONStr.SaveToFile(GetJSONMetaPath(AInfo.Version));
+    finally
+      JSONStr.Free;
+    end;
+  finally
+    JSONObj.Free;
+  end;
+end;
+
+function TBuildCache.LoadMetadataJSON(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+var
+  JSONPath: string;
+  JSONStr: TStringList;
+  JSONData: TJSONData;
+  JSONObj: TJSONObject;
+  DateStr: string;
+begin
+  Result := False;
+  Initialize(AInfo);
+
+  JSONPath := GetJSONMetaPath(AVersion);
+  if not FileExists(JSONPath) then
+    Exit;
+
+  JSONStr := TStringList.Create;
+  try
+    JSONStr.LoadFromFile(JSONPath);
+
+    try
+      JSONData := GetJSON(JSONStr.Text);
+      if not (JSONData is TJSONObject) then
+      begin
+        JSONData.Free;
+        Exit;
+      end;
+
+      JSONObj := TJSONObject(JSONData);
+      try
+        AInfo.Version := JSONObj.Get('version', '');
+        AInfo.CPU := JSONObj.Get('cpu', '');
+        AInfo.OS := JSONObj.Get('os', '');
+        AInfo.ArchivePath := JSONObj.Get('archive_path', '');
+        AInfo.ArchiveSize := JSONObj.Get('archive_size', Int64(0));
+        AInfo.SourceType := JSONObj.Get('source_type', '');
+        AInfo.SHA256 := JSONObj.Get('sha256', '');
+        AInfo.DownloadURL := JSONObj.Get('download_url', '');
+        AInfo.SourcePath := JSONObj.Get('source_path', '');
+
+        // Parse ISO 8601 date format: 'yyyy-mm-ddThh:nn:ss'
+        DateStr := JSONObj.Get('created_at', '');
+        if DateStr <> '' then
+        begin
+          // Replace 'T' with space for ParseDateTimeString compatibility
+          DateStr := StringReplace(DateStr, 'T', ' ', []);
+          AInfo.CreatedAt := ParseDateTimeString(DateStr);
+        end;
+
+        Result := AInfo.Version <> '';
+      finally
+        JSONObj.Free;
+      end;
+    except
+      Result := False;
+    end;
+  finally
+    JSONStr.Free;
+  end;
+end;
+
+function TBuildCache.MigrateMetadataToJSON(const AVersion: string): Boolean;
+var
+  OldMetaPath, BackupPath: string;
+  Info: TArtifactInfo;
+begin
+  Result := False;
+
+  // Check if old .meta file exists
+  OldMetaPath := GetArtifactMetaPath(AVersion);
+  if not FileExists(OldMetaPath) then
+    Exit;
+
+  // Read old format using existing GetArtifactInfo
+  if not GetArtifactInfo(AVersion, Info) then
+    Exit;
+
+  // Save in new JSON format
+  SaveMetadataJSON(Info);
+
+  // Verify JSON was created
+  if not HasMetadataJSON(AVersion) then
+    Exit;
+
+  // Backup old .meta file
+  BackupPath := OldMetaPath + '.bak';
+  if FileExists(BackupPath) then
+    DeleteFile(BackupPath);
+  RenameFile(OldMetaPath, BackupPath);
+
+  Result := True;
 end;
 
 end.
