@@ -73,6 +73,7 @@ type
     FCacheMisses: Integer;  // Statistics: cache misses
     FTTLDays: Integer;      // Time-to-live in days (0 = never expire)
     FVerifyOnRestore: Boolean;  // Verify SHA256 on restore (default: True)
+    FMaxCacheSizeBytes: Int64;  // Max cache size in bytes (0 = unlimited)
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
@@ -127,6 +128,13 @@ type
     procedure SetVerifyOnRestore(AVerify: Boolean);
     function GetVerifyOnRestore: Boolean;
 
+    { Cache space management (LRU-based) }
+    procedure SetMaxCacheSizeGB(ASizeGB: Integer);
+    function GetMaxCacheSizeGB: Integer;
+    procedure SetMaxCacheSizeMB(ASizeMB: Integer);
+    procedure SaveArtifactMetadata(const AInfo: TArtifactInfo);
+    procedure CleanupLRU;
+
     property CacheDir: string read FCacheDir;
     property CacheHits: Integer read FCacheHits;
     property CacheMisses: Integer read FCacheMisses;
@@ -136,7 +144,32 @@ type
 implementation
 
 uses
-  StrUtils;
+  StrUtils, DateUtils;
+
+{ Helper function to parse date string manually }
+function ParseDateTimeString(const ADateStr: string): TDateTime;
+var
+  Year, Month, Day, Hour, Minute, Second: Word;
+begin
+  // Parse format: 'yyyy-mm-dd hh:nn:ss'
+  // Example: '2026-01-16 05:40:00'
+  try
+    if Length(ADateStr) >= 19 then
+    begin
+      Year := StrToInt(Copy(ADateStr, 1, 4));
+      Month := StrToInt(Copy(ADateStr, 6, 2));
+      Day := StrToInt(Copy(ADateStr, 9, 2));
+      Hour := StrToInt(Copy(ADateStr, 12, 2));
+      Minute := StrToInt(Copy(ADateStr, 15, 2));
+      Second := StrToInt(Copy(ADateStr, 18, 2));
+      Result := EncodeDateTime(Year, Month, Day, Hour, Minute, Second, 0);
+    end
+    else
+      Result := 0;  // Invalid format
+  except
+    Result := 0;  // Fallback to epoch if parsing fails
+  end;
+end;
 
 { TBuildCache }
 
@@ -151,6 +184,7 @@ begin
   FCacheMisses := 0;
   FTTLDays := 30;  // Default: 30 days
   FVerifyOnRestore := True;  // Default: verify on restore
+  FMaxCacheSizeBytes := Int64(10) * 1024 * 1024 * 1024;  // Default: 10 GB in bytes
   if DirectoryExists(FCacheDir) then
     LoadEntries;
 end;
@@ -581,8 +615,9 @@ begin
         else if Key = 'source_path' then
           AInfo.SourcePath := Value
         else if Key = 'archive_size' then
-          AInfo.ArchiveSize := StrToInt64Def(Value, 0);
-        // Note: CreatedAt parsing omitted for simplicity
+          AInfo.ArchiveSize := StrToInt64Def(Value, 0)
+        else if Key = 'created_at' then
+          AInfo.CreatedAt := ParseDateTimeString(Value);
       end;
     end;
 
@@ -988,6 +1023,158 @@ begin
 
   if not Result then
     WriteLn('Warning: Cache verification failed for ', AArchivePath);
+end;
+
+{ Cache Space Management Methods }
+
+procedure TBuildCache.SetMaxCacheSizeGB(ASizeGB: Integer);
+begin
+  if ASizeGB = 0 then
+    FMaxCacheSizeBytes := 0  // Unlimited
+  else
+    FMaxCacheSizeBytes := Int64(ASizeGB) * 1024 * 1024 * 1024;
+end;
+
+function TBuildCache.GetMaxCacheSizeGB: Integer;
+begin
+  if FMaxCacheSizeBytes = 0 then
+    Result := 0  // Unlimited
+  else
+    Result := FMaxCacheSizeBytes div (1024 * 1024 * 1024);
+end;
+
+procedure TBuildCache.SetMaxCacheSizeMB(ASizeMB: Integer);
+begin
+  if ASizeMB = 0 then
+    FMaxCacheSizeBytes := 0  // Unlimited
+  else
+    FMaxCacheSizeBytes := Int64(ASizeMB) * 1024 * 1024;
+end;
+
+procedure TBuildCache.SaveArtifactMetadata(const AInfo: TArtifactInfo);
+var
+  MetaPath: string;
+  MetaFile: TStringList;
+begin
+  MetaPath := GetArtifactMetaPath(AInfo.Version);
+
+  MetaFile := TStringList.Create;
+  try
+    MetaFile.Add('version=' + AInfo.Version);
+    MetaFile.Add('cpu=' + GetCurrentCPU);
+    MetaFile.Add('os=' + GetCurrentOS);
+    MetaFile.Add('archive_path=' + AInfo.ArchivePath);
+    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', AInfo.CreatedAt));
+
+    MetaFile.SaveToFile(MetaPath);
+  finally
+    MetaFile.Free;
+  end;
+end;
+
+procedure TBuildCache.CleanupLRU;
+var
+  SR: TSearchRec;
+  Entries: array of TArtifactInfo;
+  Count: Integer;
+  TotalSize, MaxSize: Int64;
+  i, j: Integer;
+  OldestEntry: TArtifactInfo;
+  OldestIndex: Integer;
+  FileName, Version, MetaPath: string;
+  DashPos: Integer;
+  TempInfo: TArtifactInfo;
+begin
+  // If unlimited cache (0 = unlimited), do nothing
+  if FMaxCacheSizeBytes = 0 then
+    Exit;
+
+  if not DirectoryExists(FCacheDir) then
+    Exit;
+
+  // Collect all cache entries
+  Count := 0;
+  SetLength(Entries, 100);  // Initial capacity
+
+  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.tar.gz', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      if Count >= Length(Entries) then
+        SetLength(Entries, Length(Entries) * 2);
+
+      Initialize(Entries[Count]);
+      Entries[Count].ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) + SR.Name;
+      Entries[Count].ArchiveSize := SR.Size;
+
+      // Extract version from filename
+      FileName := SR.Name;
+      if Pos('fpc-', FileName) = 1 then
+      begin
+        // Remove "fpc-" prefix (4 chars) and ".tar.gz" suffix (7 chars)
+        // For "fpc-3.2.0-x86_64-linux.tar.gz", extract "3.2.0-x86_64-linux"
+        Version := Copy(FileName, 5, Length(FileName) - 11);
+
+        // Extract just the version number (before first dash)
+        // For "3.2.0-x86_64-linux", extract "3.2.0"
+        DashPos := Pos('-', Version);
+        if DashPos > 0 then
+          Version := Copy(Version, 1, DashPos - 1);
+        Entries[Count].Version := Version;
+
+        // Try to get CreatedAt from metadata, fallback to file time
+        if GetArtifactInfo(Version, TempInfo) or GetBinaryArtifactInfo(Version, TempInfo) then
+          Entries[Count].CreatedAt := TempInfo.CreatedAt
+        else
+          Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+      end
+      else
+        Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+
+      Inc(Count);
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+
+  SetLength(Entries, Count);
+
+  // Calculate total size
+  TotalSize := 0;
+  for i := 0 to Count - 1 do
+    TotalSize := TotalSize + Entries[i].ArchiveSize;
+
+  MaxSize := FMaxCacheSizeBytes;
+
+  // Remove oldest entries until under limit
+  while (TotalSize > MaxSize) and (Count > 0) do
+  begin
+    // Find oldest entry
+    OldestIndex := 0;
+    OldestEntry := Entries[0];
+    for i := 1 to Count - 1 do
+    begin
+      if Entries[i].CreatedAt < OldestEntry.CreatedAt then
+      begin
+        OldestEntry := Entries[i];
+        OldestIndex := i;
+      end;
+    end;
+
+    // Delete oldest entry
+    if FileExists(OldestEntry.ArchivePath) then
+      DeleteFile(OldestEntry.ArchivePath);
+
+    // Delete metadata file
+    MetaPath := ChangeFileExt(OldestEntry.ArchivePath, '.meta');
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    TotalSize := TotalSize - OldestEntry.ArchiveSize;
+
+    // Remove from array
+    for j := OldestIndex to Count - 2 do
+      Entries[j] := Entries[j + 1];
+    Dec(Count);
+  end;
 end;
 
 end.
