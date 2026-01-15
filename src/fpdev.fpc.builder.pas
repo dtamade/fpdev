@@ -229,6 +229,37 @@ var
   CurrentVersion: string;
   BootstrapPath: string;
   Platform: string;
+
+  // Compare version strings (e.g., "3.2.2" vs "3.0.4")
+  // Returns: -1 if V1 < V2, 0 if V1 = V2, 1 if V1 > V2
+  function CompareVersions(const V1, V2: string): Integer;
+  var
+    Parts1, Parts2: TStringArray;
+    I, N1, N2: Integer;
+  begin
+    Result := 0;
+    Parts1 := V1.Split(['.']);
+    Parts2 := V2.Split(['.']);
+
+    for I := 0 to 2 do
+    begin
+      if I < Length(Parts1) then
+        N1 := StrToIntDef(Parts1[I], 0)
+      else
+        N1 := 0;
+
+      if I < Length(Parts2) then
+        N2 := StrToIntDef(Parts2[I], 0)
+      else
+        N2 := 0;
+
+      if N1 < N2 then
+        Exit(-1)
+      else if N1 > N2 then
+        Exit(1);
+    end;
+  end;
+
 begin
   Result := False;
   Platform := GetCurrentPlatform;
@@ -243,17 +274,22 @@ begin
 
   FOut.WriteLn('Target FPC version ' + ATargetVersion + ' requires bootstrap compiler ' + RequiredVersion);
 
-  // Check if current system FPC matches
+  // Check if current system FPC is available and sufficient
   CurrentVersion := GetCurrentFPCVersion;
   if CurrentVersion <> '' then
   begin
     FOut.WriteLn('Current system FPC version: ' + CurrentVersion);
-    if SameText(CurrentVersion, RequiredVersion) then
+
+    // Accept if system FPC version >= required version
+    // Newer FPC versions can typically compile older versions
+    if CompareVersions(CurrentVersion, RequiredVersion) >= 0 then
     begin
-      FOut.WriteLn('OK: System FPC version matches required bootstrap version');
+      FOut.WriteLn('OK: System FPC version ' + CurrentVersion + ' is sufficient (>= ' + RequiredVersion + ')');
       Result := True;
       Exit;
-    end;
+    end
+    else
+      FOut.WriteLn('System FPC version ' + CurrentVersion + ' is older than required ' + RequiredVersion);
   end
   else
     FOut.WriteLn('No system FPC compiler found');
@@ -343,6 +379,7 @@ function TFPCSourceBuilder.DownloadSource(const AVersion, ATargetDir: string): B
 var
   Git: TGitOperations;
   GitTag: string;
+  LResult: TProcessResult;
 begin
   Result := False;
 
@@ -358,7 +395,7 @@ begin
   try
     FOut.WriteLn(_Fmt(CMD_FPC_INSTALL_DOWNLOADING, [AVersion]) + ' (tag: ' + GitTag + ')...');
 
-    // Ensure parent directory exists (but NOT target - git clone requires it to not exist)
+    // Ensure parent directory exists
     if not DirectoryExists(ExtractFileDir(ATargetDir)) then
       EnsureDir(ExtractFileDir(ATargetDir));
 
@@ -371,14 +408,58 @@ begin
       end;
 
       FOut.WriteLn('Using backend: ' + GitBackendToString(Git.Backend));
-      FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
 
-      Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
+      // Check if directory already exists
+      if DirectoryExists(ATargetDir) then
+      begin
+        // Directory exists - check if it's a git repo and update it
+        if DirectoryExists(ATargetDir + PathDelim + '.git') then
+        begin
+          FOut.WriteLn('Source directory exists, updating to tag: ' + GitTag);
 
-      if not Result then
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
+          // Fetch all tags and branches
+          LResult := TProcessExecutor.Execute('git', ['fetch', '--all', '--tags'], ATargetDir);
+          if not LResult.Success then
+          begin
+            FErr.WriteLn(_(MSG_ERROR) + ': Git fetch failed');
+            Exit;
+          end;
+
+          // Checkout the specific tag
+          LResult := TProcessExecutor.Execute('git', ['checkout', GitTag], ATargetDir);
+          if not LResult.Success then
+          begin
+            FErr.WriteLn(_(MSG_ERROR) + ': Git checkout failed for tag: ' + GitTag);
+            FErr.WriteLn('  ' + LResult.StdErr);
+            Exit;
+          end;
+
+          FOut.WriteLn('Git checkout completed successfully');
+          Result := True;
+        end
+        else
+        begin
+          // Directory exists but is not a git repo - remove and clone fresh
+          FOut.WriteLn('Directory exists but is not a git repo, removing...');
+          TProcessExecutor.Execute('rm', ['-rf', ATargetDir], '');
+          FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
+          Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
+          if not Result then
+            FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
+          else
+            FOut.WriteLn('Git clone completed successfully');
+        end;
+      end
       else
-        FOut.WriteLn('Git clone completed successfully');
+      begin
+        // Directory doesn't exist - clone fresh
+        FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
+        Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
+        if not Result then
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
+        else
+          FOut.WriteLn('Git clone completed successfully');
+      end;
 
     finally
       Git.Free;
@@ -448,30 +529,32 @@ begin
 
     MakeCmd := 'make';
 
-    // Build parameters
+    // Build parameters - include OVERRIDEVERSIONCHECK=1 to allow newer bootstrap compilers
     Params := nil;
     if BootstrapFPC <> '' then
+    begin
+      SetLength(Params, 6);
+      Params[0] := 'all';
+      Params[1] := 'install';
+      Params[2] := 'PREFIX=' + AInstallDir;
+      Params[3] := 'PP=' + BootstrapFPC;
+      Params[4] := 'OVERRIDEVERSIONCHECK=1';
+      Params[5] := '-j' + IntToStr(Settings.ParallelJobs);
+    end
+    else
     begin
       SetLength(Params, 5);
       Params[0] := 'all';
       Params[1] := 'install';
       Params[2] := 'PREFIX=' + AInstallDir;
-      Params[3] := 'PP=' + BootstrapFPC;
+      Params[3] := 'OVERRIDEVERSIONCHECK=1';
       Params[4] := '-j' + IntToStr(Settings.ParallelJobs);
-    end
-    else
-    begin
-      SetLength(Params, 4);
-      Params[0] := 'all';
-      Params[1] := 'install';
-      Params[2] := 'PREFIX=' + AInstallDir;
-      Params[3] := '-j' + IntToStr(Settings.ParallelJobs);
     end;
 
     FOut.Write('Executing: ' + MakeCmd + ' all install PREFIX=' + AInstallDir);
     if BootstrapFPC <> '' then
       FOut.Write(' PP=' + BootstrapFPC);
-    FOut.WriteLn(' -j' + IntToStr(Settings.ParallelJobs));
+    FOut.WriteLn(' OVERRIDEVERSIONCHECK=1 -j' + IntToStr(Settings.ParallelJobs));
 
     LResult := TProcessExecutor.RunDirect(MakeCmd, Params, ASourceDir);
 
