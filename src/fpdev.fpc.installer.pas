@@ -62,6 +62,13 @@ type
     { Sets up the toolchain environment after installation. }
     function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
 
+    { Installs FPC from SourceForge (fallback when fpdev-repo has no binary).
+      Downloads official FPC binary package and extracts it.
+      AVersion: FPC version to install
+      AInstallPath: Target installation directory
+      Returns: True if installation succeeded }
+    function InstallFromSourceForge(const AVersion, AInstallPath: string): Boolean;
+
   public
     constructor Create(AConfigManager: IConfigManager;
       AOut: IOutput = nil; AErr: IOutput = nil);
@@ -189,6 +196,215 @@ begin
     on E: Exception do
     begin
       FErr.WriteLn(_(MSG_ERROR) + ': SetupEnvironment failed - ' + E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPCBinaryInstaller.InstallFromSourceForge(const AVersion, AInstallPath: string): Boolean;
+var
+  TempFile: string;
+  TempDir: string;
+  ExtractDir: string;
+  InstallerScript: string;
+  LResult: TProcessResult;
+  I: Integer;
+  InnerTempDir: string;
+  BaseArchive: string;
+begin
+  Result := False;
+
+  try
+    // Download binary from SourceForge
+    FOut.WriteLn('  Downloading from SourceForge...');
+    if not DownloadBinary(AVersion, TempFile) then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Failed to download FPC binary');
+      Exit;
+    end;
+
+    FOut.WriteLn('  Download completed: ' + TempFile);
+
+    // Create installation directory
+    if not DirectoryExists(AInstallPath) then
+      EnsureDir(AInstallPath);
+
+    {$IFDEF LINUX}
+    // Linux: Extract tar file and run install script
+    TempDir := GetTempDir + 'fpdev_fpc_' + IntToStr(GetTickCount64);
+    EnsureDir(TempDir);
+
+    FOut.WriteLn('  Extracting archive...');
+    LResult := TProcessExecutor.Execute('tar', ['-xf', TempFile, '-C', TempDir], '');
+    if not LResult.Success then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract archive');
+      Exit;
+    end;
+
+    // Find the extracted directory (usually fpc-<version>.x86_64-linux or similar)
+    ExtractDir := '';
+    with TStringList.Create do
+    try
+      LResult := TProcessExecutor.Execute('ls', [TempDir], '');
+      if LResult.Success then
+      begin
+        Text := LResult.StdOut;
+        if Count > 0 then
+          ExtractDir := TempDir + PathDelim + Trim(Strings[0]);
+      end;
+    finally
+      Free;
+    end;
+
+    if (ExtractDir = '') or not DirectoryExists(ExtractDir) then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Could not find extracted FPC directory');
+      Exit;
+    end;
+
+    // Direct extraction: Skip interactive install.sh and extract binary archives directly
+    // The FPC install.sh is interactive and waits for user input, so we bypass it
+    FOut.WriteLn('  Extracting binary packages directly (skipping interactive installer)...');
+
+    // Find and extract binary.*.tar file
+    with TStringList.Create do
+    try
+      LResult := TProcessExecutor.Execute('ls', [ExtractDir], '');
+      if LResult.Success then
+      begin
+        Text := LResult.StdOut;
+        for I := 0 to Count - 1 do
+        begin
+          if Pos('binary.', Trim(Strings[I])) = 1 then
+          begin
+            InstallerScript := ExtractDir + PathDelim + Trim(Strings[I]);
+            Break;
+          end;
+        end;
+      end;
+    finally
+      Free;
+    end;
+
+    if (InstallerScript <> '') and FileExists(InstallerScript) then
+    begin
+      FOut.WriteLn('  Found binary archive: ' + ExtractFileName(InstallerScript));
+
+      // Create a temp dir for extracting inner archives
+      InnerTempDir := TempDir + PathDelim + 'inner';
+      EnsureDir(InnerTempDir);
+
+      // Extract binary.*.tar to get the inner tar.gz files
+      LResult := TProcessExecutor.Execute('tar', ['-xf', InstallerScript, '-C', InnerTempDir], '');
+      if not LResult.Success then
+      begin
+        FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract binary archive');
+        Exit;
+      end;
+
+      // Extract base.*.tar.gz which contains bin/ and lib/
+      BaseArchive := '';
+      LResult := TProcessExecutor.Execute('ls', [InnerTempDir], '');
+      if LResult.Success then
+      begin
+        with TStringList.Create do
+        try
+          Text := LResult.StdOut;
+          for I := 0 to Count - 1 do
+          begin
+            if Pos('base.', Trim(Strings[I])) = 1 then
+            begin
+              BaseArchive := InnerTempDir + PathDelim + Trim(Strings[I]);
+              Break;
+            end;
+          end;
+        finally
+          Free;
+        end;
+      end;
+
+      if (BaseArchive <> '') and FileExists(BaseArchive) then
+      begin
+        FOut.WriteLn('  Extracting base package: ' + ExtractFileName(BaseArchive));
+        LResult := TProcessExecutor.Execute('tar', ['-xzf', BaseArchive, '-C', AInstallPath], '');
+        if not LResult.Success then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract base archive');
+          Exit;
+        end;
+        FOut.WriteLn('  Base package extracted successfully');
+      end
+      else
+      begin
+        FErr.WriteLn(_(MSG_ERROR) + ': Could not find base archive in binary package');
+        Exit;
+      end;
+
+      // Cleanup inner temp dir
+      TProcessExecutor.Execute('rm', ['-rf', InnerTempDir], '');
+    end
+    else
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Could not find binary archive in extracted directory');
+      Exit;
+    end;
+
+    // Cleanup temp directory
+    TProcessExecutor.Execute('rm', ['-rf', TempDir], '');
+    {$ENDIF}
+
+    {$IFDEF MSWINDOWS}
+    // Windows: The .exe is an installer, inform user
+    FOut.WriteLn('');
+    FOut.WriteLn('Windows FPC installer downloaded: ' + TempFile);
+    FOut.WriteLn('');
+    FOut.WriteLn('Please run the installer manually and select:');
+    FOut.WriteLn('  ' + AInstallPath);
+    FOut.WriteLn('as the installation directory.');
+    FOut.WriteLn('');
+    FOut.WriteLn('After installation, run:');
+    FOut.WriteLn('  fpdev fpc use ' + AVersion);
+    // Return true since download succeeded
+    Result := True;
+    Exit;
+    {$ENDIF}
+
+    {$IFDEF DARWIN}
+    // macOS: The .dmg needs manual installation
+    FOut.WriteLn('');
+    FOut.WriteLn('macOS FPC disk image downloaded: ' + TempFile);
+    FOut.WriteLn('');
+    FOut.WriteLn('Please mount the disk image and run the installer.');
+    FOut.WriteLn('');
+    FOut.WriteLn('After installation, run:');
+    FOut.WriteLn('  fpdev fpc use ' + AVersion);
+    // Return true since download succeeded
+    Result := True;
+    Exit;
+    {$ENDIF}
+
+    // Cleanup downloaded file
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+
+    // Verify installation
+    if DirectoryExists(AInstallPath + PathDelim + 'bin') or
+       DirectoryExists(AInstallPath + PathDelim + 'lib') then
+    begin
+      FOut.WriteLn('  Installation verified');
+      Result := True;
+    end
+    else
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Installation verification failed');
+      FErr.WriteLn('  Expected directories not found in: ' + AInstallPath);
+    end;
+
+  except
+    on E: Exception do
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': InstallFromSourceForge failed - ' + E.Message);
       Result := False;
     end;
   end;
@@ -492,46 +708,83 @@ begin
     FOut.WriteLn('  fpdev-repo initialized');
     FOut.WriteLn;
 
-    // Step 2: Check if binary release exists
-    FOut.WriteLn('[2/3] Checking for FPC ' + AVersion + ' binary...');
+    // Step 2: Check if binary release exists in fpdev-repo
+    FOut.WriteLn('[2/4] Checking for FPC ' + AVersion + ' binary...');
 
-    if not FResourceRepo.HasBinaryRelease(AVersion, Platform) then
+    if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
     begin
-      FErr.WriteLn(_(MSG_ERROR) + ': FPC ' + AVersion + ' binary not found in fpdev-repo');
-      FErr.WriteLn('');
-      FErr.WriteLn('The requested version is not available for your platform.');
-      FErr.WriteLn('');
-      FErr.WriteLn('Available options:');
-      FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
-      FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
-      FErr.WriteLn('  3. Update fpdev-repo: fpdev repo update');
-      FErr.WriteLn('');
-      FErr.WriteLn('If you need this version, please request it at:');
-      FErr.WriteLn('  https://github.com/dtamade/fpdev-repo/issues');
-      Exit;
+      FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+      FOut.WriteLn;
+
+      // Step 3: Install from fpdev-repo
+      FOut.WriteLn('[3/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+
+      if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+      begin
+        FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
+        FErr.WriteLn('Trying fallback to SourceForge...');
+        FOut.WriteLn;
+        // Fall through to SourceForge fallback
+      end
+      else
+      begin
+        FOut.WriteLn('  Binary package installed from fpdev-repo');
+        FOut.WriteLn;
+      end;
     end;
 
-    FOut.WriteLn('  Found FPC ' + AVersion + ' for ' + Platform);
-    FOut.WriteLn;
-
-    // Step 3: Install from fpdev-repo
-    FOut.WriteLn('[3/3] Installing FPC ' + AVersion + '...');
-
-    if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+    // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
+    if not DirectoryExists(InstallPath + PathDelim + 'bin') then
     begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Installation failed');
-      FErr.WriteLn('');
-      FErr.WriteLn('Please try again or report the issue at:');
-      FErr.WriteLn('  https://github.com/dtamade/fpdev-repo/issues');
-      Exit;
+      FOut.WriteLn('[3/4] Downloading FPC ' + AVersion + ' from SourceForge...');
+      Result := InstallFromSourceForge(AVersion, InstallPath);
+      if not Result then
+      begin
+        FErr.WriteLn(_(MSG_ERROR) + ': Failed to install FPC ' + AVersion);
+        FErr.WriteLn('');
+        FErr.WriteLn('Available options:');
+        FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
+        FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
+        FErr.WriteLn('');
+        Exit;
+      end;
+      FOut.WriteLn('  Binary package installed from SourceForge');
+      FOut.WriteLn;
     end;
-
-    FOut.WriteLn('  Binary package installed');
-    FOut.WriteLn;
 
     // Generate fpc.cfg configuration file if bin directory exists
     if DirectoryExists(InstallPath + PathDelim + 'bin') then
     begin
+      {$IFDEF LINUX}
+      // Create symlink to ppcx64 in bin directory so fpc driver can find it
+      FOut.WriteLn('Creating compiler symlink...');
+      TProcessExecutor.Execute('ln', ['-sf',
+        InstallPath + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'ppcx64',
+        InstallPath + PathDelim + 'bin' + PathDelim + 'ppcx64'], '');
+      FOut.WriteLn('  ppcx64 symlink created');
+
+      // Create fpc wrapper script that bypasses default config files
+      // This ensures our fpc.cfg is used instead of ~/.fpc.cfg
+      FOut.WriteLn('Creating fpc wrapper script...');
+      with TStringList.Create do
+      try
+        Add('#!/bin/sh');
+        Add('# FPC wrapper script generated by fpdev');
+        Add('# Calls ppcx64 directly with our config to bypass ~/.fpc.cfg');
+        Add(InstallPath + '/bin/ppcx64 -n @' + InstallPath + '/bin/fpc.cfg "$@"');
+        SaveToFile(InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.sh');
+      finally
+        Free;
+      end;
+      TProcessExecutor.Execute('chmod', ['+x', InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.sh'], '');
+      // Replace the fpc binary with our wrapper
+      TProcessExecutor.Execute('mv', [InstallPath + PathDelim + 'bin' + PathDelim + 'fpc',
+        InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.orig'], '');
+      TProcessExecutor.Execute('mv', [InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.sh',
+        InstallPath + PathDelim + 'bin' + PathDelim + 'fpc'], '');
+      FOut.WriteLn('  fpc wrapper created');
+      {$ENDIF}
+
       FOut.WriteLn('Generating fpc.cfg...');
       with TStringList.Create do
       try
