@@ -62,6 +62,8 @@ type
     SourceType: string;       // NEW: 'binary' | 'source'
     SHA256: string;           // NEW: File checksum
     DownloadURL: string;      // NEW: Original download URL
+    AccessCount: Integer;     // Phase 3: Access count for statistics
+    LastAccessed: TDateTime;  // Phase 3: Last access time for LRU
   end;
 
   { TCacheIndexStats - Cache index statistics }
@@ -72,6 +74,18 @@ type
     NewestVersion: string;    // Newest cached version
     OldestDate: TDateTime;    // Oldest entry date
     NewestDate: TDateTime;    // Newest entry date
+  end;
+
+  { TCacheDetailedStats - Detailed cache statistics (Phase 3) }
+  TCacheDetailedStats = record
+    TotalEntries: Integer;       // Number of cached versions
+    TotalSize: Int64;            // Total cache size in bytes
+    TotalAccesses: Integer;      // Total access count across all entries
+    AverageEntrySize: Int64;     // Average entry size in bytes
+    MostAccessedVersion: string; // Version with most accesses
+    MostAccessedCount: Integer;  // Access count of most accessed version
+    LeastAccessedVersion: string;// Version with least accesses
+    LeastAccessedCount: Integer; // Access count of least accessed version
   end;
 
   { TBuildCache - Build cache management }
@@ -126,6 +140,12 @@ type
     { Cache statistics }
     function GetCacheStats: string;
     procedure ClearStats;
+
+    { Cache statistics (Phase 3) }
+    procedure RecordAccess(const AVersion: string);
+    function GetDetailedStats: TCacheDetailedStats;
+    function GetLeastRecentlyUsed: string;
+    function GetStatsReport: string;
 
     { Cache invalidation (TTL-based) }
     procedure SetTTLDays(ADays: Integer);
@@ -1244,6 +1264,11 @@ begin
     JSONObj.Add('sha256', AInfo.SHA256);
     JSONObj.Add('download_url', AInfo.DownloadURL);
     JSONObj.Add('source_path', AInfo.SourcePath);
+    JSONObj.Add('access_count', AInfo.AccessCount);
+    if AInfo.LastAccessed > 0 then
+      JSONObj.Add('last_accessed', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.LastAccessed))
+    else
+      JSONObj.Add('last_accessed', '');
 
     JSONStr := TStringList.Create;
     try
@@ -1295,6 +1320,7 @@ begin
         AInfo.SHA256 := JSONObj.Get('sha256', '');
         AInfo.DownloadURL := JSONObj.Get('download_url', '');
         AInfo.SourcePath := JSONObj.Get('source_path', '');
+        AInfo.AccessCount := JSONObj.Get('access_count', 0);
 
         // Parse ISO 8601 date format: 'yyyy-mm-ddThh:nn:ss'
         DateStr := JSONObj.Get('created_at', '');
@@ -1304,6 +1330,16 @@ begin
           DateStr := StringReplace(DateStr, 'T', ' ', []);
           AInfo.CreatedAt := ParseDateTimeString(DateStr);
         end;
+
+        // Parse last_accessed date
+        DateStr := JSONObj.Get('last_accessed', '');
+        if DateStr <> '' then
+        begin
+          DateStr := StringReplace(DateStr, 'T', ' ', []);
+          AInfo.LastAccessed := ParseDateTimeString(DateStr);
+        end
+        else
+          AInfo.LastAccessed := 0;
 
         Result := AInfo.Version <> '';
       finally
@@ -1398,7 +1434,8 @@ begin
               if Version <> '' then
               begin
                 EntryJSON := EntryObj.AsJSON;
-                FIndexEntries.Values[Version] := EntryJSON;
+                // Use Add instead of Values[] for sorted list
+                FIndexEntries.Add(Version + '=' + EntryJSON);
               end;
             end;
           end;
@@ -1534,6 +1571,7 @@ begin
       AInfo.SHA256 := JSONObj.Get('sha256', '');
       AInfo.DownloadURL := JSONObj.Get('download_url', '');
       AInfo.SourcePath := JSONObj.Get('source_path', '');
+      AInfo.AccessCount := JSONObj.Get('access_count', 0);
 
       DateStr := JSONObj.Get('created_at', '');
       if DateStr <> '' then
@@ -1541,6 +1579,15 @@ begin
         DateStr := StringReplace(DateStr, 'T', ' ', []);
         AInfo.CreatedAt := ParseDateTimeString(DateStr);
       end;
+
+      DateStr := JSONObj.Get('last_accessed', '');
+      if DateStr <> '' then
+      begin
+        DateStr := StringReplace(DateStr, 'T', ' ', []);
+        AInfo.LastAccessed := ParseDateTimeString(DateStr);
+      end
+      else
+        AInfo.LastAccessed := 0;
 
       Result := AInfo.Version <> '';
     finally
@@ -1554,6 +1601,8 @@ end;
 procedure TBuildCache.UpdateIndexEntry(const AInfo: TArtifactInfo);
 var
   JSONObj: TJSONObject;
+  Idx: Integer;
+  EntryStr: string;
 begin
   JSONObj := TJSONObject.Create;
   try
@@ -1567,8 +1616,19 @@ begin
     JSONObj.Add('sha256', AInfo.SHA256);
     JSONObj.Add('download_url', AInfo.DownloadURL);
     JSONObj.Add('source_path', AInfo.SourcePath);
+    JSONObj.Add('access_count', AInfo.AccessCount);
+    if AInfo.LastAccessed > 0 then
+      JSONObj.Add('last_accessed', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.LastAccessed))
+    else
+      JSONObj.Add('last_accessed', '');
 
-    FIndexEntries.Values[AInfo.Version] := JSONObj.AsJSON;
+    EntryStr := AInfo.Version + '=' + JSONObj.AsJSON;
+
+    // For sorted list, we need to delete and re-add
+    Idx := FIndexEntries.IndexOfName(AInfo.Version);
+    if Idx >= 0 then
+      FIndexEntries.Delete(Idx);
+    FIndexEntries.Add(EntryStr);
   finally
     JSONObj.Free;
   end;
@@ -1620,6 +1680,159 @@ begin
     Result.OldestDate := 0;
     Result.NewestDate := 0;
   end;
+end;
+
+{ Phase 3: Statistics Enhancement Methods }
+
+procedure TBuildCache.RecordAccess(const AVersion: string);
+var
+  Info: TArtifactInfo;
+begin
+  if not LookupIndexEntry(AVersion, Info) then
+    Exit;
+
+  // Update access count and last accessed time
+  Inc(Info.AccessCount);
+  Info.LastAccessed := Now;
+
+  // Update index entry
+  UpdateIndexEntry(Info);
+
+  // Save to JSON metadata file
+  SaveMetadataJSON(Info);
+
+  // Save index
+  SaveIndex;
+end;
+
+function TBuildCache.GetDetailedStats: TCacheDetailedStats;
+var
+  i: Integer;
+  Info: TArtifactInfo;
+begin
+  Initialize(Result);
+  Result.TotalEntries := FIndexEntries.Count;
+  Result.TotalSize := 0;
+  Result.TotalAccesses := 0;
+  Result.MostAccessedCount := -1;
+  Result.LeastAccessedCount := MaxInt;
+
+  for i := 0 to FIndexEntries.Count - 1 do
+  begin
+    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
+    begin
+      Result.TotalSize := Result.TotalSize + Info.ArchiveSize;
+      Result.TotalAccesses := Result.TotalAccesses + Info.AccessCount;
+
+      if Info.AccessCount > Result.MostAccessedCount then
+      begin
+        Result.MostAccessedCount := Info.AccessCount;
+        Result.MostAccessedVersion := Info.Version;
+      end;
+
+      if Info.AccessCount < Result.LeastAccessedCount then
+      begin
+        Result.LeastAccessedCount := Info.AccessCount;
+        Result.LeastAccessedVersion := Info.Version;
+      end;
+    end;
+  end;
+
+  // Calculate average entry size
+  if Result.TotalEntries > 0 then
+    Result.AverageEntrySize := Result.TotalSize div Result.TotalEntries
+  else
+    Result.AverageEntrySize := 0;
+
+  // Reset counts if no entries found
+  if Result.TotalEntries = 0 then
+  begin
+    Result.MostAccessedCount := 0;
+    Result.LeastAccessedCount := 0;
+  end;
+end;
+
+function TBuildCache.GetLeastRecentlyUsed: string;
+var
+  i: Integer;
+  Info: TArtifactInfo;
+  OldestTime: TDateTime;
+  LRUVersion: string;
+  HasNeverAccessed: Boolean;
+begin
+  Result := '';
+  OldestTime := MaxDateTime;
+  LRUVersion := '';
+  HasNeverAccessed := False;
+
+  // First pass: find any never-accessed entries (they are the true LRU)
+  for i := 0 to FIndexEntries.Count - 1 do
+  begin
+    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
+    begin
+      if Info.LastAccessed = 0 then
+      begin
+        // Never accessed - use CreatedAt to compare among never-accessed entries
+        if (not HasNeverAccessed) or (Info.CreatedAt < OldestTime) then
+        begin
+          OldestTime := Info.CreatedAt;
+          LRUVersion := Info.Version;
+          HasNeverAccessed := True;
+        end;
+      end;
+    end;
+  end;
+
+  // If we found never-accessed entries, return the oldest one
+  if HasNeverAccessed then
+  begin
+    Result := LRUVersion;
+    Exit;
+  end;
+
+  // Second pass: all entries have been accessed, find the one with oldest LastAccessed
+  OldestTime := MaxDateTime;
+  for i := 0 to FIndexEntries.Count - 1 do
+  begin
+    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
+    begin
+      if Info.LastAccessed < OldestTime then
+      begin
+        OldestTime := Info.LastAccessed;
+        LRUVersion := Info.Version;
+      end;
+    end;
+  end;
+
+  Result := LRUVersion;
+end;
+
+function TBuildCache.GetStatsReport: string;
+var
+  Stats: TCacheDetailedStats;
+  SizeStr: string;
+begin
+  Stats := GetDetailedStats;
+
+  // Format size
+  if Stats.TotalSize >= 1024 * 1024 * 1024 then
+    SizeStr := Format('%.2f GB', [Stats.TotalSize / (1024 * 1024 * 1024)])
+  else if Stats.TotalSize >= 1024 * 1024 then
+    SizeStr := Format('%.2f MB', [Stats.TotalSize / (1024 * 1024)])
+  else
+    SizeStr := Format('%d bytes', [Stats.TotalSize]);
+
+  Result := Format(
+    'Cache Statistics Report' + LineEnding +
+    '=======================' + LineEnding +
+    'Total entries: %d' + LineEnding +
+    'Total size: %s' + LineEnding +
+    'Total accesses: %d' + LineEnding +
+    'Most accessed: %s (%d accesses)' + LineEnding +
+    'Least accessed: %s (%d accesses)',
+    [Stats.TotalEntries, SizeStr, Stats.TotalAccesses,
+     Stats.MostAccessedVersion, Stats.MostAccessedCount,
+     Stats.LeastAccessedVersion, Stats.LeastAccessedCount]);
 end;
 
 end.
