@@ -64,6 +64,16 @@ type
     DownloadURL: string;      // NEW: Original download URL
   end;
 
+  { TCacheIndexStats - Cache index statistics }
+  TCacheIndexStats = record
+    TotalEntries: Integer;    // Number of cached versions
+    TotalSize: Int64;         // Total cache size in bytes
+    OldestVersion: string;    // Oldest cached version
+    NewestVersion: string;    // Newest cached version
+    OldestDate: TDateTime;    // Oldest entry date
+    NewestDate: TDateTime;    // Newest entry date
+  end;
+
   { TBuildCache - Build cache management }
   TBuildCache = class
   private
@@ -74,6 +84,7 @@ type
     FTTLDays: Integer;      // Time-to-live in days (0 = never expire)
     FVerifyOnRestore: Boolean;  // Verify SHA256 on restore (default: True)
     FMaxCacheSizeBytes: Int64;  // Max cache size in bytes (0 = unlimited)
+    FIndexEntries: TStringList; // Cache index: version -> JSON entry
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
@@ -142,6 +153,17 @@ type
     function LoadMetadataJSON(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
     function MigrateMetadataToJSON(const AVersion: string): Boolean;
 
+    { Cache index (Phase 2.2) }
+    function GetIndexPath: string;
+    procedure RebuildIndex;
+    procedure LoadIndex;
+    procedure SaveIndex;
+    function GetIndexEntryCount: Integer;
+    function LookupIndexEntry(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+    procedure UpdateIndexEntry(const AInfo: TArtifactInfo);
+    procedure RemoveIndexEntry(const AVersion: string);
+    function GetIndexStatistics: TCacheIndexStats;
+
     property CacheDir: string read FCacheDir;
     property CacheHits: Integer read FCacheHits;
     property CacheMisses: Integer read FCacheMisses;
@@ -187,18 +209,25 @@ begin
   FEntries := TStringList.Create;
   FEntries.Sorted := True;
   FEntries.Duplicates := dupIgnore;
+  FIndexEntries := TStringList.Create;
+  FIndexEntries.Sorted := True;
+  FIndexEntries.Duplicates := dupIgnore;
   FCacheHits := 0;
   FCacheMisses := 0;
   FTTLDays := 30;  // Default: 30 days
   FVerifyOnRestore := True;  // Default: verify on restore
   FMaxCacheSizeBytes := Int64(10) * 1024 * 1024 * 1024;  // Default: 10 GB in bytes
   if DirectoryExists(FCacheDir) then
+  begin
     LoadEntries;
+    LoadIndex;
+  end;
 end;
 
 destructor TBuildCache.Destroy;
 begin
   FEntries.Free;
+  FIndexEntries.Free;
   inherited Destroy;
 end;
 
@@ -1318,6 +1347,279 @@ begin
   RenameFile(OldMetaPath, BackupPath);
 
   Result := True;
+end;
+
+{ Cache Index Methods }
+
+function TBuildCache.GetIndexPath: string;
+begin
+  Result := IncludeTrailingPathDelimiter(FCacheDir) + 'cache-index.json';
+end;
+
+procedure TBuildCache.LoadIndex;
+var
+  IndexPath: string;
+  JSONStr: TStringList;
+  JSONData: TJSONData;
+  JSONObj, EntryObj: TJSONObject;
+  JSONArr: TJSONArray;
+  i: Integer;
+  Version, EntryJSON: string;
+begin
+  FIndexEntries.Clear;
+
+  IndexPath := GetIndexPath;
+  if not FileExists(IndexPath) then
+    Exit;
+
+  JSONStr := TStringList.Create;
+  try
+    JSONStr.LoadFromFile(IndexPath);
+
+    try
+      JSONData := GetJSON(JSONStr.Text);
+      if not (JSONData is TJSONObject) then
+      begin
+        JSONData.Free;
+        Exit;
+      end;
+
+      JSONObj := TJSONObject(JSONData);
+      try
+        if JSONObj.Find('entries') is TJSONArray then
+        begin
+          JSONArr := TJSONArray(JSONObj.Find('entries'));
+          for i := 0 to JSONArr.Count - 1 do
+          begin
+            if JSONArr.Items[i] is TJSONObject then
+            begin
+              EntryObj := TJSONObject(JSONArr.Items[i]);
+              Version := EntryObj.Get('version', '');
+              if Version <> '' then
+              begin
+                EntryJSON := EntryObj.AsJSON;
+                FIndexEntries.Values[Version] := EntryJSON;
+              end;
+            end;
+          end;
+        end;
+      finally
+        JSONObj.Free;
+      end;
+    except
+      // Invalid JSON, index will be empty
+    end;
+  finally
+    JSONStr.Free;
+  end;
+end;
+
+procedure TBuildCache.SaveIndex;
+var
+  JSONObj: TJSONObject;
+  JSONArr: TJSONArray;
+  EntryData: TJSONData;
+  JSONStr: TStringList;
+  i: Integer;
+begin
+  ForceDirectories(FCacheDir);
+
+  JSONObj := TJSONObject.Create;
+  try
+    JSONArr := TJSONArray.Create;
+
+    for i := 0 to FIndexEntries.Count - 1 do
+    begin
+      try
+        EntryData := GetJSON(FIndexEntries.ValueFromIndex[i]);
+        if EntryData is TJSONObject then
+          JSONArr.Add(EntryData)
+        else
+          EntryData.Free;
+      except
+        // Skip invalid entries
+      end;
+    end;
+
+    JSONObj.Add('entries', JSONArr);
+    JSONObj.Add('updated_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', Now));
+
+    JSONStr := TStringList.Create;
+    try
+      JSONStr.Text := JSONObj.FormatJSON;
+      JSONStr.SaveToFile(GetIndexPath);
+    finally
+      JSONStr.Free;
+    end;
+  finally
+    JSONObj.Free;
+  end;
+end;
+
+procedure TBuildCache.RebuildIndex;
+var
+  SR: TSearchRec;
+  FileName, Version: string;
+  Info: TArtifactInfo;
+  DashPos: Integer;
+begin
+  FIndexEntries.Clear;
+
+  if not DirectoryExists(FCacheDir) then
+    Exit;
+
+  // Scan all .json metadata files
+  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + 'fpc-*.json', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      FileName := SR.Name;
+
+      // Extract version from filename: fpc-3.2.2-x86_64-linux.json
+      if Pos('fpc-', FileName) = 1 then
+      begin
+        // Remove "fpc-" prefix (4 chars) and ".json" suffix (5 chars)
+        Version := Copy(FileName, 5, Length(FileName) - 9);
+
+        // Extract just the version number (before first dash after version)
+        DashPos := Pos('-', Version);
+        if DashPos > 0 then
+          Version := Copy(Version, 1, DashPos - 1);
+
+        // Load metadata and add to index
+        if LoadMetadataJSON(Version, Info) then
+          UpdateIndexEntry(Info);
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+
+  SaveIndex;
+end;
+
+function TBuildCache.GetIndexEntryCount: Integer;
+begin
+  Result := FIndexEntries.Count;
+end;
+
+function TBuildCache.LookupIndexEntry(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+var
+  EntryJSON: string;
+  JSONData: TJSONData;
+  JSONObj: TJSONObject;
+  DateStr: string;
+begin
+  Result := False;
+  Initialize(AInfo);
+
+  EntryJSON := FIndexEntries.Values[AVersion];
+  if EntryJSON = '' then
+    Exit;
+
+  try
+    JSONData := GetJSON(EntryJSON);
+    if not (JSONData is TJSONObject) then
+    begin
+      JSONData.Free;
+      Exit;
+    end;
+
+    JSONObj := TJSONObject(JSONData);
+    try
+      AInfo.Version := JSONObj.Get('version', '');
+      AInfo.CPU := JSONObj.Get('cpu', '');
+      AInfo.OS := JSONObj.Get('os', '');
+      AInfo.ArchivePath := JSONObj.Get('archive_path', '');
+      AInfo.ArchiveSize := JSONObj.Get('archive_size', Int64(0));
+      AInfo.SourceType := JSONObj.Get('source_type', '');
+      AInfo.SHA256 := JSONObj.Get('sha256', '');
+      AInfo.DownloadURL := JSONObj.Get('download_url', '');
+      AInfo.SourcePath := JSONObj.Get('source_path', '');
+
+      DateStr := JSONObj.Get('created_at', '');
+      if DateStr <> '' then
+      begin
+        DateStr := StringReplace(DateStr, 'T', ' ', []);
+        AInfo.CreatedAt := ParseDateTimeString(DateStr);
+      end;
+
+      Result := AInfo.Version <> '';
+    finally
+      JSONObj.Free;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+procedure TBuildCache.UpdateIndexEntry(const AInfo: TArtifactInfo);
+var
+  JSONObj: TJSONObject;
+begin
+  JSONObj := TJSONObject.Create;
+  try
+    JSONObj.Add('version', AInfo.Version);
+    JSONObj.Add('cpu', AInfo.CPU);
+    JSONObj.Add('os', AInfo.OS);
+    JSONObj.Add('archive_path', AInfo.ArchivePath);
+    JSONObj.Add('archive_size', AInfo.ArchiveSize);
+    JSONObj.Add('created_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.CreatedAt));
+    JSONObj.Add('source_type', AInfo.SourceType);
+    JSONObj.Add('sha256', AInfo.SHA256);
+    JSONObj.Add('download_url', AInfo.DownloadURL);
+    JSONObj.Add('source_path', AInfo.SourcePath);
+
+    FIndexEntries.Values[AInfo.Version] := JSONObj.AsJSON;
+  finally
+    JSONObj.Free;
+  end;
+end;
+
+procedure TBuildCache.RemoveIndexEntry(const AVersion: string);
+var
+  Idx: Integer;
+begin
+  Idx := FIndexEntries.IndexOfName(AVersion);
+  if Idx >= 0 then
+    FIndexEntries.Delete(Idx);
+end;
+
+function TBuildCache.GetIndexStatistics: TCacheIndexStats;
+var
+  i: Integer;
+  Info: TArtifactInfo;
+begin
+  Initialize(Result);
+  Result.TotalEntries := FIndexEntries.Count;
+  Result.TotalSize := 0;
+  Result.OldestDate := MaxDateTime;
+  Result.NewestDate := 0;
+
+  for i := 0 to FIndexEntries.Count - 1 do
+  begin
+    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
+    begin
+      Result.TotalSize := Result.TotalSize + Info.ArchiveSize;
+
+      if Info.CreatedAt < Result.OldestDate then
+      begin
+        Result.OldestDate := Info.CreatedAt;
+        Result.OldestVersion := Info.Version;
+      end;
+
+      if Info.CreatedAt > Result.NewestDate then
+      begin
+        Result.NewestDate := Info.CreatedAt;
+        Result.NewestVersion := Info.Version;
+      end;
+    end;
+  end;
+
+  // Reset dates if no entries found
+  if Result.TotalEntries = 0 then
+  begin
+    Result.OldestDate := 0;
+    Result.NewestDate := 0;
+  end;
 end;
 
 end.
