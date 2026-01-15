@@ -16,7 +16,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.fpc.activation,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.paths;
 
 type
   { TFPCUseCommand }
@@ -55,15 +55,17 @@ end;
 function GuessInstalled(const AVer: string; const Ctx: IContext): Boolean;
 var
   LInfo: TToolchainInfo;
-  LRoot, LExe: string;
+  LExe: string;
 begin
+  // First check if registered in config
   if Ctx.Config.GetToolchainManager.GetToolchain('fpc-' + AVer, LInfo) then Exit(True);
-  LRoot := Ctx.Config.GetSettingsManager.GetSettings.InstallRoot;
-  if LRoot = '' then LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
+
+  // Use GetToolchainsDir() for consistent path with installer
+  // Path: ~/.fpdev/toolchains/fpc/<version>/bin/fpc
   {$IFDEF MSWINDOWS}
-  LExe := IncludeTrailingPathDelimiter(LRoot) + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc.exe';
   {$ELSE}
-  LExe := IncludeTrailingPathDelimiter(LRoot) + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc';
+  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
   Result := FileExists(LExe);
 end;
