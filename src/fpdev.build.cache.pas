@@ -603,12 +603,29 @@ end;
 function TBuildCache.RestoreArtifacts(const AVersion, ADestPath: string): Boolean;
 var
   ArchivePath: string;
+  Info: TArtifactInfo;
 begin
   Result := False;
 
   ArchivePath := GetArtifactArchivePath(AVersion);
   if not FileExists(ArchivePath) then
     Exit;
+
+  // Verify integrity before extraction (Fix: add integrity verification)
+  if FVerifyOnRestore then
+  begin
+    if GetArtifactInfo(AVersion, Info) and (Info.SHA256 <> '') then
+    begin
+      if not VerifyArtifact(ArchivePath, Info.SHA256) then
+      begin
+        WriteLn('Error: Cache integrity verification failed for ', AVersion);
+        WriteLn('  Expected SHA256: ', Info.SHA256);
+        WriteLn('  The cached artifact may be corrupted or tampered with.');
+        Inc(FCacheMisses);
+        Exit;
+      end;
+    end;
+  end;
 
   // Ensure destination directory exists
   ForceDirectories(ADestPath);
@@ -833,6 +850,7 @@ end;
 function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
 var
   ArchivePath: string;
+  Info: TArtifactInfo;
 begin
   Result := False;
 
@@ -841,6 +859,22 @@ begin
 
   if not FileExists(ArchivePath) then
     Exit;
+
+  // Verify integrity before extraction (Fix: add integrity verification)
+  if FVerifyOnRestore then
+  begin
+    if GetBinaryArtifactInfo(AVersion, Info) and (Info.SHA256 <> '') then
+    begin
+      if not VerifyArtifact(ArchivePath, Info.SHA256) then
+      begin
+        WriteLn('Error: Cache integrity verification failed for ', AVersion);
+        WriteLn('  Expected SHA256: ', Info.SHA256);
+        WriteLn('  The cached artifact may be corrupted or tampered with.');
+        Inc(FCacheMisses);
+        Exit;
+      end;
+    end;
+  end;
 
   // Ensure destination directory exists
   ForceDirectories(ADestPath);

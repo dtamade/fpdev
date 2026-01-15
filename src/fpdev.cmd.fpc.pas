@@ -97,7 +97,6 @@ type
     function GetInstalledVersions: TFPCVersionArray;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
     function BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
-    function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
     function ValidateVersion(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
 
@@ -144,6 +143,9 @@ type
     // Metadata operations (public for testing)
     function WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
     function ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
+
+    // Environment setup (public for cache restore)
+    function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
   end;
 
 // 导出索引更新过程，供子命令调用
