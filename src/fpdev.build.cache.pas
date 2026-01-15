@@ -72,6 +72,7 @@ type
     FCacheHits: Integer;    // Statistics: cache hits
     FCacheMisses: Integer;  // Statistics: cache misses
     FTTLDays: Integer;      // Time-to-live in days (0 = never expire)
+    FVerifyOnRestore: Boolean;  // Verify SHA256 on restore (default: True)
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
@@ -120,6 +121,12 @@ type
     function IsExpired(const AInfo: TArtifactInfo): Boolean;
     procedure CleanExpired;
 
+    { Cache verification (SHA256-based) }
+    function CalculateSHA256(const AFilePath: string): string;
+    function VerifyArtifact(const AArchivePath, AExpectedHash: string): Boolean;
+    procedure SetVerifyOnRestore(AVerify: Boolean);
+    function GetVerifyOnRestore: Boolean;
+
     property CacheDir: string read FCacheDir;
     property CacheHits: Integer read FCacheHits;
     property CacheMisses: Integer read FCacheMisses;
@@ -143,6 +150,7 @@ begin
   FCacheHits := 0;
   FCacheMisses := 0;
   FTTLDays := 30;  // Default: 30 days
+  FVerifyOnRestore := True;  // Default: verify on restore
   if DirectoryExists(FCacheDir) then
     LoadEntries;
 end;
@@ -892,6 +900,94 @@ begin
     until FindNext(SR) <> 0;
     FindClose(SR);
   end;
+end;
+
+{ Cache Verification Methods }
+
+procedure TBuildCache.SetVerifyOnRestore(AVerify: Boolean);
+begin
+  FVerifyOnRestore := AVerify;
+end;
+
+function TBuildCache.GetVerifyOnRestore: Boolean;
+begin
+  Result := FVerifyOnRestore;
+end;
+
+function TBuildCache.CalculateSHA256(const AFilePath: string): string;
+var
+  P: TProcess;
+  Output: TStringList;
+  Line: string;
+  SpacePos: Integer;
+begin
+  Result := '';
+
+  if not FileExists(AFilePath) then
+    Exit;
+
+  // Use sha256sum command (available on Linux/macOS/Windows Git Bash)
+  P := TProcess.Create(nil);
+  try
+    {$IFDEF MSWINDOWS}
+    // On Windows, try certutil as fallback if sha256sum not available
+    P.Executable := 'sha256sum';
+    {$ELSE}
+    P.Executable := 'sha256sum';
+    {$ENDIF}
+    P.Parameters.Add(AFilePath);
+    P.Options := [poWaitOnExit, poUsePipes];
+
+    try
+      P.Execute;
+
+      if P.ExitStatus = 0 then
+      begin
+        Output := TStringList.Create;
+        try
+          Output.LoadFromStream(P.Output);
+          if Output.Count > 0 then
+          begin
+            Line := Output[0];
+            // sha256sum output format: "hash  filename"
+            SpacePos := Pos(' ', Line);
+            if SpacePos > 0 then
+              Result := LowerCase(Trim(Copy(Line, 1, SpacePos - 1)))
+            else
+              Result := LowerCase(Trim(Line));
+          end;
+        finally
+          Output.Free;
+        end;
+      end;
+    except
+      Result := '';
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
+function TBuildCache.VerifyArtifact(const AArchivePath, AExpectedHash: string): Boolean;
+var
+  ActualHash: string;
+begin
+  // If verification is disabled, always return True
+  if not FVerifyOnRestore then
+    Exit(True);
+
+  // If no expected hash provided, skip verification
+  if AExpectedHash = '' then
+    Exit(True);
+
+  // Calculate actual hash
+  ActualHash := CalculateSHA256(AArchivePath);
+
+  // Compare hashes (case-insensitive)
+  Result := SameText(ActualHash, AExpectedHash);
+
+  if not Result then
+    WriteLn('Warning: Cache verification failed for ', AArchivePath);
 end;
 
 end.
