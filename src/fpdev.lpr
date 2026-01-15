@@ -38,6 +38,13 @@ uses
   fpdev.cmd.fpc.uninstall,
   fpdev.cmd.fpc.help,
 
+  // FPC cache commands
+  fpdev.cmd.fpc.cache,
+  fpdev.cmd.fpc.cache.list,
+  fpdev.cmd.fpc.cache.clean,
+  fpdev.cmd.fpc.cache.stats,
+  fpdev.cmd.fpc.cache.path,
+
   // Repo commands
   fpdev.cmd.repo.root,
   fpdev.cmd.repo.add,
