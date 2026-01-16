@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.3] - 2026-01-16
+### Added
+- **Binary Cache and Offline Mode Support**
+  - Extended TBuildCache with binary artifact support (SaveBinaryArtifact, RestoreBinaryArtifact, GetBinaryArtifactInfo)
+  - Offline installation mode (`--offline` flag) for cache-only installation without network access
+  - Cache bypass mode (`--no-cache` flag) to force fresh download/build
+  - Automatic cache restoration before download in fpdev.cmd.fpc.install
+  - Automatic cache saving after successful installation
+  - Platform-aware binary cache keys (fpc-{version}-{cpu}-{os}-binary.tar.gz)
+  - Metadata tracking with SHA256 checksums and source type (binary/source)
+
+- **Cache Management Commands**
+  - `fpdev fpc cache list` - List all cached FPC versions with size and platform info
+  - `fpdev fpc cache stats` - Show cache statistics (versions, total size, hit/miss rate)
+  - `fpdev fpc cache clean <version>` - Clean specific cached version
+  - `fpdev fpc cache clean --all` - Clean all cached versions
+  - `fpdev fpc cache path` - Show cache directory path
+
+### Changed
+- **FPC Installation Flow**
+  - Check cache before installation (both binary and source artifacts)
+  - Restore from cache if available (instant installation)
+  - Fall back to download/build on cache miss
+  - Save to cache after successful installation (unless --no-cache)
+  - Offline mode enforces cache-only operation (exits with error on cache miss)
+
+### Testing
+- tests/test_build_cache_binary.lpr: 8 test scenarios, 19 assertions, 100% pass rate
+  - SaveBinaryArtifact basic functionality and metadata
+  - RestoreBinaryArtifact with cache hit/miss scenarios
+  - GetBinaryArtifactInfo metadata retrieval
+  - HasArtifacts binary vs source distinction
+  - Cache statistics tracking
+
+### Documentation
+- Updated CLAUDE.md with Build Cache System section
+- Added cache workflow documentation
+- Added cache command usage examples
+
 ## [2.0.2] - 2026-01-13
 ### Added
 - **Build Cache for Fast Version Switching**

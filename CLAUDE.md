@@ -162,6 +162,62 @@ See `docs/config-architecture.md` for detailed architecture documentation.
 
 **Logging**: Each build creates `logs/build_yyyymmdd_hhnnss_zzz.log` with timestamps, commands, and artifact samples.
 
+### Build Cache System
+
+`fpdev.build.cache.pas` - Manages build artifact caching for fast version switching:
+
+**Cache Structure**:
+- Cache directory: `~/.fpdev/cache/` (or `%APPDATA%\.fpdev\cache\` on Windows)
+- Archive format: `fpc-{version}-{cpu}-{os}.tar.gz` (platform-aware)
+- Metadata files: `fpc-{version}-{cpu}-{os}.meta` (key-value format)
+
+**Core Features**:
+- **Binary artifact caching**: Cache downloaded FPC binaries for offline installation
+- **Source build caching**: Cache compiled FPC installations for fast switching
+- **Offline mode**: Install from cache without network access (`--offline` flag)
+- **Cache bypass**: Force fresh download/build (`--no-cache` flag)
+- **Automatic cache management**: Save after successful installation, restore before download
+
+**Cache Commands**:
+```bash
+fpdev fpc cache list          # List all cached versions
+fpdev fpc cache stats          # Show cache statistics
+fpdev fpc cache clean <ver>    # Clean specific version
+fpdev fpc cache clean --all    # Clean all cached versions
+fpdev fpc cache path           # Show cache directory path
+```
+
+**Installation with Cache**:
+```bash
+# Normal installation (uses cache if available)
+fpdev fpc install 3.2.2
+
+# Offline mode (cache-only, no network)
+fpdev fpc install 3.2.2 --offline
+
+# Force fresh download (ignore cache)
+fpdev fpc install 3.2.2 --no-cache
+```
+
+**Cache Workflow**:
+1. Check cache before installation (`HasArtifacts`)
+2. If cache hit: restore from cache (`RestoreBinaryArtifact`)
+3. If cache miss: download/build normally
+4. After successful installation: save to cache (`SaveArtifacts`)
+
+**Key Methods**:
+- `SaveBinaryArtifact(version, file)` - Cache downloaded binary
+- `RestoreBinaryArtifact(version, dest)` - Restore from cache
+- `GetBinaryArtifactInfo(version)` - Get cache metadata
+- `HasArtifacts(version)` - Check if version is cached
+- `DeleteArtifacts(version)` - Remove from cache
+
+**Implementation Files**:
+- `src/fpdev.build.cache.pas` - Core cache management
+- `src/fpdev.cmd.fpc.install.pas` - Installation with cache integration
+- `src/fpdev.cmd.fpc.cache.*.pas` - Cache management commands
+- `tests/test_build_cache_binary.lpr` - Cache system tests
+
 ## Development Principles
 
 ### Test-Driven Development (TDD)
