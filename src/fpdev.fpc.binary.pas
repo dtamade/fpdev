@@ -6,7 +6,8 @@ interface
 
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
-  fpdev.http.download, fpdev.archive.extract, fpdev.build.cache;
+  fpdev.http.download, fpdev.archive.extract, fpdev.build.cache,
+  fpdev.fpc.verify;
 
 type
   { TBinaryInstaller - Manages FPC binary installation }
@@ -16,9 +17,11 @@ type
     FDownloader: THTTPDownloader;
     FExtractor: TArchiveExtractor;
     FCacheManager: TBuildCache;
+    FVerifier: TFPCVerifier;
     FLastError: string;
     FUseCache: Boolean;
     FOfflineMode: Boolean;
+    FVerifyInstallation: Boolean;
 
     function GetCacheKey(const AVersion: string): string;
     function DownloadBinary(const AVersion, ADestFile: string): Boolean;
@@ -35,6 +38,7 @@ type
     { Configuration }
     property UseCache: Boolean read FUseCache write FUseCache;
     property OfflineMode: Boolean read FOfflineMode write FOfflineMode;
+    property VerifyInstallation: Boolean read FVerifyInstallation write FVerifyInstallation;
 
     { Get last error message }
     function GetLastError: string;
@@ -51,13 +55,16 @@ begin
   FDownloader := THTTPDownloader.Create;
   FExtractor := TArchiveExtractor.Create;
   FCacheManager := TBuildCache.Create(GetUserDir + '.fpdev' + PathDelim + 'cache');
+  FVerifier := TFPCVerifier.Create;
   FLastError := '';
   FUseCache := True;
   FOfflineMode := False;
+  FVerifyInstallation := True;
 end;
 
 destructor TBinaryInstaller.Destroy;
 begin
+  FVerifier.Free;
   FCacheManager.Free;
   FExtractor.Free;
   FDownloader.Free;
@@ -107,6 +114,7 @@ var
   CacheKey: string;
   TempArchive: string;
   CacheInfo: TArtifactInfo;
+  FPCPath: string;
 begin
   Result := False;
   FLastError := '';
@@ -149,6 +157,51 @@ begin
     begin
       FLastError := 'Failed to extract archive: ' + FExtractor.GetLastError;
       Exit;
+    end;
+
+    // Verify installation if enabled
+    if FVerifyInstallation then
+    begin
+      WriteLn('Verifying installation...');
+
+      // Find FPC executable (assume standard location)
+      FPCPath := AInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+      {$IFDEF WINDOWS}
+      FPCPath := FPCPath + '.exe';
+      {$ENDIF}
+
+      if not FileExists(FPCPath) then
+      begin
+        FLastError := 'FPC executable not found at: ' + FPCPath;
+        Exit;
+      end;
+
+      // Verify version
+      if not FVerifier.VerifyVersion(FPCPath, AVersion) then
+      begin
+        FLastError := 'Version verification failed: ' + FVerifier.GetLastError;
+        Exit;
+      end;
+
+      WriteLn('Version verified: ', AVersion);
+
+      // Compile hello world test
+      if not FVerifier.CompileHelloWorld(FPCPath) then
+      begin
+        FLastError := 'Hello world compilation failed: ' + FVerifier.GetLastError;
+        Exit;
+      end;
+
+      WriteLn('Hello world test passed');
+
+      // Generate metadata
+      if not FVerifier.GenerateMetadata(AInstallDir, AVersion) then
+      begin
+        FLastError := 'Metadata generation failed: ' + FVerifier.GetLastError;
+        Exit;
+      end;
+
+      WriteLn('Metadata generated');
     end;
 
     // Save to cache if enabled
