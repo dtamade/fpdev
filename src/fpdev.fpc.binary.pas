@@ -89,7 +89,11 @@ begin
 
   if FOfflineMode then
   begin
-    FLastError := 'Offline mode enabled, cannot download';
+    FLastError := 'Offline mode enabled, cannot download' + LineEnding +
+                  'Troubleshooting:' + LineEnding +
+                  '  1. Check if version is cached: fpdev fpc cache list' + LineEnding +
+                  '  2. Run without --offline flag to download' + LineEnding +
+                  '  3. Use --from=source if binary is unavailable';
     Exit;
   end;
 
@@ -98,7 +102,11 @@ begin
 
   if URL = '' then
   begin
-    FLastError := 'Failed to generate download URL';
+    FLastError := 'Failed to generate download URL for ' + AVersion + LineEnding +
+                  'Troubleshooting:' + LineEnding +
+                  '  1. Verify version exists: fpdev fpc list --all' + LineEnding +
+                  '  2. Check platform support for this version' + LineEnding +
+                  '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source';
     Exit;
   end;
 
@@ -145,9 +153,18 @@ begin
     if not DownloadBinary(AVersion, TempArchive) then
     begin
       if FOfflineMode then
-        FLastError := 'Binary not in cache and offline mode enabled'
+        FLastError := 'Binary not in cache and offline mode enabled' + LineEnding +
+                      'Troubleshooting:' + LineEnding +
+                      '  1. Run without --offline to download' + LineEnding +
+                      '  2. Check available cached versions: fpdev fpc cache list' + LineEnding +
+                      '  3. Install a different version that is cached'
       else
-        FLastError := 'Failed to download binary: ' + FLastError;
+        FLastError := 'Failed to download binary: ' + FLastError + LineEnding +
+                      'Troubleshooting:' + LineEnding +
+                      '  1. Check network connectivity' + LineEnding +
+                      '  2. Verify mirror availability' + LineEnding +
+                      '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source' + LineEnding +
+                      '  4. Use --offline with cached version if available';
       Exit;
     end;
 

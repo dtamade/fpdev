@@ -139,9 +139,14 @@ begin
   
   ActualVersion := ParseVersion(Output);
   Result := ActualVersion = AExpectedVersion;
-  
+
   if not Result then
-    FLastError := Format('Version mismatch: expected %s, got %s', [AExpectedVersion, ActualVersion]);
+    FLastError := Format('Version mismatch: expected %s, got %s', [AExpectedVersion, ActualVersion]) + LineEnding +
+                  'Troubleshooting:' + LineEnding +
+                  '  1. The installation may be corrupted or incomplete' + LineEnding +
+                  '  2. Try reinstalling: fpdev fpc install ' + AExpectedVersion + ' --no-cache' + LineEnding +
+                  '  3. Check if multiple FPC versions are interfering' + LineEnding +
+                  '  4. Verify the installation path is correct';
 end;
 
 function TFPCVerifier.CompileHelloWorld(const AFPCPath: string): Boolean;
@@ -170,9 +175,14 @@ begin
     
     if Result then
       Result := FileExists(OutputFile);
-    
+
     if not Result then
-      FLastError := 'Hello world compilation failed';
+      FLastError := 'Hello world compilation failed' + LineEnding +
+                    'Troubleshooting:' + LineEnding +
+                    '  1. The FPC installation may be incomplete or corrupted' + LineEnding +
+                    '  2. Required libraries or dependencies may be missing' + LineEnding +
+                    '  3. Try reinstalling: fpdev fpc install ' + ExtractFileName(AFPCPath) + ' --no-cache' + LineEnding +
+                    '  4. Check system requirements and dependencies';
   finally
     // Cleanup
     if DirectoryExists(TempDir) then
