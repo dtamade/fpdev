@@ -100,9 +100,6 @@ begin
   else if HasFlag(AParams, 'from-binary') then
     LMode := imBinary;
 
-  // Convert mode to boolean for TFPCManager
-  LFromSource := (LMode = imSource);
-
   // Parse other flags
   if GetFlagValue(AParams, 'jobs', LJobs) then
   begin
@@ -130,7 +127,7 @@ begin
 
         // Try to restore from cache (use correct artifact type based on install mode)
         Ctx.Out.WriteLn('[CACHE] Restoring from cache to: ' + LInstallPath);
-        if LFromSource then
+        if LMode = imSource then
           LOk := LCache.RestoreArtifacts(LVer, LInstallPath)
         else
           LOk := LCache.RestoreBinaryArtifact(LVer, LInstallPath);
@@ -184,10 +181,42 @@ begin
     else
       Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ')');
 
-    // Perform installation
+    // Perform installation with auto-mode fallback logic
     LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
     try
-      LOk := LMgr.InstallVersion(LVer, LFromSource, LPrefix, False);
+      // Auto-mode: try binary first, fallback to source if binary fails
+      if LMode = imAuto then
+      begin
+        Ctx.Out.WriteLn('Attempting binary installation first...');
+        LOk := LMgr.InstallVersion(LVer, False, LPrefix, False);
+
+        if not LOk then
+        begin
+          Ctx.Out.WriteLn('');
+          Ctx.Out.WriteLn('Binary installation failed, falling back to source installation...');
+          Ctx.Out.WriteLn('Note: Source installation requires a bootstrap compiler and may take longer');
+          Ctx.Out.WriteLn('');
+          LOk := LMgr.InstallVersion(LVer, True, LPrefix, False);
+
+          if not LOk then
+          begin
+            Ctx.Err.WriteLn('');
+            Ctx.Err.WriteLn('Both binary and source installation failed');
+            Ctx.Err.WriteLn('Troubleshooting:');
+            Ctx.Err.WriteLn('  1. Check network connectivity');
+            Ctx.Err.WriteLn('  2. Verify version exists: fpdev fpc list --all');
+            Ctx.Err.WriteLn('  3. For source builds, ensure bootstrap compiler is available');
+            Exit(3);
+          end;
+        end;
+      end
+      else
+      begin
+        // Explicit mode: binary or source only
+        LFromSource := (LMode = imSource);
+        LOk := LMgr.InstallVersion(LVer, LFromSource, LPrefix, False);
+      end;
+
       if LOk then
       begin
         // Save to cache after successful installation (unless --no-cache)
