@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.4] - 2026-01-17
+### Added
+- **FPC Packages Build Support (Phase 4.3)**
+  - Comprehensive test coverage for BuildPackages and InstallPackages functionality
+  - Package selection API tests (ListPackages, SetSelectedPackages, GetPackageBuildOrder)
+  - Full build workflow integration tests
+  - State tracking and sandbox isolation tests
+
+### Testing
+- tests/test_build_packages.lpr: 4 test scenarios, 100% pass rate
+  - BuildPackages API existence and callability
+  - InstallPackages API with AllowInstall behavior
+  - FullBuild workflow integration
+  - Package selection API functionality
+- tests/test_install_packages.lpr: 4 test scenarios, 100% pass rate
+  - InstallPackages with AllowInstall=True
+  - Sandbox integration
+  - Skip behavior verification
+  - State tracking validation
+- tests/test_full_build.lpr: 6 test scenarios, 100% pass rate
+  - FullBuild workflow steps
+  - Packages build integration
+  - State progression
+  - Dry-run mode
+  - Sandbox isolation
+  - Log generation
+
+### Implementation Notes
+- BuildPackages and InstallPackages methods were already implemented in fpdev.build.manager.pas
+- Added comprehensive test coverage following TDD methodology
+- All tests designed to work without make/gmake dependency (graceful degradation)
+- Tests verify API behavior, state management, and workflow integration
+
+### Documentation
+- Updated ROADMAP.md Phase 4.3 status to complete
+- Documented test coverage and implementation details
+
 ## [2.0.3] - 2026-01-16
 ### Added
 - **Binary Cache and Offline Mode Support**

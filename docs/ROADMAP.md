@@ -334,11 +334,14 @@ Following the TODO-FPC-v1.md philosophy:
 - **Commits**: fd00a0f (test Red), e264f42 (feat Green), 7363d77 (integration Red)
 - **Priority**: 🟢 MEDIUM
 
-#### 4.3 FPC Packages Build
-- [ ] Extend build manager for packages
-- [ ] Add package selection UI
-- [ ] Handle optional dependencies
-- [ ] **Priority**: 🔵 LOW
+#### 4.3 FPC Packages Build ✅ COMPLETE
+- [x] Extend build manager for packages
+- [x] Add package selection UI
+- [x] Handle optional dependencies
+- **Tests**: 14/14 passing (test_build_packages.lpr: 4/4, test_install_packages.lpr: 4/4, test_full_build.lpr: 6/6)
+- **Implementation**: BuildPackages and InstallPackages methods already implemented in fpdev.build.manager.pas
+- **Package Selection**: ListPackages, SetSelectedPackages, GetPackageBuildOrder APIs implemented
+- **Priority**: 🔵 LOW
 
 ---
 
