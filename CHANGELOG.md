@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.5] - 2026-01-17
+### Added
+- **Lazarus IDE Configuration Test Coverage (Phase 3.4)**
+  - Comprehensive test coverage for TLazarusIDEConfig class and ConfigureIDE workflow
+  - XML configuration file parsing and modification tests
+  - Backup and restore mechanism tests
+  - Path configuration and validation tests
+  - End-to-end workflow integration tests
+
+### Testing
+- tests/test_lazarus_ide_config.lpr: 11 test scenarios, 100% pass rate
+  - TLazarusIDEConfig creation and initialization
+  - Compiler path set/get operations
+  - Library path set/get operations
+  - Backup configuration creation
+  - Configuration validation
+  - Configuration summary generation
+- tests/test_lazarus_configure_workflow.lpr: 4 test scenarios, 100% pass rate
+  - ConfigureIDE failure handling for non-existent versions
+  - ConfigureIDE success with installed Lazarus
+  - Config directory creation
+  - Backup directory creation
+
+### Implementation Notes
+- ConfigureIDE functionality was already implemented in fpdev.cmd.lazarus.pas and fpdev.lazarus.config.pas
+- Added comprehensive test coverage following TDD methodology
+- Tests verify XML parsing, backup/restore, path configuration, and validation
+- All tests pass without requiring actual Lazarus installation
+
+### Documentation
+- Updated ROADMAP.md Phase 3.4 status to complete
+- Documented test coverage and implementation details
+
 ## [2.0.4] - 2026-01-17
 ### Added
 - **FPC Packages Build Support (Phase 4.3)**
