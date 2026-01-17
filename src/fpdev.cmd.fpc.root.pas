@@ -4,9 +4,14 @@ unit fpdev.cmd.fpc.root;
 
 interface
 
-// Legacy root removed. Kept as empty shim to avoid accidental references.
+uses
+  fpdev.command.registry;
 
 implementation
+
+initialization
+  // Register fpc root node (for auto-help)
+  GlobalCommandRegistry.RegisterPath(['fpc'], nil, []);
 
 end.
 

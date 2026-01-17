@@ -1,93 +1,218 @@
 unit fpdev.cmd.fpc.use;
 
+{
+  fpdev fpc use 命令
+
+  增强功能:
+  - 智能安装: 版本未安装时提示用户或自动安装
+  - 项目配置支持: 读取 .fpdevrc 中的 auto_install 设置
+  - 版本别名支持: stable, lts, trunk
+}
+
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes, StrUtils,
-  fpdev.utils, fpdev.command.intf, fpdev.config, fpdev.cmd.fpc;
+  SysUtils, Classes,
+  fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.fpc.activation,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.paths;
 
 type
   { TFPCUseCommand }
-  TFPCUseCommand = class(TInterfacedObject, IFpdevCommand)
+  TFPCUseCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
-uses fpdev.command.registry;
+uses fpdev.command.registry, fpdev.cmd.utils, fpdev.config.project;
 
-
-function HasFlag(const Params: array of string; const Flag: string): Boolean;
-var i: Integer;
-begin
-  Result := False;
-  for i := Low(Params) to High(Params) do
-    if SameText(Params[i], '--' + Flag) or SameText(Params[i], '-' + Flag) then
-      Exit(True);
-end;
 function TFPCUseCommand.Name: string; begin Result := 'use'; end;
-function TFPCUseCommand.Aliases: TStringArray; begin SetLength(Result,1); Result[0] := 'default'; end;
-function TFPCUseCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+
+function TFPCUseCommand.Aliases: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 1);
+  Result[0] := 'default';
+end;
+
+function TFPCUseCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;  // Unused parameter
+end;
 
 
-function FPCUseFactory: IFpdevCommand;
+function FPCUseFactory: ICommand;
 begin
   Result := TFPCUseCommand.Create;
 end;
 
-function GuessInstalled(const AVer: string; const Ctx: ICommandContext): Boolean;
+function GuessInstalled(const AVer: string; const Ctx: IContext): Boolean;
 var
   LInfo: TToolchainInfo;
-  LRoot, LExe: string;
+  LExe: string;
 begin
-  if Ctx.Config.GetToolchain('fpc-' + AVer, LInfo) then Exit(True);
-  LRoot := Ctx.Config.GetSettings.InstallRoot;
-  if LRoot = '' then LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
+  // First check if registered in config
+  if Ctx.Config.GetToolchainManager.GetToolchain('fpc-' + AVer, LInfo) then Exit(True);
+
+  // Use GetToolchainsDir() for consistent path with installer
+  // Path: ~/.fpdev/toolchains/fpc/<version>/bin/fpc
   {$IFDEF MSWINDOWS}
-  LExe := IncludeTrailingPathDelimiter(LRoot) + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc.exe';
   {$ELSE}
-  LExe := IncludeTrailingPathDelimiter(LRoot) + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc';
+  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
   Result := FileExists(LExe);
 end;
 
 
-procedure TFPCUseCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TFPCUseCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LVer: string;
   LMgr: TFPCManager;
+  LResult: TActivationResult;
+  LResolver: TProjectConfigResolver;
+  LResolved: TResolvedConfig;
+  LAutoInstall, LEnsure: Boolean;
+  LGlobalFPC: string;
 begin
-  if Length(AParams) < 1 then
-  begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc use 3.2.2');  // 调试代码已注释
-    Exit;
-  end;
-  LVer := AParams[0];
+  Result := 0;
 
-  if HasFlag(AParams, 'ensure') and (not GuessInstalled(LVer, Ctx)) then
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
-    LMgr := TFPCManager.Create(Ctx.Config);
-    try
-  // WriteLn('未安装版本 ', LVer, '，自动安装 (--ensure) ...');  // 调试代码已注释
-      if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
+    Ctx.Out.WriteLn(_(HELP_FPC_USE_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_USE_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_USE_OPTIONS));
+    Ctx.Out.WriteLn(_(HELP_FPC_USE_OPT_ENSURE));
+    Ctx.Out.WriteLn(_(HELP_FPC_USE_OPT_HELP));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Version aliases:');
+    Ctx.Out.WriteLn('  stable    Latest stable version');
+    Ctx.Out.WriteLn('  lts       Long-term support version');
+    Ctx.Out.WriteLn('  trunk     Development version (main branch)');
+    Exit(0);
+  end;
+
+  // 获取全局默认值
+  LGlobalFPC := '';
+  if Ctx.Config <> nil then
+  begin
+    LGlobalFPC := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
+    if Pos('fpc-', LGlobalFPC) = 1 then
+      LGlobalFPC := Copy(LGlobalFPC, 5, Length(LGlobalFPC));
+  end;
+
+  // 创建配置解析器
+  LResolver := TProjectConfigResolver.Create(LGlobalFPC, '');
+  try
+    // 无参数时: 使用项目配置或全局默认
+    if Length(AParams) < 1 then
+    begin
+      LResolved := LResolver.ResolveConfig(GetCurrentDir);
+      LVer := LResolved.FPCVersion;
+
+      if LVer = '' then
       begin
-  // WriteLn('错误: 自动安装失败，无法切换');  // 调试代码已注释
-        Exit;
+        Ctx.Err.WriteLn('Error: No version specified and no default configured.');
+        Ctx.Err.WriteLn('');
+        Ctx.Err.WriteLn('Usage: fpdev fpc use <version>');
+        Ctx.Err.WriteLn('');
+        Ctx.Err.WriteLn('Or set a default: fpdev default fpc <version>');
+        Ctx.Err.WriteLn('Or create a .fpdevrc file in your project.');
+        Exit(2);
       end;
-    finally
-      LMgr.Free;
+
+      Ctx.Out.WriteLn('Using version from ' + ConfigSourceToString(LResolved.FPCSource) + ': ' + LVer);
+      LAutoInstall := LResolved.AutoInstall;
+    end
+    else
+    begin
+      LVer := AParams[0];
+      // 解析版本别名
+      LVer := LResolver.ResolveVersionAlias(LVer);
+
+      // 检查项目配置中的 auto_install 设置
+      LResolved := LResolver.ResolveConfig(GetCurrentDir);
+      LAutoInstall := LResolved.AutoInstall;
+    end;
+  finally
+    LResolver.Free;
+  end;
+
+  LEnsure := HasFlag(AParams, 'ensure');
+
+  // 检查版本是否已安装
+  if not GuessInstalled(LVer, Ctx) then
+  begin
+    // 如果有 --ensure 标志或项目配置了 auto_install，则自动安装
+    if LEnsure or LAutoInstall then
+    begin
+      LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
+      try
+        Ctx.Out.WriteLn('');
+        Ctx.Out.WriteLn('FPC ' + LVer + ' is not installed. Installing...');
+        Ctx.Out.WriteLn('');
+        if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
+        begin
+          Ctx.Err.WriteLn('Error: Failed to install FPC ' + LVer);
+          Exit(3);
+        end;
+      finally
+        LMgr.Free;
+      end;
+    end
+    else
+    begin
+      // 提示用户安装
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Error: FPC ' + LVer + ' is not installed.');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('To install it, run:');
+      Ctx.Err.WriteLn('  fpdev fpc install ' + LVer);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Or use --ensure to auto-install:');
+      Ctx.Err.WriteLn('  fpdev fpc use ' + LVer + ' --ensure');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Or enable auto_install in your .fpdevrc:');
+      Ctx.Err.WriteLn('  [settings]');
+      Ctx.Err.WriteLn('  auto_install = true');
+      Exit(3);
     end;
   end;
 
-  LMgr := TFPCManager.Create(Ctx.Config);
+  LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
-    if LMgr.SetDefaultVersion(LVer) then
-      if Ctx.Config.Modified then Ctx.Config.SaveConfig;
+    // Use ActivateVersion to generate activation scripts
+    LResult := LMgr.ActivateVersion(LVer);
+    if LResult.Success then
+    begin
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn(_Fmt(CMD_FPC_USE_ACTIVATED, [LVer]));
+      Ctx.Out.WriteLn('');
+      if LResult.ActivationScript <> '' then
+      begin
+        Ctx.Out.WriteLn(_Fmt(CMD_FPC_USE_SCRIPT_CREATED, [LResult.ActivationScript]));
+        Ctx.Out.WriteLn('');
+        Ctx.Out.WriteLn(_(CMD_FPC_USE_SCRIPT_RUN));
+        Ctx.Out.WriteLn('  ' + LResult.ShellCommand);
+      end;
+      if LResult.VSCodeSettings <> '' then
+        Ctx.Out.WriteLn(_Fmt(CMD_FPC_USE_VSCODE_UPDATED, [LResult.VSCodeSettings]));
+      Exit(0);
+    end
+    else
+    begin
+      Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + LResult.ErrorMessage);
+      Result := 3;
+    end;
   finally
     LMgr.Free;
   end;

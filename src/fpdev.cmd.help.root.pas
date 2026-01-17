@@ -5,19 +5,20 @@ unit fpdev.cmd.help.root;
 interface
 
 uses
-  fpdev.command.registry, fpdev.command.intf, fpdev.cmd.help, git2.types;
+  SysUtils,
+  fpdev.command.registry, fpdev.command.intf, fpdev.cmd.help;
 
 type
   { THelpCommand }
-  THelpCommand = class(TInterfacedObject, IFpdevCommand)
+  THelpCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const AContext: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const AContext: IContext): Integer;
   end;
 
-function HelpFactory: IFpdevCommand;
+function HelpFactory: ICommand;
 
 implementation
 
@@ -30,22 +31,22 @@ end;
 
 function THelpCommand.Aliases: TStringArray;
 begin
-  SetLength(Result, 2);
-  Result[0] := 'h';
-  Result[1] := '?';
+  Result := nil; // Aliases registered via GlobalCommandRegistry
 end;
 
-function THelpCommand.FindSub(const AName: string): IFpdevCommand;
+function THelpCommand.FindSub(const AName: string): ICommand;
 begin
+  // AName parameter not used - help command has no subcommands
   Result := nil; // help命令没有子命令
 end;
 
-procedure THelpCommand.Execute(const AParams: array of string; const AContext: ICommandContext);
+function THelpCommand.Execute(const AParams: array of string; const AContext: IContext): Integer;
 begin
-  fpdev.cmd.help.execute(AParams);
+  fpdev.cmd.help.execute(AParams, AContext.Out);
+  Result := 0;
 end;
 
-function HelpFactory: IFpdevCommand;
+function HelpFactory: ICommand;
 begin
   Result := THelpCommand.Create;
 end;

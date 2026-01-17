@@ -1,7 +1,5 @@
 unit fpdev.cmd.project;
 
-{$codepage utf8}
-
 {
 
 ```text
@@ -33,65 +31,60 @@ QQ群:685403987  QQ:179033731
 interface
 
 uses
-  SysUtils, Classes, Process,
-  fpdev.config, fpdev.utils, fpdev.terminal,
-  git2.api, git2.impl;
+  SysUtils, Classes,
+  fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
+  fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.i18n, fpdev.i18n.strings,
+  fpdev.project.generator;
 
 type
-  { TProjectType }
-  TProjectType = (
-    ptConsole, ptGUI, ptLibrary, ptPackage, ptWebApp, ptService, ptGame, ptCustom
-  );
-
-  { TProjectTemplate }
-  TProjectTemplate = record
-    Name: string;
-    DisplayName: string;
-    Description: string;
-    ProjectType: TProjectType;
-    Available: Boolean;
-  end;
-
   TProjectTemplateArray = array of TProjectTemplate;
 
   { TProjectManager }
   TProjectManager = class
   private
-    FConfigManager: TFPDevConfigManager;
+    FConfigManager: IConfigManager;
     FTemplatesRoot: string;
+    FGenerator: TProjectTemplateGenerator;  // Project file generation service
 
     function GetAvailableTemplates: TProjectTemplateArray;
     function CreateFromTemplate(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
-    function GenerateProjectFiles(const ATemplate: TProjectTemplate; const AProjectName, ATargetDir: string): Boolean;
     function ValidateProjectName(const AProjectName: string): Boolean;
     function GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
     function SetupProjectEnvironment(const AProjectDir: string): Boolean;
     function FindExecutableInDirectory(const ADir: string): string;
     function FindTestExecutableInDirectory(const ADir: string): string;
+    procedure CopyTemplateDirectory(const ASrcDir, ADestDir: string);
 
   public
-    constructor Create(AConfigManager: TFPDevConfigManager);
+    constructor Create(AConfigManager: TFPDevConfigManager); overload;
+    constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
     // 项目创建
     function CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
-    function ListTemplates: Boolean;
-    function ShowTemplateInfo(const ATemplateName: string): Boolean;
+    function ListTemplates: Boolean; overload;
+    function ListTemplates(const Outp: IOutput): Boolean; overload;
+    function ShowTemplateInfo(const ATemplateName: string): Boolean; overload;
+    function ShowTemplateInfo(const Outp, Errp: IOutput; const ATemplateName: string): Boolean; overload;
 
     // 项目管理
     function BuildProject(const AProjectDir: string; const ATarget: string = ''): Boolean;
-    function CleanProject(const AProjectDir: string): Boolean;
-    function TestProject(const AProjectDir: string): Boolean;
-    function RunProject(const AProjectDir: string; const AArgs: string = ''): Boolean;
+    function CleanProject(const AProjectDir: string): Boolean; overload;
+    function CleanProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean; overload;
+    function TestProject(const AProjectDir: string): Boolean; overload;
+    function TestProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean; overload;
+    function RunProject(const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
+    function RunProject(const Outp, Errp: IOutput; const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
 
     // 模板管理
-    function InstallTemplate(const ATemplatePath: string): Boolean;
-    function RemoveTemplate(const ATemplateName: string): Boolean;
-    function UpdateTemplates: Boolean;
+    function InstallTemplate(const ATemplatePath: string): Boolean; overload;
+    function InstallTemplate(const Outp, Errp: IOutput; const ATemplatePath: string): Boolean; overload;
+    function RemoveTemplate(const ATemplateName: string): Boolean; overload;
+    function RemoveTemplate(const Outp, Errp: IOutput; const ATemplateName: string): Boolean; overload;
+    function UpdateTemplates: Boolean; overload;
+    function UpdateTemplates(const Outp, Errp: IOutput): Boolean; overload;
   end;
-
-// 主要执行函数
-procedure execute(const aParams: array of string);
 
 implementation
 
@@ -110,23 +103,80 @@ const
 { TProjectManager }
 
 constructor TProjectManager.Create(AConfigManager: TFPDevConfigManager);
+begin
+  Create(AConfigManager.AsConfigManager);
+end;
+
+constructor TProjectManager.Create(AConfigManager: IConfigManager);
 var
   Settings: TFPDevSettings;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
 
-  Settings := FConfigManager.GetSettings;
+  Settings := FConfigManager.GetSettingsManager.GetSettings;
   FTemplatesRoot := Settings.InstallRoot + PathDelim + 'templates';
 
   // 确保模板目录存在
-  if not DirectoryExists(FTemplatesRoot) then
-    ForceDirectories(FTemplatesRoot);
+  EnsureDir(FTemplatesRoot);
+
+  // Initialize project file generator service
+  FGenerator := TProjectTemplateGenerator.Create;
 end;
 
 destructor TProjectManager.Destroy;
 begin
+  FGenerator.Free;
   inherited Destroy;
+end;
+
+procedure TProjectManager.CopyTemplateDirectory(const ASrcDir, ADestDir: string);
+var
+  SR: TSearchRec;
+  SrcPath, DstPath: string;
+  SrcStream, DstStream: TFileStream;
+begin
+  // Ensure destination directory exists
+  EnsureDir(ADestDir);
+
+  // Scan source directory
+  if FindFirst(ASrcDir + PathDelim + '*', faAnyFile, SR) = 0 then
+  begin
+    repeat
+      // Skip special directories
+      if (SR.Name = '.') or (SR.Name = '..') then
+        Continue;
+
+      SrcPath := ASrcDir + PathDelim + SR.Name;
+      DstPath := ADestDir + PathDelim + SR.Name;
+
+      if (SR.Attr and faDirectory) <> 0 then
+      begin
+        // Recursively copy subdirectory
+        CopyTemplateDirectory(SrcPath, DstPath);
+      end
+      else
+      begin
+        // Copy file
+        try
+          SrcStream := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyWrite);
+          try
+            DstStream := TFileStream.Create(DstPath, fmCreate);
+            try
+              DstStream.CopyFrom(SrcStream, SrcStream.Size);
+            finally
+              DstStream.Free;
+            end;
+          finally
+            SrcStream.Free;
+          end;
+        except
+          // Ignore individual file copy errors, continue with next file
+        end;
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
 end;
 
 function TProjectManager.ValidateProjectName(const AProjectName: string): Boolean;
@@ -134,14 +184,14 @@ begin
   Result := (AProjectName <> '') and
             (Pos(' ', AProjectName) = 0) and
             (Pos('/', AProjectName) = 0) and
-            (Pos('\', AProjectName) = 0);
+            (Pos(PathDelim, AProjectName) = 0);
 end;
 
 function TProjectManager.GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
 var
   i: Integer;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result := Default(TProjectTemplate);
 
   for i := 0 to High(BUILTIN_TEMPLATES) do
   begin
@@ -157,103 +207,10 @@ function TProjectManager.GetAvailableTemplates: TProjectTemplateArray;
 var
   i: Integer;
 begin
+  Result := nil;
   SetLength(Result, Length(BUILTIN_TEMPLATES));
   for i := 0 to High(BUILTIN_TEMPLATES) do
     Result[i] := BUILTIN_TEMPLATES[i];
-end;
-
-function TProjectManager.GenerateProjectFiles(const ATemplate: TProjectTemplate; const AProjectName, ATargetDir: string): Boolean;
-var
-  MainFile: TextFile;
-  ProjectFile: TextFile;
-  MainFileName, ProjectFileName: string;
-begin
-  Result := False;
-
-  try
-    case ATemplate.ProjectType of
-      ptConsole:
-      begin
-        // 创建主程序文件
-        MainFileName := ATargetDir + PathDelim + AProjectName + '.lpr';
-        AssignFile(MainFile, MainFileName);
-        Rewrite(MainFile);
-        WriteLn(MainFile, 'program ', AProjectName, ';');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, '{$mode objfpc}{$H+}');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, 'uses');
-        WriteLn(MainFile, '  SysUtils;');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, 'begin');
-        WriteLn(MainFile, '  WriteLn(''Hello from ', AProjectName, '!'');');
-        WriteLn(MainFile, 'end.');
-        CloseFile(MainFile);
-      end;
-
-      ptGUI:
-      begin
-        // 创建Lazarus项目文件
-        ProjectFileName := ATargetDir + PathDelim + AProjectName + '.lpi';
-        AssignFile(ProjectFile, ProjectFileName);
-        Rewrite(ProjectFile);
-        WriteLn(ProjectFile, '<?xml version="1.0" encoding="UTF-8"?>');
-        WriteLn(ProjectFile, '<CONFIG>');
-        WriteLn(ProjectFile, '  <ProjectOptions>');
-        WriteLn(ProjectFile, '    <Version Value="12"/>');
-        WriteLn(ProjectFile, '    <General>');
-        WriteLn(ProjectFile, '      <Title Value="', AProjectName, '"/>');
-        WriteLn(ProjectFile, '    </General>');
-        WriteLn(ProjectFile, '  </ProjectOptions>');
-        WriteLn(ProjectFile, '</CONFIG>');
-        CloseFile(ProjectFile);
-
-        // 创建主程序文件
-        MainFileName := ATargetDir + PathDelim + AProjectName + '.lpr';
-        AssignFile(MainFile, MainFileName);
-        Rewrite(MainFile);
-        WriteLn(MainFile, 'program ', AProjectName, ';');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, '{$mode objfpc}{$H+}');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, 'uses');
-        WriteLn(MainFile, '  {$IFDEF UNIX}');
-        WriteLn(MainFile, '  cthreads,');
-        WriteLn(MainFile, '  {$ENDIF}');
-        WriteLn(MainFile, '  Interfaces, Forms;');
-        WriteLn(MainFile, '');
-        WriteLn(MainFile, 'begin');
-        WriteLn(MainFile, '  RequireDerivedFormResource := True;');
-        WriteLn(MainFile, '  Application.Initialize;');
-        WriteLn(MainFile, '  Application.Run;');
-        WriteLn(MainFile, 'end.');
-        CloseFile(MainFile);
-      end;
-
-    else
-      // 默认控制台应用
-      MainFileName := ATargetDir + PathDelim + AProjectName + '.lpr';
-      AssignFile(MainFile, MainFileName);
-      Rewrite(MainFile);
-      WriteLn(MainFile, 'program ', AProjectName, ';');
-      WriteLn(MainFile, '');
-      WriteLn(MainFile, '{$mode objfpc}{$H+}');
-      WriteLn(MainFile, '');
-      WriteLn(MainFile, 'begin');
-      WriteLn(MainFile, '  WriteLn(''Hello from ', AProjectName, '!'');');
-      WriteLn(MainFile, 'end.');
-      CloseFile(MainFile);
-    end;
-
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 生成项目文件时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
 end;
 
 function TProjectManager.CreateFromTemplate(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
@@ -265,32 +222,28 @@ begin
   Template := GetTemplateInfo(ATemplateName);
   if Template.Name = '' then
   begin
-  // WriteLn('错误: 未找到模板: ', ATemplateName);  // 调试代码已注释
     Exit;
   end;
 
   try
     // 确保目标目录存在
     if not DirectoryExists(ATargetDir) then
-      ForceDirectories(ATargetDir);
+      EnsureDir(ATargetDir);
 
-    // 生成项目文件
-    Result := GenerateProjectFiles(Template, AProjectName, ATargetDir);
+    // 委托给项目文件生成服务
+    Result := FGenerator.GenerateProjectFiles(Template, AProjectName, ATargetDir);
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 从模板创建项目时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
 function TProjectManager.SetupProjectEnvironment(const AProjectDir: string): Boolean;
 begin
   Result := True;
-  // TODO: 设置项目环境（如创建构建脚本等）
-  // WriteLn('项目环境设置完成');  // 调试代码已注释
+  // Future enhancement: create build scripts, IDE configuration, etc.
+  if AProjectDir <> '' then; // Suppress unused parameter hint
 end;
 
 function TProjectManager.CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
@@ -299,117 +252,131 @@ begin
 
   if not ValidateProjectName(AProjectName) then
   begin
-  // WriteLn('错误: 无效的项目名称: ', AProjectName);  // 调试代码已注释
     Exit;
   end;
 
   try
-  // WriteLn('创建项目 ', AProjectName, ' 使用模板 ', ATemplateName);  // 调试代码已注释
-  // WriteLn('目标目录: ', ATargetDir);  // 调试代码已注释
 
     // 从模板创建项目
     if not CreateFromTemplate(ATemplateName, AProjectName, ATargetDir) then
     begin
-  // WriteLn('错误: 从模板创建项目失败');  // 调试代码已注释
       Exit;
     end;
 
     // 设置项目环境
     if not SetupProjectEnvironment(ATargetDir) then
     begin
-  // WriteLn('警告: 项目环境设置失败');  // 调试代码已注释
     end;
 
-  // WriteLn('✓ 项目 ', AProjectName, ' 创建成功');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 创建项目时发生异常: ', E.Message);  // 调试代码已注释
+      {$IFDEF DEBUG}
+      WriteLn(StdErr, 'CreateProject exception: ', E.Message);
+      {$ENDIF}
       Result := False;
     end;
   end;
 end;
 
 function TProjectManager.ListTemplates: Boolean;
+begin
+  Result := ListTemplates(nil);
+end;
+
+function TProjectManager.ListTemplates(const Outp: IOutput): Boolean;
 var
   Templates: TProjectTemplateArray;
   i: Integer;
+  Line: string;
+  LO: IOutput;
 begin
   Result := True;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
   try
     Templates := GetAvailableTemplates;
 
-  // WriteLn('可用的项目模板:');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('模板名      类型        描述');  // 调试代码已注释
-  // WriteLn('----------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Templates) do
     begin
-      Write(Format('%-10s  ', [Templates[i].Name]));
-
+      Line := Format('%-10s  ', [Templates[i].Name]);
       case Templates[i].ProjectType of
-        ptConsole: Write('Console     ');
-        ptGUI: Write('GUI App     ');
-        ptLibrary: Write('Library     ');
-        ptPackage: Write('Package     ');
-        ptWebApp: Write('Web App     ');
-        ptService: Write('Service     ');
-        ptGame: Write('Game        ');
+        ptConsole: Line := Line + 'Console     ';
+        ptGUI: Line := Line + 'GUI App     ';
+        ptLibrary: Line := Line + 'Library     ';
+        ptPackage: Line := Line + 'Package     ';
+        ptWebApp: Line := Line + 'Web App     ';
+        ptService: Line := Line + 'Service     ';
+        ptGame: Line := Line + 'Game        ';
       else
-        Write('Custom      ');
+        Line := Line + 'Custom      ';
       end;
-
-      WriteLn(Templates[i].Description);
+      Line := Line + Templates[i].Description;
+      LO.WriteLn(Line);
     end;
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('总计: ', Length(Templates), ' 个模板');  // 调试代码已注释
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 列出模板时发生异常: ', E.Message);  // 调试代码已注释
+      {$IFDEF DEBUG}
+      WriteLn(StdErr, 'ListTemplates exception: ', E.Message);
+      {$ENDIF}
       Result := False;
     end;
   end;
 end;
 
 function TProjectManager.ShowTemplateInfo(const ATemplateName: string): Boolean;
+begin
+  Result := ShowTemplateInfo(nil, nil, ATemplateName);
+end;
+
+function TProjectManager.ShowTemplateInfo(const Outp, Errp: IOutput; const ATemplateName: string): Boolean;
 var
   Template: TProjectTemplate;
+  LO: IOutput;
+  LE: IOutput;
 begin
   Result := False;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   try
     Template := GetTemplateInfo(ATemplateName);
 
     if Template.Name = '' then
     begin
-  // WriteLn('错误: 未找到模板: ', ATemplateName);  // 调试代码已注释
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TEMPLATE_NOT_FOUND, [ATemplateName]));
       Exit;
     end;
 
-  // WriteLn('模板信息: ', ATemplateName);  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('名称: ', Template.Name);  // 调试代码已注释
-  // WriteLn('显示名称: ', Template.DisplayName);  // 调试代码已注释
-  // WriteLn('描述: ', Template.Description);  // 调试代码已注释
 
-    Write('Type: ');
+    LO.WriteLn(Format('Name:        %s', [Template.Name]));
+    LO.WriteLn(Format('Display:     %s', [Template.DisplayName]));
+    LO.WriteLn(Format('Description: %s', [Template.Description]));
+    LO.Write('Type:        ');
     case Template.ProjectType of
-      ptConsole: WriteLn('Console Application');
-      ptGUI: WriteLn('GUI Application');
-      ptLibrary: WriteLn('Library');
-      ptPackage: WriteLn('Lazarus Package');
-      ptWebApp: WriteLn('Web Application');
-      ptService: WriteLn('System Service');
-      ptGame: WriteLn('Game Project');
+      ptConsole: LO.WriteLn(_(CMD_PROJECT_TYPE_CONSOLE));
+      ptGUI: LO.WriteLn(_(CMD_PROJECT_TYPE_GUI));
+      ptLibrary: LO.WriteLn(_(CMD_PROJECT_TYPE_LIBRARY));
+      ptPackage: LO.WriteLn(_(CMD_PROJECT_TYPE_PACKAGE));
+      ptWebApp: LO.WriteLn(_(CMD_PROJECT_TYPE_WEBAPP));
+      ptService: LO.WriteLn(_(CMD_PROJECT_TYPE_SERVICE));
+      ptGame: LO.WriteLn(_(CMD_PROJECT_TYPE_GAME));
     else
-  // WriteLn('自定义');  // 调试代码已注释
+      LO.WriteLn(_(CMD_PROJECT_TYPE_CUSTOM));
     end;
 
     Result := True;
@@ -417,7 +384,9 @@ begin
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 显示模板信息时发生异常: ', E.Message);  // 调试代码已注释
+      {$IFDEF DEBUG}
+      WriteLn(StdErr, 'ShowTemplateInfo exception: ', E.Message);
+      {$ENDIF}
       Result := False;
     end;
   end;
@@ -425,20 +394,19 @@ end;
 
 function TProjectManager.BuildProject(const AProjectDir: string; const ATarget: string): Boolean;
 var
-  Process: TProcess;
+  LResult: TProcessResult;
   FoundLPI, FoundLPR: string;
   SR: TSearchRec;
+  Params: array of string;
 begin
   Result := False;
 
   if not DirectoryExists(AProjectDir) then
   begin
-  // WriteLn('错误: 项目目录不存在: ', AProjectDir);  // 调试代码已注释
     Exit;
   end;
 
   try
-  // WriteLn('构建项目: ', AProjectDir);  // 调试代码已注释
 
     // 优先查找首个 .lpi 项目文件
     FoundLPI := '';
@@ -457,20 +425,21 @@ begin
     if FoundLPI <> '' then
     begin
       // 使用 lazbuild 构建 Lazarus 项目
-      Process := TProcess.Create(nil);
-      try
-        Process.Executable := 'lazbuild';
-        Process.Parameters.Add(FoundLPI);
-        if ATarget <> '' then
-          Process.Parameters.Add('--cpu=' + ATarget);
-        Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-        Process.CurrentDirectory := AProjectDir;
-
-        Process.Execute;
-        Result := Process.ExitStatus = 0;
-      finally
-        Process.Free;
+      Params := nil;
+      if ATarget <> '' then
+      begin
+        SetLength(Params, 2);
+        Params[0] := FoundLPI;
+        Params[1] := '--cpu=' + ATarget;
+      end
+      else
+      begin
+        SetLength(Params, 1);
+        Params[0] := FoundLPI;
       end;
+
+      LResult := TProcessExecutor.Execute('lazbuild', Params, AProjectDir);
+      Result := LResult.Success;
     end
     else
     begin
@@ -491,155 +460,69 @@ begin
       if FoundLPR <> '' then
       begin
         // 使用 fpc 构建 .lpr（仅用于项目，不用于本地测试/示例）
-        Process := TProcess.Create(nil);
-        try
-          Process.Executable := 'fpc';
-          Process.Parameters.Add(ExtractFileName(FoundLPR));
-          Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-          Process.CurrentDirectory := AProjectDir;
-
-          Process.Execute;
-          Result := Process.ExitStatus = 0;
-        finally
-          Process.Free;
-        end;
+        LResult := TProcessExecutor.Execute('fpc', [ExtractFileName(FoundLPR)], AProjectDir);
+        Result := LResult.Success;
       end
       else if FileExists(AProjectDir + PathDelim + 'Makefile') then
       begin
         // 回退使用 make（如果提供 Makefile）
-        Process := TProcess.Create(nil);
-        try
-          Process.Executable := 'make';
-          Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-          Process.CurrentDirectory := AProjectDir;
-
-          Process.Execute;
-          Result := Process.ExitStatus = 0;
-        finally
-          Process.Free;
-        end;
+        LResult := TProcessExecutor.Execute('make', [], AProjectDir);
+        Result := LResult.Success;
       end
       else
       begin
-  // WriteLn('错误: 未找到可构建的项目文件（.lpi/.lpr/Makefile）');  // 调试代码已注释
         Exit;
       end;
-    end;
-
-    if Result then
-    begin
-      // WriteLn('✓ 项目构建成功')  // 调试代码已注释
-    end
-    else
-    begin
-      // WriteLn('✗ 项目构建失败');  // 调试代码已注释
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 构建项目时发生异常: ', E.Message);  // 调试代码已注释
+      {$IFDEF DEBUG}
+      WriteLn(StdErr, 'BuildProject exception: ', E.Message);
+      {$ENDIF}
       Result := False;
     end;
   end;
 end;
 
 function TProjectManager.CleanProject(const AProjectDir: string): Boolean;
-const
-  // Build artifacts extensions to be cleaned
-  {$IFDEF MSWINDOWS}
-  CLEANABLE_EXTENSIONS: array[0..6] of string = (
-    '.o',        // Object files
-    '.ppu',      // Compiled Pascal units
-    '.a',        // Static libraries
-    '.dll',      // Dynamic libraries (Windows)
-    '.exe',      // Executables (Windows)
-    '.compiled', // Lazarus state files
-    '.res'       // Resource files
-  );
-  {$ELSE}
-  CLEANABLE_EXTENSIONS: array[0..6] of string = (
-    '.o',        // Object files
-    '.ppu',      // Compiled Pascal units
-    '.a',        // Static libraries
-    '.so',       // Shared libraries (Linux)
-    '.dylib',    // Dynamic libraries (macOS)
-    '.compiled', // Lazarus state files
-    '.res'       // Resource files
-  );
-  {$ENDIF}
+begin
+  Result := CleanProject(nil, nil, AProjectDir);
+end;
+
+function TProjectManager.CleanProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean;
 var
-  SR: TSearchRec;
-  FilePath, FileExt: string;
   DeletedCount: Integer;
-  I: Integer;
-  ShouldDelete: Boolean;
+  LO: IOutput;
+  LE: IOutput;
 begin
   Result := False;
-  DeletedCount := 0;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   // Validate directory exists
   if not DirectoryExists(AProjectDir) then
   begin
-    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
     Exit;
   end;
 
   try
-    // Scan directory for cleanable files
-    if FindFirst(AProjectDir + PathDelim + '*.*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        // Skip directories and special entries
-        if (SR.Name = '.') or (SR.Name = '..') or
-           ((SR.Attr and faDirectory) <> 0) then
-          Continue;
-
-        FilePath := AProjectDir + PathDelim + SR.Name;
-        FileExt := LowerCase(ExtractFileExt(SR.Name));
-        ShouldDelete := False;
-
-        // Check if this file extension should be cleaned
-        for I := 0 to High(CLEANABLE_EXTENSIONS) do
-        begin
-          if FileExt = CLEANABLE_EXTENSIONS[I] then
-          begin
-            ShouldDelete := True;
-            Break;
-          end;
-        end;
-
-        {$IFNDEF MSWINDOWS}
-        // On Unix, also check for executables without extension
-        // Only consider files with no extension and no dot in name
-        if (not ShouldDelete) and (FileExt = '') and
-           (Pos('.', SR.Name) = 0) then
-        begin
-          // Conservative check: file is likely executable if it has execute permissions
-          // We can't easily check permissions from Pascal, so we just skip this for now
-          // to avoid accidentally deleting important files
-          ShouldDelete := False;
-        end;
-        {$ENDIF}
-
-        // Delete the file if it matches criteria
-        if ShouldDelete then
-        begin
-          if DeleteFile(FilePath) then
-            Inc(DeletedCount);
-        end;
-
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-
-    WriteLn('Cleaned ', DeletedCount, ' build artifact(s) from: ', AProjectDir);
+    // 使用共享清理函数（包含平台可执行文件）
+    DeletedCount := CleanBuildArtifacts(AProjectDir, nil, True);
+    LO.WriteLn(_Fmt(CMD_PROJECT_CLEANED, [DeletedCount, AProjectDir]));
     Result := True;
 
   except
     on E: Exception do
     begin
-      WriteLn('Error cleaning project: ', E.Message);
+      LE.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
@@ -691,16 +574,29 @@ begin
 end;
 
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
+begin
+  Result := TestProject(nil, nil, AProjectDir);
+end;
+
+function TProjectManager.TestProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean;
 var
-  Process: TProcess;
+  LResult: TProcessResult;
   FoundExe: string;
-  ExitStatus: Integer;
+  LO: IOutput;
+  LE: IOutput;
 begin
   Result := False;
 
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
   if not DirectoryExists(AProjectDir) then
   begin
-    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
     Exit;
   end;
 
@@ -710,39 +606,30 @@ begin
 
     if FoundExe = '' then
     begin
-      WriteLn('Error: No test executable found in directory: ', AProjectDir);
-      WriteLn('Note: Test executables should start with "test" or "test_"');
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_NO_TEST_FOUND, [AProjectDir]));
+      LE.WriteLn(_(CMD_PROJECT_TEST_NOTE));
       Exit;
     end;
 
-    WriteLn('Running tests: ', ExtractFileName(FoundExe));
+    LO.WriteLn(_Fmt(CMD_PROJECT_RUNNING_TESTS, [ExtractFileName(FoundExe)]));
 
-    // Create and configure process
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := FoundExe;
-      Process.CurrentDirectory := AProjectDir;
+    // Execute test
+    LResult := TProcessExecutor.Execute(FoundExe, [], AProjectDir);
+    Result := LResult.Success;
 
-      // Execute and wait for completion
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-      Process.Execute;
-
-      ExitStatus := Process.ExitStatus;
-      Result := ExitStatus = 0;
-
-      if Result then
-        WriteLn('Tests passed (exit code: 0)')
-      else
-        WriteLn('Tests failed (exit code: ', ExitStatus, ')');
-
-    finally
-      Process.Free;
+    if Result then
+    begin
+      LO.WriteLn(_(CMD_PROJECT_TEST_PASSED));
+    end
+    else
+    begin
+      LE.WriteLn(_Fmt(CMD_PROJECT_TEST_FAILED, [IntToStr(LResult.ExitCode)]));
     end;
 
   except
     on E: Exception do
     begin
-      WriteLn('Error running tests: ', E.Message);
+      LE.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
@@ -791,18 +678,32 @@ begin
 end;
 
 function TProjectManager.RunProject(const AProjectDir: string; const AArgs: string): Boolean;
+begin
+  Result := RunProject(nil, nil, AProjectDir, AArgs);
+end;
+
+function TProjectManager.RunProject(const Outp, Errp: IOutput; const AProjectDir: string; const AArgs: string): Boolean;
 var
-  Process: TProcess;
+  LResult: TProcessResult;
   FoundExe: string;
-  ExitStatus: Integer;
   Args: TStringList;
+  Params: array of string;
   i: Integer;
+  LO: IOutput;
+  LE: IOutput;
 begin
   Result := False;
 
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
   if not DirectoryExists(AProjectDir) then
   begin
-    WriteLn('Error: Project directory does not exist: ', AProjectDir);
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
     Exit;
   end;
 
@@ -812,47 +713,39 @@ begin
 
     if FoundExe = '' then
     begin
-      WriteLn('Error: No executable found in directory: ', AProjectDir);
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_NO_EXECUTABLE, [AProjectDir]));
       Exit;
     end;
 
-    // Create and configure process
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := FoundExe;
-      Process.CurrentDirectory := AProjectDir;
-
-      // Parse and add arguments if provided
-      if AArgs <> '' then
-      begin
-        Args := TStringList.Create;
-        try
-          ExtractStrings([' '], [], PChar(AArgs), Args);
-          for i := 0 to Args.Count - 1 do
-            Process.Parameters.Add(Args[i]);
-        finally
-          Args.Free;
-        end;
+    // Parse arguments if provided
+    Params := nil;
+    SetLength(Params, 0);
+    if AArgs <> '' then
+    begin
+      Args := TStringList.Create;
+      try
+        ExtractStrings([' '], [], PChar(AArgs), Args);
+        SetLength(Params, Args.Count);
+        for i := 0 to Args.Count - 1 do
+          Params[i] := Args[i];
+      finally
+        Args.Free;
       end;
+    end;
 
-      // Execute and wait for completion
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-      Process.Execute;
+    // Execute
+    LResult := TProcessExecutor.Execute(FoundExe, Params, AProjectDir);
+    Result := LResult.Success;
 
-      ExitStatus := Process.ExitStatus;
-      Result := ExitStatus = 0;
-
-      if not Result then
-        WriteLn('Warning: Process exited with code: ', ExitStatus);
-
-    finally
-      Process.Free;
+    if not Result then
+    begin
+      LE.WriteLn(_(MSG_WARNING) + ': ' + _Fmt(CMD_PROJECT_EXIT_CODE, [IntToStr(LResult.ExitCode)]));
     end;
 
   except
     on E: Exception do
     begin
-      WriteLn('Error running project: ', E.Message);
+      LE.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
@@ -860,221 +753,264 @@ end;
 
 function TProjectManager.InstallTemplate(const ATemplatePath: string): Boolean;
 begin
+  Result := InstallTemplate(nil, nil, ATemplatePath);
+end;
+
+function TProjectManager.InstallTemplate(const Outp, Errp: IOutput; const ATemplatePath: string): Boolean;
+var
+  TemplateName: string;
+  DestDir: string;
+  SR: TSearchRec;
+  SrcFile, DstFile: string;
+  SrcStream, DstStream: TFileStream;
+  LO, LE: IOutput;
+begin
   Result := False;
-  // WriteLn('安装模板功能暂未实现');  // 调试代码已注释
-  // TODO: 实现模板安装功能
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  if not DirectoryExists(ATemplatePath) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_PATH_NOT_EXIST, [ATemplatePath]));
+    Exit;
+  end;
+
+  // Extract template name from path
+  TemplateName := ExtractFileName(ExcludeTrailingPathDelimiter(ATemplatePath));
+  if TemplateName = '' then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PROJECT_TPL_INVALID_PATH));
+    Exit;
+  end;
+
+  // Create destination directory
+  DestDir := FTemplatesRoot + PathDelim + TemplateName;
+  if DirectoryExists(DestDir) then
+  begin
+    LO.WriteLn(_(MSG_WARNING) + ': ' + _Fmt(CMD_PROJECT_TPL_OVERWRITING, [TemplateName]));
+  end;
+
+  try
+    EnsureDir(DestDir);
+
+    // Copy all files from source to destination
+    if FindFirst(ATemplatePath + PathDelim + '*', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        if (SR.Name <> '.') and (SR.Name <> '..') and
+           ((SR.Attr and faDirectory) = 0) then
+        begin
+          SrcFile := ATemplatePath + PathDelim + SR.Name;
+          DstFile := DestDir + PathDelim + SR.Name;
+
+          SrcStream := TFileStream.Create(SrcFile, fmOpenRead or fmShareDenyWrite);
+          try
+            DstStream := TFileStream.Create(DstFile, fmCreate);
+            try
+              DstStream.CopyFrom(SrcStream, SrcStream.Size);
+            finally
+              DstStream.Free;
+            end;
+          finally
+            SrcStream.Free;
+          end;
+        end;
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+
+    LO.WriteLn(_Fmt(CMD_PROJECT_TPL_INSTALLED, [TemplateName]));
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      LE.WriteLn(_Fmt(CMD_PROJECT_TPL_INSTALL_ERROR, [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TProjectManager.RemoveTemplate(const ATemplateName: string): Boolean;
 begin
+  Result := RemoveTemplate(nil, nil, ATemplateName);
+end;
+
+function TProjectManager.RemoveTemplate(const Outp, Errp: IOutput; const ATemplateName: string): Boolean;
+var
+  TemplateDir: string;
+  i: Integer;
+  IsBuiltin: Boolean;
+  LO, LE: IOutput;
+begin
   Result := False;
-  // WriteLn('删除模板功能暂未实现');  // 调试代码已注释
-  // TODO: 实现模板删除功能
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  if ATemplateName = '' then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PROJECT_TPL_NAME_REQUIRED));
+    Exit;
+  end;
+
+  // Check if it's a built-in template
+  IsBuiltin := False;
+  for i := 0 to High(BUILTIN_TEMPLATES) do
+  begin
+    if SameText(BUILTIN_TEMPLATES[i].Name, ATemplateName) then
+    begin
+      IsBuiltin := True;
+      Break;
+    end;
+  end;
+
+  if IsBuiltin then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_BUILTIN_REMOVE, [ATemplateName]));
+    Exit;
+  end;
+
+  // Check if template exists
+  TemplateDir := FTemplatesRoot + PathDelim + ATemplateName;
+  if not DirectoryExists(TemplateDir) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_NOT_FOUND, [ATemplateName]));
+    Exit;
+  end;
+
+  try
+    DeleteDirRecursive(TemplateDir);
+    LO.WriteLn(_Fmt(CMD_PROJECT_TPL_REMOVED, [ATemplateName]));
+    Result := True;
+
+  except
+    on E: Exception do
+    begin
+      LE.WriteLn(_Fmt(CMD_PROJECT_TPL_REMOVE_ERROR, [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TProjectManager.UpdateTemplates: Boolean;
 begin
-  Result := False;
-  // WriteLn('更新模板功能暂未实现');  // 调试代码已注释
-  {$IFDEF FPDEV_DEPRECATED_GIT_CMD}
-  // Deprecated block (will be removed in next milestone)
-  // Original inline git command handler (moved out of user-facing scope per fpdev.md)
-  // Intentionally disabled by default.
-  // ...
-  {$ENDIF}
-  // TODO: 实现模板更新功能
+  Result := UpdateTemplates(nil, nil);
 end;
 
-// 主要执行函数
-procedure execute(const aParams: array of string);
+function TProjectManager.UpdateTemplates(const Outp, Errp: IOutput): Boolean;
 var
-  ConfigManager: TFPDevConfigManager;
-  ProjectManager: TProjectManager;
-  Command: string;
-  TemplateName, ProjectName, TargetDir: string;
+  Repo: TResourceRepository;
+  RepoConfig: TResourceRepoConfig;
+  TemplatesDir, TemplateSrc, TemplateDest: string;
+  SR: TSearchRec;
+  UpdatedCount, AddedCount: Integer;
+  MetaPath: string;
+  LO, LE: IOutput;
 begin
-  if Length(aParams) = 0 then
-  begin
-  // WriteLn('FreePascal 项目管理系统');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('用法:');  // 调试代码已注释
-  // WriteLn('  fpdev project new <template> <name> [dir]    创建新项目');  // 调试代码已注释
-  // WriteLn('  fpdev project list                           列出可用模板');  // 调试代码已注释
-    WriteLn('  fpdev project info <template>                Show template information');
-  // WriteLn('  fpdev project build [dir] [target]           构建项目');  // 调试代码已注释
-  // WriteLn('  fpdev project clean [dir]                    清理项目');  // 调试代码已注释
-  // WriteLn('  fpdev project test [dir]                     测试项目');  // 调试代码已注释
-  // WriteLn('  fpdev project run [dir] [args]               运行项目');  // 调试代码已注释
-  // WriteLn('  fpdev project template install <path>        安装模板');  // 调试代码已注释
-  // WriteLn('  fpdev project template remove <name>         删除模板');  // 调试代码已注释
-  // WriteLn('  fpdev project template update                更新模板');  // 调试代码已注释
-    {$IFDEF FPDEV_DEPRECATED_GIT_CMD}
-  // WriteLn('  fpdev project git ...                        [Deprecated] 内部保留，不对用户开放');  // 调试代码已注释
-    {$ENDIF}
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('可用模板:');  // 调试代码已注释
-  // WriteLn('  console    - 控制台应用程序');  // 调试代码已注释
-  // WriteLn('  gui        - Lazarus GUI应用程序');  // 调试代码已注释
-  // WriteLn('  library    - 动态库项目');  // 调试代码已注释
-  // WriteLn('  package    - Lazarus包项目');  // 调试代码已注释
-  // WriteLn('  webapp     - Web应用程序');  // 调试代码已注释
-  // WriteLn('  service    - 系统服务');  // 调试代码已注释
-  // WriteLn('  game       - 游戏项目');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('示例:');  // 调试代码已注释
-  // WriteLn('  fpdev project new console myapp              创建控制台应用');  // 调试代码已注释
-  // WriteLn('  fpdev project new gui myapp ./projects       创建GUI应用到指定目录');  // 调试代码已注释
-  // WriteLn('  fpdev project build ./myapp                  构建项目');  // 调试代码已注释
-    Exit;
-  end;
+  Result := False;
+  UpdatedCount := 0;
+  AddedCount := 0;
 
-  ConfigManager := TFPDevConfigManager.Create;
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
   try
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
-
-    ProjectManager := TProjectManager.Create(ConfigManager);
+    // Create resource repository with default config
+    RepoConfig := CreateDefaultConfig;
+    Repo := TResourceRepository.Create(RepoConfig);
     try
-      Command := LowerCase(aParams[0]);
-
-      case Command of
-        'new':
-        begin
-          if Length(aParams) < 3 then
-          begin
-  // WriteLn('错误: 请指定模板名和项目名');  // 调试代码已注释
-  // WriteLn('用法: fpdev project new <template> <name> [dir]');  // 调试代码已注释
-            Exit;
-          end;
-
-          TemplateName := aParams[1];
-          ProjectName := aParams[2];
-
-          if Length(aParams) > 3 then
-            TargetDir := aParams[3] + PathDelim + ProjectName
-          else
-            TargetDir := '.' + PathDelim + ProjectName;
-
-          ProjectManager.CreateProject(TemplateName, ProjectName, TargetDir);
-        end;
-
-        'list':
-        begin
-          ProjectManager.ListTemplates;
-        end;
-
-        'info':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定模板名');  // 调试代码已注释
-            WriteLn('Usage: fpdev project info <template>');
-            Exit;
-          end;
-
-          TemplateName := aParams[1];
-          ProjectManager.ShowTemplateInfo(TemplateName);
-        end;
-
-        'build':
-        begin
-          if Length(aParams) > 1 then
-            TargetDir := aParams[1]
-          else
-            TargetDir := '.';
-
-          if Length(aParams) > 2 then
-            ProjectManager.BuildProject(TargetDir, aParams[2])
-          else
-            ProjectManager.BuildProject(TargetDir, '');
-        end;
-
-        'clean':
-        begin
-          if Length(aParams) > 1 then
-            TargetDir := aParams[1]
-          else
-            TargetDir := '.';
-
-          ProjectManager.CleanProject(TargetDir);
-        end;
-
-        'test':
-        begin
-          if Length(aParams) > 1 then
-            TargetDir := aParams[1]
-          else
-            TargetDir := '.';
-
-          ProjectManager.TestProject(TargetDir);
-        end;
-
-        'run':
-        begin
-          if Length(aParams) > 1 then
-            TargetDir := aParams[1]
-          else
-            TargetDir := '.';
-
-          if Length(aParams) > 2 then
-            ProjectManager.RunProject(TargetDir, aParams[2])
-          else
-            ProjectManager.RunProject(TargetDir, '');
-        end;
-
-        'template':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定模板操作');  // 调试代码已注释
-  // WriteLn('用法: fpdev project template <install|remove|update> [args]');  // 调试代码已注释
-            Exit;
-          end;
-
-          case LowerCase(aParams[1]) of
-            'install':
-            begin
-              if Length(aParams) < 3 then
-              begin
-  // WriteLn('错误: 请指定模板路径');  // 调试代码已注释
-  // WriteLn('用法: fpdev project template install <path>');  // 调试代码已注释
-                Exit;
-              end;
-              ProjectManager.InstallTemplate(aParams[2]);
-            end;
-
-            'remove':
-            begin
-              if Length(aParams) < 3 then
-              begin
-  // WriteLn('错误: 请指定要删除的模板名');  // 调试代码已注释
-  // WriteLn('用法: fpdev project template remove <name>');  // 调试代码已注释
-                Exit;
-              end;
-              ProjectManager.RemoveTemplate(aParams[2]);
-            end;
-
-            'update':
-              ProjectManager.UpdateTemplates;
-
-          else
-  // WriteLn('错误: 未知的模板操作: ', aParams[1]);  // 调试代码已注释
-          end;
-        end;
-
-      else
-  // WriteLn('错误: 未知的命令: ', Command);  // 调试代码已注释
-  // WriteLn('使用 "fpdev project" 查看帮助信息');  // 调试代码已注释
+      // Initialize and update repository
+      if not Repo.Initialize then
+      begin
+        LO.WriteLn(_(MSG_INFO) + ': ' + _(CMD_PROJECT_TPL_REPO_UNAVAIL));
+        Exit(True);  // Non-fatal - just skip online update
       end;
 
+      // Force update to get latest templates
+      if not Repo.Update(True) then
+      begin
+        LO.WriteLn(_(MSG_WARNING) + ': ' + _(CMD_PROJECT_TPL_UPDATE_FAILED));
+        // Continue anyway - we may have local templates
+      end;
+
+      // Look for templates directory in repo
+      TemplatesDir := Repo.LocalPath + PathDelim + 'templates';
+      if not DirectoryExists(TemplatesDir) then
+      begin
+        LO.WriteLn(_(MSG_INFO) + ': ' + _(CMD_PROJECT_TPL_NO_TEMPLATES));
+        Exit(True);  // Non-fatal - templates may not be in repo yet
+      end;
+
+      // Ensure local templates directory exists
+      if not DirectoryExists(FTemplatesRoot) then
+        EnsureDir(FTemplatesRoot);
+
+      // Scan templates in repo and copy to local
+      if FindFirst(TemplatesDir + PathDelim + '*', faDirectory, SR) = 0 then
+      begin
+        repeat
+          if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
+          begin
+            TemplateSrc := TemplatesDir + PathDelim + SR.Name;
+            TemplateDest := FTemplatesRoot + PathDelim + SR.Name;
+
+            // Check if template has metadata file (required for valid template)
+            MetaPath := TemplateSrc + PathDelim + 'template.json';
+            if not FileExists(MetaPath) then
+              Continue;  // Skip directories without template.json
+
+            // Check if template needs update (simple: compare existence)
+            if DirectoryExists(TemplateDest) then
+            begin
+              // Template exists, could add version comparison here
+              // For now, always update
+              Inc(UpdatedCount);
+            end
+            else
+            begin
+              // New template
+              EnsureDir(TemplateDest);
+              Inc(AddedCount);
+            end;
+
+            // Copy template files
+            CopyTemplateDirectory(TemplateSrc, TemplateDest);
+          end;
+        until FindNext(SR) <> 0;
+        FindClose(SR);
+      end;
+
+      // Report results
+      if (AddedCount > 0) or (UpdatedCount > 0) then
+        LO.WriteLn(_Fmt(CMD_PROJECT_TPL_UPDATED, [AddedCount, UpdatedCount]))
+      else
+        LO.WriteLn(_(CMD_PROJECT_TPL_UP_TO_DATE));
+
+      Result := True;
     finally
-      ProjectManager.Free;
+      Repo.Free;
     end;
 
-    ConfigManager.SaveConfig;
-
-  finally
-    ConfigManager.Free;
+  except
+    on E: Exception do
+    begin
+      LE.WriteLn(_Fmt(CMD_PROJECT_TPL_UPDATE_ERROR, [E.Message]));
+      Result := False;
+    end;
   end;
 end;
 

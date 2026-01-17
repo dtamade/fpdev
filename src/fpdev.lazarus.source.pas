@@ -1,12 +1,11 @@
 unit fpdev.lazarus.source;
 
-{$codepage utf8}
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.constants;
 
 type
   { TLazarusSourceManager }
@@ -14,14 +13,23 @@ type
   private
     FSourceRoot: string;
     FCurrentVersion: string;
+    FFPCPath: string;
+    FParallelJobs: Integer;
 
     function GetSourcePath(const AVersion: string): string;
     function GetVersionFromBranch(const ABranch: string): string;
-    function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
+    function ExecuteCommand(const AExecutable: string; const AParams: array of string;
+      const AWorkingDir: string = ''): Boolean;
+    function ExecuteGitCommand(const AParams: array of string;
+      const AWorkingDir: string = ''): Boolean;
 
   public
     constructor Create(const ASourceRoot: string = '');
     destructor Destroy; override;
+
+    // 配置
+    procedure SetFPCPath(const APath: string);
+    procedure SetParallelJobs(AJobs: Integer);
 
     // 源码管理
     function CloneLazarusSource(const AVersion: string = 'main'): Boolean;
@@ -49,11 +57,13 @@ type
     // 属性
     property SourceRoot: string read FSourceRoot write FSourceRoot;
     property CurrentVersion: string read GetCurrentVersion;
+    property FPCPath: string read FFPCPath write FFPCPath;
+    property ParallelJobs: Integer read FParallelJobs write FParallelJobs;
   end;
 
 const
-  // Lazarus Git仓库信息
-  LAZARUS_GIT_URL = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+  // Lazarus Git仓库信息 - 使用中央常量
+  LAZARUS_GIT_URL = LAZARUS_OFFICIAL_REPO;
 
   // 支持的Lazarus版本分支
   LAZARUS_VERSIONS: array[0..8] of record
@@ -87,15 +97,30 @@ begin
     FSourceRoot := 'sources' + PathDelim + 'lazarus';
 
   FCurrentVersion := '';
+  FFPCPath := '';
+  FParallelJobs := 4;
 
   // 确保源码根目录存在
   if not DirectoryExists(FSourceRoot) then
-    ForceDirectories(FSourceRoot);
+    EnsureDir(FSourceRoot);
 end;
 
 destructor TLazarusSourceManager.Destroy;
 begin
   inherited Destroy;
+end;
+
+procedure TLazarusSourceManager.SetFPCPath(const APath: string);
+begin
+  FFPCPath := APath;
+end;
+
+procedure TLazarusSourceManager.SetParallelJobs(AJobs: Integer);
+begin
+  if AJobs < 1 then
+    FParallelJobs := 1
+  else
+    FParallelJobs := AJobs;
 end;
 
 function TLazarusSourceManager.GetSourcePath(const AVersion: string): string;
@@ -127,37 +152,29 @@ begin
   end;
 end;
 
-function TLazarusSourceManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
+function TLazarusSourceManager.ExecuteCommand(const AExecutable: string;
+  const AParams: array of string; const AWorkingDir: string): Boolean;
 var
-  ExitCode: Integer;
-  OldDir: string;
+  LResult: TProcessResult;
+  LParams: array of string;
+  i: Integer;
 begin
-  Result := False;
+  // Convert open array to dynamic array
+  LParams := nil;
+  SetLength(LParams, Length(AParams));
+  for i := 0 to High(AParams) do
+    LParams[i] := AParams[i];
 
-  // WriteLn('执行Git命令: ', ACommand);  // 调试代码已注释
-  if AWorkingDir <> '' then
-  // WriteLn('工作目录: ', AWorkingDir);  // 调试代码已注释
+  LResult := TProcessExecutor.Execute(AExecutable, LParams, AWorkingDir);
+  if not LResult.Success and (LResult.ErrorMessage <> '') then
+    WriteLn('Error executing command: ', LResult.ErrorMessage);
+  Result := LResult.Success;
+end;
 
-  OldDir := GetCurrentDir;
-  try
-    if (AWorkingDir <> '') and DirectoryExists(AWorkingDir) then
-      SetCurrentDir(AWorkingDir);
-
-    ExitCode := ExecuteProcess('git', ACommand.Split(' '));
-    Result := ExitCode = 0;
-
-    if Result then
-    begin
-      // WriteLn('✓ Git命令执行成功')  // 调试代码已注释
-    end
-    else
-    begin
-      // WriteLn('✗ Git命令执行失败，退出代码: ', ExitCode);  // 调试代码已注释
-    end;
-
-  finally
-    SetCurrentDir(OldDir);
-  end;
+function TLazarusSourceManager.ExecuteGitCommand(const AParams: array of string;
+  const AWorkingDir: string): Boolean;
+begin
+  Result := ExecuteCommand('git', AParams, AWorkingDir);
 end;
 
 function TLazarusSourceManager.CloneLazarusSource(const AVersion: string): Boolean;
@@ -184,35 +201,35 @@ begin
 
   SourcePath := GetSourcePath(Version);
 
-  // WriteLn('正在克隆Lazarus源码...');  // 调试代码已注释
-  // WriteLn('版本: ', Version);  // 调试代码已注释
-  // WriteLn('分支: ', Branch);  // 调试代码已注释
-  // WriteLn('目标路径: ', SourcePath);  // 调试代码已注释
-  // WriteLn('预计大小: ~500MB');  // 调试代码已注释
+  WriteLn('Cloning Lazarus source...');
+  WriteLn('  Version: ', Version);
+  WriteLn('  Branch: ', Branch);
+  WriteLn('  Target: ', SourcePath);
   WriteLn;
 
   // 如果目录已存在，先删除
   if DirectoryExists(SourcePath) then
   begin
-  // WriteLn('删除已存在的源码目录...');  // 调试代码已注释
+    WriteLn('Removing existing source directory...');
     {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', SourcePath]);
+    ExecuteCommand('cmd', ['/c', 'rmdir', '/s', '/q', SourcePath], '');
     {$ELSE}
-    ExecuteProcess('rm', ['-rf', SourcePath]);
+    ExecuteCommand('rm', ['-rf', SourcePath], '');
     {$ENDIF}
   end;
 
   // 执行克隆（使用浅克隆减少下载时间）
-  Result := ExecuteGitCommand('clone --depth 1 --branch ' + Branch + ' ' + LAZARUS_GIT_URL + ' ' + SourcePath);
+  Result := ExecuteGitCommand(['clone', '--depth', '1', '--branch', Branch,
+    LAZARUS_GIT_URL, SourcePath], '');
 
   if Result then
   begin
-  // WriteLn('✓ Lazarus源码克隆成功');  // 调试代码已注释
+    WriteLn('Lazarus source cloned successfully.');
     FCurrentVersion := Version;
   end
   else
   begin
-  // WriteLn('✗ Lazarus源码克隆失败');  // 调试代码已注释
+    WriteLn('Error: Failed to clone Lazarus source.');
   end;
 end;
 
@@ -232,21 +249,21 @@ begin
 
   if not DirectoryExists(SourcePath) then
   begin
-  // WriteLn('✗ 源码目录不存在: ', SourcePath);  // 调试代码已注释
-  // WriteLn('请先克隆源码: CloneLazarusSource');  // 调试代码已注释
+    WriteLn('Error: Source directory does not exist: ', SourcePath);
+    WriteLn('Please clone the source first.');
     Exit;
   end;
 
-  // WriteLn('正在更新Lazarus源码...');  // 调试代码已注释
-  // WriteLn('版本: ', Version);  // 调试代码已注释
-  // WriteLn('路径: ', SourcePath);  // 调试代码已注释
+  WriteLn('Updating Lazarus source...');
+  WriteLn('  Version: ', Version);
+  WriteLn('  Path: ', SourcePath);
 
-  Result := ExecuteGitCommand('pull', SourcePath);
+  Result := ExecuteGitCommand(['pull'], SourcePath);
 
   if Result then
-  // WriteLn('✓ Lazarus源码更新成功')  // 调试代码已注释
+    WriteLn('Lazarus source updated successfully.')
   else
-  // WriteLn('✗ Lazarus源码更新失败');  // 调试代码已注释
+    WriteLn('Error: Failed to update Lazarus source.');
 end;
 
 function TLazarusSourceManager.SwitchLazarusVersion(const AVersion: string): Boolean;
@@ -255,12 +272,12 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-  // WriteLn('版本 ', AVersion, ' 未安装，正在克隆...');  // 调试代码已注释
+    WriteLn('Version ', AVersion, ' not installed, cloning...');
     Result := CloneLazarusSource(AVersion);
   end
   else
   begin
-  // WriteLn('切换到Lazarus版本: ', AVersion);  // 调试代码已注释
+    WriteLn('Switching to Lazarus version: ', AVersion);
     FCurrentVersion := AVersion;
     Result := True;
   end;
@@ -270,6 +287,7 @@ function TLazarusSourceManager.ListAvailableVersions: TStringArray;
 var
   i: Integer;
 begin
+  Result := nil;
   SetLength(Result, Length(LAZARUS_VERSIONS));
   for i := 0 to High(LAZARUS_VERSIONS) do
     Result[i] := LAZARUS_VERSIONS[i].Version;
@@ -282,6 +300,7 @@ var
   DirName, Version: string;
   i: Integer;
 begin
+  Result := nil;
   VersionList := TStringList.Create;
   try
     if FindFirst(FSourceRoot + PathDelim + 'lazarus-*', faDirectory, SearchRec) = 0 then
@@ -367,33 +386,55 @@ end;
 function TLazarusSourceManager.BuildLazarus(const AVersion: string): Boolean;
 var
   SourcePath: string;
-  BuildCommand: string;
+  MakeParams: array of string;
 begin
   Result := False;
   SourcePath := GetLazarusSourcePath(AVersion);
 
   if not DirectoryExists(SourcePath) then
   begin
-  // WriteLn('✗ Lazarus源码目录不存在: ', SourcePath);  // 调试代码已注释
+    WriteLn('Error: Lazarus source directory not found: ', SourcePath);
     Exit;
   end;
 
-  // WriteLn('正在构建Lazarus...');  // 调试代码已注释
-  // WriteLn('源码路径: ', SourcePath);  // 调试代码已注释
-  // WriteLn('注意: 构建过程可能需要10-30分钟');  // 调试代码已注释
+  WriteLn('Building Lazarus...');
+  WriteLn('  Source path: ', SourcePath);
+  WriteLn('  Parallel jobs: ', FParallelJobs);
+  if FFPCPath <> '' then
+    WriteLn('  FPC path: ', FFPCPath);
+  WriteLn('  Note: Build may take 10-30 minutes');
+  WriteLn;
 
-  {$IFDEF MSWINDOWS}
-  BuildCommand := 'make clean all';
-  {$ELSE}
-  BuildCommand := 'make clean all';
-  {$ENDIF}
+  // Build make parameters
+  MakeParams := nil;
+  SetLength(MakeParams, 0);
 
-  Result := ExecuteGitCommand(BuildCommand, SourcePath);
+  // Add clean and all targets
+  SetLength(MakeParams, Length(MakeParams) + 1);
+  MakeParams[High(MakeParams)] := 'clean';
+  SetLength(MakeParams, Length(MakeParams) + 1);
+  MakeParams[High(MakeParams)] := 'all';
+
+  // Add parallel jobs
+  if FParallelJobs > 1 then
+  begin
+    SetLength(MakeParams, Length(MakeParams) + 1);
+    MakeParams[High(MakeParams)] := '-j' + IntToStr(FParallelJobs);
+  end;
+
+  // Add FPC path if specified
+  if FFPCPath <> '' then
+  begin
+    SetLength(MakeParams, Length(MakeParams) + 1);
+    MakeParams[High(MakeParams)] := 'PP=' + FFPCPath;
+  end;
+
+  Result := ExecuteCommand('make', MakeParams, SourcePath);
 
   if Result then
-  // WriteLn('✓ Lazarus构建成功')  // 调试代码已注释
+    WriteLn('Lazarus build successful.')
   else
-  // WriteLn('✗ Lazarus构建失败');  // 调试代码已注释
+    WriteLn('Error: Lazarus build failed.');
 end;
 
 function TLazarusSourceManager.LaunchLazarus(const AVersion: string): Boolean;
@@ -405,23 +446,23 @@ begin
 
   if not FileExists(ExecutablePath) then
   begin
-  // WriteLn('✗ Lazarus可执行文件不存在: ', ExecutablePath);  // 调试代码已注释
-  // WriteLn('请先构建Lazarus: BuildLazarus');  // 调试代码已注释
+    WriteLn('Error: Lazarus executable not found: ', ExecutablePath);
+    WriteLn('Please build Lazarus first using BuildLazarus.');
     Exit;
   end;
 
-  // WriteLn('启动Lazarus: ', ExecutablePath);  // 调试代码已注释
+  WriteLn('Launching Lazarus: ', ExecutablePath);
 
   {$IFDEF MSWINDOWS}
-  Result := ExecuteProcess('cmd', ['/c', 'start', ExecutablePath]) = 0;
+  Result := ExecuteCommand('cmd', ['/c', 'start', '', ExecutablePath], '');
   {$ELSE}
-  Result := ExecuteProcess(ExecutablePath, []) = 0;
+  Result := ExecuteCommand(ExecutablePath, [], '');
   {$ENDIF}
 
   if Result then
-  // WriteLn('✓ Lazarus启动成功')  // 调试代码已注释
+    WriteLn('Lazarus launched successfully.')
   else
-  // WriteLn('✗ Lazarus启动失败');  // 调试代码已注释
+    WriteLn('Error: Failed to launch Lazarus.');
 end;
 
 function TLazarusSourceManager.GetLazarusVersion(const AVersion: string): string;
@@ -455,38 +496,38 @@ begin
   Result := False;
   Version := AVersion;
 
-  // WriteLn('开始安装Lazarus版本: ', Version);  // 调试代码已注释
-  // WriteLn('步骤: 1. 克隆源码 -> 2. 构建编译 -> 3. 设置环境');  // 调试代码已注释
+  WriteLn('Installing Lazarus version: ', Version);
+  WriteLn('Steps: 1. Clone source -> 2. Build -> 3. Configure environment');
   WriteLn;
 
-  // 步骤1: 克隆源码
-  // WriteLn('[1/3] 克隆Lazarus源码...');  // 调试代码已注释
+  // Step 1: Clone source
+  WriteLn('[1/3] Cloning Lazarus source...');
   if not CloneLazarusSource(Version) then
   begin
-  // WriteLn('✗ 源码克隆失败，安装中止');  // 调试代码已注释
+    WriteLn('Error: Source clone failed, installation aborted.');
     Exit;
   end;
 
-  // 步骤2: 构建编译
-  // WriteLn('[2/3] 构建Lazarus IDE...');  // 调试代码已注释
+  // Step 2: Build
+  WriteLn('[2/3] Building Lazarus IDE...');
   if not BuildLazarus(Version) then
   begin
-  // WriteLn('✗ 构建失败，安装中止');  // 调试代码已注释
+    WriteLn('Error: Build failed, installation aborted.');
     Exit;
   end;
 
-  // 步骤3: 设置为当前版本
-  // WriteLn('[3/3] 设置为当前环境...');  // 调试代码已注释
+  // Step 3: Set as current version
+  WriteLn('[3/3] Setting as current environment...');
   if SwitchLazarusVersion(Version) then
   begin
-  // WriteLn('✓ Lazarus ', Version, ' 安装完成！');  // 调试代码已注释
-  // WriteLn('当前Lazarus版本: ', Version);  // 调试代码已注释
-  // WriteLn('IDE路径: ', GetLazarusExecutablePath(Version));  // 调试代码已注释
+    WriteLn('Lazarus ', Version, ' installed successfully!');
+    WriteLn('Current Lazarus version: ', Version);
+    WriteLn('IDE path: ', GetLazarusExecutablePath(Version));
     Result := True;
   end
   else
   begin
-  // WriteLn('✗ 环境设置失败');  // 调试代码已注释
+    WriteLn('Error: Environment configuration failed.');
   end;
 end;
 

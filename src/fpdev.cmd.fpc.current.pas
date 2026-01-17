@@ -6,48 +6,67 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config, fpdev.cmd.fpc;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TFPCCurrentCommand }
-  TFPCCurrentCommand = class(TInterfacedObject, IFpdevCommand)
+  TFPCCurrentCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-uses fpdev.utils;
+uses fpdev.cmd.utils;
 
 function TFPCCurrentCommand.Name: string; begin Result := 'current'; end;
-function TFPCCurrentCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TFPCCurrentCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
 
-procedure TFPCCurrentCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TFPCCurrentCommand.Aliases: TStringArray;
+begin
+  Result := nil;
+end;
+
+function TFPCCurrentCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;  // Unused parameter
+end;
+
+function TFPCCurrentCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LVer: string;
   LMgr: TFPCManager;
 begin
-  LMgr := TFPCManager.Create(Ctx.Config);
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_HELP));
+    Exit(0);
+  end;
+
+  LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     LVer := LMgr.GetCurrentVersion;
     if LVer <> '' then
-    begin
-      // WriteLn('当前FPC版本: ', LVer)  // 调试代码已注释
-    end
+      Ctx.Out.WriteLn(_Fmt(CMD_FPC_CURRENT_VERSION, [LVer]))
     else
-    begin
-      // WriteLn('未设置默认FPC版本');  // 调试代码已注释
-    end;
+      Ctx.Out.WriteLn(_(CMD_FPC_CURRENT_NONE));
   finally
     LMgr.Free;
   end;
 end;
 
-function FPCCurrentFactory: IFpdevCommand;
+function FPCCurrentFactory: ICommand;
 begin
   Result := TFPCCurrentCommand.Create;
 end;

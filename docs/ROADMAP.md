@@ -93,11 +93,13 @@ Following the TODO-FPC-v1.md philosophy:
   - **Implemented**: Phase 3.4 Week 1 (commits f830f4a Red, 00e09cd Green)
   - **Tests**: 15/15 passing (test_lazarus_clean.lpr, 3 test cases with 15 assertions)
 
-- [ ] **IDE configuration functionality** (`fpdev.cmd.lazarus.pas:1044`)
+- [x] **IDE configuration functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:890`)
   - Impact: HIGH - User experience enhancement
   - Complexity: HIGH - XML/INI config manipulation
   - Dependencies: Lazarus installed
-  - **Status**: Deferred (requires 2-3 weeks for complete implementation)
+  - **Implemented**: Already implemented in fpdev.cmd.lazarus.pas and fpdev.lazarus.config.pas
+  - **Tests**: 15/15 passing (test_lazarus_ide_config.lpr: 11/11, test_lazarus_configure_workflow.lpr: 4/4)
+  - **Features**: XML config parsing, backup/restore, path configuration, validation
 
 #### 3. Cross-Compilation (Priority: LOW)
 - [ ] **Binutils download logic** (`fpdev.cmd.cross.pas:284`)
@@ -334,11 +336,14 @@ Following the TODO-FPC-v1.md philosophy:
 - **Commits**: fd00a0f (test Red), e264f42 (feat Green), 7363d77 (integration Red)
 - **Priority**: 🟢 MEDIUM
 
-#### 4.3 FPC Packages Build
-- [ ] Extend build manager for packages
-- [ ] Add package selection UI
-- [ ] Handle optional dependencies
-- [ ] **Priority**: 🔵 LOW
+#### 4.3 FPC Packages Build ✅ COMPLETE
+- [x] Extend build manager for packages
+- [x] Add package selection UI
+- [x] Handle optional dependencies
+- **Tests**: 14/14 passing (test_build_packages.lpr: 4/4, test_install_packages.lpr: 4/4, test_full_build.lpr: 6/6)
+- **Implementation**: BuildPackages and InstallPackages methods already implemented in fpdev.build.manager.pas
+- **Package Selection**: ListPackages, SetSelectedPackages, GetPackageBuildOrder APIs implemented
+- **Priority**: 🔵 LOW
 
 ---
 

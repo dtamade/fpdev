@@ -6,36 +6,65 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config;
+  fpdev.command.intf, fpdev.command.registry,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoAddCommand = class(TInterfacedObject, IFpdevCommand)
+  TRepoAddCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TRepoAddCommand.Name: string; begin Result := 'add'; end;
-function TRepoAddCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TRepoAddCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TRepoAddCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TRepoAddCommand.Name: string; begin Result := 'add'; end;
+function TRepoAddCommand.Aliases: TStringArray; begin Result := nil; end;
+function TRepoAddCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TRepoAddCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   RepoName, URL: string;
 begin
-  if Length(AParams) < 2 then Exit;
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_REPO_ADD_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_ADD_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_ADD_OPT_HELP));
+    Exit(0);
+  end;
+
+  if Length(AParams) < 2 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
+    Exit(2);
+  end;
   RepoName := AParams[0];
   URL := AParams[1];
-  if (Trim(RepoName)='') or (Trim(URL)='') then Exit;
-  if Ctx.Config.AddRepository(RepoName, URL) then
-    Ctx.SaveIfModified;
+  if (Trim(RepoName)='') or (Trim(URL)='') then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
+    Exit(2);
+  end;
+  if Ctx.Config.GetRepositoryManager.AddRepository(RepoName, URL) then
+  begin
+    Ctx.Out.WriteLn(_Fmt(MSG_REPO_ADDED, [RepoName]));
+    Exit(0);
+  end;
+  Ctx.Err.WriteLn(_Fmt(CMD_REPO_ADD_FAILED, [RepoName]));
+  Result := 3;
 end;
 
-function RepoAddFactory: IFpdevCommand;
+function RepoAddFactory: ICommand;
 begin
   Result := TRepoAddCommand.Create;
 end;

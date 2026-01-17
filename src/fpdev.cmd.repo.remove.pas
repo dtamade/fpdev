@@ -6,41 +6,67 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config;
+  fpdev.command.intf, fpdev.command.registry,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoRemoveCommand = class(TInterfacedObject, IFpdevCommand)
+  TRepoRemoveCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TRepoRemoveCommand.Name: string; begin Result := 'remove'; end;
-function TRepoRemoveCommand.Aliases: TStringArray; begin SetLength(Result,2); Result[0]:='rm'; Result[1]:='del'; end;
-function TRepoRemoveCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TRepoRemoveCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TRepoRemoveCommand.Name: string; begin Result := 'remove'; end;
+function TRepoRemoveCommand.Aliases: TStringArray; begin Result := nil; SetLength(Result,1); Result[0]:='rm'; end;
+function TRepoRemoveCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TRepoRemoveCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   RepoName: string;
 begin
-  if Length(AParams) < 1 then Exit;
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_REPO_REMOVE_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_REMOVE_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_REMOVE_OPT_HELP));
+    Exit(0);
+  end;
+
+  if Length(AParams) < 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_REMOVE_USAGE));
+    Exit(2);
+  end;
   RepoName := AParams[0];
-  if (Trim(RepoName)='') then Exit;
-  if Ctx.Config.RemoveRepository(RepoName) then
-    Ctx.SaveIfModified;
+  if (Trim(RepoName)='') then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_REMOVE_USAGE));
+    Exit(2);
+  end;
+  if Ctx.Config.GetRepositoryManager.RemoveRepository(RepoName) then
+    Exit(0);
+  Ctx.Err.WriteLn(_Fmt(CMD_REPO_REMOVE_FAILED, [RepoName]));
+  Result := 3;
 end;
 
-function RepoRemoveFactory: IFpdevCommand;
+function RepoRemoveFactory: ICommand;
 begin
   Result := TRepoRemoveCommand.Create;
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['repo','remove'], @RepoRemoveFactory, ['rm','del']);
+  GlobalCommandRegistry.RegisterPath(['repo','remove'], @RepoRemoveFactory, ['rm']);
 
 end.
 

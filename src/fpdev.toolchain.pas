@@ -1,11 +1,11 @@
 unit fpdev.toolchain;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes, Process, fpjson, jsonparser;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.utils, fpdev.utils.process;
 
 type
   TStringDynArray = array of string;
@@ -167,6 +167,7 @@ var
   L: TStringList;
   i, N: Integer;
 begin
+  Result := nil;
   L := TStringList.Create;
   try
     {$IFDEF MSWINDOWS}
@@ -186,42 +187,26 @@ end;
 
 function RunAndCaptureFirstLine(const ACmd: string; const AArgs: array of string; out ALine: string): boolean;
 var
-  P: TProcess;
-  S: TStringList;
-  i: Integer;
+  LResult: TProcessResult;
+  LPos: SizeInt;
 begin
-  Result := False;
   ALine := '';
-  P := TProcess.Create(nil);
-  S := TStringList.Create;
-  try
-    P.Executable := ACmd;
-    for i := Low(AArgs) to High(AArgs) do P.Parameters.Add(AArgs[i]);
-    P.Options := [poUsePipes, poNoConsole];
-    try
-      P.Execute;
-    except
-      Exit(False);
-    end;
-    S.LoadFromStream(P.Output);
-    if S.Count>0 then ALine := Trim(S[0]);
-    Result := P.ExitStatus = 0;
-  finally
-    S.Free;
-    P.Free;
+  LResult := TProcessExecutor.Execute(ACmd, AArgs, '');
+  if LResult.Success and (LResult.StdOut <> '') then
+  begin
+    // Get first line only
+    LPos := Pos(LineEnding, LResult.StdOut);
+    if LPos > 0 then
+      ALine := Trim(Copy(LResult.StdOut, 1, LPos - 1))
+    else
+      ALine := Trim(LResult.StdOut);
   end;
+  Result := LResult.Success;
 end;
 
 function ResolvePathOf(const ACmd: string): string;
-var
-  LFirst: string;
 begin
-  Result := '';
-  {$IFDEF MSWINDOWS}
-  if RunAndCaptureFirstLine('where', [ACmd], LFirst) then Result := LFirst;
-  {$ELSE}
-  if RunAndCaptureFirstLine('which', [ACmd], LFirst) then Result := LFirst;
-  {$ENDIF}
+  Result := TProcessExecutor.FindExecutable(ACmd);
 end;
 
 procedure AddTool(var AArr: TToolStatusArray; const ATool: TToolStatus);
@@ -266,26 +251,6 @@ begin
     if Result.Found then begin Chosen := ANames[i]; Exit; end;
   end;
   Chosen := '';
-end;
-
-function JsonEscape(const S: string): string;
-var i: Integer; ch: Char;
-begin
-  Result := '';
-  for i := 1 to Length(S) do
-  begin
-    ch := S[i];
-    case ch of
-      '"': Result := Result + '\"';
-      #92:  Result := Result + '\\';
-      #8:   Result := Result + '\b';
-      #9:   Result := Result + '\t';
-      #10:  Result := Result + '\n';
-      #13:  Result := Result + '\r';
-    else
-      Result := Result + ch;
-    end;
-  end;
 end;
 
 function ReportToJSON(const R: TToolchainReport): string;
@@ -369,7 +334,7 @@ begin
 end;
 
 procedure GetPolicyForSource(const ASource: string; out AMin, ARec: string);
-var S, Key, MatchedKey: string;
+var S, MatchedKey: string;
 begin
   S := LowerCase(Trim(ASource));
   // 先尝试外部策略（若有加载）

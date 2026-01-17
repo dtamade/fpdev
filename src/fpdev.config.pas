@@ -64,6 +64,8 @@ type
     constructor Create(const AConfigPath: string = '');
     destructor Destroy; override;
 
+    function AsConfigManager: IConfigManager;
+
     function LoadConfig: Boolean;
     function SaveConfig: Boolean;
     function GetDefaultConfigPath: string;
@@ -153,6 +155,11 @@ end;
 function TFPDevConfigManager.CreateDefaultConfig: Boolean;
 begin
   Result := FConfigManager.CreateDefaultConfig;
+end;
+
+function TFPDevConfigManager.AsConfigManager: IConfigManager;
+begin
+  Result := FConfigManager;
 end;
 
 // 工具链管理方法

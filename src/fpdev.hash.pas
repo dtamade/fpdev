@@ -1,5 +1,5 @@
 unit fpdev.hash;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
@@ -72,13 +72,13 @@ begin
   ctx.state[0]:=$6a09e667; ctx.state[1]:=$bb67ae85; ctx.state[2]:=$3c6ef372; ctx.state[3]:=$a54ff53a;
   ctx.state[4]:=$510e527f; ctx.state[5]:=$9b05688c; ctx.state[6]:=$1f83d9ab; ctx.state[7]:=$5be0cd19;
   ctx.count := 0;
+  FillChar(ctx.buffer[0], SizeOf(ctx.buffer), 0);
 end;
 
 procedure sha256_update(var ctx: TSHA256Ctx; const data; len: SizeInt);
 var
   i, idx, partLen: SizeInt;
   bytes: PByte;
-  blk: array[0..63] of byte;
 begin
   if len<=0 then Exit;
   bytes := @data;
@@ -107,8 +107,8 @@ begin
   // process full 64-byte blocks directly from input
   while (i + 63) < len do
   begin
-    Move(PByte(bytes + i)^, blk[0], 64);
-    sha256_transform(ctx, blk);
+    Move(PByte(bytes + i)^, ctx.buffer[0], 64);
+    sha256_transform(ctx, ctx.buffer);
     i := i + 64;
   end;
 
@@ -123,7 +123,7 @@ procedure sha256_final(var ctx: TSHA256Ctx; out digest: array of byte);
 var
   bits: array[0..7] of byte;
   idx, padLen: SizeInt;
-  pad: array[0..63] of byte;
+  pad: array of byte;
   i: Integer;
   beLen: QWord;
 begin
@@ -137,13 +137,16 @@ begin
   bits[2] := byte(beLen and $FF); beLen := beLen shr 8;
   bits[1] := byte(beLen and $FF); beLen := beLen shr 8;
   bits[0] := byte(beLen and $FF);
+  // bits[0] is always set, no need for additional check
 
   // padding
   idx := (ctx.count shr 3) and 63;
   if idx < 56 then padLen := 56 - idx else padLen := 120 - idx;
-  FillChar(pad, SizeOf(pad), 0);
+  pad := nil;
+  SetLength(pad, 64);
+  FillChar(pad[0], Length(pad), 0);
   pad[0] := $80;
-  sha256_update(ctx, pad, padLen);
+  sha256_update(ctx, pad[0], padLen);
   sha256_update(ctx, bits, 8);
 
   // output big-endian
@@ -159,6 +162,7 @@ function BytesToHex(const buf: array of byte): string;
 const HEX: PChar = '0123456789abcdef';
 var i: Integer;
 begin
+  Result := '';
   SetLength(Result, Length(buf)*2);
   for i := 0 to High(buf) do begin
     Result[i*2+1]   := HEX[(buf[i] shr 4) and $F];
@@ -169,14 +173,17 @@ end;
 function SHA256StreamHex(AStream: TStream): string;
 var
   ctx: TSHA256Ctx;
-  buf: array[0..8191] of byte;
+  buf: array of byte;
   readn: Integer;
   dig: array[0..31] of byte;
 begin
+  ctx := Default(TSHA256Ctx);
+  buf := nil;
+  SetLength(buf, 8192);
   sha256_init(ctx);
   repeat
-    readn := AStream.Read(buf, SizeOf(buf));
-    if readn > 0 then sha256_update(ctx, buf, readn);
+    readn := AStream.Read(buf[0], Length(buf));
+    if readn > 0 then sha256_update(ctx, buf[0], readn);
   until readn = 0;
   sha256_final(ctx, dig);
   Result := BytesToHex(dig);

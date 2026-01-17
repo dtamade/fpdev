@@ -4,6 +4,286 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.5] - 2026-01-17
+### Added
+- **Lazarus IDE Configuration Test Coverage (Phase 3.4)**
+  - Comprehensive test coverage for TLazarusIDEConfig class and ConfigureIDE workflow
+  - XML configuration file parsing and modification tests
+  - Backup and restore mechanism tests
+  - Path configuration and validation tests
+  - End-to-end workflow integration tests
+
+### Testing
+- tests/test_lazarus_ide_config.lpr: 11 test scenarios, 100% pass rate
+  - TLazarusIDEConfig creation and initialization
+  - Compiler path set/get operations
+  - Library path set/get operations
+  - Backup configuration creation
+  - Configuration validation
+  - Configuration summary generation
+- tests/test_lazarus_configure_workflow.lpr: 4 test scenarios, 100% pass rate
+  - ConfigureIDE failure handling for non-existent versions
+  - ConfigureIDE success with installed Lazarus
+  - Config directory creation
+  - Backup directory creation
+
+### Implementation Notes
+- ConfigureIDE functionality was already implemented in fpdev.cmd.lazarus.pas and fpdev.lazarus.config.pas
+- Added comprehensive test coverage following TDD methodology
+- Tests verify XML parsing, backup/restore, path configuration, and validation
+- All tests pass without requiring actual Lazarus installation
+
+### Documentation
+- Updated ROADMAP.md Phase 3.4 status to complete
+- Documented test coverage and implementation details
+
+## [2.0.4] - 2026-01-17
+### Added
+- **FPC Packages Build Support (Phase 4.3)**
+  - Comprehensive test coverage for BuildPackages and InstallPackages functionality
+  - Package selection API tests (ListPackages, SetSelectedPackages, GetPackageBuildOrder)
+  - Full build workflow integration tests
+  - State tracking and sandbox isolation tests
+
+### Testing
+- tests/test_build_packages.lpr: 4 test scenarios, 100% pass rate
+  - BuildPackages API existence and callability
+  - InstallPackages API with AllowInstall behavior
+  - FullBuild workflow integration
+  - Package selection API functionality
+- tests/test_install_packages.lpr: 4 test scenarios, 100% pass rate
+  - InstallPackages with AllowInstall=True
+  - Sandbox integration
+  - Skip behavior verification
+  - State tracking validation
+- tests/test_full_build.lpr: 6 test scenarios, 100% pass rate
+  - FullBuild workflow steps
+  - Packages build integration
+  - State progression
+  - Dry-run mode
+  - Sandbox isolation
+  - Log generation
+
+### Implementation Notes
+- BuildPackages and InstallPackages methods were already implemented in fpdev.build.manager.pas
+- Added comprehensive test coverage following TDD methodology
+- All tests designed to work without make/gmake dependency (graceful degradation)
+- Tests verify API behavior, state management, and workflow integration
+
+### Documentation
+- Updated ROADMAP.md Phase 4.3 status to complete
+- Documented test coverage and implementation details
+
+## [2.0.3] - 2026-01-16
+### Added
+- **Binary Cache and Offline Mode Support**
+  - Extended TBuildCache with binary artifact support (SaveBinaryArtifact, RestoreBinaryArtifact, GetBinaryArtifactInfo)
+  - Offline installation mode (`--offline` flag) for cache-only installation without network access
+  - Cache bypass mode (`--no-cache` flag) to force fresh download/build
+  - Automatic cache restoration before download in fpdev.cmd.fpc.install
+  - Automatic cache saving after successful installation
+  - Platform-aware binary cache keys (fpc-{version}-{cpu}-{os}-binary.tar.gz)
+  - Metadata tracking with SHA256 checksums and source type (binary/source)
+
+- **Cache Management Commands**
+  - `fpdev fpc cache list` - List all cached FPC versions with size and platform info
+  - `fpdev fpc cache stats` - Show cache statistics (versions, total size, hit/miss rate)
+  - `fpdev fpc cache clean <version>` - Clean specific cached version
+  - `fpdev fpc cache clean --all` - Clean all cached versions
+  - `fpdev fpc cache path` - Show cache directory path
+
+### Changed
+- **FPC Installation Flow**
+  - Check cache before installation (both binary and source artifacts)
+  - Restore from cache if available (instant installation)
+  - Fall back to download/build on cache miss
+  - Save to cache after successful installation (unless --no-cache)
+  - Offline mode enforces cache-only operation (exits with error on cache miss)
+
+### Testing
+- tests/test_build_cache_binary.lpr: 8 test scenarios, 19 assertions, 100% pass rate
+  - SaveBinaryArtifact basic functionality and metadata
+  - RestoreBinaryArtifact with cache hit/miss scenarios
+  - GetBinaryArtifactInfo metadata retrieval
+  - HasArtifacts binary vs source distinction
+  - Cache statistics tracking
+
+### Documentation
+- Updated CLAUDE.md with Build Cache System section
+- Added cache workflow documentation
+- Added cache command usage examples
+
+## [2.0.2] - 2026-01-13
+### Added
+- **Build Cache for Fast Version Switching**
+  - Artifact caching system in TBuildCache (save/restore tar.gz archives)
+  - Platform-aware cache keys (fpc-{version}-{cpu}-{os}.tar.gz)
+  - Metadata tracking for cached artifacts
+  - Integrated into TFPCManager.InstallVersion for instant restores
+  - Cache statistics tracking (hits/misses)
+
+### Changed
+- **FPC Installation Flow**
+  - Check for cached artifacts before building from source
+  - Automatically save build artifacts after successful compilation
+  - Instant version switching when cache is available
+
+### Documentation
+- Added deprecated notice to fpdev.git2.pas pointing to modern interface (git2.api + git2.impl)
+
+## [2.0.1] - 2026-01-12
+### Added
+- **Package Dependency Resolution**
+  - TDependencyGraph class for dependency graph management
+  - Topological sort (Kahn's algorithm) for installation order
+  - Circular dependency detection (DFS-based)
+  - Version constraint support (^, >=, <, =, etc.)
+  - Optional dependencies support
+  - ResolveAndInstallDependencies method integrated into package install flow
+  - Automatic dependency installation before main package
+
+- **Documentation**
+  - docs/PACKAGE_DEPENDENCY_SPEC.md: Complete dependency metadata specification
+  - .fpdev-package.json schema definition
+  - Version constraint syntax and examples
+  - Dependency resolution strategy documentation
+
+- **Testing**
+  - tests/test_dependency_resolver.lpr: 8 test scenarios, 22 assertions, 100% pass rate
+  - Test coverage:
+    * Dependency graph creation
+    * Dependency edge creation
+    * Simple dependency resolution (A -> B -> C)
+    * Complex dependency resolution (diamond pattern)
+    * Circular dependency detection
+    * Self dependency handling
+    * Multiple dependencies
+    * Empty graph handling
+
+### Changed
+- **Package Installation**
+  - Auto-resolve and install dependencies before main package
+  - Install dependencies in topological order (leaves first, root last)
+  - Improved error messages for missing dependencies and circular dependencies
+
+### Notes
+- All 22 dependency resolver tests passing
+- Integration with TPackageManager.InstallPackage
+- Follows TDD Red-Green-Refactor methodology
+
+## [2.0.0] - 2026-01-11
+### Added
+- **Architecture Refactor**
+  - Interface-driven design with automatic memory management
+  - Three-layer Git integration (Application → Adapter → Native)
+  - Unified command registry with hierarchical dispatch
+
+- **Build System**
+  - fpdev.build.cache.pas: Build caching for faster rebuilds
+  - fpdev.build.config.pas: Configuration management
+  - fpdev.build.cross.pas: Cross-compilation support
+  - fpdev.build.logger.pas: Structured logging
+  - fpdev.build.toolchain.pas: Toolchain management
+  - fpdev.fpc.builder.pas: FPC builder
+  - fpdev.fpc.installer.pas: Installation manager
+  - fpdev.fpc.validator.pas: Validation utilities
+
+- **FPC Management Enhancements**
+  - `fpdev fpc uninstall <version>`: Uninstall specific FPC version
+  - `fpdev fpc help`: FPC-specific help system
+  - Enhanced `fpdev fpc doctor` with detailed diagnostics
+
+- **Lazarus Management Enhancements**
+  - `fpdev lazarus configure`: Configure Lazarus installation
+  - `fpdev lazarus doctor`: Diagnostic checks for Lazarus
+  - `fpdev lazarus install <version>`: Install Lazarus version
+  - `fpdev lazarus show <version>`: Show version details
+  - `fpdev lazarus test`: Test Lazarus installation
+  - `fpdev lazarus uninstall <version>`: Uninstall Lazarus version
+  - `fpdev lazarus update`: Update Lazarus sources
+
+- **Cross-Compilation Support**
+  - `fpdev cross list [--all]`: List cross-compilation targets
+  - `fpdev cross show <target>`: Show target details
+  - `fpdev cross enable <target>`: Enable cross-compiler
+  - `fpdev cross disable <target>`: Disable cross-compiler
+  - `fpdev cross test <target>`: Test cross-compiler
+  - `fpdev cross install <target>`: Install cross-compiler
+  - `fpdev cross uninstall <target>`: Uninstall cross-compiler
+  - `fpdev cross configure`: Configure cross-compilation
+  - `fpdev cross doctor`: Diagnose cross-compilation setup
+
+- **Package Management**
+  - `fpdev package install <package>`: Install package
+  - `fpdev package list [--all]`: List packages
+  - `fpdev package search <query>`: Search packages
+  - `fpdev package info <package>`: Show package info
+  - `fpdev package uninstall <package>`: Uninstall package
+  - `fpdev package update <package>`: Update package
+  - `fpdev package clean`: Clean package cache
+  - `fpdev package install-local <path>`: Install from local
+  - `fpdev package create <name>`: Create new package
+  - `fpdev package publish <name>`: Publish package
+  - `fpdev package repo add <name> <url>`: Add repository
+  - `fpdev package repo list`: List repositories
+  - `fpdev package repo remove <name>`: Remove repository
+  - `fpdev package repo update`: Update repositories
+
+- **Project Management**
+  - `fpdev project new <name> [--template]`: Create new project
+  - `fpdev project list`: List projects
+  - `fpdev project info <name>`: Show project info
+  - `fpdev project build [name]`: Build project
+  - `fpdev project clean [name]`: Clean project
+  - `fpdev project test [name]`: Test project
+  - `fpdev project run [name] [args]`: Run project
+
+- **Internationalization**
+  - fpc.i18n.pas: Core i18n module
+  - fpdev.i18n.pas: Main i18n implementation
+  - fpdev.i18n.strings.pas: String resources
+
+- **Logging & Output**
+  - fpdev.logger.intf.pas: Logger interface
+  - fpdev.logger.console.pas: Console logger
+  - fpdev.output.intf.pas: Output interface
+  - fpdev.output.console.pas: Console output
+  - fpdev.ui.progress.pas: Progress UI
+
+- **Utility Modules**
+  - fpdev.utils.fs.pas: Filesystem utilities
+  - fpdev.utils.git.pas: Git utilities
+  - fpdev.utils.process.pas: Process utilities
+  - fpdev.types.pas: Type definitions
+  - fpdev.result.pas: Result types
+  - fpdev.version.pas: Version management
+  - fpdev.version.registry.pas: Version registry
+
+### Changed
+- **Core Modules**
+  - Updated fpdev.collections.pas: Improved data structures
+  - Updated fpdev.command.*.pas: Better command handling
+  - Updated fpdev.config.*.pas: Enhanced configuration
+  - Updated fpdev.paths.pas: Path utilities
+  - Updated fpdev.params.pas: Parameter handling
+  - Updated fpdev.terminal.pas: Terminal I/O
+  - Updated fpdev.toolchain.*.pas: Toolchain support
+  - Updated fpdev.utils.*.pas: Utility functions
+  - Updated git2.*.pas: Git API bindings
+  - Updated libgit2.pas: libgit2 wrapper
+
+- **Configuration**
+  - Updated src/data/config.json: New configuration schema
+  - Updated .gitignore: Ignore reference/, .cunzhi-memory/, .vscode/
+
+- **Cross-Platform Compatibility**
+  - Fixed hardcoded path separators to use PathDelim constant
+  - Improved Windows/Linux/macOS compatibility
+
+### Removed
+- Obsolete test .lpi files (26 files)
+- Old log files
+
 ## [1.1.0] - 2025-01-29
 ### Added
 - **Project Management Enhancements**

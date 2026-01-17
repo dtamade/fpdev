@@ -1,15 +1,32 @@
 unit fpdev.config.managers;
 
 {
-配置管理器具体实现
+================================================================================
+  fpdev.config.managers - Configuration Manager Implementations
+================================================================================
 
-将原来的 TFPDevConfigManager 拆分为多个职责单一的管理器：
-- TToolchainManager: 工具链管理
-- TLazarusManager: Lazarus版本管理  
-- TCrossTargetManager: 交叉编译目标管理
-- TRepositoryManager: 仓库管理
-- TSettingsManager: 设置管理
-- TConfigManager: 总入口，协调各个子管理器
+  This unit provides the concrete implementations of the configuration
+  management system for FPDev. It splits the original TFPDevConfigManager
+  into multiple single-responsibility managers following the SOLID principles.
+
+  Sub-managers:
+    - TToolchainManager: FPC toolchain version management
+    - TLazarusManager: Lazarus IDE version management
+    - TCrossTargetManager: Cross-compilation target management
+    - TRepositoryManager: Git repository URL management
+    - TSettingsManager: Application settings management
+    - TConfigManager: Central coordinator for all sub-managers
+
+  Usage:
+    Config := TConfigManager.Create(GetConfigPath);
+    Config.LoadConfig;
+    ToolchainMgr := Config.GetToolchainManager;
+    // No need to Free - interface reference counting handles cleanup
+
+  Author: fafafaStudio
+  Email: dtamade@gmail.com
+  QQ Group: 685403987  QQ: 179033731
+================================================================================
 }
 
 {$I fpdev.settings.inc}
@@ -18,26 +35,51 @@ unit fpdev.config.managers;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser,
-  fpdev.config.interfaces, fpdev.utils;
+  SysUtils, Classes, fpjson, jsonparser, DateUtils,
+  fpdev.config.interfaces, fpdev.paths, fpdev.utils.fs, fpdev.constants;
 
 type
-  { TRepositoryManager - 仓库管理实现 }
+  TConfigChangeNotifier = class(TInterfacedObject, IConfigChangeNotifier)
+  private
+    FOwner: Pointer;
+  public
+    constructor Create(AOwner: Pointer);
+    procedure Detach;
+    procedure NotifyConfigChanged;
+  end;
+
+  { TRepositoryManager - Git repository URL management
+    Manages the list of git repositories used for FPC/Lazarus source code.
+    Supports adding, removing, and querying repository URLs.
+  }
   TRepositoryManager = class(TInterfacedObject, IRepositoryManager)
   private
-    FNotifier: Pointer;  // 使用 Pointer 避免循环引用
+    FNotifier: IConfigChangeNotifier;
     FRepositories: TStringList;
     FDefaultRepo: string;
   public
     constructor Create(ANotifier: IConfigChangeNotifier);
     destructor Destroy; override;
-    
-    // IRepositoryManager 实现
+
+    { Adds a new repository with the given name and URL.
+      Returns True if successful, False if an error occurred. }
     function AddRepository(const AName, AURL: string): Boolean;
+
+    { Removes a repository by name.
+      Returns True if the repository was found and removed. }
     function RemoveRepository(const AName: string): Boolean;
+
+    { Gets the URL for a repository by name.
+      Returns empty string if not found. }
     function GetRepository(const AName: string): string;
+
+    { Checks if a repository with the given name exists. }
     function HasRepository(const AName: string): Boolean;
+
+    { Gets the name of the default repository. }
     function GetDefaultRepository: string;
+
+    { Lists all registered repository names. }
     function ListRepositories: TStringArray;
     
     // 内部方法
@@ -46,16 +88,21 @@ type
     procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
   end;
 
-  { TSettingsManager - 设置管理实现 }
+  { TSettingsManager - Application settings management
+    Manages global FPDev settings like parallel build jobs, log level, etc.
+  }
   TSettingsManager = class(TInterfacedObject, ISettingsManager)
   private
-    FNotifier: Pointer;  // 使用 Pointer 避免循环引用
+    FNotifier: IConfigChangeNotifier;
     FSettings: TFPDevSettings;
   public
     constructor Create(ANotifier: IConfigChangeNotifier);
-    
-    // ISettingsManager 实现
+
+    { Gets the current application settings. }
     function GetSettings: TFPDevSettings;
+
+    { Updates the application settings.
+      Returns True if settings were saved successfully. }
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
     
     // 内部方法
@@ -63,13 +110,16 @@ type
     procedure SaveToJSON(out ASettings: TJSONObject);
   end;
 
-  { TToolchainManager - 工具链管理实现 }
+  { TToolchainManager - FPC toolchain version management
+    Manages installed FPC compiler toolchains, tracking versions,
+    installation paths, and which version is the default.
+  }
   TToolchainManager = class(TInterfacedObject, IToolchainManager)
   private
-    FNotifier: Pointer;  // 使用 Pointer 避免循环引用
+    FNotifier: IConfigChangeNotifier;
     FToolchains: TStringList;
     FDefaultToolchain: string;
-    
+
     function ToolchainTypeToString(AType: TToolchainType): string;
     function StringToToolchainType(const AStr: string): TToolchainType;
     function ToolchainInfoToJSON(const AInfo: TToolchainInfo): TJSONObject;
@@ -77,13 +127,28 @@ type
   public
     constructor Create(ANotifier: IConfigChangeNotifier);
     destructor Destroy; override;
-    
-    // IToolchainManager 实现
+
+    { Adds or updates a toolchain entry.
+      AName: Version identifier (e.g., '3.2.2')
+      AInfo: Toolchain metadata including path and installation mode }
     function AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
+
+    { Removes a toolchain entry by name.
+      Returns True if the toolchain was found and removed. }
     function RemoveToolchain(const AName: string): Boolean;
+
+    { Gets toolchain information by name.
+      Returns True if found, with AInfo populated. }
     function GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
+
+    { Sets the default toolchain version to use.
+      The toolchain must already be registered. }
     function SetDefaultToolchain(const AName: string): Boolean;
+
+    { Gets the name of the default toolchain. }
     function GetDefaultToolchain: string;
+
+    { Lists all registered toolchain version names. }
     function ListToolchains: TStringArray;
     
     // 内部方法
@@ -92,25 +157,43 @@ type
     procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
   end;
 
-  { TLazarusManager - Lazarus版本管理实现 }
+  { TLazarusManager - Lazarus IDE version management
+    Manages installed Lazarus IDE versions, tracking versions,
+    installation paths, and FPC associations.
+  }
   TLazarusManager = class(TInterfacedObject, ILazarusManager)
   private
-    FNotifier: Pointer;  // 使用 Pointer 避免循环引用
+    FNotifier: IConfigChangeNotifier;
     FVersions: TStringList;
     FDefaultVersion: string;
-    
+
     function LazarusInfoToJSON(const AInfo: TLazarusInfo): TJSONObject;
     function JSONToLazarusInfo(AJSON: TJSONObject): TLazarusInfo;
   public
     constructor Create(ANotifier: IConfigChangeNotifier);
     destructor Destroy; override;
-    
-    // ILazarusManager 实现
+
+    { Adds or updates a Lazarus version entry.
+      AName: Version identifier (e.g., '3.0')
+      AInfo: Lazarus metadata including path and FPC version }
     function AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
+
+    { Removes a Lazarus version entry by name.
+      Returns True if found and removed. }
     function RemoveLazarusVersion(const AName: string): Boolean;
+
+    { Gets Lazarus version information by name.
+      Returns True if found, with AInfo populated. }
     function GetLazarusVersion(const AName: string; out AInfo: TLazarusInfo): Boolean;
+
+    { Sets the default Lazarus version to use.
+      The version must already be registered. }
     function SetDefaultLazarusVersion(const AName: string): Boolean;
+
+    { Gets the name of the default Lazarus version. }
     function GetDefaultLazarusVersion: string;
+
+    { Lists all registered Lazarus version names. }
     function ListLazarusVersions: TStringArray;
     
     // 内部方法
@@ -119,22 +202,35 @@ type
     procedure SaveToJSON(out ALazarus: TJSONObject);
   end;
 
-  { TCrossTargetManager - 交叉编译目标管理实现 }
+  { TCrossTargetManager - Cross-compilation target management
+    Manages cross-compilation targets like win64, linux-arm64, etc.
+    Tracks binutils paths, library paths, and enabled status.
+  }
   TCrossTargetManager = class(TInterfacedObject, ICrossTargetManager)
   private
-    FNotifier: Pointer;  // 使用 Pointer 避免循环引用
+    FNotifier: IConfigChangeNotifier;
     FCrossTargets: TStringList;
-    
+
     function CrossTargetToJSON(const ATarget: TCrossTarget): TJSONObject;
     function JSONToCrossTarget(AJSON: TJSONObject): TCrossTarget;
   public
     constructor Create(ANotifier: IConfigChangeNotifier);
     destructor Destroy; override;
-    
-    // ICrossTargetManager 实现
+
+    { Adds or updates a cross-compilation target.
+      ATarget: Target identifier (e.g., 'win64', 'linux-arm64')
+      AInfo: Target metadata including paths and enabled status }
     function AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;
+
+    { Removes a cross-compilation target by name.
+      Returns True if found and removed. }
     function RemoveCrossTarget(const ATarget: string): Boolean;
+
+    { Gets cross-compilation target information.
+      Returns True if found, with AInfo populated. }
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
+
+    { Lists all registered cross-compilation targets. }
     function ListCrossTargets: TStringArray;
     
     // 内部方法
@@ -143,54 +239,107 @@ type
     procedure SaveToJSON(out ACrossTargets: TJSONObject);
   end;
 
-  { TConfigManager - 配置管理总入口 }
+  { TConfigManager - Central configuration coordinator
+    Main entry point for all configuration operations. Coordinates
+    sub-managers and handles JSON persistence to config.json.
+
+    Usage:
+      Config := TConfigManager.Create;  // Uses default path
+      Config.LoadConfig;
+      // Access sub-managers via interface
+      ToolchainMgr := Config.GetToolchainManager;
+      // No need to Free - interface reference counting handles cleanup
+  }
   TConfigManager = class(TInterfacedObject, IConfigManager, IConfigChangeNotifier)
   private
     FConfigPath: string;
     FModified: Boolean;
     FVersion: string;
-    
-    // 子管理器 - 使用接口引用，完全拥抱引用计数
+
+    FNotifierObj: TObject;
+    FNotifier: IConfigChangeNotifier;
+
+    // Sub-managers with interface references for automatic cleanup
     FToolchainManager: IToolchainManager;
     FLazarusManager: ILazarusManager;
     FCrossTargetManager: ICrossTargetManager;
     FRepositoryManager: IRepositoryManager;
     FSettingsManager: ISettingsManager;
-    
+
     function GetDefaultConfigPath: string;
   public
     constructor Create(const AConfigPath: string = '');
-    
-    // IConfigManager 实现
+    destructor Destroy; override;
+
+    { Loads configuration from config.json file.
+      Creates default config if file doesn't exist. }
     function LoadConfig: Boolean;
+
+    { Saves current configuration to config.json file.
+      Only writes if configuration has been modified. }
     function SaveConfig: Boolean;
+
+    { Gets the path to the configuration file. }
     function GetConfigPath: string;
+
+    { Creates a default configuration file with sensible defaults. }
     function CreateDefaultConfig: Boolean;
+
+    { Gets the toolchain manager for FPC version operations. }
     function GetToolchainManager: IToolchainManager;
+
+    { Gets the Lazarus manager for IDE version operations. }
     function GetLazarusManager: ILazarusManager;
+
+    { Gets the cross-target manager for cross-compilation operations. }
     function GetCrossTargetManager: ICrossTargetManager;
+
+    { Gets the repository manager for git URL operations. }
     function GetRepositoryManager: IRepositoryManager;
+
+    { Gets the settings manager for global settings. }
     function GetSettingsManager: ISettingsManager;
+
+    { Returns True if configuration has unsaved changes. }
     function IsModified: Boolean;
-    
-    // IConfigChangeNotifier 实现
+
+    { Called by sub-managers when configuration changes.
+      Marks config as modified for later save. }
     procedure NotifyConfigChanged;
   end;
 
 const
   CONFIG_VERSION = '1.0';
   DEFAULT_PARALLEL_JOBS = 4;
-  DEFAULT_FPC_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  DEFAULT_LAZARUS_REPO = 'https://gitlab.com/freepascal.org/lazarus.git';
+  // Note: DEFAULT_FPC_REPO and DEFAULT_LAZARUS_REPO are defined in fpdev.constants
 
 implementation
+
+{ TConfigChangeNotifier }
+
+constructor TConfigChangeNotifier.Create(AOwner: Pointer);
+begin
+  inherited Create;
+  FOwner := AOwner;
+end;
+
+procedure TConfigChangeNotifier.Detach;
+begin
+  FOwner := nil;
+end;
+
+procedure TConfigChangeNotifier.NotifyConfigChanged;
+begin
+  if FOwner <> nil then
+    TConfigManager(FOwner).NotifyConfigChanged;
+end;
 
 { TRepositoryManager }
 
 constructor TRepositoryManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
-  FNotifier := Pointer(ANotifier);  // 显式转换为指针，不增加引用计数
+  FNotifier := ANotifier;
   FRepositories := TStringList.Create;
   FDefaultRepo := '';
 end;
@@ -207,11 +356,11 @@ begin
   try
     FRepositories.Values[AName] := AURL;
     if Assigned(FNotifier) then
-      IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+      FNotifier.NotifyConfigChanged;
     Result := True;
   except
     on E: Exception do
-      WriteLn('Error adding repository: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -226,12 +375,12 @@ begin
     begin
       FRepositories.Delete(Index);
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error removing repository: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -258,6 +407,8 @@ function TRepositoryManager.ListRepositories: TStringArray;
 var
   i: Integer;
 begin
+  Result := nil;
+  if not Assigned(FRepositories) then Exit;
   SetLength(Result, FRepositories.Count);
   for i := 0 to FRepositories.Count - 1 do
     Result[i] := FRepositories.Names[i];
@@ -307,14 +458,16 @@ end;
 constructor TSettingsManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
-  FNotifier := Pointer(ANotifier);  // 显式转换为指针，不增加引用计数
-  
+  FNotifier := ANotifier;
+
   // 设置默认值
   FSettings.AutoUpdate := False;
   FSettings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
   FSettings.KeepSources := True;
   FSettings.InstallRoot := '';
   FSettings.DefaultRepo := '';
+  FSettings.Mirror := 'auto';        // Default to auto-detect
+  FSettings.CustomRepoURL := '';     // No custom repo by default
 end;
 
 function TSettingsManager.GetSettings: TFPDevSettings;
@@ -328,11 +481,11 @@ begin
   try
     FSettings := ASettings;
     if Assigned(FNotifier) then
-      IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+      FNotifier.NotifyConfigChanged;
     Result := True;
   except
     on E: Exception do
-      WriteLn('Error setting configuration: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -343,8 +496,11 @@ begin
     FSettings.AutoUpdate := ASettings.Get('auto_update', False);
     FSettings.ParallelJobs := ASettings.Get('parallel_jobs', DEFAULT_PARALLEL_JOBS);
     FSettings.KeepSources := ASettings.Get('keep_sources', True);
-    FSettings.InstallRoot := ASettings.Get('install_root', '');
+    FSettings.InstallRoot := ExcludeTrailingPathDelimiter(ASettings.Get('install_root', ''));
     FSettings.DefaultRepo := ASettings.Get('default_repo', '');
+    // Mirror configuration
+    FSettings.Mirror := ASettings.Get('mirror', 'auto');
+    FSettings.CustomRepoURL := ASettings.Get('custom_repo_url', '');
   end;
 end;
 
@@ -356,6 +512,9 @@ begin
   ASettings.Add('keep_sources', FSettings.KeepSources);
   ASettings.Add('install_root', FSettings.InstallRoot);
   ASettings.Add('default_repo', FSettings.DefaultRepo);
+  // Mirror configuration
+  ASettings.Add('mirror', FSettings.Mirror);
+  ASettings.Add('custom_repo_url', FSettings.CustomRepoURL);
 end;
 
 { TToolchainManager }
@@ -363,7 +522,7 @@ end;
 constructor TToolchainManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
-  FNotifier := Pointer(ANotifier);  // 显式转换为指针，不增加引用计数
+  FNotifier := ANotifier;
   FToolchains := TStringList.Create;
   FDefaultToolchain := '';
 end;
@@ -376,12 +535,11 @@ end;
 
 function TToolchainManager.ToolchainTypeToString(AType: TToolchainType): string;
 begin
+  Result := 'release';
   case AType of
     ttRelease: Result := 'release';
     ttDevelopment: Result := 'development';
     ttCustom: Result := 'custom';
-  else
-    Result := 'release';
   end;
 end;
 
@@ -417,7 +575,7 @@ function TToolchainManager.JSONToToolchainInfo(AJSON: TJSONObject): TToolchainIn
 var
   DateStr: string;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result := Default(TToolchainInfo);
   
   Result.ToolchainType := StringToToolchainType(AJSON.Get('type', 'release'));
   Result.Version := AJSON.Get('version', '');
@@ -430,7 +588,10 @@ begin
   if DateStr <> '' then
   begin
     try
-      Result.InstallDate := StrToDateTime(StringReplace(DateStr, 'T', ' ', [rfReplaceAll]));
+      // Parse ISO 8601 format: 2025-12-23T14:13:01Z
+      DateStr := StringReplace(DateStr, 'T', ' ', [rfReplaceAll]);
+      DateStr := StringReplace(DateStr, 'Z', '', [rfReplaceAll]);
+      Result.InstallDate := ScanDateTime('yyyy-mm-dd hh:nn:ss', DateStr);
     except
       Result.InstallDate := 0;
     end;
@@ -447,14 +608,14 @@ begin
     try
       FToolchains.Values[AName] := JSONObj.AsJSON;
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     finally
       JSONObj.Free;
     end;
   except
     on E: Exception do
-      WriteLn('Error adding toolchain: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -469,12 +630,12 @@ begin
     begin
       FToolchains.Delete(Index);
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error removing toolchain: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -484,7 +645,7 @@ var
   JSONData: TJSONData;
 begin
   Result := False;
-  FillChar(AInfo, SizeOf(AInfo), 0);
+  AInfo := Default(TToolchainInfo);
   
   try
     JSONStr := FToolchains.Values[AName];
@@ -503,7 +664,7 @@ begin
     end;
   except
     on E: Exception do
-      WriteLn('Error getting toolchain: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -515,12 +676,12 @@ begin
     begin
       FDefaultToolchain := AName;
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error setting default toolchain: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -533,6 +694,8 @@ function TToolchainManager.ListToolchains: TStringArray;
 var
   i: Integer;
 begin
+  Result := nil;
+  if not Assigned(FToolchains) then Exit;
   SetLength(Result, FToolchains.Count);
   for i := 0 to FToolchains.Count - 1 do
     Result[i] := FToolchains.Names[i];
@@ -587,7 +750,7 @@ end;
 constructor TLazarusManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
-  FNotifier := Pointer(ANotifier);  // 显式转换为指针，不增加引用计数
+  FNotifier := ANotifier;
   FVersions := TStringList.Create;
   FDefaultVersion := '';
 end;
@@ -616,7 +779,7 @@ end;
 
 function TLazarusManager.JSONToLazarusInfo(AJSON: TJSONObject): TLazarusInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result := Default(TLazarusInfo);
   
   Result.Version := AJSON.Get('version', '');
   Result.FPCVersion := AJSON.Get('fpc_version', '');
@@ -636,14 +799,14 @@ begin
     try
       FVersions.Values[AName] := JSONObj.AsJSON;
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     finally
       JSONObj.Free;
     end;
   except
     on E: Exception do
-      WriteLn('Error adding Lazarus version: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -658,12 +821,12 @@ begin
     begin
       FVersions.Delete(Index);
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error removing Lazarus version: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -673,7 +836,7 @@ var
   JSONData: TJSONData;
 begin
   Result := False;
-  FillChar(AInfo, SizeOf(AInfo), 0);
+  AInfo := Default(TLazarusInfo);
   
   try
     JSONStr := FVersions.Values[AName];
@@ -692,7 +855,7 @@ begin
     end;
   except
     on E: Exception do
-      WriteLn('Error getting Lazarus version: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -704,12 +867,12 @@ begin
     begin
       FDefaultVersion := AName;
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error setting default Lazarus version: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -722,6 +885,8 @@ function TLazarusManager.ListLazarusVersions: TStringArray;
 var
   i: Integer;
 begin
+  Result := nil;
+  if not Assigned(FVersions) then Exit;
   SetLength(Result, FVersions.Count);
   for i := 0 to FVersions.Count - 1 do
     Result[i] := FVersions.Names[i];
@@ -785,7 +950,7 @@ end;
 constructor TCrossTargetManager.Create(ANotifier: IConfigChangeNotifier);
 begin
   inherited Create;
-  FNotifier := Pointer(ANotifier);  // 显式转换为指针，不增加引用计数
+  FNotifier := ANotifier;
   FCrossTargets := TStringList.Create;
 end;
 
@@ -810,7 +975,7 @@ end;
 
 function TCrossTargetManager.JSONToCrossTarget(AJSON: TJSONObject): TCrossTarget;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result := Default(TCrossTarget);
   
   Result.Enabled := AJSON.Get('enabled', False);
   Result.BinutilsPath := AJSON.Get('binutils_path', '');
@@ -827,14 +992,14 @@ begin
     try
       FCrossTargets.Values[ATarget] := JSONObj.AsJSON;
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     finally
       JSONObj.Free;
     end;
   except
     on E: Exception do
-      WriteLn('Error adding cross target: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -849,12 +1014,12 @@ begin
     begin
       FCrossTargets.Delete(Index);
       if Assigned(FNotifier) then
-        IConfigChangeNotifier(FNotifier).NotifyConfigChanged;
+        FNotifier.NotifyConfigChanged;
       Result := True;
     end;
   except
     on E: Exception do
-      WriteLn('Error removing cross target: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -864,7 +1029,7 @@ var
   JSONData: TJSONData;
 begin
   Result := False;
-  FillChar(AInfo, SizeOf(AInfo), 0);
+  AInfo := Default(TCrossTarget);
   
   try
     JSONStr := FCrossTargets.Values[ATarget];
@@ -883,7 +1048,7 @@ begin
     end;
   except
     on E: Exception do
-      WriteLn('Error getting cross target: ', E.Message);
+      { Error logged via return value }
   end;
 end;
 
@@ -891,6 +1056,8 @@ function TCrossTargetManager.ListCrossTargets: TStringArray;
 var
   i: Integer;
 begin
+  Result := nil;
+  if not Assigned(FCrossTargets) then Exit;
   SetLength(Result, FCrossTargets.Count);
   for i := 0 to FCrossTargets.Count - 1 do
     Result[i] := FCrossTargets.Names[i];
@@ -942,6 +1109,9 @@ end;
 constructor TConfigManager.Create(const AConfigPath: string);
 begin
   inherited Create;
+
+  FNotifierObj := TConfigChangeNotifier.Create(Self);
+  FNotifier := TConfigChangeNotifier(FNotifierObj) as IConfigChangeNotifier;
   
   if AConfigPath = '' then
     FConfigPath := GetDefaultConfigPath
@@ -952,42 +1122,25 @@ begin
   FVersion := CONFIG_VERSION;
   
   // 创建子管理器，使用接口引用，完全拥抱引用计数
-  FToolchainManager := TToolchainManager.Create(Self as IConfigChangeNotifier);
-  FLazarusManager := TLazarusManager.Create(Self as IConfigChangeNotifier);
-  FCrossTargetManager := TCrossTargetManager.Create(Self as IConfigChangeNotifier);
-  FRepositoryManager := TRepositoryManager.Create(Self as IConfigChangeNotifier);
-  FSettingsManager := TSettingsManager.Create(Self as IConfigChangeNotifier);
+  FToolchainManager := TToolchainManager.Create(FNotifier);
+  FLazarusManager := TLazarusManager.Create(FNotifier);
+  FCrossTargetManager := TCrossTargetManager.Create(FNotifier);
+  FRepositoryManager := TRepositoryManager.Create(FNotifier);
+  FSettingsManager := TSettingsManager.Create(FNotifier);
+end;
+
+destructor TConfigManager.Destroy;
+begin
+  if FNotifierObj <> nil then
+    TConfigChangeNotifier(FNotifierObj).Detach;
+  FNotifier := nil;
+  FNotifierObj := nil;
+  inherited Destroy;
 end;
 
 function TConfigManager.GetDefaultConfigPath: string;
-var
-  Root: string;
 begin
-  // 统一使用系统规范数据根目录（支持 FPDEV_DATA_ROOT 覆盖），与 fpdev.paths 对齐
-  Root := GetEnvironmentVariable('FPDEV_DATA_ROOT');
-  if Root = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    Root := GetEnvironmentVariable('APPDATA');
-    if Root <> '' then 
-      Root := IncludeTrailingPathDelimiter(Root) + 'fpdev' 
-    else 
-      Root := '.fpdev';
-    {$ELSE}
-    Root := GetEnvironmentVariable('XDG_DATA_HOME');
-    if Root = '' then
-    begin
-      Root := GetEnvironmentVariable('HOME');
-      if Root <> '' then 
-        Root := IncludeTrailingPathDelimiter(Root) + '.fpdev' 
-      else 
-        Root := '.fpdev';
-    end
-    else
-      Root := IncludeTrailingPathDelimiter(Root) + 'fpdev';
-    {$ENDIF}
-  end;
-  Result := IncludeTrailingPathDelimiter(Root) + 'config.json';
+  Result := IncludeTrailingPathDelimiter(GetDataRoot) + 'config.json';
 end;
 
 function TConfigManager.CreateDefaultConfig: Boolean;
@@ -1000,7 +1153,7 @@ begin
     // 创建配置目录
     ConfigDir := ExtractFileDir(FConfigPath);
     if (ConfigDir <> '') and not DirectoryExists(ConfigDir) then
-      ForceDirectories(ConfigDir);
+      EnsureDir(ConfigDir);
       
     // 设置默认仓库
     FRepositoryManager.AddRepository('official_fpc', DEFAULT_FPC_REPO);
@@ -1019,7 +1172,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('Error creating default config: ', E.Message);
+      { Error logged via return value }
       Result := False;
     end;
   end;
@@ -1088,7 +1241,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('Error loading config: ', E.Message);
+      { Error logged via return value }
       Result := False;
     end;
   end;
@@ -1143,7 +1296,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn('Error saving config: ', E.Message);
+      { Error logged via return value }
       Result := False;
     end;
   end;

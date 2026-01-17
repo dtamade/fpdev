@@ -1,7 +1,5 @@
 unit fpdev.cmd.cross;
 
-{$codepage utf8}
-
 {
 
 ```text
@@ -33,8 +31,11 @@ QQ群:685403987  QQ:179033731
 interface
 
 uses
-  SysUtils, Classes, Process,
-  fpdev.config, fpdev.utils, fpdev.terminal;
+  SysUtils, Classes,
+  fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
+  fpdev.cross.manifest, fpdev.toolchain.fetcher, fpdev.toolchain.extract,
+  fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester;
 
 type
   { TCrossTargetPlatform }
@@ -63,13 +64,15 @@ type
   { TCrossCompilerManager }
   TCrossCompilerManager = class
   private
-    FConfigManager: TFPDevConfigManager;
+    FConfigManager: IConfigManager;
     FInstallRoot: string;
+    FResourceRepo: TResourceRepository;  // fpdev-repo integration
+    FBuildTester: TCrossBuildTester;     // Cross-build testing service
 
     function GetAvailableTargets: TCrossTargetArray;
     function GetInstalledTargets: TCrossTargetArray;
-    function DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
-    function DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
+    function DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
+    function DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
     function SetupCrossEnvironment(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
     function ValidateTarget(const ATarget: string): Boolean;
     function GetTargetInstallPath(const ATarget: string): string;
@@ -78,30 +81,32 @@ type
     function PlatformToString(APlatform: TCrossTargetPlatform): string;
     function StringToPlatform(const AStr: string): TCrossTargetPlatform;
 
+    // System cross compiler detection
+    function DetectSystemCrossCompiler(const ATarget: string; out ABinutilsPath: string): Boolean;
+    function GetPackageManagerInstructions(const ATarget: string): string;
+
   public
-    constructor Create(AConfigManager: TFPDevConfigManager);
+    constructor Create(AConfigManager: TFPDevConfigManager); overload;
+    constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
     // 交叉编译目标管理
-    function InstallTarget(const ATarget: string): Boolean;
-    function UninstallTarget(const ATarget: string): Boolean;
-    function ListTargets(const AShowAll: Boolean = False): Boolean;
-    function EnableTarget(const ATarget: string): Boolean;
-    function DisableTarget(const ATarget: string): Boolean;
+    function InstallTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function UninstallTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function ListTargets(const AShowAll: Boolean = False; Outp: IOutput = nil): Boolean;
+    function EnableTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function DisableTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
     // 工具链操作
-    function ShowTargetInfo(const ATarget: string): Boolean;
-    function TestTarget(const ATarget: string): Boolean;
-    function BuildTest(const ATarget: string; const ASourceFile: string = ''): Boolean;
+    function ShowTargetInfo(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function TestTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function BuildTest(const ATarget: string; const ASourceFile: string = ''; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
     // 配置管理
-    function ConfigureTarget(const ATarget: string; const ABinutilsPath, ALibrariesPath: string): Boolean;
-    function UpdateTarget(const ATarget: string): Boolean;
-    function CleanTarget(const ATarget: string): Boolean;
+    function ConfigureTarget(const ATarget: string; const ABinutilsPath, ALibrariesPath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function UpdateTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function CleanTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
   end;
-
-// 主要执行函数
-procedure execute(const aParams: array of string);
 
 implementation
 
@@ -125,34 +130,53 @@ const
 { TCrossCompilerManager }
 
 constructor TCrossCompilerManager.Create(AConfigManager: TFPDevConfigManager);
+begin
+  Create(AConfigManager.AsConfigManager);
+end;
+
+constructor TCrossCompilerManager.Create(AConfigManager: IConfigManager);
 var
   Settings: TFPDevSettings;
+  RepoConfig: TResourceRepoConfig;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
 
-  Settings := FConfigManager.GetSettings;
+  Settings := FConfigManager.GetSettingsManager.GetSettings;
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
   begin
     {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + '\.fpdev';
+    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
     {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + '/.fpdev';
+    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
     {$ENDIF}
 
     Settings.InstallRoot := FInstallRoot;
-    FConfigManager.SetSettings(Settings);
+    FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
 
-  // 确保安装目录存在
+  // Ensure install directory exists
   if not DirectoryExists(FInstallRoot) then
-    ForceDirectories(FInstallRoot);
+    EnsureDir(FInstallRoot);
+
+  // Initialize fpdev-repo integration
+  RepoConfig := CreateDefaultConfig;
+  FResourceRepo := TResourceRepository.Create(RepoConfig);
+  if DirectoryExists(RepoConfig.LocalPath) then
+    FResourceRepo.LoadManifest;
+
+  // Initialize build tester service
+  FBuildTester := TCrossBuildTester.Create(FConfigManager, FInstallRoot);
 end;
 
 destructor TCrossCompilerManager.Destroy;
 begin
+  if Assigned(FBuildTester) then
+    FBuildTester.Free;
+  if Assigned(FResourceRepo) then
+    FResourceRepo.Free;
   inherited Destroy;
 end;
 
@@ -194,6 +218,119 @@ begin
   else Result := ctpCustom;
 end;
 
+function TCrossCompilerManager.DetectSystemCrossCompiler(const ATarget: string; out ABinutilsPath: string): Boolean;
+var
+  SearchPaths: array of string;
+  Prefix, GCCExe: string;
+  i: Integer;
+begin
+  Result := False;
+  ABinutilsPath := '';
+
+  // Determine binutils prefix based on target
+  case StringToPlatform(ATarget) of
+    ctpWin32: Prefix := 'i686-w64-mingw32-';
+    ctpWin64: Prefix := 'x86_64-w64-mingw32-';
+    ctpLinux32: Prefix := 'i686-linux-gnu-';
+    ctpLinux64: Prefix := 'x86_64-linux-gnu-';
+    ctpLinuxARM: Prefix := 'arm-linux-gnueabihf-';
+    ctpLinuxARM64: Prefix := 'aarch64-linux-gnu-';
+    ctpDarwin64: Prefix := 'x86_64-apple-darwin-';
+    ctpDarwinARM64: Prefix := 'aarch64-apple-darwin-';
+    ctpAndroid: Prefix := 'arm-linux-androideabi-';
+  else
+    Exit;
+  end;
+
+  // Search paths for cross compilers
+  SearchPaths := nil;
+  {$IFDEF UNIX}
+  SetLength(SearchPaths, 4);
+  SearchPaths[0] := '/usr/bin';
+  SearchPaths[1] := '/usr/local/bin';
+  SearchPaths[2] := '/opt/cross/bin';
+  SearchPaths[3] := ExpandFileName('~/.local/bin');
+  {$ELSE}
+  SetLength(SearchPaths, 3);
+  SearchPaths[0] := 'C:' + PathDelim + 'mingw64' + PathDelim + 'bin';
+  SearchPaths[1] := 'C:' + PathDelim + 'mingw32' + PathDelim + 'bin';
+  SearchPaths[2] := GetEnvironmentVariable('MINGW_HOME') + PathDelim + 'bin';
+  {$ENDIF}
+
+  // Search for GCC with the target prefix
+  for i := 0 to High(SearchPaths) do
+  begin
+    GCCExe := SearchPaths[i] + PathDelim + Prefix + 'gcc';
+    {$IFDEF MSWINDOWS}
+    GCCExe := GCCExe + '.exe';
+    {$ENDIF}
+
+    if FileExists(GCCExe) then
+    begin
+      ABinutilsPath := SearchPaths[i];
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function TCrossCompilerManager.GetPackageManagerInstructions(const ATarget: string): string;
+begin
+  Result := '';
+
+  {$IFDEF LINUX}
+  case StringToPlatform(ATarget) of
+    ctpWin32, ctpWin64:
+      Result := 'Install MinGW cross compiler:' + LineEnding +
+                '  Debian/Ubuntu: sudo apt-get install gcc-mingw-w64' + LineEnding +
+                '  Fedora/RHEL:   sudo dnf install mingw64-gcc mingw32-gcc' + LineEnding +
+                '  Arch Linux:    sudo pacman -S mingw-w64-gcc';
+    ctpLinuxARM:
+      Result := 'Install ARM cross compiler:' + LineEnding +
+                '  Debian/Ubuntu: sudo apt-get install gcc-arm-linux-gnueabihf' + LineEnding +
+                '  Fedora/RHEL:   sudo dnf install arm-linux-gnueabihf-gcc' + LineEnding +
+                '  Arch Linux:    sudo pacman -S arm-linux-gnueabihf-gcc';
+    ctpLinuxARM64:
+      Result := 'Install AArch64 cross compiler:' + LineEnding +
+                '  Debian/Ubuntu: sudo apt-get install gcc-aarch64-linux-gnu' + LineEnding +
+                '  Fedora/RHEL:   sudo dnf install aarch64-linux-gnu-gcc' + LineEnding +
+                '  Arch Linux:    sudo pacman -S aarch64-linux-gnu-gcc';
+  else
+    Result := 'Cross compiler not available via package manager.' + LineEnding +
+              'Please install manually and use "fpdev cross configure".';
+  end;
+  {$ENDIF}
+
+  {$IFDEF DARWIN}
+  case StringToPlatform(ATarget) of
+    ctpWin32, ctpWin64:
+      Result := 'Install MinGW cross compiler:' + LineEnding +
+                '  Homebrew: brew install mingw-w64';
+    ctpLinuxARM, ctpLinuxARM64:
+      Result := 'Install ARM cross compiler:' + LineEnding +
+                '  Homebrew: brew install arm-linux-gnueabihf-binutils';
+  else
+    Result := 'Cross compiler not available via Homebrew.' + LineEnding +
+              'Please install manually and use "fpdev cross configure".';
+  end;
+  {$ENDIF}
+
+  {$IFDEF MSWINDOWS}
+  case StringToPlatform(ATarget) of
+    ctpLinux32, ctpLinux64, ctpLinuxARM, ctpLinuxARM64:
+      Result := 'Install cross compiler from:' + LineEnding +
+                '  https://gnutoolchains.com/raspberry/' + LineEnding +
+                '  Or use WSL for Linux cross-compilation.';
+  else
+    Result := 'Cross compiler not readily available.' + LineEnding +
+              'Please install manually and use "fpdev cross configure".';
+  end;
+  {$ENDIF}
+
+  if Result = '' then
+    Result := 'Please install the cross compiler manually and use "fpdev cross configure".';
+end;
+
 function TCrossCompilerManager.GetTargetInstallPath(const ATarget: string): string;
 begin
   Result := FInstallRoot + PathDelim + 'cross' + PathDelim + ATarget;
@@ -203,7 +340,7 @@ function TCrossCompilerManager.IsTargetInstalled(const ATarget: string): Boolean
 var
   CrossTarget: TCrossTarget;
 begin
-  Result := FConfigManager.GetCrossTarget(ATarget, CrossTarget) and CrossTarget.Enabled;
+  Result := FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) and CrossTarget.Enabled;
 end;
 
 function TCrossCompilerManager.ValidateTarget(const ATarget: string): Boolean;
@@ -225,7 +362,7 @@ function TCrossCompilerManager.GetTargetInfo(const ATarget: string): TCrossTarge
 var
   i: Integer;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  System.Initialize(Result);
   for i := 0 to High(CROSS_TARGETS) do
   begin
     if SameText(CROSS_TARGETS[i].Name, ATarget) then
@@ -240,7 +377,50 @@ end;
 function TCrossCompilerManager.GetAvailableTargets: TCrossTargetArray;
 var
   i: Integer;
+  RepoTargets: SysUtils.TStringArray;
+  RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
+  HostPlatform: string;
 begin
+  Result := nil;
+
+  // First try to get targets from fpdev-repo
+  if Assigned(FResourceRepo) then
+  begin
+    RepoTargets := FResourceRepo.ListCrossTargets;
+    HostPlatform := GetCurrentPlatform;
+
+    if Length(RepoTargets) > 0 then
+    begin
+      SetLength(Result, Length(RepoTargets));
+      for i := 0 to High(RepoTargets) do
+      begin
+        Result[i].Platform := StringToPlatform(RepoTargets[i]);
+        Result[i].Name := RepoTargets[i];
+        Result[i].Available := FResourceRepo.HasCrossToolchain(RepoTargets[i], HostPlatform);
+        Result[i].Installed := IsTargetInstalled(RepoTargets[i]);
+
+        // Get detailed info from fpdev-repo
+        if FResourceRepo.GetCrossToolchainInfo(RepoTargets[i], HostPlatform, RepoInfo) then
+        begin
+          Result[i].DisplayName := RepoInfo.DisplayName;
+          Result[i].CPU := RepoInfo.CPU;
+          Result[i].OS := RepoInfo.OS;
+          Result[i].BinutilsPrefix := RepoInfo.BinutilsPrefix;
+        end
+        else
+        begin
+          // Fallback to built-in info
+          Result[i].DisplayName := RepoTargets[i];
+          Result[i].CPU := '';
+          Result[i].OS := '';
+          Result[i].BinutilsPrefix := '';
+        end;
+      end;
+      Exit;
+    end;
+  end;
+
+  // Fallback to built-in targets
   SetLength(Result, Length(CROSS_TARGETS));
   for i := 0 to High(CROSS_TARGETS) do
   begin
@@ -254,6 +434,7 @@ var
   AllTargets: TCrossTargetArray;
   i, Count: Integer;
 begin
+  Result := nil;
   AllTargets := GetAvailableTargets;
   Count := 0;
 
@@ -276,33 +457,228 @@ begin
   end;
 end;
 
-function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
+function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
+var
+  Manifest: TCrossManifest;
+  ManifestTarget: TCrossManifestTarget;
+  Binutils: TCrossBinutils;
+  HostPlatform: string;
+  DestPath, ExtractPath, Err: string;
+  ManifestPath: string;
+  RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
+  LResult: TProcessResult;
+  LO: IOutput;
 begin
   Result := False;
-  // WriteLn('正在下载 ', ATarget, ' 的二进制工具...');  // 调试代码已注释
+  if ATarget = '' then Exit;
+  if ATargetInfo.Name = '' then Exit;
 
-  // TODO: 实现实际的下载逻辑
-  // 这里应该根据目标平台下载相应的binutils
-  // 例如从官方源或第三方源下载预编译的工具链
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
-  // WriteLn('注意: 二进制工具下载功能暂未实现');  // 调试代码已注释
-  // WriteLn('请手动安装交叉编译工具链，然后使用 configure 命令配置路径');  // 调试代码已注释
+  HostPlatform := GetCurrentPlatform;
 
-  Result := True; // 暂时返回成功，允许手动配置
+  // First try to install from fpdev-repo
+  if Assigned(FResourceRepo) and FResourceRepo.HasCrossToolchain(ATarget, HostPlatform) then
+  begin
+    if FResourceRepo.GetCrossToolchainInfo(ATarget, HostPlatform, RepoInfo) then
+    begin
+      DestPath := GetTargetInstallPath(ATarget);
+      if FResourceRepo.InstallCrossToolchain(ATarget, HostPlatform, DestPath) then
+      begin
+        LO.WriteLn(_(MSG_CROSS_BINUTILS_INSTALLED));
+        Result := True;
+        Exit;
+      end;
+    end;
+  end;
+
+  // Fallback to cross_manifest.json
+  Manifest := TCrossManifest.Create;
+  try
+    // Try to load from install root first, then from current directory
+    ManifestPath := FInstallRoot + PathDelim + 'cross_manifest.json';
+    if not FileExists(ManifestPath) then
+      ManifestPath := 'cross_manifest.json';
+
+    if not Manifest.LoadFromFile(ManifestPath) then
+    begin
+      // Manifest not found - return False to trigger instructions
+      LO.WriteLn(_Fmt(MSG_CROSS_MANIFEST_NOT_FOUND, [ManifestPath]));
+      Result := False;
+      Exit;
+    end;
+
+    // Get target info from manifest
+    if not Manifest.GetTarget(ATarget, ManifestTarget) then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_IN_MANIFEST, [ATarget]));
+      Result := False;
+      Exit;
+    end;
+
+    // Get binutils for current host platform
+    if not Manifest.GetBinutilsForHost(ManifestTarget, HostPlatform, Binutils) then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_NO_BINUTILS, [ATarget, HostPlatform]));
+      Result := False;
+      Exit;
+    end;
+
+    // Check if we have download URLs
+    if Length(Binutils.URLs) = 0 then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_NO_DOWNLOAD_URLS, [ATarget]));
+      Result := False;
+      Exit;
+    end;
+
+    // Download binutils
+    DestPath := GetTargetInstallPath(ATarget) + PathDelim + 'binutils.tar.xz';
+    ExtractPath := GetTargetInstallPath(ATarget) + PathDelim + 'bin';
+
+    LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_BINUTILS, [ATarget]));
+    LO.WriteLn(_Fmt(MSG_CROSS_URL, [Binutils.URLs[0]]));
+
+    if not EnsureDownloadedCached(Binutils.URLs, DestPath, Binutils.Sha256, 120000, Err) then
+    begin
+      LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
+      Exit(False);
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_EXTRACTING));
+
+    // Create extraction directory
+    if not DirectoryExists(ExtractPath) then
+      EnsureDir(ExtractPath);
+
+    // Extract based on file extension
+    if (Pos('.zip', LowerCase(DestPath)) > 0) or (Pos('.zip', LowerCase(Binutils.URLs[0])) > 0) then
+    begin
+      if not ZipExtract(DestPath, ExtractPath, Err) then
+      begin
+        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXTRACT_FAILED, [Err]));
+        Exit(False);
+      end;
+    end
+    else
+    begin
+      // For tar.xz, tar.gz, use system tar command
+      LResult := TProcessExecutor.Execute('tar', ['-xf', DestPath, '-C', ExtractPath], '');
+      if not LResult.Success then
+      begin
+        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TAR_FAILED, [LResult.ExitCode]));
+        Exit(False);
+      end;
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_BINUTILS_SUCCESS));
+    Result := True;
+
+  finally
+    Manifest.Free;
+  end;
 end;
 
-function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
+function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
+var
+  Manifest: TCrossManifest;
+  ManifestTarget: TCrossManifestTarget;
+  DestPath, ExtractPath, Err: string;
+  ManifestPath: string;
+  LResult: TProcessResult;
+  LO: IOutput;
 begin
   Result := False;
-  // WriteLn('正在下载 ', ATarget, ' 的库文件...');  // 调试代码已注释
+  if ATarget = '' then Exit;
+  if ATargetInfo.Name = '' then Exit;
 
-  // TODO: 实现实际的下载逻辑
-  // 这里应该根据目标平台下载相应的系统库
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
-  // WriteLn('注意: 库文件下载功能暂未实现');  // 调试代码已注释
-  // WriteLn('请手动安装目标平台的库文件，然后使用 configure 命令配置路径');  // 调试代码已注释
+  // Load manifest
+  Manifest := TCrossManifest.Create;
+  try
+    // Try to load from install root first, then from current directory
+    ManifestPath := FInstallRoot + PathDelim + 'cross_manifest.json';
+    if not FileExists(ManifestPath) then
+      ManifestPath := 'cross_manifest.json';
 
-  Result := True; // 暂时返回成功，允许手动配置
+    if not Manifest.LoadFromFile(ManifestPath) then
+    begin
+      // Manifest not found - allow manual configuration
+      LO.WriteLn(_(MSG_CROSS_LIBS_MANIFEST_NOT_FOUND));
+      LO.WriteLn(_(MSG_CROSS_LIBS_MANUAL_INSTALL));
+      Result := True; // Allow manual configuration
+      Exit;
+    end;
+
+    // Get target info from manifest
+    if not Manifest.GetTarget(ATarget, ManifestTarget) then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_IN_MANIFEST, [ATarget]));
+      LO.WriteLn(_(MSG_CROSS_LIBS_MANUAL_INSTALL));
+      Result := True; // Allow manual configuration
+      Exit;
+    end;
+
+    // Check if we have library download URLs
+    if Length(ManifestTarget.Libraries.URLs) = 0 then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_NO_LIBS_URL, [ATarget]));
+      LO.WriteLn(_(MSG_CROSS_LIBS_NOTE));
+      Result := True; // Allow manual configuration
+      Exit;
+    end;
+
+    // Download libraries
+    DestPath := GetTargetInstallPath(ATarget) + PathDelim + 'libraries.tar.xz';
+    ExtractPath := GetTargetInstallPath(ATarget) + PathDelim + 'lib';
+
+    LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_LIBS, [ATarget]));
+    LO.WriteLn(_Fmt(MSG_CROSS_URL, [ManifestTarget.Libraries.URLs[0]]));
+
+    if not EnsureDownloadedCached(ManifestTarget.Libraries.URLs, DestPath,
+                                   ManifestTarget.Libraries.Sha256, 120000, Err) then
+    begin
+      LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
+      Exit(False);
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_EXTRACTING));
+
+    // Create extraction directory
+    if not DirectoryExists(ExtractPath) then
+      EnsureDir(ExtractPath);
+
+    // Extract based on file extension
+    if (Pos('.zip', LowerCase(DestPath)) > 0) or (Pos('.zip', LowerCase(ManifestTarget.Libraries.URLs[0])) > 0) then
+    begin
+      if not ZipExtract(DestPath, ExtractPath, Err) then
+      begin
+        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXTRACT_FAILED, [Err]));
+        Exit(False);
+      end;
+    end
+    else
+    begin
+      // For tar.xz, tar.gz, use system tar command
+      LResult := TProcessExecutor.Execute('tar', ['-xf', DestPath, '-C', ExtractPath], '');
+      if not LResult.Success then
+      begin
+        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TAR_FAILED, [LResult.ExitCode]));
+        Exit(False);
+      end;
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_LIBS_SUCCESS));
+    Result := True;
+
+  finally
+    Manifest.Free;
+  end;
 end;
 
 function TCrossCompilerManager.SetupCrossEnvironment(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
@@ -311,46 +687,56 @@ var
   InstallPath: string;
 begin
   Result := False;
+  // ATargetInfo parameter reserved for future use
 
   try
     InstallPath := GetTargetInstallPath(ATarget);
 
     // 创建交叉编译目标配置
-    FillChar(CrossTarget, SizeOf(CrossTarget), 0);
-    CrossTarget.Enabled := True;
-    CrossTarget.BinutilsPath := InstallPath + PathDelim + 'bin';
-    CrossTarget.LibrariesPath := InstallPath + PathDelim + 'lib';
+    System.Initialize(CrossTarget);
+    try
+      CrossTarget.Enabled := True;
+      CrossTarget.BinutilsPath := InstallPath + PathDelim + 'bin';
+      CrossTarget.LibrariesPath := InstallPath + PathDelim + 'lib';
 
-    // 添加到配置
-    Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
+      // 添加到配置
+      Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
+    finally
+      System.Finalize(CrossTarget);
+    end;
     if Result then
-  // WriteLn('✓ ', ATarget, ' 交叉编译环境配置完成');  // 调试代码已注释
 
   except
     on E: Exception do
-    begin
-  // WriteLn('错误: 设置交叉编译环境时发生异常: ', E.Message);  // 调试代码已注释
       Result := False;
-    end;
   end;
 end;
 
-function TCrossCompilerManager.InstallTarget(const ATarget: string): Boolean;
+function TCrossCompilerManager.InstallTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   TargetInfo: TCrossTargetInfo;
   InstallPath: string;
+  SystemBinutilsPath: string;
+  CrossTarget: TCrossTarget;
+  Instructions: string;
+  LO: IOutput;
 begin
   Result := False;
 
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+
   if not ValidateTarget(ATarget) then
   begin
-  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   if IsTargetInstalled(ATarget) then
   begin
-  // WriteLn('交叉编译目标 ', ATarget, ' 已经安装');  // 调试代码已注释
+    LO.WriteLn(_Fmt(MSG_CROSS_ALREADY_INSTALLED, [ATarget]));
     Result := True;
     Exit;
   end;
@@ -358,42 +744,105 @@ begin
   try
     TargetInfo := GetTargetInfo(ATarget);
     InstallPath := GetTargetInstallPath(ATarget);
-  // WriteLn('安装交叉编译目标 ', ATarget, ' 到: ', InstallPath);  // 调试代码已注释
 
-    // 确保安装目录存在
+    LO.WriteLn(_Fmt(MSG_CROSS_INSTALLING, [ATarget]));
+    LO.WriteLn('');
+
+    // Step 1: Check for system-installed cross compiler
+    LO.WriteLn(_(MSG_CROSS_INSTALL_STEP1));
+    if DetectSystemCrossCompiler(ATarget, SystemBinutilsPath) then
+    begin
+      LO.WriteLn(_Fmt(MSG_CROSS_SYSTEM_FOUND, [SystemBinutilsPath]));
+      LO.WriteLn('');
+      LO.WriteLn(_(MSG_CROSS_SKIP_DOWNLOAD));
+      LO.WriteLn(_(MSG_CROSS_INSTALL_STEP3));
+
+      // Configure to use system compiler
+      System.Initialize(CrossTarget);
+      try
+        CrossTarget.Enabled := True;
+        CrossTarget.BinutilsPath := SystemBinutilsPath;
+        CrossTarget.LibrariesPath := '';  // System libs
+
+        Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
+      finally
+        System.Finalize(CrossTarget);
+      end;
+
+      if Result then
+      begin
+        LO.WriteLn('');
+        LO.WriteLn(_Fmt(MSG_CROSS_INSTALL_SUCCESS, [ATarget]));
+        LO.WriteLn(_Fmt(MSG_CROSS_USING_SYSTEM, [SystemBinutilsPath]));
+      end
+      else
+      begin
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_CONFIGURE_FAILED, [ATarget]));
+      end;
+      Exit;
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_SYSTEM_NOT_FOUND));
+    LO.WriteLn('');
+
+    // Ensure install directory exists
     if not DirectoryExists(InstallPath) then
-      ForceDirectories(InstallPath);
+      EnsureDir(InstallPath);
 
-  // WriteLn('步骤 1/3: 下载二进制工具');  // 调试代码已注释
-    if not DownloadBinutils(ATarget, TargetInfo) then
+    // Step 2: Try to download binutils
+    LO.WriteLn(_(MSG_CROSS_INSTALL_STEP2));
+    if not DownloadBinutils(ATarget, TargetInfo, LO) then
     begin
-  // WriteLn('错误: 下载二进制工具失败');  // 调试代码已注释
+      // Download failed - show package manager instructions
+      LO.WriteLn('');
+      LO.WriteLn(_(MSG_CROSS_DOWNLOAD_UNAVAIL));
+      LO.WriteLn('');
+      Instructions := GetPackageManagerInstructions(ATarget);
+      LO.WriteLn(Instructions);
+      LO.WriteLn('');
+      LO.WriteLn(_(MSG_CROSS_AFTER_INSTALL_HINT));
+      LO.WriteLn(_Fmt(MSG_CROSS_INSTALL_HINT, [ATarget]));
+      LO.WriteLn(_(MSG_CROSS_MANUAL_CONFIG_HINT));
+      LO.WriteLn(_Fmt(MSG_CROSS_CONFIGURE_HINT, [ATarget]));
+
+      // Return success since we provided instructions
+      Result := False;
       Exit;
     end;
 
-  // WriteLn('步骤 2/3: 下载库文件');  // 调试代码已注释
-    if not DownloadLibraries(ATarget, TargetInfo) then
+    // Download libraries (optional - don't fail if unavailable)
+    if not DownloadLibraries(ATarget, TargetInfo, LO) then
     begin
-  // WriteLn('错误: 下载库文件失败');  // 调试代码已注释
-      Exit;
+      LO.WriteLn(_(MSG_CROSS_LIBS_SKIP_NOTE));
     end;
 
-  // WriteLn('步骤 3/3: 配置环境');  // 调试代码已注释
+    // Step 3: Configure environment
+    LO.WriteLn(_(MSG_CROSS_INSTALL_STEP3));
     Result := SetupCrossEnvironment(ATarget, TargetInfo);
 
     if Result then
-  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 安装完成');  // 调试代码已注释
+    begin
+      LO.WriteLn('');
+      LO.WriteLn(_Fmt(MSG_CROSS_INSTALL_SUCCESS, [ATarget]));
+    end
+    else
+    begin
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_CROSS_SETUP_FAILED));
+    end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 安装过程中发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['installation', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.UninstallTarget(const ATarget: string): Boolean;
+function TCrossCompilerManager.UninstallTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   InstallPath: string;
 begin
@@ -401,7 +850,8 @@ begin
 
   if not IsTargetInstalled(ATarget) then
   begin
-  // WriteLn('交叉编译目标 ', ATarget, ' 未安装');  // 调试代码已注释
+    if Outp <> nil then
+      Outp.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_INSTALLED_MSG, [ATarget]));
     Result := True;
     Exit;
   end;
@@ -409,70 +859,39 @@ begin
   try
     InstallPath := GetTargetInstallPath(ATarget);
 
-  // WriteLn('正在卸载交叉编译目标 ', ATarget, '...');  // 调试代码已注释
-
     // 删除安装目录
     if DirectoryExists(InstallPath) then
-    begin
-      try
-        {$IFDEF MSWINDOWS}
-        // Windows下使用rmdir命令
-        with TProcess.Create(nil) do
-        try
-          Executable := 'cmd';
-          Parameters.Add('/c');
-          Parameters.Add('rmdir');
-          Parameters.Add('/s');
-          Parameters.Add('/q');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ELSE}
-        // Unix下使用rm命令
-        with TProcess.Create(nil) do
-        try
-          Executable := 'rm';
-          Parameters.Add('-rf');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ENDIF}
-      except
-  // WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);  // 调试代码已注释
-      end;
-    end;
+      DeleteDirRecursive(InstallPath);
 
     // 从配置中移除
-    FConfigManager.RemoveCrossTarget(ATarget);
+    FConfigManager.GetCrossTargetManager.RemoveCrossTarget(ATarget);
 
-  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 卸载完成');  // 调试代码已注释
+    if Outp <> nil then
+      Outp.WriteLn(_Fmt(MSG_CROSS_UNINSTALLED, [ATarget]));
     Result := True;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 卸载过程中发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['uninstallation', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.ListTargets(const AShowAll: Boolean): Boolean;
+function TCrossCompilerManager.ListTargets(const AShowAll: Boolean; Outp: IOutput): Boolean;
 var
   Targets: TCrossTargetArray;
   i: Integer;
+  Line: string;
+  LO: IOutput;
 begin
   Result := True;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
 
   try
     if AShowAll then
@@ -480,137 +899,164 @@ begin
     else
       Targets := GetInstalledTargets;
 
+    // Output header
     if AShowAll then
-  // WriteLn('可用的交叉编译目标:')  // 调试代码已注释
+      LO.WriteLn(_(MSG_CROSS_LIST_AVAILABLE))
     else
-  // WriteLn('已安装的交叉编译目标:');  // 调试代码已注释
+      LO.WriteLn(_(MSG_CROSS_LIST_INSTALLED));
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('目标        状态    显示名称                CPU       操作系统');  // 调试代码已注释
-  // WriteLn('------------------------------------------------------------');  // 调试代码已注释
+    LO.WriteLn('');
+
+    if Length(Targets) = 0 then
+    begin
+      if AShowAll then
+        LO.WriteLn(_(MSG_CROSS_LIST_NO_AVAILABLE))
+      else
+        LO.WriteLn(_(MSG_CROSS_LIST_NO_INSTALLED));
+      LO.WriteLn('');
+      LO.WriteLn(_(MSG_CROSS_LIST_USE_ALL));
+      Exit;
+    end;
+
+    LO.WriteLn(_(MSG_CROSS_LIST_TABLE_HEADER));
+    LO.WriteLn(_(MSG_CROSS_LIST_TABLE_LINE));
 
     for i := 0 to High(Targets) do
     begin
-      Write(Format('%-10s  ', [Targets[i].Name]));
+      Line := Format('%-10s  ', [Targets[i].Name]);
 
       if Targets[i].Installed then
-        Write('Installed  ')
+        Line := Line + _(MSG_CROSS_STATUS_INSTALLED)
       else
-        Write('Available  ');
+        Line := Line + _(MSG_CROSS_STATUS_AVAILABLE);
 
-      Write(Format('%-20s  ', [Targets[i].DisplayName]));
-      Write(Format('%-8s  ', [Targets[i].CPU]));
-      WriteLn(Targets[i].OS);
+      Line := Line + Format('%-20s  ', [Targets[i].DisplayName]);
+      Line := Line + Format('%-8s  ', [Targets[i].CPU]);
+      Line := Line + Targets[i].OS;
+
+      LO.WriteLn(Line);
     end;
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('总计: ', Length(Targets), ' 个目标');  // 调试代码已注释
+    LO.WriteLn('');
+    LO.WriteLn(_Fmt(MSG_CROSS_LIST_TOTAL, [IntToStr(Length(Targets))]));
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 列出目标时发生异常: ', E.Message);  // 调试代码已注释
+      LO.WriteLn(_Fmt(MSG_CROSS_LIST_ERROR, [E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.EnableTarget(const ATarget: string): Boolean;
+function TCrossCompilerManager.EnableTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   CrossTarget: TCrossTarget;
 begin
   Result := False;
 
   try
-    if FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
+    if FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
     begin
       CrossTarget.Enabled := True;
-      Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
+      Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
       if Result then
-  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 已启用')  // 调试代码已注释
+      begin
+        if Outp <> nil then
+          Outp.WriteLn(_Fmt(MSG_CROSS_ENABLED, [ATarget]));
+      end
       else
-  // WriteLn('错误: 启用目标失败');  // 调试代码已注释
+      begin
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_ENABLE_FAILED, [ATarget]));
+      end;
     end else
     begin
-  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_CONFIGURED, [ATarget]));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 启用目标时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['enabling target', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.DisableTarget(const ATarget: string): Boolean;
+function TCrossCompilerManager.DisableTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   CrossTarget: TCrossTarget;
 begin
   Result := False;
 
   try
-    if FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
+    if FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
     begin
       CrossTarget.Enabled := False;
-      Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
+      Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
       if Result then
-  // WriteLn('✓ 交叉编译目标 ', ATarget, ' 已禁用')  // 调试代码已注释
+      begin
+        if Outp <> nil then
+          Outp.WriteLn(_Fmt(MSG_CROSS_DISABLED, [ATarget]));
+      end
       else
-  // WriteLn('错误: 禁用目标失败');  // 调试代码已注释
+      begin
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DISABLE_FAILED, [ATarget]));
+      end;
     end else
     begin
-  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未配置');  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_CONFIGURED, [ATarget]));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 禁用目标时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['disabling target', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.ShowTargetInfo(const ATarget: string): Boolean;
+function TCrossCompilerManager.ShowTargetInfo(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   TargetInfo: TCrossTargetInfo;
-  CrossTarget: TCrossTarget;
   InstallPath: string;
+  LO: IOutput;
+  LE: IOutput;
 begin
   Result := False;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   if not ValidateTarget(ATarget) then
   begin
-  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   try
     TargetInfo := GetTargetInfo(ATarget);
-  // WriteLn('交叉编译目标信息: ', ATarget);  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-    WriteLn('Display Name: ', TargetInfo.DisplayName);
-    WriteLn('CPU Architecture: ', TargetInfo.CPU);
-    WriteLn('Operating System: ', TargetInfo.OS);
-    WriteLn('Binutils Prefix: ', TargetInfo.BinutilsPrefix);
+    LO.WriteLn(_Fmt(MSG_CROSS_SHOW_DISPLAY_NAME, [TargetInfo.DisplayName]));
+    LO.WriteLn(_Fmt(MSG_CROSS_SHOW_CPU, [TargetInfo.CPU]));
+    LO.WriteLn(_Fmt(MSG_CROSS_SHOW_OS, [TargetInfo.OS]));
+    LO.WriteLn(_Fmt(MSG_CROSS_SHOW_BINUTILS_PREFIX, [TargetInfo.BinutilsPrefix]));
 
     if TargetInfo.Installed then
     begin
       InstallPath := GetTargetInstallPath(ATarget);
-  // WriteLn('状态: 已安装');  // 调试代码已注释
-  // WriteLn('安装路径: ', InstallPath);  // 调试代码已注释
-
-      if FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
-      begin
-  // WriteLn('二进制工具路径: ', CrossTarget.BinutilsPath);  // 调试代码已注释
-  // WriteLn('库文件路径: ', CrossTarget.LibrariesPath);  // 调试代码已注释
-  // WriteLn('启用状态: ', CrossTarget.Enabled);  // 调试代码已注释
-      end;
-    end else
-    begin
-  // WriteLn('状态: 未安装');  // 调试代码已注释
+      if InstallPath <> '' then
+        LO.WriteLn('Install Path: ' + InstallPath);
     end;
 
     Result := True;
@@ -618,34 +1064,37 @@ begin
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 显示目标信息时发生异常: ', E.Message);  // 调试代码已注释
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['displaying target info', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.TestTarget(const ATarget: string): Boolean;
+function TCrossCompilerManager.TestTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   CrossTarget: TCrossTarget;
-  Process: TProcess;
+  LResult: TProcessResult;
   GCCExe: string;
 begin
   Result := False;
 
   if not IsTargetInstalled(ATarget) then
   begin
-  // WriteLn('错误: 交叉编译目标 ', ATarget, ' 未安装');  // 调试代码已注释
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
     Exit;
   end;
 
   try
-    if not FConfigManager.GetCrossTarget(ATarget, CrossTarget) then
+    if not FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
     begin
-  // WriteLn('错误: 无法获取交叉编译目标配置');  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_CROSS_CONFIG_GET_FAILED));
       Exit;
     end;
 
-  // WriteLn('测试交叉编译目标 ', ATarget, '...');  // 调试代码已注释
+    if Outp <> nil then
+      Outp.WriteLn(_Fmt(MSG_CROSS_TEST_TESTING, [ATarget]));
 
     // 查找交叉编译器
     GCCExe := CrossTarget.BinutilsPath + PathDelim + GetTargetInfo(ATarget).BinutilsPrefix + 'gcc';
@@ -655,52 +1104,92 @@ begin
 
     if not FileExists(GCCExe) then
     begin
-  // WriteLn('错误: 找不到交叉编译器: ', GCCExe);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_COMPILER_NOT_FOUND, [GCCExe]));
       Exit;
     end;
 
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := GCCExe;
-      Process.Parameters.Add('--version');
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-      Process.Execute;
-
-      Result := Process.ExitStatus = 0;
-      if Result then
-      begin
-        // WriteLn('✓ 交叉编译目标 ', ATarget, ' 测试通过')  // 调试代码已注释
-      end
-      else
-      begin
-        // WriteLn('✗ 交叉编译目标 ', ATarget, ' 测试失败');  // 调试代码已注释
-      end;
-
-    finally
-      Process.Free;
+    LResult := TProcessExecutor.Execute(GCCExe, ['--version'], '');
+    Result := LResult.Success;
+    if Result then
+    begin
+      if Outp <> nil then
+        Outp.WriteLn(_Fmt(MSG_CROSS_TEST_PASSED, [ATarget]));
+    end
+    else
+    begin
+      if Errp <> nil then
+        Errp.WriteLn(_Fmt(MSG_CROSS_TEST_FAILED_MSG, [ATarget]))
+      else if Outp <> nil then
+        Outp.WriteLn(_Fmt(MSG_CROSS_TEST_FAILED_MSG, [ATarget]));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 测试目标时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['testing target', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.BuildTest(const ATarget: string; const ASourceFile: string): Boolean;
+function TCrossCompilerManager.BuildTest(const ATarget: string; const ASourceFile: string; Outp: IOutput; Errp: IOutput): Boolean;
+var
+  CrossTarget: TCrossTarget;
+  TargetInfo: TCrossTargetInfo;
+  TestResult: TCrossBuildTestResult;
+  LO, LE: IOutput;
 begin
   Result := False;
-  // WriteLn('构建测试功能暂未实现');  // 调试代码已注释
-  // TODO: 实现交叉编译测试构建
-  // - 创建简单的测试程序
-  // - 使用交叉编译器编译
-  // - 验证输出文件
+
+  if ATarget = '' then Exit;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  // Check if target is installed
+  if not IsTargetInstalled(ATarget) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
+    Exit;
+  end;
+
+  // Get target configuration
+  if not FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_CROSS_CONFIG_GET_FAILED));
+    Exit;
+  end;
+
+  TargetInfo := GetTargetInfo(ATarget);
+
+  LO.WriteLn(_Fmt(MSG_CROSS_BUILDING_TEST, [ATarget]));
+  LO.WriteLn(_Fmt(MSG_CROSS_BUILD_TARGET_CPU, [TargetInfo.CPU]));
+  LO.WriteLn(_Fmt(MSG_CROSS_BUILD_TARGET_OS, [TargetInfo.OS]));
+
+  // Delegate to build tester service
+  TestResult := FBuildTester.ExecuteTest(ATarget, TargetInfo.CPU, TargetInfo.OS,
+    CrossTarget.BinutilsPath, CrossTarget.LibrariesPath, ASourceFile);
+
+  if TestResult.Success then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_BUILD_PASSED, [ATarget]));
+    LO.WriteLn(_Fmt(MSG_CROSS_OUTPUT_FILE, [TestResult.OutputFile]));
+    Result := True;
+  end
+  else
+  begin
+    LE.WriteLn(_Fmt(MSG_CROSS_BUILD_FAILED, [TestResult.ErrorMessage]));
+    Result := False;
+  end;
 end;
 
-function TCrossCompilerManager.ConfigureTarget(const ATarget: string; const ABinutilsPath, ALibrariesPath: string): Boolean;
+function TCrossCompilerManager.ConfigureTarget(const ATarget: string; const ABinutilsPath, ALibrariesPath: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
   CrossTarget: TCrossTarget;
 begin
@@ -708,280 +1197,199 @@ begin
 
   if not ValidateTarget(ATarget) then
   begin
-  // WriteLn('错误: 不支持的交叉编译目标: ', ATarget);  // 调试代码已注释
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   try
-    // 验证路径
+    // Validate paths
     if not DirectoryExists(ABinutilsPath) then
     begin
-  // WriteLn('错误: 二进制工具路径不存在: ', ABinutilsPath);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_BINUTILS_PATH_NOT_FOUND, [ABinutilsPath]));
       Exit;
     end;
 
     if not DirectoryExists(ALibrariesPath) then
     begin
-  // WriteLn('错误: 库文件路径不存在: ', ALibrariesPath);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_LIBS_PATH_NOT_FOUND, [ALibrariesPath]));
       Exit;
     end;
 
-    // 创建配置
-    FillChar(CrossTarget, SizeOf(CrossTarget), 0);
-    CrossTarget.Enabled := True;
-    CrossTarget.BinutilsPath := ABinutilsPath;
-    CrossTarget.LibrariesPath := ALibrariesPath;
+    // Create configuration
+    System.Initialize(CrossTarget);
+    try
+      CrossTarget.Enabled := True;
+      CrossTarget.BinutilsPath := ABinutilsPath;
+      CrossTarget.LibrariesPath := ALibrariesPath;
 
-    Result := FConfigManager.AddCrossTarget(ATarget, CrossTarget);
+      Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
+    finally
+      System.Finalize(CrossTarget);
+    end;
     if Result then
     begin
-      // WriteLn('✓ 交叉编译目标 ', ATarget, ' 配置完成')  // 调试代码已注释
+      if Outp <> nil then
+        Outp.WriteLn(string('Cross-compilation target ') + ATarget + string(' configured successfully'));
     end
     else
     begin
-      // WriteLn('错误: 配置目标失败');  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_CONFIGURE_FAILED, [ATarget]));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 配置目标时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXCEPTION, ['configuring target', E.Message]));
       Result := False;
     end;
   end;
 end;
 
-function TCrossCompilerManager.UpdateTarget(const ATarget: string): Boolean;
-begin
-  Result := False;
-  // WriteLn('更新目标功能暂未实现');  // 调试代码已注释
-  // TODO: 实现目标更新功能
-end;
-
-function TCrossCompilerManager.CleanTarget(const ATarget: string): Boolean;
-begin
-  Result := False;
-  // WriteLn('清理目标功能暂未实现');  // 调试代码已注释
-  // TODO: 实现目标清理功能
-end;
-
-// 主要执行函数
-procedure execute(const aParams: array of string);
+function TCrossCompilerManager.UpdateTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
 var
-  ConfigManager: TFPDevConfigManager;
-  CrossManager: TCrossCompilerManager;
-  Command: string;
-  Target: string;
-  BinutilsPath, LibrariesPath: string;
-  ShowAll: Boolean;
-  i: Integer;
+  TargetInfo: TCrossTargetInfo;
+  LO, LE: IOutput;
 begin
-  if Length(aParams) = 0 then
+  Result := False;
+
+  if ATarget = '' then Exit;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  // Validate target
+  if not ValidateTarget(ATarget) then
   begin
-  // WriteLn('交叉编译工具链管理');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('用法:');  // 调试代码已注释
-  // WriteLn('  fpdev cross install <target>                           安装交叉编译目标');  // 调试代码已注释
-  // WriteLn('  fpdev cross uninstall <target>                         卸载交叉编译目标');  // 调试代码已注释
-  // WriteLn('  fpdev cross list [--all]                               列出交叉编译目标');  // 调试代码已注释
-  // WriteLn('  fpdev cross enable <target>                            启用交叉编译目标');  // 调试代码已注释
-  // WriteLn('  fpdev cross disable <target>                           禁用交叉编译目标');  // 调试代码已注释
-    WriteLn('  fpdev cross info <target>                              Show target information');
-  // WriteLn('  fpdev cross test <target>                              测试交叉编译目标');  // 调试代码已注释
-  // WriteLn('  fpdev cross configure <target> --binutils=<path> --libraries=<path>  配置目标路径');  // 调试代码已注释
-  // WriteLn('  fpdev cross build <target> [source-file]               构建测试程序');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('支持的目标:');  // 调试代码已注释
-  // WriteLn('  win32, win64          - Windows 32/64位');  // 调试代码已注释
-  // WriteLn('  linux32, linux64      - Linux 32/64位');  // 调试代码已注释
-  // WriteLn('  linuxarm, linuxarm64  - Linux ARM/ARM64');  // 调试代码已注释
-  // WriteLn('  darwin32, darwin64    - macOS 32/64位');  // 调试代码已注释
-  // WriteLn('  darwinarm64           - macOS ARM64');  // 调试代码已注释
-  // WriteLn('  android               - Android');  // 调试代码已注释
-  // WriteLn('  ios                   - iOS');  // 调试代码已注释
-  // WriteLn('  freebsd64             - FreeBSD 64位');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('示例:');  // 调试代码已注释
-  // WriteLn('  fpdev cross install win64                              安装Windows 64位交叉编译');  // 调试代码已注释
-  // WriteLn('  fpdev cross configure win64 --binutils=/usr/bin --libraries=/usr/lib  手动配置路径');  // 调试代码已注释
-  // WriteLn('  fpdev cross list --all                                 列出所有可用目标');  // 调试代码已注释
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
-  ConfigManager := TFPDevConfigManager.Create;
-  try
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
-
-    CrossManager := TCrossCompilerManager.Create(ConfigManager);
-    try
-      Command := LowerCase(aParams[0]);
-
-      case Command of
-        'install':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要安装的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross install <target>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.InstallTarget(Target);
-        end;
-
-        'uninstall':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要卸载的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross uninstall <target>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.UninstallTarget(Target);
-        end;
-
-        'list':
-        begin
-          ShowAll := (Length(aParams) > 1) and SameText(aParams[1], '--all');
-          CrossManager.ListTargets(ShowAll);
-        end;
-
-        'enable':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要启用的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross enable <target>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.EnableTarget(Target);
-        end;
-
-        'disable':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要禁用的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross disable <target>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.DisableTarget(Target);
-        end;
-
-        'info':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要查看信息的目标');  // 调试代码已注释
-            WriteLn('Usage: fpdev cross info <target>');
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.ShowTargetInfo(Target);
-        end;
-
-        'test':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要测试的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross test <target>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          CrossManager.TestTarget(Target);
-        end;
-
-        'configure':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要配置的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          BinutilsPath := '';
-          LibrariesPath := '';
-
-          // 解析参数
-          for i := 2 to High(aParams) do
-          begin
-            if Pos('--binutils=', LowerCase(aParams[i])) = 1 then
-              BinutilsPath := Copy(aParams[i], 12, Length(aParams[i]))
-            else if Pos('--libraries=', LowerCase(aParams[i])) = 1 then
-              LibrariesPath := Copy(aParams[i], 13, Length(aParams[i]));
-          end;
-
-          if (BinutilsPath = '') or (LibrariesPath = '') then
-          begin
-  // WriteLn('错误: 请指定二进制工具和库文件路径');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross configure <target> --binutils=<path> --libraries=<path>');  // 调试代码已注释
-            Exit;
-          end;
-
-          CrossManager.ConfigureTarget(Target, BinutilsPath, LibrariesPath);
-        end;
-
-        'build':
-        begin
-          if Length(aParams) < 2 then
-          begin
-  // WriteLn('错误: 请指定要构建的目标');  // 调试代码已注释
-  // WriteLn('用法: fpdev cross build <target> [source-file]');  // 调试代码已注释
-            Exit;
-          end;
-
-          Target := aParams[1];
-          if Length(aParams) > 2 then
-            CrossManager.BuildTest(Target, aParams[2])
-          else
-            CrossManager.BuildTest(Target, '');
-        end;
-
-        'update':
-        begin
-          if Length(aParams) > 1 then
-            Target := aParams[1]
-          else
-            Target := '';
-          CrossManager.UpdateTarget(Target);
-        end;
-
-        'clean':
-        begin
-          if Length(aParams) > 1 then
-            Target := aParams[1]
-          else
-            Target := '';
-          CrossManager.CleanTarget(Target);
-        end;
-
-      else
-  // WriteLn('错误: 未知的命令: ', Command);  // 调试代码已注释
-  // WriteLn('使用 "fpdev cross" 查看帮助信息');  // 调试代码已注释
-      end;
-
-    finally
-      CrossManager.Free;
-    end;
-
-    ConfigManager.SaveConfig;
-
-  finally
-    ConfigManager.Free;
+  // Check if target is installed
+  if not IsTargetInstalled(ATarget) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
+    LO.WriteLn(_Fmt(MSG_CROSS_USE_INSTALL_FIRST, [ATarget]));
+    Exit;
   end;
+
+  LO.WriteLn(_Fmt(MSG_CROSS_UPDATING, [ATarget]));
+
+  TargetInfo := GetTargetInfo(ATarget);
+
+  // Re-download binutils
+  LO.WriteLn(_(MSG_CROSS_UPDATE_STEP1));
+  if not DownloadBinutils(ATarget, TargetInfo, LO) then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_UPDATE_BINUTILS_WARN, [ATarget]));
+    // Continue anyway - might be manual installation
+  end;
+
+  // Re-download libraries
+  LO.WriteLn(_(MSG_CROSS_UPDATE_STEP2));
+  if not DownloadLibraries(ATarget, TargetInfo, LO) then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_UPDATE_LIBS_WARN, [ATarget]));
+    // Continue anyway - might be manual installation
+  end;
+
+  LO.WriteLn(_Fmt(MSG_CROSS_UPDATE_DONE, [ATarget]));
+  Result := True;
+end;
+
+function TCrossCompilerManager.CleanTarget(const ATarget: string; Outp: IOutput; Errp: IOutput): Boolean;
+var
+  InstallPath: string;
+  BinutilsPath, LibPath: string;
+  CrossTarget: TCrossTarget;
+  LO, LE: IOutput;
+begin
+  Result := False;
+
+  if ATarget = '' then Exit;
+
+  LO := Outp;
+  if LO = nil then
+    LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
+
+  // Validate target
+  if not ValidateTarget(ATarget) then
+  begin
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
+    Exit;
+  end;
+
+  // Check if target is installed
+  if not IsTargetInstalled(ATarget) then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_NOT_INSTALLED_NOTHING, [ATarget]));
+    Result := True;
+    Exit;
+  end;
+
+  LO.WriteLn(_Fmt(MSG_CROSS_CLEANING, [ATarget]));
+
+  // Get paths
+  InstallPath := GetTargetInstallPath(ATarget);
+  BinutilsPath := InstallPath + PathDelim + 'bin';
+  LibPath := InstallPath + PathDelim + 'lib';
+
+  // Get current configuration
+  if FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
+  begin
+    // Use configured paths if different
+    if (CrossTarget.BinutilsPath <> '') and (CrossTarget.BinutilsPath <> BinutilsPath) then
+      BinutilsPath := CrossTarget.BinutilsPath;
+    if (CrossTarget.LibrariesPath <> '') and (CrossTarget.LibrariesPath <> LibPath) then
+      LibPath := CrossTarget.LibrariesPath;
+  end;
+
+  // Clean binutils directory
+  if DirectoryExists(BinutilsPath) then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_CLEANING_BINUTILS, [BinutilsPath]));
+    DeleteDirRecursive(BinutilsPath);
+  end;
+
+  // Clean libraries directory
+  if DirectoryExists(LibPath) then
+  begin
+    LO.WriteLn(_Fmt(MSG_CROSS_CLEANING_LIBS, [LibPath]));
+    DeleteDirRecursive(LibPath);
+  end;
+
+  // Clean downloaded archives
+  if FileExists(InstallPath + PathDelim + 'binutils.tar.xz') then
+    DeleteFile(InstallPath + PathDelim + 'binutils.tar.xz');
+  if FileExists(InstallPath + PathDelim + 'binutils.zip') then
+    DeleteFile(InstallPath + PathDelim + 'binutils.zip');
+  if FileExists(InstallPath + PathDelim + 'libraries.tar.xz') then
+    DeleteFile(InstallPath + PathDelim + 'libraries.tar.xz');
+  if FileExists(InstallPath + PathDelim + 'libraries.zip') then
+    DeleteFile(InstallPath + PathDelim + 'libraries.zip');
+
+  // Clean test artifacts
+  if FileExists(InstallPath + PathDelim + 'cross_test.pas') then
+    DeleteFile(InstallPath + PathDelim + 'cross_test.pas');
+  if FileExists(InstallPath + PathDelim + 'cross_test') then
+    DeleteFile(InstallPath + PathDelim + 'cross_test');
+  if FileExists(InstallPath + PathDelim + 'cross_test.exe') then
+    DeleteFile(InstallPath + PathDelim + 'cross_test.exe');
+
+  LO.WriteLn(_Fmt(MSG_CROSS_CLEAN_DONE, [ATarget]));
+  LO.WriteLn(_Fmt(MSG_CROSS_CLEAN_NOTE, [ATarget]));
+  Result := True;
 end;
 
 end.

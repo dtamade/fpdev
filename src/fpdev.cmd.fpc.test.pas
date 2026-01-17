@@ -6,46 +6,79 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config, fpdev.cmd.fpc;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TFPCCTestCommand }
-  TFPCCTestCommand = class(TInterfacedObject, IFpdevCommand)
+  TFPCCTestCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-uses fpdev.utils;
+uses fpdev.cmd.utils;
 
 function TFPCCTestCommand.Name: string; begin Result := 'test'; end;
-function TFPCCTestCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TFPCCTestCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
 
-procedure TFPCCTestCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TFPCCTestCommand.Aliases: TStringArray;
+begin
+  Result := nil;
+end;
+
+function TFPCCTestCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;  // Unused parameter
+end;
+
+function TFPCCTestCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LVer: string;
   LMgr: TFPCManager;
 begin
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_TEST_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_TEST_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_TEST_OPT_HELP));
+    Exit(0);
+  end;
+
   if Length(AParams) < 1 then
   begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc test 3.2.2');  // 调试代码已注释
-    Exit;
-  end;
-  LVer := AParams[0];
-  LMgr := TFPCManager.Create(Ctx.Config);
+    // Use current default version if not specified
+    LVer := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
+    if LVer <> '' then
+      LVer := StringReplace(LVer, 'fpc-', '', [rfReplaceAll]);
+    if LVer = '' then
+    begin
+      Ctx.Err.WriteLn(_(CMD_FPC_CURRENT_NONE));
+      Exit(2);
+    end;
+  end
+  else
+    LVer := AParams[0];
+  LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
-    LMgr.TestInstallation(LVer);
+    if LMgr.TestInstallation(Ctx.Out, Ctx.Err, LVer) then
+      Exit(0);
+    Result := 3;
   finally
     LMgr.Free;
   end;
 end;
 
-function FPCTestFactory: IFpdevCommand;
+function FPCTestFactory: ICommand;
 begin
   Result := TFPCCTestCommand.Create;
 end;

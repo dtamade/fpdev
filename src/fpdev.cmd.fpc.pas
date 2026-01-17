@@ -1,7 +1,5 @@
 unit fpdev.cmd.fpc;
 
-{$codepage utf8}
-
 {
 
 ```text
@@ -34,34 +32,13 @@ interface
 
 uses
   SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
-  fpdev.config, fpdev.utils, fpdev.terminal, fpdev.fpc.source,
-  fphttpclient, zipper;
+  fpdev.output.intf, fpdev.config, fpdev.config.interfaces, fpdev.fpc.source,
+  fpdev.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
+  fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
+  fpdev.fpc.builder, fpdev.fpc.verify, fpdev.constants, fpdev.build.cache, fpdev.paths;
 
 type
-  { TFPCVersionInfo }
-  TFPCVersionInfo = record
-    Version: string;
-    ReleaseDate: string;
-    GitTag: string;
-    Branch: string;
-    Available: Boolean;
-    Installed: Boolean;
-  end;
-
-  TFPCVersionArray = array of TFPCVersionInfo;
-
-  { TVerificationResult }
-  TVerificationResult = record
-    Verified: Boolean;
-    ExecutableExists: Boolean;
-    DetectedVersion: string;
-    SmokeTestPassed: Boolean;
-    ErrorMessage: string;
-  end;
-
-  { Installation Scope }
-  TInstallScope = (isUser, isProject, isSystem);
-
   { Source Mode for installation }
   TSourceMode = (smAuto, smBinary, smSource);
 
@@ -92,16 +69,6 @@ type
     InstalledAt: TDateTime;
   end;
 
-  { Activation Result }
-  TActivationResult = record
-    Success: Boolean;
-    Scope: TInstallScope;
-    ActivationScript: string;  // Main activation script path (.cmd or .sh)
-    VSCodeSettings: string;     // VS Code settings.json path (if created)
-    ShellCommand: string;       // Shell command to print to user
-    ErrorMessage: string;
-  end;
-
   { Binary Download Info }
   TBinaryDownloadInfo = record
     URL: string;
@@ -113,38 +80,44 @@ type
   { TFPCManager }
   TFPCManager = class
   private
-    FConfigManager: TFPDevConfigManager;
+    FConfigManager: IConfigManager;
     FInstallRoot: string;
+    FResourceRepo: TResourceRepository;  // 资源仓库管理器
+    FActivationMgr: TFPCActivationManager;  // Activation service (Facade delegation)
+    FValidatorMgr: TFPCValidator;  // Validation service (Facade delegation)
+    FVersionMgr: TFPCVersionManager;  // Version service (Facade delegation)
+    FInstallerMgr: TFPCBinaryInstaller;  // Binary installation service (Facade delegation)
+    FBuilderMgr: TFPCSourceBuilder;  // Source build service (Facade delegation)
+    FBuildCache: TBuildCache;  // Build artifact cache for fast version switching
+
+    FOut: IOutput;
+    FErr: IOutput;
 
     function GetAvailableVersions: TFPCVersionArray;
     function GetInstalledVersions: TFPCVersionArray;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
     function BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
-    function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
     function ValidateVersion(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
-    function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
 
-    // Scoped installation support
-    function DetectInstallScope(const ACurrentDir: string): TInstallScope;
-
-    // Activation support
-    function FindProjectRoot(const AStartDir: string): string;
-    function CreateWindowsActivationScript(const AScriptPath, ABinPath: string): Boolean;
-    function CreateUnixActivationScript(const AScriptPath, ABinPath: string): Boolean;
-    function UpdateVSCodeSettings(const AProjectRoot, ABinPath: string): Boolean;
-    function ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
-    function ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+    // Bootstrap compiler management (delegated to FBuilderMgr)
+    function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
+    function GetCurrentFPCVersion: string;
+    function GetBootstrapCompilerPath(const AVersion: string): string;
+    function IsBootstrapAvailable(const AVersion: string): Boolean;
+    function EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 
   public
-    constructor Create(AConfigManager: TFPDevConfigManager);
+    constructor Create(AConfigManager: IConfigManager; const AOut: IOutput = nil; const AErr: IOutput = nil);
     destructor Destroy; override;
 
     // 版本管理
     function InstallVersion(const AVersion: string; const AFromSource: Boolean = False; const APrefix: string = ''; const AEnsure: Boolean = False): Boolean;
     function UninstallVersion(const AVersion: string): Boolean;
-    function ListVersions(const AShowAll: Boolean = False): Boolean;
-    function SetDefaultVersion(const AVersion: string): Boolean;
+    function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
+    function ListVersions(const Outp: IOutput; const AShowAll: Boolean = False): Boolean; overload;
+    function SetDefaultVersion(const AVersion: string): Boolean; overload;
+    function SetDefaultVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function GetCurrentVersion: string;
     function ActivateVersion(const AVersion: string): TActivationResult;
 
@@ -160,54 +133,28 @@ type
     function CleanSources(const AVersion: string = ''): Boolean;
 
     // 工具链操作
-    function ShowVersionInfo(const AVersion: string): Boolean;
-    function TestInstallation(const AVersion: string): Boolean;
+    function ShowVersionInfo(const AVersion: string): Boolean; overload;
+    function ShowVersionInfo(const Outp: IOutput; const AVersion: string): Boolean; overload;
+    function TestInstallation(const AVersion: string): Boolean; overload;
+    function TestInstallation(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
     function GetVersionInstallPath(const AVersion: string): string;
 
     // Metadata operations (public for testing)
     function WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
     function ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
+
+    // Environment setup (public for cache restore)
+    function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
   end;
-
-// 主要执行函数
-procedure Execute(const aParams: array of string);
-
 
 // 导出索引更新过程，供子命令调用
 procedure FPC_UpdateIndex;
 
 implementation
 
-function HasFlag(const Params: array of string; const Flag: string): Boolean;
-var
-  i: Integer;
-begin
-  Result := False;
-  for i := Low(Params) to High(Params) do
-    if SameText(Params[i], '--' + Flag) or SameText(Params[i], '-' + Flag) then
-      Exit(True);
-end;
-
-function GetFlagValue(const Params: array of string; const Key: string; out Value: string): Boolean;
-var
-  i, p: Integer;
-  s, k: string;
-begin
-  Result := False;
-  Value := '';
-  k := '--' + Key + '=';
-  for i := Low(Params) to High(Params) do
-  begin
-    s := Params[i];
-    p := Pos(k, s);
-    if p = 1 then
-    begin
-      Value := Copy(s, Length(k) + 1, MaxInt);
-      Exit(True);
-    end;
-  end;
-end;
+uses
+  fpdev.output.console, fpdev.version.registry;
 
 procedure SafeWriteAllText(const APath, AText: string);
 var
@@ -216,7 +163,7 @@ var
 begin
   Dir := ExtractFileDir(APath);
   if (Dir <> '') and (not DirectoryExists(Dir)) then
-    ForceDirectories(Dir);
+    EnsureDir(Dir);
   L := TStringList.Create;
   try
     L.Text := AText;
@@ -240,16 +187,6 @@ begin
     L.Free;
   end;
 end;
-
-const
-  FPC_OFFICIAL_REPO = 'https://gitlab.com/freepascal.org/fpc/source.git';
-  FPC_RELEASES: array[0..4] of TFPCVersionInfo = (
-    (Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'3_2_2'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.2.0'; ReleaseDate:'2020-06-19'; GitTag:'3_2_0'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.0.4'; ReleaseDate:'2017-11-21'; GitTag:'3_0_4'; Branch:'fixes_3_0'; Available:True; Installed:False),
-    (Version:'3.3.1'; ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False),
-    (Version:'main';  ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False)
-  );
 
 var
   FPDEV_LOGFILE: string = '';
@@ -346,36 +283,36 @@ var
   S: TStringList;
   CacheDir, IndexPath, NowIso, Channel: string;
   i: Integer;
+  Releases: TFPCReleaseArray;
 begin
-  // WriteLn('i 刷新远端版本索引（联网）');  // 调试代码已注释
   LogLine('[update] begin');
   Cfg := TFPDevConfigManager.Create('');
   try
     Cfg.LoadConfig;
     CacheDir := Cfg.GetSettings.InstallRoot + PathDelim + 'cache' + PathDelim + 'fpc';
-    if not DirectoryExists(CacheDir) then ForceDirectories(CacheDir);
+    EnsureDir(CacheDir);
     IndexPath := CacheDir + PathDelim + 'index.json';
     NowIso := FormatDateTime('yyyy"-"mm"-"dd"T"hh":"nn":"ss"Z"', Now);
+    Releases := TVersionRegistry.Instance.GetFPCReleases;
     S := TStringList.Create;
     try
       S.Add('{');
       S.Add('  "version": "1",');
       S.Add('  "updated_at": "' + NowIso + '",');
       S.Add('  "items": [');
-      for i := Low(FPC_RELEASES) to High(FPC_RELEASES) do
+      for i := 0 to High(Releases) do
       begin
-        if SameText(FPC_RELEASES[i].Version, 'main') then Channel := 'development' else Channel := 'stable';
+        Channel := Releases[i].Channel;
         S.Add('    {');
-        S.Add('      "version": "' + FPC_RELEASES[i].Version + '",');
-        S.Add('      "tag": "' + FPC_RELEASES[i].GitTag + '",');
-        S.Add('      "branch": "' + FPC_RELEASES[i].Branch + '",');
+        S.Add('      "version": "' + Releases[i].Version + '",');
+        S.Add('      "tag": "' + Releases[i].GitTag + '",');
+        S.Add('      "branch": "' + Releases[i].Branch + '",');
         S.Add('      "channel": "' + Channel + '"');
-        if i < High(FPC_RELEASES) then S.Add('    },') else S.Add('    }');
+        if i < High(Releases) then S.Add('    },') else S.Add('    }');
       end;
       S.Add('  ]');
       S.Add('}');
       S.SaveToFile(IndexPath);
-  // WriteLn('✓ 已更新索引: ', IndexPath);  // 调试代码已注释
       LogLine('[update] index: ' + IndexPath);
     finally
       S.Free;
@@ -389,14 +326,29 @@ end;
 
 { TFPCManager }
 
-constructor TFPCManager.Create(AConfigManager: TFPDevConfigManager);
+constructor TFPCManager.Create(AConfigManager: IConfigManager; const AOut: IOutput; const AErr: IOutput);
 var
   Settings: TFPDevSettings;
+  CacheDir: string;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
+  FResourceRepo := nil;  // 延迟初始化
+  FActivationMgr := TFPCActivationManager.Create(AConfigManager);  // Activation service
+  FValidatorMgr := TFPCValidator.Create(AConfigManager);  // Validation service
+  FVersionMgr := TFPCVersionManager.Create(AConfigManager);  // Version service
+  FInstallerMgr := TFPCBinaryInstaller.Create(AConfigManager, AOut, AErr);  // Installer service
+  FBuilderMgr := TFPCSourceBuilder.Create(AConfigManager, AOut, AErr);  // Builder service
 
-  Settings := FConfigManager.GetSettings;
+  FOut := AOut;
+  if FOut = nil then
+    FOut := TConsoleOutput.Create(False) as IOutput;
+
+  FErr := AErr;
+  if FErr = nil then
+    FErr := TConsoleOutput.Create(True) as IOutput;
+
+  Settings := FConfigManager.GetSettingsManager.GetSettings;
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
@@ -404,299 +356,35 @@ begin
     // 默认优先使用程序旁 data 目录，不可写时再由 ConfigManager 回退
     FInstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
     Settings.InstallRoot := FInstallRoot;
-    FConfigManager.SetSettings(Settings);
+    FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
 
   // 确保安装目录存在
   if not DirectoryExists(FInstallRoot) then
-    ForceDirectories(FInstallRoot);
+    EnsureDir(FInstallRoot);
+
+  // Initialize build cache
+  CacheDir := FInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
+  FBuildCache := TBuildCache.Create(CacheDir);
 end;
 
 destructor TFPCManager.Destroy;
 begin
+  if Assigned(FBuildCache) then
+    FBuildCache.Free;
+  if Assigned(FBuilderMgr) then
+    FBuilderMgr.Free;
+  if Assigned(FInstallerMgr) then
+    FInstallerMgr.Free;
+  if Assigned(FVersionMgr) then
+    FVersionMgr.Free;
+  if Assigned(FValidatorMgr) then
+    FValidatorMgr.Free;
+  if Assigned(FActivationMgr) then
+    FActivationMgr.Free;
+  if Assigned(FResourceRepo) then
+    FResourceRepo.Free;
   inherited Destroy;
-end;
-
-function TFPCManager.DetectInstallScope(const ACurrentDir: string): TInstallScope;
-var
-  Dir, FPDevDir: string;
-begin
-  // Default to user scope
-  Result := isUser;
-
-  // Start from current directory and search up
-  Dir := ExpandFileName(ACurrentDir);
-
-  while Dir <> '' do
-  begin
-    FPDevDir := Dir + PathDelim + '.fpdev';
-    if DirectoryExists(FPDevDir) then
-    begin
-      Result := isProject;
-      Exit;
-    end;
-
-    // Move up to parent directory
-    Dir := ExtractFileDir(Dir);
-
-    // Stop at root (when parent == current)
-    if Dir = ExtractFileDir(Dir) then
-      Break;
-  end;
-end;
-
-function TFPCManager.FindProjectRoot(const AStartDir: string): string;
-var
-  Dir: string;
-begin
-  Result := '';
-  Dir := ExpandFileName(AStartDir);
-
-  while Dir <> '' do
-  begin
-    if DirectoryExists(Dir + PathDelim + '.fpdev') then
-    begin
-      Result := Dir;
-      Exit;
-    end;
-
-    // Move up to parent directory
-    Dir := ExtractFileDir(Dir);
-
-    // Stop at root (when parent == current)
-    if Dir = ExtractFileDir(Dir) then
-      Break;
-  end;
-end;
-
-function TFPCManager.CreateWindowsActivationScript(const AScriptPath, ABinPath: string): Boolean;
-var
-  Script: TStringList;
-begin
-  Result := False;
-
-  try
-    Script := TStringList.Create;
-    try
-      Script.Add('@echo off');
-      Script.Add('REM FPC Environment Activation Script');
-      Script.Add('REM Generated by fpdev');
-      Script.Add('');
-      Script.Add('SET "PATH=' + ABinPath + ';%PATH%"');
-      Script.Add('');
-      Script.Add('echo FPC environment activated');
-      Script.Add('echo FPC bin directory: ' + ABinPath);
-
-      SafeWriteAllText(AScriptPath, Script.Text);
-      Result := True;
-    finally
-      Script.Free;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-function TFPCManager.CreateUnixActivationScript(const AScriptPath, ABinPath: string): Boolean;
-var
-  Script: TStringList;
-begin
-  Result := False;
-
-  try
-    Script := TStringList.Create;
-    try
-      Script.Add('#!/bin/sh');
-      Script.Add('# FPC Environment Activation Script');
-      Script.Add('# Generated by fpdev');
-      Script.Add('');
-      Script.Add('export PATH="' + ABinPath + ':$PATH"');
-      Script.Add('');
-      Script.Add('echo "FPC environment activated"');
-      Script.Add('echo "FPC bin directory: ' + ABinPath + '"');
-
-      SafeWriteAllText(AScriptPath, Script.Text);
-      Result := True;
-    finally
-      Script.Free;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-function TFPCManager.UpdateVSCodeSettings(const AProjectRoot, ABinPath: string): Boolean;
-var
-  VSCodeDir, SettingsPath, JSONText: string;
-  JSON: TJSONObject;
-  Parser: TJSONParser;
-  EnvObj: TJSONObject;
-  PathValue: string;
-begin
-  Result := False;
-
-  try
-    VSCodeDir := AProjectRoot + PathDelim + '.vscode';
-    if not DirectoryExists(VSCodeDir) then
-      ForceDirectories(VSCodeDir);
-
-    SettingsPath := VSCodeDir + PathDelim + 'settings.json';
-
-    // Read existing settings or create new
-    if FileExists(SettingsPath) then
-    begin
-      JSONText := ReadAllTextIfExists(SettingsPath);
-      if JSONText <> '' then
-      begin
-        Parser := TJSONParser.Create(JSONText);
-        try
-          JSON := TJSONObject(Parser.Parse);
-        finally
-          Parser.Free;
-        end;
-      end
-      else
-        JSON := TJSONObject.Create;
-    end
-    else
-      JSON := TJSONObject.Create;
-
-    try
-      // Update terminal.integrated.env.windows/linux/osx based on platform
-      {$IFDEF MSWINDOWS}
-      if not JSON.Find('terminal.integrated.env.windows', EnvObj) then
-      begin
-        EnvObj := TJSONObject.Create;
-        JSON.Add('terminal.integrated.env.windows', EnvObj);
-      end;
-      PathValue := ABinPath + ';%PATH%';
-      {$ENDIF}
-
-      {$IFDEF LINUX}
-      if not JSON.Find('terminal.integrated.env.linux', EnvObj) then
-      begin
-        EnvObj := TJSONObject.Create;
-        JSON.Add('terminal.integrated.env.linux', EnvObj);
-      end;
-      PathValue := ABinPath + ':$PATH';
-      {$ENDIF}
-
-      {$IFDEF DARWIN}
-      if not JSON.Find('terminal.integrated.env.osx', EnvObj) then
-      begin
-        EnvObj := TJSONObject.Create;
-        JSON.Add('terminal.integrated.env.osx', EnvObj);
-      end;
-      PathValue := ABinPath + ':$PATH';
-      {$ENDIF}
-
-      // Set PATH value
-      EnvObj.Strings['PATH'] := PathValue;
-
-      // Write settings
-      SafeWriteAllText(SettingsPath, JSON.FormatJSON);
-      Result := True;
-    finally
-      JSON.Free;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-function TFPCManager.ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
-var
-  ProjectRoot, EnvDir: string;
-  ActivateCmd, ActivateSh, VSCodeSettingsPath: string;
-begin
-  Result := False;
-
-  // Find project root
-  ProjectRoot := FindProjectRoot(GetCurrentDir);
-  if ProjectRoot = '' then
-  begin
-    AResult.ErrorMessage := 'Cannot find project root (.fpdev directory)';
-    Exit;
-  end;
-
-  // Create env directory
-  EnvDir := ProjectRoot + PathDelim + '.fpdev' + PathDelim + 'env';
-  if not DirectoryExists(EnvDir) then
-    ForceDirectories(EnvDir);
-
-  // Create activation scripts
-  ActivateCmd := EnvDir + PathDelim + 'activate.cmd';
-  ActivateSh := EnvDir + PathDelim + 'activate.sh';
-
-  if not CreateWindowsActivationScript(ActivateCmd, ABinPath) then
-  begin
-    AResult.ErrorMessage := 'Failed to create Windows activation script';
-    Exit;
-  end;
-
-  if not CreateUnixActivationScript(ActivateSh, ABinPath) then
-  begin
-    AResult.ErrorMessage := 'Failed to create Unix activation script';
-    Exit;
-  end;
-
-  AResult.ActivationScript := ActivateCmd;
-
-  // Optional: Update VS Code settings (non-fatal if fails)
-  if UpdateVSCodeSettings(ProjectRoot, ABinPath) then
-  begin
-    VSCodeSettingsPath := ProjectRoot + PathDelim + '.vscode' + PathDelim + 'settings.json';
-    AResult.VSCodeSettings := VSCodeSettingsPath;
-  end;
-
-  // Generate shell command
-  {$IFDEF MSWINDOWS}
-  AResult.ShellCommand := '.fpdev\env\activate.cmd';
-  {$ELSE}
-  AResult.ShellCommand := 'source .fpdev/env/activate.sh';
-  {$ENDIF}
-
-  Result := True;
-end;
-
-function TFPCManager.ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
-var
-  EnvDir: string;
-  ActivateCmd, ActivateSh: string;
-begin
-  Result := False;
-
-  // Create user env directory
-  EnvDir := ExtractFileDir(FConfigManager.ConfigPath) + PathDelim + 'env';
-  if not DirectoryExists(EnvDir) then
-    ForceDirectories(EnvDir);
-
-  // Create activation scripts with version suffix
-  ActivateCmd := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
-  ActivateSh := EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
-
-  if not CreateWindowsActivationScript(ActivateCmd, ABinPath) then
-  begin
-    AResult.ErrorMessage := 'Failed to create Windows activation script';
-    Exit;
-  end;
-
-  if not CreateUnixActivationScript(ActivateSh, ABinPath) then
-  begin
-    AResult.ErrorMessage := 'Failed to create Unix activation script';
-    Exit;
-  end;
-
-  AResult.ActivationScript := ActivateCmd;
-
-  // Generate shell command
-  {$IFDEF MSWINDOWS}
-  AResult.ShellCommand := EnvDir + PathDelim + 'activate-' + AVersion + '.cmd';
-  {$ELSE}
-  AResult.ShellCommand := 'source ' + EnvDir + PathDelim + 'activate-' + AVersion + '.sh';
-  {$ENDIF}
-
-  Result := True;
 end;
 
 function TFPCManager.WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
@@ -759,7 +447,7 @@ begin
   except
     on E: Exception do
     begin
-      // Silent failure for now
+      FErr.WriteLn(_(MSG_ERROR) + ': WriteMetadata failed - ' + E.Message);
       Result := False;
     end;
   end;
@@ -772,7 +460,7 @@ var
   Parser: TJSONParser;
 begin
   Result := False;
-  FillChar(AMeta, SizeOf(AMeta), 0);
+  Initialize(AMeta);
 
   try
     MetaPath := AInstallPath + PathDelim + '.fpdev-meta.json';
@@ -784,7 +472,7 @@ begin
     if JSONText = '' then
       Exit;
 
-    Parser := TJSONParser.Create(JSONText);
+    Parser := TJSONParser.Create(JSONText, []);
     try
       JSON := TJSONObject(Parser.Parse);
       try
@@ -841,7 +529,7 @@ begin
   except
     on E: Exception do
     begin
-      // Silent failure
+      FErr.WriteLn(_(MSG_ERROR) + ': ReadMetadata failed - ' + E.Message);
       Result := False;
     end;
   end;
@@ -852,8 +540,8 @@ var
   Scope: TInstallScope;
   ProjectRoot: string;
 begin
-  // Detect current scope
-  Scope := DetectInstallScope(GetCurrentDir);
+  // Detect current scope (delegate to activation manager)
+  Scope := FActivationMgr.DetectInstallScope(GetCurrentDir);
 
   if Scope = isProject then
   begin
@@ -861,9 +549,9 @@ begin
     ProjectRoot := GetCurrentDir;
     while ProjectRoot <> '' do
     begin
-      if DirectoryExists(ProjectRoot + PathDelim + '.fpdev') then
+      if DirectoryExists(ProjectRoot + PathDelim + FPDEV_CONFIG_DIR) then
       begin
-        Result := ProjectRoot + PathDelim + '.fpdev' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
+        Result := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
         Exit;
       end;
       ProjectRoot := ExtractFileDir(ProjectRoot);
@@ -872,8 +560,8 @@ begin
     end;
   end;
 
-  // Default to user scope
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  // Default to user scope - use unified path from fpdev.paths
+  Result := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVersion;
 end;
 
 function TFPCManager.IsVersionInstalled(const AVersion: string): Boolean;
@@ -892,181 +580,65 @@ begin
 end;
 
 function TFPCManager.ValidateVersion(const AVersion: string): Boolean;
-var
-  i: Integer;
 begin
-  Result := False;
-  for i := 0 to High(FPC_RELEASES) do
-  begin
-    if SameText(FPC_RELEASES[i].Version, AVersion) then
-    begin
-      Result := True;
-      Break;
-    end;
-  end;
+  // Delegate to version manager service
+  Result := FVersionMgr.ValidateVersion(AVersion);
 end;
 
 function TFPCManager.GetAvailableVersions: TFPCVersionArray;
-var
-  i: Integer;
 begin
-  SetLength(Result, Length(FPC_RELEASES));
-  for i := 0 to High(FPC_RELEASES) do
-  begin
-    Result[i] := FPC_RELEASES[i];
-    Result[i].Installed := IsVersionInstalled(Result[i].Version);
-  end;
+  // Delegate to version manager service
+  Result := FVersionMgr.GetAvailableVersions;
 end;
 
 function TFPCManager.GetInstalledVersions: TFPCVersionArray;
-var
-  AllVersions: TFPCVersionArray;
-  i, Count: Integer;
 begin
-  AllVersions := GetAvailableVersions;
-  Count := 0;
-
-  // 计算已安装版本数量
-  for i := 0 to High(AllVersions) do
-    if AllVersions[i].Installed then
-      Inc(Count);
-
-  // 创建结果数组
-  SetLength(Result, Count);
-  Count := 0;
-
-  for i := 0 to High(AllVersions) do
-  begin
-    if AllVersions[i].Installed then
-    begin
-      Result[Count] := AllVersions[i];
-      Inc(Count);
-    end;
-  end;
+  // Delegate to version manager service
+  Result := FVersionMgr.GetInstalledVersions;
 end;
 
 function TFPCManager.DownloadSource(const AVersion, ATargetDir: string): Boolean;
-var
-  Process: TProcess;
-  GitTag: string;
-  i: Integer;
 begin
-  Result := False;
+  // Delegate to builder service
+  Result := FBuilderMgr.DownloadSource(AVersion, ATargetDir);
+end;
 
-  // 查找对应的Git标签
-  GitTag := '';
-  for i := 0 to High(FPC_RELEASES) do
-  begin
-    if SameText(FPC_RELEASES[i].Version, AVersion) then
-    begin
-      GitTag := FPC_RELEASES[i].GitTag;
-      Break;
-    end;
-  end;
+{ Bootstrap Compiler Management }
 
-  if GitTag = '' then
-  begin
-  // WriteLn('错误: 未知的FPC版本 ', AVersion);  // 调试代码已注释
-    Exit;
-  end;
+function TFPCManager.GetRequiredBootstrapVersion(const ATargetVersion: string): string;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.GetRequiredBootstrapVersion(ATargetVersion);
+end;
 
-  try
-  // WriteLn('正在下载FPC ', AVersion, ' 源码...');  // 调试代码已注释
+function TFPCManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.EnsureBootstrapCompiler(ATargetVersion);
+end;
 
-    // 确保目标目录存在
-    if not DirectoryExists(ATargetDir) then
-      ForceDirectories(ATargetDir);
+function TFPCManager.GetCurrentFPCVersion: string;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.GetCurrentFPCVersion;
+end;
 
-    // 克隆仓库
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := 'git';
-      Process.Parameters.Add('clone');
-      Process.Parameters.Add('--depth');
-      Process.Parameters.Add('1');
-      Process.Parameters.Add('--branch');
-      Process.Parameters.Add(GitTag);
-      Process.Parameters.Add(FPC_OFFICIAL_REPO);
-      Process.Parameters.Add(ATargetDir);
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+function TFPCManager.GetBootstrapCompilerPath(const AVersion: string): string;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.GetBootstrapCompilerPath(AVersion);
+end;
 
-      Process.Execute;
-
-      Result := Process.ExitStatus = 0;
-      if not Result then
-  // WriteLn('错误: Git克隆失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
-
-    finally
-      Process.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 下载源码时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+function TFPCManager.IsBootstrapAvailable(const AVersion: string): Boolean;
+begin
+  // Delegate to builder service
+  Result := FBuilderMgr.IsBootstrapAvailable(AVersion);
 end;
 
 function TFPCManager.BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
-var
-  Process: TProcess;
-  MakeCmd: string;
-  Settings: TFPDevSettings;
 begin
-  Result := False;
-
-  if not DirectoryExists(ASourceDir) then
-  begin
-  // WriteLn('错误: 源码目录不存在: ', ASourceDir);  // 调试代码已注释
-    Exit;
-  end;
-
-  try
-  // WriteLn('正在编译FPC源码...');  // 调试代码已注释
-
-    // 确保安装目录存在
-    if not DirectoryExists(AInstallDir) then
-      ForceDirectories(AInstallDir);
-
-    Settings := FConfigManager.GetSettings;
-
-    {$IFDEF MSWINDOWS}
-    MakeCmd := 'make';
-    {$ELSE}
-    MakeCmd := 'make';
-    {$ENDIF}
-
-    // 编译FPC
-    Process := TProcess.Create(nil);
-    try
-      Process.CurrentDirectory := ASourceDir;
-      Process.Executable := MakeCmd;
-      Process.Parameters.Add('all');
-      Process.Parameters.Add('install');
-      Process.Parameters.Add('PREFIX=' + AInstallDir);
-      Process.Parameters.Add('-j' + IntToStr(Settings.ParallelJobs));
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-  // WriteLn('执行命令: ', Process.Executable, ' ', Process.Parameters.Text);  // 调试代码已注释
-      Process.Execute;
-
-      Result := Process.ExitStatus = 0;
-      if not Result then
-  // WriteLn('错误: 编译失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
-
-    finally
-      Process.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 编译源码时发生异常: ', E.Message);  // 调试代码已注释
-      Result := False;
-    end;
-  end;
+  // Delegate to builder service
+  Result := FBuilderMgr.BuildFromSource(ASourceDir, AInstallDir);
 end;
 
 function TFPCManager.SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
@@ -1078,7 +650,6 @@ begin
 
   if (AVersion = '') then
   begin
-  // WriteLn('错误: 版本号不能为空');  // 调试代码已注释
     Exit;
   end;
 
@@ -1089,13 +660,12 @@ begin
 
   if not DirectoryExists(InstallPath) then
   begin
-  // WriteLn('错误: 安装路径不存在: ', InstallPath);  // 调试代码已注释
     Exit;
   end;
 
   try
     // 创建工具链信息
-    FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
+    Initialize(ToolchainInfo);
     ToolchainInfo.ToolchainType := ttRelease;
     ToolchainInfo.Version := AVersion;
     ToolchainInfo.InstallPath := InstallPath;
@@ -1104,14 +674,14 @@ begin
     ToolchainInfo.InstallDate := Now;
 
     // 添加到配置
-    Result := FConfigManager.AddToolchain('fpc-' + AVersion, ToolchainInfo);
-    if Result then
-  // WriteLn('✓ FPC ', AVersion, ' 环境配置完成');  // 调试代码已注释
+    Result := FConfigManager.GetToolchainManager.AddToolchain('fpc-' + AVersion, ToolchainInfo);
+    if not Result then
+      FErr.WriteLn(_(MSG_ERROR) + ': Failed to add toolchain to configuration');
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 设置环境时发生异常: ', E.Message);  // 调试代码已注释
+      FErr.WriteLn(_(MSG_ERROR) + ': SetupEnvironment failed - ' + E.Message);
       Result := False;
     end;
   end;
@@ -1119,21 +689,50 @@ end;
 
 function TFPCManager.InstallVersion(const AVersion: string; const AFromSource: Boolean; const APrefix: string; const AEnsure: Boolean): Boolean;
 var
-  InstallPath, SourceDir: string;
+  InstallPath, SourceDir, FPCExe: string;
+  CacheRestored: Boolean;
+  Verifier: TFPCVerifier;
 begin
   Result := False;
 
   if not ValidateVersion(AVersion) then
   begin
-  // WriteLn('错误: 不支持的FPC版本: ', AVersion);  // 调试代码已注释
+    FErr.WriteLn(_Fmt(ERR_INVALID_VERSION, [AVersion]));
     Exit;
   end;
 
-  if IsVersionInstalled(AVersion) and (APrefix = '') then
+  // If already installed and not forcing reinstall, verify it works
+  if IsVersionInstalled(AVersion) and (APrefix = '') and (not AEnsure) then
   begin
-  // WriteLn('FPC ', AVersion, ' 已经安装');  // 调试代码已注释
-    Result := True;
-    Exit;
+    FOut.WriteLn(_Fmt(ERR_ALREADY_INSTALLED, ['FPC ' + AVersion]));
+    FOut.WriteLn('Verifying installation...');
+
+    // Verify the installation actually works
+    InstallPath := GetVersionInstallPath(AVersion);
+    {$IFDEF MSWINDOWS}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+
+    Verifier := TFPCVerifier.Create;
+    try
+      if Verifier.VerifyVersion(FPCExe, AVersion) then
+      begin
+        FOut.WriteLn('Installation verified successfully');
+        Result := True;
+        Exit;
+      end
+      else
+      begin
+        FOut.WriteLn('Warning: Installation verification failed');
+        FOut.WriteLn('Reason: ' + Verifier.GetLastError);
+        FOut.WriteLn('Proceeding with reinstallation...');
+        // Continue with installation below
+      end;
+    finally
+      Verifier.Free;
+    end;
   end;
 
   try
@@ -1142,44 +741,82 @@ begin
     else
       InstallPath := GetVersionInstallPath(AVersion);
 
-  // WriteLn('安装FPC ', AVersion, ' 到: ', InstallPath);  // 调试代码已注释
+    FOut.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [AVersion]) + ' to: ' + InstallPath);
 
     if AFromSource then
     begin
-      // 从源码安装
-      SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
+      CacheRestored := False;
 
-  // WriteLn('步骤 1/3: 下载源码');  // 调试代码已注释
-      if not DownloadSource(AVersion, SourceDir) then
+      // Try to restore from build cache first (fast path)
+      if Assigned(FBuildCache) and FBuildCache.HasArtifacts(AVersion) then
       begin
-  // WriteLn('错误: 下载源码失败');  // 调试代码已注释
-        Exit;
+        FOut.WriteLn('Restoring from build cache...');
+        if FBuildCache.RestoreArtifacts(AVersion, InstallPath) then
+        begin
+          FOut.WriteLn('Build cache restored successfully');
+          CacheRestored := True;
+          FOut.WriteLn(_(MSG_FPC_STEP_SETUP));
+          Result := SetupEnvironment(AVersion, InstallPath);
+        end
+        else
+          FOut.WriteLn('Cache restore failed, building from source...');
       end;
 
-  // WriteLn('步骤 2/3: 编译源码');  // 调试代码已注释
-      if not BuildFromSource(SourceDir, InstallPath) then
+      // If cache restore failed or no cache, build from source
+      if not CacheRestored then
       begin
-  // WriteLn('错误: 编译源码失败');  // 调试代码已注释
-        Exit;
-      end;
+        // Install from source
+        SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
 
-  // WriteLn('步骤 3/3: 配置环境');  // 调试代码已注释
-      Result := SetupEnvironment(AVersion, InstallPath);
+        FOut.WriteLn(_(MSG_FPC_STEP_DOWNLOAD));
+        if not DownloadSource(AVersion, SourceDir) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_DOWNLOAD_FAILED));
+          Exit;
+        end;
+
+        FOut.WriteLn(_(MSG_FPC_STEP_BOOTSTRAP));
+        if not EnsureBootstrapCompiler(AVersion) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BOOTSTRAP_CHECK_FAILED));
+          Exit;
+        end;
+
+        FOut.WriteLn(_(MSG_FPC_STEP_BUILD));
+        if not BuildFromSource(SourceDir, InstallPath) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_BUILD_FROM_SOURCE_FAILED));
+          Exit;
+        end;
+
+        FOut.WriteLn(_(MSG_FPC_STEP_SETUP));
+        Result := SetupEnvironment(AVersion, InstallPath);
+
+        // Save to build cache after successful build
+        if Result and Assigned(FBuildCache) then
+        begin
+          FOut.WriteLn('Saving build artifacts to cache...');
+          if FBuildCache.SaveArtifacts(AVersion, InstallPath) then
+            FOut.WriteLn('Build artifacts cached successfully')
+          else
+            FOut.WriteLn('Warning: Failed to cache build artifacts');
+        end;
+      end;
 
     end else
     begin
-      // 从预编译包安装 (暂未实现)
-  // WriteLn('错误: 预编译包安装暂未实现，请使用 --from-source 选项');  // 调试代码已注释
-      Result := False;
+      // Binary installation
+      FOut.WriteLn(_(MSG_FPC_STEP_DOWNLOAD_BIN));
+      Result := InstallFromBinary(AVersion, APrefix);
     end;
 
     if Result then
-  // WriteLn('✓ FPC ', AVersion, ' 安装完成');  // 调试代码已注释
+      FOut.WriteLn(_Fmt(CMD_FPC_INSTALL_DONE, [AVersion]));
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 安装过程中发生异常: ', E.Message);  // 调试代码已注释
+      FErr.WriteLn(_(MSG_ERROR) + ': InstallVersion failed - ' + E.Message);
       Result := False;
     end;
   end;
@@ -1188,13 +825,11 @@ end;
 function TFPCManager.UninstallVersion(const AVersion: string): Boolean;
 var
   InstallPath: string;
-  Index: Integer;
 begin
   Result := False;
 
   if not IsVersionInstalled(AVersion) then
   begin
-  // WriteLn('FPC ', AVersion, ' 未安装');  // 调试代码已注释
     Result := True;
     Exit;
   end;
@@ -1202,69 +837,35 @@ begin
   try
     InstallPath := GetVersionInstallPath(AVersion);
 
-  // WriteLn('正在卸载FPC ', AVersion, '...');  // 调试代码已注释
-
     // 删除安装目录
     if DirectoryExists(InstallPath) then
-    begin
-      try
-        {$IFDEF MSWINDOWS}
-        // Windows下使用rmdir命令
-        with TProcess.Create(nil) do
-        try
-          Executable := 'cmd';
-          Parameters.Add('/c');
-          Parameters.Add('rmdir');
-          Parameters.Add('/s');
-          Parameters.Add('/q');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ELSE}
-        // Unix下使用rm命令
-        with TProcess.Create(nil) do
-        try
-          Executable := 'rm';
-          Parameters.Add('-rf');
-          Parameters.Add(InstallPath);
-          Options := Options + [poWaitOnExit];
-          Execute;
-          if ExitStatus <> 0 then
-  // WriteLn('警告: 无法完全删除安装目录: ', InstallPath);  // 调试代码已注释
-        finally
-          Free;
-        end;
-        {$ENDIF}
-      except
-  // WriteLn('警告: 删除安装目录时发生异常: ', InstallPath);  // 调试代码已注释
-      end;
-    end;
+      DeleteDirRecursive(InstallPath);
 
     // 从配置中移除
-    FConfigManager.RemoveToolchain('fpc-' + AVersion);
+    FConfigManager.GetToolchainManager.RemoveToolchain('fpc-' + AVersion);
 
-  // WriteLn('✓ FPC ', AVersion, ' 卸载完成');  // 调试代码已注释
     Result := True;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 卸载过程中发生异常: ', E.Message);  // 调试代码已注释
+      FErr.WriteLn(_(MSG_ERROR) + ': UninstallVersion failed - ' + E.Message);
       Result := False;
     end;
   end;
 end;
 
 function TFPCManager.ListVersions(const AShowAll: Boolean): Boolean;
+begin
+  Result := ListVersions(nil, AShowAll);
+end;
+
+function TFPCManager.ListVersions(const Outp: IOutput; const AShowAll: Boolean): Boolean;
 var
   Versions: TFPCVersionArray;
   i: Integer;
   DefaultVersion: string;
+  Line: string;
 begin
   Result := True;
 
@@ -1274,50 +875,68 @@ begin
     else
       Versions := GetInstalledVersions;
 
-    DefaultVersion := FConfigManager.GetDefaultToolchain;
+    DefaultVersion := FConfigManager.GetToolchainManager.GetDefaultToolchain;
     if DefaultVersion <> '' then
       DefaultVersion := StringReplace(DefaultVersion, 'fpc-', '', [rfReplaceAll]);
 
     if AShowAll then
-  // WriteLn('可用的FPC版本:')  // 调试代码已注释
+    begin
+      if Outp <> nil then
+        Outp.WriteLn(_(CMD_FPC_LIST_ALL_HEADER))
+      else
+        FOut.WriteLn(_(CMD_FPC_LIST_ALL_HEADER));
+    end
     else
-  // WriteLn('已安装的FPC版本:');  // 调试代码已注释
+    begin
+      if Outp <> nil then
+        Outp.WriteLn(_(CMD_FPC_LIST_HEADER))
+      else
+        FOut.WriteLn(_(CMD_FPC_LIST_HEADER));
+    end;
 
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('版本      状态    发布日期    分支');  // 调试代码已注释
-  // WriteLn('----------------------------------------');  // 调试代码已注释
 
     for i := 0 to High(Versions) do
     begin
-      Write(Format('%-8s  ', [Versions[i].Version]));
+      Line := Format('%-8s  ', [Versions[i].Version]);
 
       if Versions[i].Installed then
       begin
         if SameText(Versions[i].Version, DefaultVersion) then
-          Write('Installed*  ')
+          Line := Line + 'Installed*  '
         else
-          Write('Installed   ');
-      end else
-        Write('Available   ');
+          Line := Line + 'Installed   ';
+      end
+      else
+        Line := Line + 'Available   ';
 
-      Write(Format('%-10s  ', [Versions[i].ReleaseDate]));
-      WriteLn(Versions[i].Branch);
+      Line := Line + Format('%-10s  ', [Versions[i].ReleaseDate]);
+      Line := Line + Versions[i].Branch;
+
+      if Outp <> nil then
+        Outp.WriteLn(Line)
+      else
+        FOut.WriteLn(Line);
     end;
 
-  // WriteLn('');  // 调试代码已注释
     if DefaultVersion <> '' then
     begin
-      // WriteLn('默认版本: ', DefaultVersion, ' (标记为 *)')  // 调试代码已注释
+      if Outp <> nil then
+        Outp.WriteLn(_Fmt(CMD_FPC_CURRENT_VERSION, [DefaultVersion]))
+      else
+        FOut.WriteLn(_Fmt(CMD_FPC_CURRENT_VERSION, [DefaultVersion]));
     end
     else
     begin
-      // WriteLn('未设置默认版本');  // 调试代码已注释
+      if Outp <> nil then
+        Outp.WriteLn(_(CMD_FPC_CURRENT_NONE))
+      else
+        FOut.WriteLn(_(CMD_FPC_CURRENT_NONE));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 列出版本时发生异常: ', E.Message);  // 调试代码已注释
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
@@ -1325,61 +944,55 @@ end;
 
 function TFPCManager.SetDefaultVersion(const AVersion: string): Boolean;
 begin
+  Result := SetDefaultVersion(nil, nil, AVersion);
+end;
+
+function TFPCManager.SetDefaultVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean;
+begin
   Result := False;
 
   if not IsVersionInstalled(AVersion) then
   begin
-  // WriteLn('错误: FPC版本 ', AVersion, ' 未安装');  // 调试代码已注释
+    if Errp <> nil then
+      Errp.WriteLn(_Fmt(CMD_FPC_USE_NOT_FOUND, [AVersion]));
     Exit;
   end;
 
   try
-    Result := FConfigManager.SetDefaultToolchain('fpc-' + AVersion);
+    Result := FConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-' + AVersion);
     if Result then
     begin
-      // WriteLn('✓ 默认FPC版本设置为: ', AVersion)  // 调试代码已注释
+      if Outp <> nil then
+        Outp.WriteLn(_Fmt(CMD_FPC_USE_ACTIVATED, [AVersion]));
     end
     else
     begin
-      // WriteLn('错误: 设置默认版本失败');  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_FAILED) + ': set default version');
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 设置默认版本时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
 end;
 
 function TFPCManager.GetCurrentVersion: string;
-var
-  DefaultToolchain: string;
 begin
-  Result := '';
-
-  try
-    DefaultToolchain := FConfigManager.GetDefaultToolchain;
-    if DefaultToolchain <> '' then
-      Result := StringReplace(DefaultToolchain, 'fpc-', '', [rfReplaceAll]);
-
-  except
-    on E: Exception do
-    begin
-  // WriteLn('错误: 获取当前版本时发生异常: ', E.Message);  // 调试代码已注释
-      Result := '';
-    end;
-  end;
+  // Delegate to version manager service
+  Result := FVersionMgr.GetCurrentVersion;
 end;
 
 function TFPCManager.ActivateVersion(const AVersion: string): TActivationResult;
 var
-  Scope: TInstallScope;
   InstallPath, BinPath: string;
 begin
   // Initialize result
-  FillChar(Result, SizeOf(Result), 0);
+  Initialize(Result);
   Result.Success := False;
 
   // Check if version is installed
@@ -1393,38 +1006,24 @@ begin
   InstallPath := GetVersionInstallPath(AVersion);
   BinPath := InstallPath + PathDelim + 'bin';
 
-  // Detect scope and delegate to appropriate handler
-  Scope := DetectInstallScope(GetCurrentDir);
-  Result.Scope := Scope;
-
-  if Scope = isProject then
-  begin
-    if not ActivateProjectScope(AVersion, BinPath, Result) then
-      Exit;
-  end
-  else
-  begin
-    if not ActivateUserScope(AVersion, BinPath, Result) then
-      Exit;
-  end;
+  // Delegate to activation manager service
+  Result := FActivationMgr.ActivateVersion(AVersion, BinPath);
+  if not Result.Success then
+    Exit;
 
   // Set as default version
   if not SetDefaultVersion(AVersion) then
   begin
     Result.ErrorMessage := 'Failed to set default version';
+    Result.Success := False;
     Exit;
   end;
-
-  Result.Success := True;
 end;
 
 function TFPCManager.UpdateSources(const AVersion: string): Boolean;
 var
   SourceDir: string;
-  GitDir: string;
-  Process: TProcess;
-  OutputLines: TStringList;
-  HasRemote: Boolean;
+  Git: TGitOperations;
 begin
   Result := False;
 
@@ -1437,165 +1036,52 @@ begin
   // Validate source directory exists
   if not DirectoryExists(SourceDir) then
   begin
-    WriteLn('Error: FPC source directory does not exist: ', SourceDir);
+    FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_SOURCE_DIR_NOT_FOUND, [SourceDir]));
     Exit;
   end;
 
-  // Check if it's a git repository
-  GitDir := SourceDir + PathDelim + '.git';
-  if not DirectoryExists(GitDir) then
-  begin
-    WriteLn('Error: Directory is not a git repository: ', SourceDir);
-    Exit;
-  end;
-
+  Git := TGitOperations.Create;
   try
-    // Check if remote is configured by reading git remote output
-    HasRemote := False;
-    OutputLines := TStringList.Create;
-    try
-      Process := TProcess.Create(nil);
-      try
-        Process.Executable := 'git';
-        Process.Parameters.Add('remote');
-        Process.CurrentDirectory := SourceDir;
-        Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+    // Check Git backend availability
+    if Git.Backend = gbNone then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_NO_GIT_BACKEND));
+      Exit;
+    end;
 
-        Process.Execute;
-
-        // Read output to check if any remotes are configured
-        if Process.ExitStatus = 0 then
-        begin
-          OutputLines.LoadFromStream(Process.Output);
-          HasRemote := OutputLines.Count > 0;
-        end;
-      finally
-        Process.Free;
-      end;
-    finally
-      OutputLines.Free;
+    // Check if it's a git repository
+    if not Git.IsRepository(SourceDir) then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_NOT_GIT_REPO, [SourceDir]));
+      Exit;
     end;
 
     // If no remote configured, repository is already up-to-date (local only)
-    if not HasRemote then
+    if not Git.HasRemote(SourceDir) then
     begin
-      WriteLn('FPC source is local-only (no remote configured): ', SourceDir);
+      FOut.WriteLn(_(MSG_FPC_SOURCE_LOCAL_ONLY) + ' ' + SourceDir);
       Result := True;
       Exit;
     end;
 
     // Execute git pull to update sources
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := 'git';
-      Process.Parameters.Add('pull');
-      Process.CurrentDirectory := SourceDir;
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-      Process.Execute;
-
-      Result := Process.ExitStatus = 0;
-      if Result then
-        WriteLn('Updated FPC source: ', SourceDir)
-      else
-        WriteLn('Error: git pull failed (exit code: ', Process.ExitStatus, ')');
-
-    finally
-      Process.Free;
-    end;
-
-  except
-    on E: Exception do
+    if Git.Pull(SourceDir) then
     begin
-      WriteLn('Error updating FPC sources: ', E.Message);
-      Result := False;
-    end;
+      FOut.WriteLn(_(CMD_FPC_UPDATE_DONE) + ': ' + SourceDir);
+      Result := True;
+    end
+    else
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_PULL_FAILED, [Git.LastError]));
+
+  finally
+    Git.Free;
   end;
 end;
 
 function TFPCManager.CleanSources(const AVersion: string): Boolean;
-const
-  // 编译产物扩展名
-  {$IFDEF MSWINDOWS}
-  CLEANABLE_EXTENSIONS: array[0..6] of string = (
-    '.o',        // Object files
-    '.ppu',      // Compiled Pascal units
-    '.a',        // Static libraries
-    '.dll',      // Dynamic libraries (Windows)
-    '.exe',      // Executables (Windows)
-    '.compiled', // Lazarus state files
-    '.res'       // Resource files
-  );
-  {$ELSE}
-  CLEANABLE_EXTENSIONS: array[0..6] of string = (
-    '.o',        // Object files
-    '.ppu',      // Compiled Pascal units
-    '.a',        // Static libraries
-    '.so',       // Shared libraries (Linux)
-    '.dylib',    // Dynamic libraries (macOS)
-    '.compiled', // Lazarus state files
-    '.res'       // Resource files
-  );
-  {$ENDIF}
-
 var
   SourceDir: string;
   DeletedCount: Integer;
-
-  function CleanDirectory(const ADir: string): Integer;
-  var
-    SR: TSearchRec;
-    FilePath, FileExt: string;
-    I: Integer;
-    ShouldDelete: Boolean;
-  begin
-    Result := 0;
-
-    if not DirectoryExists(ADir) then
-      Exit;
-
-    // 扫描目录中的所有文件和子目录
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        // 跳过特殊目录
-        if (SR.Name = '.') or (SR.Name = '..') then
-          Continue;
-
-        FilePath := ADir + PathDelim + SR.Name;
-
-        // 递归处理子目录
-        if (SR.Attr and faDirectory) <> 0 then
-        begin
-          Result := Result + CleanDirectory(FilePath);
-          Continue;
-        end;
-
-        // 检查文件扩展名是否应该被清理
-        FileExt := LowerCase(ExtractFileExt(SR.Name));
-        ShouldDelete := False;
-
-        for I := 0 to High(CLEANABLE_EXTENSIONS) do
-        begin
-          if FileExt = CLEANABLE_EXTENSIONS[I] then
-          begin
-            ShouldDelete := True;
-            Break;
-          end;
-        end;
-
-        // 删除匹配的文件
-        if ShouldDelete then
-        begin
-          if DeleteFile(FilePath) then
-            Inc(Result);
-        end;
-
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-  end;
-
 begin
   Result := False;
 
@@ -1608,56 +1094,80 @@ begin
   // 验证源码目录存在
   if not DirectoryExists(SourceDir) then
   begin
-    WriteLn('Error: FPC source directory does not exist: ', SourceDir);
+    FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_SOURCE_DIR_NOT_FOUND, [SourceDir]));
     Exit;
   end;
 
   try
-    // 清理目录
-    DeletedCount := CleanDirectory(SourceDir);
-    WriteLn('Cleaned ', DeletedCount, ' build artifact(s) from FPC source: ', SourceDir);
+    // 使用共享清理函数（包含平台可执行文件）
+    DeletedCount := CleanBuildArtifacts(SourceDir, nil, True);
+    FOut.WriteLn(_(CMD_FPC_CLEAN_DONE) + ' - ' + IntToStr(DeletedCount) + ' file(s): ' + SourceDir);
     Result := True;
 
   except
     on E: Exception do
     begin
-      WriteLn('Error cleaning FPC sources: ', E.Message);
+      FErr.WriteLn(_(MSG_ERROR) + ': CleanSources failed - ' + E.Message);
       Result := False;
     end;
   end;
 end;
 
 function TFPCManager.ShowVersionInfo(const AVersion: string): Boolean;
+begin
+  Result := ShowVersionInfo(nil, AVersion);
+end;
+
+function TFPCManager.ShowVersionInfo(const Outp: IOutput; const AVersion: string): Boolean;
 var
   ToolchainInfo: TToolchainInfo;
   InstallPath: string;
 begin
   Result := False;
+  Initialize(ToolchainInfo);
 
   if not ValidateVersion(AVersion) then
   begin
-  // WriteLn('错误: 不支持的FPC版本: ', AVersion);  // 调试代码已注释
+    if Outp <> nil then
+      Outp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_UNSUPPORTED_VERSION, [AVersion]))
+    else
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_UNSUPPORTED_VERSION, [AVersion]));
     Exit;
   end;
 
   try
-  // WriteLn('FPC版本信息: ', AVersion);  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
 
     if IsVersionInstalled(AVersion) then
     begin
       InstallPath := GetVersionInstallPath(AVersion);
-  // WriteLn('状态: 已安装');  // 调试代码已注释
-  // WriteLn('安装路径: ', InstallPath);  // 调试代码已注释
-
-      if FConfigManager.GetToolchain('fpc-' + AVersion, ToolchainInfo) then
+      if InstallPath = '' then
       begin
-        WriteLn('Install Date: ', DateTimeToStr(ToolchainInfo.InstallDate));
-        WriteLn('Source URL: ', ToolchainInfo.SourceURL);
+        if Outp <> nil then
+          Outp.WriteLn(_(MSG_ERROR) + ': Install path not found')
+        else
+          FErr.WriteLn(_(MSG_ERROR) + ': Install path not found');
+        Exit;
+      end;
+
+      if FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, ToolchainInfo) then
+      begin
+        if Outp <> nil then
+        begin
+          Outp.WriteLn(_Fmt(MSG_FPC_INSTALL_DATE, [FormatDateTime('yyyy-mm-dd hh:nn:ss', ToolchainInfo.InstallDate)]));
+          Outp.WriteLn(_Fmt(MSG_FPC_SOURCE_URL, [ToolchainInfo.SourceURL]));
+        end
+        else
+        begin
+          FOut.WriteLn(_Fmt(MSG_FPC_INSTALL_DATE, [FormatDateTime('yyyy-mm-dd hh:nn:ss', ToolchainInfo.InstallDate)]));
+          FOut.WriteLn(_Fmt(MSG_FPC_SOURCE_URL, [ToolchainInfo.SourceURL]));
+        end;
       end;
     end else
     begin
-  // WriteLn('状态: 未安装');  // 调试代码已注释
+      if Outp <> nil then
+        Outp.WriteLn(_Fmt(ERR_NOT_INSTALLED, ['FPC ' + AVersion]))
+      else
+        FErr.WriteLn(_Fmt(ERR_NOT_INSTALLED, ['FPC ' + AVersion]));
     end;
 
     Result := True;
@@ -1665,15 +1175,20 @@ begin
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 显示版本信息时发生异常: ', E.Message);  // 调试代码已注释
+      FErr.WriteLn(_(MSG_ERROR) + ': ShowVersionInfo failed - ' + E.Message);
       Result := False;
     end;
   end;
 end;
 
 function TFPCManager.TestInstallation(const AVersion: string): Boolean;
+begin
+  Result := TestInstallation(nil, nil, AVersion);
+end;
+
+function TFPCManager.TestInstallation(const Outp, Errp: IOutput; const AVersion: string): Boolean;
 var
-  Process: TProcess;
+  LResult: TProcessResult;
   FPCExe: string;
   InstallPath: string;
 begin
@@ -1681,7 +1196,8 @@ begin
 
   if not IsVersionInstalled(AVersion) then
   begin
-  // WriteLn('错误: FPC版本 ', AVersion, ' 未安装');  // 调试代码已注释
+    if Errp <> nil then
+      Errp.WriteLn(_Fmt(CMD_FPC_USE_NOT_FOUND, [AVersion]));
     Exit;
   end;
 
@@ -1693,792 +1209,68 @@ begin
     FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
     {$ENDIF}
 
+    if Outp <> nil then
+      Outp.WriteLn(_Fmt(CMD_FPC_DOCTOR_CHECKING, [AVersion]));
 
-  // WriteLn('测试FPC ', AVersion, ' 安装...');  // 调试代码已注释
-
-    Process := TProcess.Create(nil);
-    try
-      Process.Executable := FPCExe;
-      Process.Parameters.Add('-i');
-      Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-      Process.Execute;
-
-      Result := Process.ExitStatus = 0;
-      if Result then
-      begin
-        // WriteLn('✓ FPC ', AVersion, ' 安装测试通过')  // 调试代码已注释
-      end
-      else
-      begin
-        // WriteLn('✗ FPC ', AVersion, ' 安装测试失败');  // 调试代码已注释
-      end;
-
-    finally
-      Process.Free;
+    LResult := TProcessExecutor.Execute(FPCExe, ['-i'], '');
+    Result := LResult.Success;
+    if Result then
+    begin
+      if Outp <> nil then
+        Outp.WriteLn(_(CMD_FPC_DOCTOR_OK));
+    end
+    else
+    begin
+      if Errp <> nil then
+        Errp.WriteLn(_Fmt(CMD_FPC_DOCTOR_ISSUES, [1]))
+      else if Outp <> nil then
+        Outp.WriteLn(_Fmt(CMD_FPC_DOCTOR_ISSUES, [1]));
     end;
 
   except
     on E: Exception do
     begin
-  // WriteLn('错误: 测试安装时发生异常: ', E.Message);  // 调试代码已注释
+      if Errp <> nil then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
       Result := False;
     end;
   end;
 end;
 
 function TFPCManager.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
-var
-  Process: TProcess;
-  FPCExe: string;
-  InstallPath: string;
-  OutputLines: TStringList;
-  DetectedVer: string;
 begin
-  // Initialize result record
-  FillChar(VerifResult, SizeOf(VerifResult), 0);
-  VerifResult.Verified := False;
-  VerifResult.ExecutableExists := False;
-  VerifResult.DetectedVersion := '';
-  VerifResult.SmokeTestPassed := False;
-  VerifResult.ErrorMessage := '';
-
-  // Get install path
-  InstallPath := GetVersionInstallPath(AVersion);
-  {$IFDEF MSWINDOWS}
-  FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-  {$ELSE}
-  FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
-  {$ENDIF}
-
-  // Check if executable exists
-  if not FileExists(FPCExe) then
-  begin
-    VerifResult.ErrorMessage := 'FPC executable not found: ' + FPCExe;
-    Exit(False);
-  end;
-
-  VerifResult.ExecutableExists := True;
-
-  try
-    // Run fpc -iV to get version
-    OutputLines := TStringList.Create;
-    try
-      Process := TProcess.Create(nil);
-      try
-        Process.Executable := FPCExe;
-        Process.Parameters.Add('-iV');
-        Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-        Process.Execute;
-
-        if Process.ExitStatus = 0 then
-        begin
-          // Read output using LoadFromStream
-          OutputLines.LoadFromStream(Process.Output);
-          if OutputLines.Count > 0 then
-          begin
-            DetectedVer := Trim(OutputLines[0]);
-            VerifResult.DetectedVersion := DetectedVer;
-
-            // Verify version matches
-            if not SameText(DetectedVer, AVersion) then
-            begin
-              VerifResult.ErrorMessage := 'Version mismatch: expected ' + AVersion + ', detected ' + DetectedVer;
-              Exit(False);
-            end;
-          end else begin
-            VerifResult.ErrorMessage := 'No version output from fpc -iV';
-            Exit(False);
-          end;
-        end else begin
-          VerifResult.ErrorMessage := 'fpc -iV failed with exit code: ' + IntToStr(Process.ExitStatus);
-          Exit(False);
-        end;
-      finally
-        Process.Free;
-      end;
-    finally
-      OutputLines.Free;
-    end;
-
-    // Run smoke test: compile and execute hello world
-    if not RunSmokeTest(FPCExe, VerifResult) then
-    begin
-      VerifResult.Verified := False;
-      Exit(False);
-    end;
-
-    // Verification successful
-    VerifResult.Verified := True;
-    Exit(True);
-
-  except
-    on E: Exception do
-    begin
-      VerifResult.ErrorMessage := 'Exception during verification: ' + E.Message;
-      Exit(False);
-    end;
-  end;
-end;
-
-function TFPCManager.RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
-var
-  TempDir, HelloPas, HelloExe: string;
-  HelloFile: TextFile;
-  CompileProcess, RunProcess: TProcess;
-  OutputLines: TStringList;
-  Output: string;
-begin
-  Result := False;
-  VerifResult.SmokeTestPassed := False;
-
-  try
-    // Create temporary directory for smoke test
-    TempDir := GetTempDir + 'fpdev_smoke_' + IntToStr(GetTickCount64);
-    ForceDirectories(TempDir);
-
-    HelloPas := TempDir + PathDelim + 'hello.pas';
-    {$IFDEF MSWINDOWS}
-    HelloExe := TempDir + PathDelim + 'hello.exe';
-    {$ELSE}
-    HelloExe := TempDir + PathDelim + 'hello';
-    {$ENDIF}
-
-    // Create hello.pas
-    AssignFile(HelloFile, HelloPas);
-    try
-      Rewrite(HelloFile);
-      WriteLn(HelloFile, 'program hello;');
-      WriteLn(HelloFile, 'begin');
-      WriteLn(HelloFile, '  WriteLn(''Hello, World!'');');
-      WriteLn(HelloFile, 'end.');
-      CloseFile(HelloFile);
-    except
-      on E: Exception do
-      begin
-        VerifResult.ErrorMessage := 'Failed to create hello.pas: ' + E.Message;
-        Exit(False);
-      end;
-    end;
-
-    // Compile hello.pas
-    CompileProcess := TProcess.Create(nil);
-    try
-      CompileProcess.Executable := AFPCExe;
-      CompileProcess.Parameters.Add('-o' + HelloExe);
-      CompileProcess.Parameters.Add(HelloPas);
-      CompileProcess.Options := CompileProcess.Options + [poWaitOnExit, poUsePipes];
-      CompileProcess.Execute;
-
-      if CompileProcess.ExitStatus <> 0 then
-      begin
-        VerifResult.ErrorMessage := 'Smoke test: Failed to compile hello.pas (exit code: ' + IntToStr(CompileProcess.ExitStatus) + ')';
-        Exit(False);
-      end;
-    finally
-      CompileProcess.Free;
-    end;
-
-    // Check if executable was created
-    if not FileExists(HelloExe) then
-    begin
-      VerifResult.ErrorMessage := 'Smoke test: Compiled executable not found: ' + HelloExe;
-      Exit(False);
-    end;
-
-    // Run hello.exe and check output
-    RunProcess := TProcess.Create(nil);
-    OutputLines := TStringList.Create;
-    try
-      {$IFDEF MSWINDOWS}
-      // On Windows, check if a .bat file exists (mock environment)
-      if FileExists(ChangeFileExt(HelloExe, '.bat')) then
-      begin
-        RunProcess.Executable := 'cmd.exe';
-        RunProcess.Parameters.Add('/c');
-        RunProcess.Parameters.Add(ChangeFileExt(HelloExe, '.bat'));
-      end
-      else
-      begin
-        RunProcess.Executable := HelloExe;
-      end;
-      {$ELSE}
-      RunProcess.Executable := HelloExe;
-      {$ENDIF}
-
-      RunProcess.Options := RunProcess.Options + [poWaitOnExit, poUsePipes];
-      RunProcess.Execute;
-
-      if RunProcess.ExitStatus <> 0 then
-      begin
-        VerifResult.ErrorMessage := 'Smoke test: hello program failed (exit code: ' + IntToStr(RunProcess.ExitStatus) + ')';
-        Exit(False);
-      end;
-
-      // Check output
-      OutputLines.LoadFromStream(RunProcess.Output);
-      if OutputLines.Count > 0 then
-        Output := Trim(OutputLines[0])
-      else
-        Output := '';
-
-      if Output <> 'Hello, World!' then
-      begin
-        VerifResult.ErrorMessage := 'Smoke test: Unexpected output. Expected ''Hello, World!'', got: ''' + Output + '''';
-        Exit(False);
-      end;
-
-      // Smoke test passed!
-      VerifResult.SmokeTestPassed := True;
-      Result := True;
-
-    finally
-      RunProcess.Free;
-      OutputLines.Free;
-
-      // Cleanup temporary files
-      try
-        if FileExists(HelloExe) then DeleteFile(HelloExe);
-        if FileExists(HelloPas) then DeleteFile(HelloPas);
-        RemoveDir(TempDir);
-      except
-        // Ignore cleanup errors
-      end;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      VerifResult.ErrorMessage := 'Smoke test exception: ' + E.Message;
-      Exit(False);
-    end;
-  end;
+  // Delegate to validator service
+  Result := FValidatorMgr.VerifyInstallation(AVersion, VerifResult);
 end;
 
 // ============================================================================
-// Binary Installation Methods
+// Binary Installation Methods - Delegated to FInstallerMgr
 // ============================================================================
 
 function TFPCManager.GetBinaryDownloadURL(const AVersion: string): string;
-var
-  Platform, Arch: string;
 begin
-  Result := '';
-
-  // Determine platform and architecture
-  {$IFDEF MSWINDOWS}
-    {$IFDEF CPU64}
-    Platform := 'Win64';
-    Arch := 'x86_64-win64';
-    {$ELSE}
-    Platform := 'Win32';
-    Arch := 'i386-win32';
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF LINUX}
-    {$IFDEF CPU64}
-    Platform := 'Linux';
-    Arch := 'x86_64-linux';
-    {$ELSE}
-    Platform := 'Linux';
-    Arch := 'i386-linux';
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF DARWIN}
-    {$IFDEF CPUAARCH64}
-    Platform := 'macOS';
-    Arch := 'aarch64-darwin';
-    {$ELSE}
-    Platform := 'macOS';
-    Arch := 'x86_64-darwin';
-    {$ENDIF}
-  {$ENDIF}
-
-  // Construct SourceForge download URL
-  // Format: https://sourceforge.net/projects/freepascal/files/<Platform>/<Version>/fpc-<Version>.<Arch>.zip
-  Result := Format('https://sourceforge.net/projects/freepascal/files/%s/%s/fpc-%s.%s.zip/download',
-    [Platform, AVersion, AVersion, Arch]);
+  Result := FInstallerMgr.GetBinaryDownloadURL(AVersion);
 end;
 
 function TFPCManager.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
-var
-  URL: string;
-  HTTPClient: TFPHTTPClient;
-  TempDir: string;
-  FileStream: TFileStream;
 begin
-  Result := False;
-  ATempFile := '';
-
-  try
-    // Get download URL
-    URL := GetBinaryDownloadURL(AVersion);
-    if URL = '' then
-    begin
-      WriteLn('Error: Failed to construct download URL for version ', AVersion);
-      Exit;
-    end;
-
-    // Create temp directory if it doesn't exist
-    TempDir := GetTempDir + 'fpdev_downloads';
-    if not DirectoryExists(TempDir) then
-      ForceDirectories(TempDir);
-
-    // Generate temp file name
-    {$IFDEF MSWINDOWS}
-    ATempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.zip';
-    {$ELSE}
-    ATempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.tar.gz';
-    {$ENDIF}
-
-    WriteLn('Downloading FPC ', AVersion, ' from:');
-    WriteLn('  ', URL);
-    WriteLn('To: ', ATempFile);
-
-    // Download file
-    HTTPClient := TFPHTTPClient.Create(nil);
-    try
-      HTTPClient.AllowRedirect := True;
-      FileStream := TFileStream.Create(ATempFile, fmCreate);
-      try
-        HTTPClient.Get(URL, FileStream);
-        Result := True;
-        WriteLn('Download completed: ', FileStream.Size, ' bytes');
-      finally
-        FileStream.Free;
-      end;
-    finally
-      HTTPClient.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      WriteLn('Error downloading binary: ', E.Message);
-      Result := False;
-      if FileExists(ATempFile) then
-        DeleteFile(ATempFile);
-      ATempFile := '';
-    end;
-  end;
+  Result := FInstallerMgr.DownloadBinary(AVersion, ATempFile);
 end;
 
 function TFPCManager.VerifyChecksum(const AFilePath, AVersion: string): Boolean;
 begin
-  Result := False;
-
-  // TODO: Implement SHA256 checksum verification
-  // For now, return false to indicate not implemented
-  WriteLn('Checksum verification not yet implemented');
+  Result := FInstallerMgr.VerifyChecksum(AFilePath, AVersion);
 end;
 
 function TFPCManager.ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
-var
-  Unzipper: TUnZipper;
-  FileExt: string;
 begin
-  Result := False;
-
-  if not FileExists(AArchivePath) then
-  begin
-    WriteLn('Error: Archive file not found: ', AArchivePath);
-    Exit;
-  end;
-
-  try
-    // Ensure destination directory exists
-    if not DirectoryExists(ADestPath) then
-      ForceDirectories(ADestPath);
-
-    FileExt := LowerCase(ExtractFileExt(AArchivePath));
-
-    // Handle ZIP files
-    if FileExt = '.zip' then
-    begin
-      WriteLn('Extracting ZIP archive...');
-      WriteLn('  From: ', AArchivePath);
-      WriteLn('  To: ', ADestPath);
-
-      Unzipper := TUnZipper.Create;
-      try
-        Unzipper.FileName := AArchivePath;
-        Unzipper.OutputPath := ADestPath;
-        Unzipper.Examine;
-        WriteLn('  Files in archive: ', Unzipper.Entries.Count);
-        Unzipper.UnZipAllFiles;
-        Result := True;
-        WriteLn('Extraction completed successfully');
-      finally
-        Unzipper.Free;
-      end;
-    end
-    // Handle .tar.gz files (TODO: requires additional implementation)
-    else if (FileExt = '.gz') or (Pos('.tar', AArchivePath) > 0) then
-    begin
-      WriteLn('Warning: .tar.gz extraction not yet implemented');
-      WriteLn('  Please extract manually or use binary .zip distribution');
-      Result := False;
-    end
-    else
-    begin
-      WriteLn('Error: Unsupported archive format: ', FileExt);
-      Result := False;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      WriteLn('Error extracting archive: ', E.Message);
-      Result := False;
-    end;
-  end;
+  Result := FInstallerMgr.ExtractArchive(AArchivePath, ADestPath);
 end;
 
 function TFPCManager.InstallFromBinary(const AVersion: string; const APrefix: string): Boolean;
-var
-  TempFile, ExtractDir, InstallPath, FinalPath: string;
-  ExtractedDirs: TStringList;
-  SR: TSearchRec;
-  SourceDir: string;
 begin
-  Result := False;
-
-  try
-    WriteLn('===========================================');
-    WriteLn('FPC Binary Installation: ', AVersion);
-    WriteLn('===========================================');
-    WriteLn;
-
-    // Step 1: Download binary
-    WriteLn('[1/5] Downloading binary...');
-    if not DownloadBinary(AVersion, TempFile) then
-    begin
-      WriteLn('Error: Binary download failed');
-      Exit;
-    end;
-    WriteLn;
-
-    // Step 2: Verify checksum (optional, skip for now)
-    WriteLn('[2/5] Verifying checksum...');
-    WriteLn('  Skipped: Checksum verification not yet implemented');
-    WriteLn;
-
-    // Step 3: Extract archive
-    WriteLn('[3/5] Extracting archive...');
-    ExtractDir := GetTempDir + 'fpdev_extract_' + IntToStr(GetTickCount64);
-    if not ExtractArchive(TempFile, ExtractDir) then
-    begin
-      WriteLn('Error: Archive extraction failed');
-      if FileExists(TempFile) then DeleteFile(TempFile);
-      Exit;
-    end;
-    WriteLn;
-
-    // Step 4: Move to installation directory
-    WriteLn('[4/5] Installing to target directory...');
-
-    if APrefix <> '' then
-      InstallPath := ExpandFileName(APrefix)
-    else
-      InstallPath := GetVersionInstallPath(AVersion);
-
-    WriteLn('  Target: ', InstallPath);
-
-    // Find the extracted FPC directory (usually fpc-{version} or just fpc)
-    ExtractedDirs := TStringList.Create;
-    try
-      if FindFirst(ExtractDir + PathDelim + '*', faDirectory, SR) = 0 then
-      begin
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
-          begin
-            SourceDir := ExtractDir + PathDelim + SR.Name;
-            // Check if this looks like an FPC installation (has bin directory)
-            if DirectoryExists(SourceDir + PathDelim + 'bin') then
-            begin
-              WriteLn('  Found FPC directory: ', SR.Name);
-
-              // Ensure parent directory exists
-              ForceDirectories(ExtractFileDir(InstallPath));
-
-              // Move or copy the directory
-              // Note: RenameFile works for directories on same drive
-              if not RenameFile(SourceDir, InstallPath) then
-              begin
-                WriteLn('  Warning: Could not move directory, copying instead...');
-                // TODO: Implement recursive copy if needed
-                WriteLn('  Error: Directory copy not yet implemented');
-                Result := False;
-                Exit;
-              end;
-
-              WriteLn('  Installed successfully');
-              Break;
-            end;
-          end;
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-    finally
-      ExtractedDirs.Free;
-    end;
-    WriteLn;
-
-    // Step 5: Setup environment
-    WriteLn('[5/5] Setting up environment...');
-    if SetupEnvironment(AVersion, InstallPath) then
-    begin
-      WriteLn('  Environment configured');
-    end
-    else
-    begin
-      WriteLn('  Warning: Environment setup failed, but installation completed');
-    end;
-    WriteLn;
-
-    // Cleanup
-    WriteLn('Cleaning up temporary files...');
-    if FileExists(TempFile) then DeleteFile(TempFile);
-    if DirectoryExists(ExtractDir) then
-    begin
-      // Try to remove extract directory (may fail if not empty)
-      try
-        RemoveDir(ExtractDir);
-      except
-        WriteLn('  Note: Could not remove temporary directory: ', ExtractDir);
-      end;
-    end;
-
-    WriteLn('===========================================');
-    WriteLn('Installation completed successfully!');
-    WriteLn('FPC ', AVersion, ' installed to: ', InstallPath);
-    WriteLn('===========================================');
-
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      WriteLn('Error during binary installation: ', E.Message);
-      Result := False;
-    end;
-  end;
-end;
-
-// 主要执行函数
-procedure execute(const aParams: array of string);
-  procedure PrintHelp;
-  begin
-  // WriteLn('FPC版本管理');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('用法:');  // 调试代码已注释
-  // WriteLn('  fpdev fpc update');  // 调试代码已注释
-  // WriteLn('  fpdev fpc install <version> [--from=source] [--jobs=N]');  // 调试代码已注释
-  // WriteLn('  fpdev fpc uninstall <version>');  // 调试代码已注释
-  // WriteLn('  fpdev fpc list [--all]');  // 调试代码已注释
-  // WriteLn('  fpdev fpc use <version>');  // 调试代码已注释
-  // WriteLn('  fpdev fpc default <version>');  // 调试代码已注释
-  // WriteLn('  fpdev fpc show <version>');  // 调试代码已注释
-  // WriteLn('  fpdev fpc current');  // 调试代码已注释
-  // WriteLn('  fpdev fpc test <version>');  // 调试代码已注释
-  // WriteLn('');  // 调试代码已注释
-  // WriteLn('示例:');  // 调试代码已注释
-  // WriteLn('  fpdev fpc update');  // 调试代码已注释
-  // WriteLn('  fpdev fpc install 3.2.2 --from=source --jobs=8');  // 调试代码已注释
-  // WriteLn('  fpdev fpc use 3.2.2');  // 调试代码已注释
-  end;
-var
-  Cmd: string;
-  Cfg: TFPDevConfigManager;
-  Manager: TFPCManager;
-  Ok: Boolean;
-  Ver, S, Jobs: string;
-  FromSource: Boolean;
-  Settings: TFPDevSettings;
-  VerifResult: TVerificationResult;
-  ActivResult: TActivationResult;
-begin
-  if Length(aParams) = 0 then
-  begin
-    PrintHelp;
-    Exit;
-  end;
-
-  Cmd := LowerCase(aParams[0]);
-
-  Cfg := TFPDevConfigManager.Create('');
-  try
-    Cfg.LoadConfig;
-
-    Manager := TFPCManager.Create(Cfg);
-    try
-      if (Cmd = 'help') then
-      begin
-        PrintHelp;
-      end
-      else if (Cmd = 'update') then
-      begin
-        FPC_UpdateIndex;
-      end
-      else if (Cmd = 'install') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc install 3.2.2');  // 调试代码已注释
-          Exit;
-        end;
-        Ver := aParams[1];
-        FromSource := HasFlag(aParams, 'from-source') or (GetFlagValue(aParams, 'from', S) and SameText(S, 'source'));
-
-        if GetFlagValue(aParams, 'jobs', Jobs) then
-        begin
-          Settings := Cfg.GetSettings;
-          if TryStrToInt(Jobs, Settings.ParallelJobs) then
-            Cfg.SetSettings(Settings);
-        end;
-
-        if not GetFlagValue(aParams, 'prefix', S) then S := '';
-
-        // Choose installation method
-        if FromSource then
-        begin
-          // Source installation (original method)
-          Ok := Manager.InstallVersion(Ver, True, S, False);
-        end
-        else
-        begin
-          // Binary installation (new method, default)
-          Ok := Manager.InstallFromBinary(Ver, S);
-        end;
-
-        if Ok and Cfg.Modified then Cfg.SaveConfig;
-      end
-      else if (Cmd = 'uninstall') or (Cmd = 'remove') or (Cmd = 'purge') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc uninstall 3.2.2');  // 调试代码已注释
-          Exit;
-        end;
-        Ver := aParams[1];
-        Ok := Manager.UninstallVersion(Ver);
-        if Ok and Cfg.Modified then Cfg.SaveConfig;
-      end
-      else if (Cmd = 'list') then
-      begin
-        Ok := Manager.ListVersions(HasFlag(aParams, 'all') or HasFlag(aParams, 'remote'));
-      end
-      else if (Cmd = 'use') or (Cmd = 'default') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc use 3.2.2');  // 调试代码已注释
-          Exit;
-        end;
-        Ver := aParams[1];
-        // --ensure: 若未安装则自动安装（从源码）
-        if HasFlag(aParams, 'ensure') then
-        begin
-          if not Manager.IsVersionInstalled(Ver) then
-          begin
-  // WriteLn('未安装版本 ', Ver, '，自动安装 (--ensure) ...');  // 调试代码已注释
-            if not Manager.InstallVersion(Ver, True {from source}, '' {prefix}, True {ensure}) then
-            begin
-  // WriteLn('错误: 自动安装失败，无法切换');  // 调试代码已注释
-              Exit;
-            end;
-          end;
-        end;
-
-        // Use new activation system
-        ActivResult := Manager.ActivateVersion(Ver);
-        if ActivResult.Success then
-        begin
-          WriteLn('FPC ', Ver, ' activated successfully');
-          WriteLn('');
-          WriteLn('Activation script created: ', ActivResult.ActivationScript);
-          if ActivResult.VSCodeSettings <> '' then
-            WriteLn('VS Code settings updated: ', ActivResult.VSCodeSettings);
-          WriteLn('');
-          WriteLn('To activate in your current shell, run:');
-          WriteLn('  ', ActivResult.ShellCommand);
-          if Cfg.Modified then Cfg.SaveConfig;
-        end
-        else
-        begin
-          WriteLn('Error: Failed to activate FPC ', Ver);
-          WriteLn('  ', ActivResult.ErrorMessage);
-        end;
-      end
-      else if (Cmd = 'current') then
-      begin
-        Ver := Manager.GetCurrentVersion;
-        if Ver <> '' then
-  // WriteLn('当前FPC版本: ', Ver)  // 调试代码已注释
-        else
-  // WriteLn('未设置默认FPC版本');  // 调试代码已注释
-      end
-      else if (Cmd = 'show') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc show 3.2.2');  // 调试代码已注释
-          Exit;
-        end;
-        Ver := aParams[1];
-        Manager.ShowVersionInfo(Ver);
-      end
-      else if (Cmd = 'test') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc test 3.2.2');  // 调试代码已注释
-          Exit;
-        end;
-        Ver := aParams[1];
-        Manager.TestInstallation(Ver);
-      end
-      else if (Cmd = 'verify') then
-      begin
-        if Length(aParams) < 2 then
-        begin
-          WriteLn('Error: Version number required. Example: fpdev fpc verify 3.2.2');
-          Exit;
-        end;
-        Ver := aParams[1];
-
-        WriteLn('Verifying FPC ', Ver, ' installation...');
-        WriteLn;
-
-        if Manager.VerifyInstallation(Ver, VerifResult) then
-        begin
-          WriteLn('Verification passed:');
-          WriteLn('  Executable: Found');
-          WriteLn('  Version: ', VerifResult.DetectedVersion);
-          WriteLn('  Status: OK');
-        end
-        else
-        begin
-          WriteLn('Verification failed:');
-          WriteLn('  Executable exists: ', VerifResult.ExecutableExists);
-          if VerifResult.DetectedVersion <> '' then
-            WriteLn('  Detected version: ', VerifResult.DetectedVersion);
-          WriteLn('  Error: ', VerifResult.ErrorMessage);
-        end;
-      end
-      else
-      begin
-        PrintHelp;
-      end;
-    finally
-      Manager.Free;
-    end;
-  finally
-    if Cfg.Modified then Cfg.SaveConfig;
-    Cfg.Free;
-  end;
+  Result := FInstallerMgr.InstallFromBinary(AVersion, APrefix);
 end;
 
 end.
+

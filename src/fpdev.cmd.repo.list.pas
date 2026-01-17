@@ -6,34 +6,50 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config;
+  fpdev.command.intf, fpdev.command.registry,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoListCommand = class(TInterfacedObject, IFpdevCommand)
+  TRepoListCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TRepoListCommand.Name: string; begin Result := 'list'; end;
-function TRepoListCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TRepoListCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TRepoListCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TRepoListCommand.Name: string; begin Result := 'list'; end;
+function TRepoListCommand.Aliases: TStringArray; begin Result := nil; end;
+function TRepoListCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TRepoListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   Names: TStringArray;
   i: Integer;
 begin
-  Names := Ctx.Config.ListRepositories;
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_REPO_LIST_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_LIST_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_REPO_LIST_OPT_HELP));
+    Exit(0);
+  end;
+
+  Names := Ctx.Config.GetRepositoryManager.ListRepositories;
   for i := 0 to High(Names) do
-    WriteLn(Names[i], ' = ', Ctx.Config.GetRepository(Names[i]));
+    Ctx.Out.WriteLn(Names[i] + ' = ' + Ctx.Config.GetRepositoryManager.GetRepository(Names[i]));
 end;
 
-function RepoListFactory: IFpdevCommand;
+function RepoListFactory: ICommand;
 begin
   Result := TRepoListCommand.Create;
 end;

@@ -6,39 +6,59 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config, fpdev.cmd.lazarus;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TLazListCommand }
-  TLazListCommand = class(TInterfacedObject, IFpdevCommand)
+  TLazListCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-function TLazListCommand.Name: string; begin Result := 'list'; end;
-function TLazListCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TLazListCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
+uses fpdev.cmd.utils;
 
-procedure TLazListCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TLazListCommand.Name: string; begin Result := 'list'; end;
+function TLazListCommand.Aliases: TStringArray; begin Result := nil; end;
+function TLazListCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+
+function TLazListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LAll: Boolean;
   LMgr: TLazarusManager;
 begin
-  LAll := (Length(AParams)>0) and ((AParams[0]='--all') or (AParams[0]='-all'));
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPTIONS));
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_ALL));
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_HELP));
+    Exit(0);
+  end;
+
+  LAll := HasFlag(AParams, 'all');
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
-    LMgr.ListVersions(LAll);
+    if LMgr.ListVersions(Ctx.Out, LAll) then
+      Exit(0);
+    Result := 3;
   finally
     LMgr.Free;
   end;
 end;
 
-function LazListFactory: IFpdevCommand;
+function LazListFactory: ICommand;
 begin
   Result := TLazListCommand.Create;
 end;

@@ -1,5 +1,5 @@
 unit fpdev.toolchain.manifest;
-{$CODEPAGE UTF8}
+
 {$mode objfpc}{$H+}
 
 interface
@@ -33,7 +33,7 @@ implementation
 function ParseManifestJSON(const AText: string; out AM: TManifest): boolean;
 var
   Data: TJSONData;
-  Obj, Comps: TJSONObject;
+  Obj: TJSONObject;
   Arr: TJSONArray;
   i, j, N: Integer;
   C: TManifestComponent;
@@ -41,7 +41,9 @@ var
   Urls: TJSONArray;
 begin
   Result := False;
+  Initialize(AM);
   SetLength(AM.Components, 0);
+  Initialize(C);
   try
     Data := GetJSON(AText);
   except
@@ -57,7 +59,8 @@ begin
       for i := 0 to N-1 do
       begin
         It := Arr.Objects[i];
-        FillChar(C, SizeOf(C), 0);
+        Finalize(C);
+        Initialize(C);
         C.Name := It.Get('name','');
         C.Version := It.Get('version','');
         C.OS := LowerCase(It.Get('os',''));
@@ -76,6 +79,7 @@ begin
       Result := True;
     end;
   finally
+    Finalize(C);
     Data.Free;
   end;
 end;

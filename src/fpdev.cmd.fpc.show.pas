@@ -6,46 +6,72 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config, fpdev.cmd.fpc;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   { TFPCShowCommand }
-  TFPCShowCommand = class(TInterfacedObject, IFpdevCommand)
+  TFPCShowCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): IFpdevCommand;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+    function FindSub(const AName: string): ICommand;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
 
-uses fpdev.utils;
+uses fpdev.cmd.utils;
 
 function TFPCShowCommand.Name: string; begin Result := 'show'; end;
-function TFPCShowCommand.Aliases: TStringArray; begin SetLength(Result,0); end;
-function TFPCShowCommand.FindSub(const AName: string): IFpdevCommand; begin Result := nil; end;
 
-procedure TFPCShowCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+function TFPCShowCommand.Aliases: TStringArray;
+begin
+  Result := nil;
+end;
+
+function TFPCShowCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;  // Unused parameter
+end;
+
+function TFPCShowCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LVer: string;
   LMgr: TFPCManager;
 begin
+  Result := 0;
+
+  // Handle --help flag
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_SHOW_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_SHOW_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_SHOW_OPT_HELP));
+    Exit(0);
+  end;
+
   if Length(AParams) < 1 then
   begin
-  // WriteLn('错误: 需要指定版本号，例如: fpdev fpc show 3.2.2');  // 调试代码已注释
-    Exit;
+    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
+    Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
+    Exit(2);
   end;
   LVer := AParams[0];
-  LMgr := TFPCManager.Create(Ctx.Config);
+  LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
-    LMgr.ShowVersionInfo(LVer);
+    if LMgr.ShowVersionInfo(Ctx.Out, LVer) then
+      Exit(0);
+    Result := 3;
   finally
     LMgr.Free;
   end;
 end;
 
-function FPCShowFactory: IFpdevCommand;
+function FPCShowFactory: ICommand;
 begin
   Result := TFPCShowCommand.Create;
 end;

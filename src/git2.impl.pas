@@ -208,12 +208,14 @@ end;
 
 procedure TGitManagerImpl.SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
 begin
-  // 暂无直接映射：先忽略（后续在 fpdev.git2 增加回调适配）
+  // AHandler parameter reserved for future callback adapter implementation
+  // Currently no direct mapping in fpdev.git2
 end;
 
 procedure TGitManagerImpl.SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
 begin
-  // 暂无直接映射：先忽略（后续在 fpdev.git2 增加回调适配）
+  // AHandler parameter reserved for future callback adapter implementation
+  // Currently no direct mapping in fpdev.git2
 end;
 
 function TGitManagerImpl.Initialized: Boolean;

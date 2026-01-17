@@ -5,7 +5,7 @@ unit fpdev.cmd.repo.root;
 interface
 
 uses
-  fpdev.command.registry, fpdev.command.intf;
+  fpdev.command.registry;
 
 implementation
 

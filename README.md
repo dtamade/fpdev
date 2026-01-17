@@ -44,6 +44,8 @@ fpdev version
 # FPC management
 fpdev fpc install 3.2.2             # Binary installation (default, fast)
 fpdev fpc install 3.2.2 --from-source  # Source installation (customizable)
+fpdev fpc install 3.2.2 --offline   # Offline mode (cache-only, no network)
+fpdev fpc install 3.2.2 --no-cache  # Force fresh download (ignore cache)
 fpdev fpc list --all
 fpdev fpc use 3.2.2                 # Activate version (alias: default)
 fpdev fpc current
@@ -51,6 +53,13 @@ fpdev fpc show 3.2.2
 fpdev fpc verify 3.2.2              # Verify installation with smoke test
 fpdev fpc clean 3.2.2               # clean build artifacts from source
 fpdev fpc update 3.2.2              # update FPC sources (git pull)
+
+# Cache management
+fpdev fpc cache list                # List all cached versions
+fpdev fpc cache stats               # Show cache statistics
+fpdev fpc cache clean 3.2.2         # Clean specific version
+fpdev fpc cache clean --all         # Clean all cached versions
+fpdev fpc cache path                # Show cache directory path
 
 # Lazarus management
 fpdev lazarus install 3.0 --from-source
@@ -428,6 +437,45 @@ Bootstrap compiler verified: sources/fpc/bootstrap/fpc-3.0.4/bin/fpc.exe
 fpdev lazarus install 3.0 --from-source   # 安装 Lazarus
 fpdev lazarus launch                       # 启动 IDE
 fpdev lazarus default 3.0                 # 设置默认版本
+fpdev lazarus configure 3.0               # 配置 IDE（编译器路径、库路径等）
+```
+
+#### Lazarus IDE 配置（Phase 3.4）✅
+
+`fpdev lazarus configure` 命令自动配置 Lazarus IDE 的编译器和库路径：
+
+**自动化配置**：
+1. 检测已安装的 Lazarus 版本
+2. 查找对应的 FPC 编译器路径
+3. 自动配置 `environmentoptions.xml` 文件
+4. 设置编译器路径、库路径、FPC 源码路径
+5. 创建配置备份（带时间戳）
+
+**配置内容**：
+- 编译器路径（CompilerFilename）
+- 库路径（FPCSourceDirectory）
+- FPC 源码路径（用于代码补全和调试）
+
+**用户体验**：
+- 完全自动化，无需手动编辑 XML 配置文件
+- 自动创建备份，支持回滚
+- 跨平台支持（Windows/Linux/macOS）
+- 配置验证和错误提示
+
+**示例输出**：
+```bash
+$ fpdev lazarus configure 3.0
+Configuring Lazarus IDE 3.0...
+Found FPC compiler: /home/user/.fpdev/fpc/3.2.2/bin/fpc
+Found FPC source: /home/user/.fpdev/sources/fpc/fpc-3.2.2
+Updating IDE configuration...
+Backup created: /home/user/.lazarus-3.0/backups/environmentoptions_20260117_143022.xml
+Configuration updated successfully!
+
+IDE Configuration Summary:
+- Compiler: /home/user/.fpdev/fpc/3.2.2/bin/fpc
+- Library Path: /home/user/.fpdev/fpc/3.2.2/lib/fpc/3.2.2
+- FPC Source: /home/user/.fpdev/sources/fpc/fpc-3.2.2
 ```
 
 ### 3. 交叉编译支持

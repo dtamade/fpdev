@@ -66,6 +66,9 @@ type
     KeepSources: Boolean;
     InstallRoot: string;
     DefaultRepo: string;
+    // Mirror configuration for fpdev-repo
+    Mirror: string;           // 'auto', 'github', 'gitee', or custom URL
+    CustomRepoURL: string;    // Custom repository URL (highest priority)
   end;
 
   { IToolchainManager - 工具链管理接口 }

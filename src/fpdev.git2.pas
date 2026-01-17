@@ -1,9 +1,27 @@
 unit fpdev.git2;
 
-{$CODEPAGE UTF8}
 {$mode objfpc}{$H+}
 
 {$I fpdev.config.inc}
+
+{
+  Git wrapper using libgit2 library.
+
+  DEPRECATED: This unit provides concrete class-based Git operations.
+  For new code, use the modern interface-based API: git2.api + git2.impl.
+  This unit is maintained for backward compatibility only.
+
+  Legacy usage example:
+    var Mgr: TGitManager; Repo: TGitRepository;
+    Mgr := GitManager;
+    Repo := Mgr.OpenRepository('.');
+
+  Recommended modern usage:
+    uses git2.api, git2.impl;
+    var Mgr: IGitManager;
+    Mgr := NewGitManager();
+    Mgr.Initialize;
+}
 
 interface
 
@@ -371,7 +389,7 @@ begin
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
 
     // 安全检出 HEAD 到工作区
-    FillByte(LOpts, SizeOf(LOpts), 0);
+    LOpts := Default(git_checkout_options);
     CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
     LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
     CheckGitResult(git_checkout_head(FHandle, @LOpts), 'Checkout HEAD');
@@ -396,7 +414,7 @@ begin
     if Trim(ABranch) = '' then Exit(False);
     if Pos('refs/', ABranch) = 1 then LRefName := ABranch else LRefName := 'refs/heads/' + ABranch;
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
-    FillByte(LOpts, SizeOf(LOpts), 0);
+    LOpts := Default(git_checkout_options);
     CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
     if Force then
       LOpts.checkout_strategy := GIT_CHECKOUT_FORCE
@@ -422,7 +440,7 @@ var
   opts: git_clone_options;
 begin
   inherited Create;
-  FillByte(opts, SizeOf(opts), 0);
+  opts := Default(git_clone_options);
   CheckGitResult(git_clone_options_init(@opts, 1), 'Init clone options');
   opts.checkout_opts.checkout_strategy := GIT_CHECKOUT_SAFE;
   CheckResult(git_clone(FHandle, PChar(AURL), PChar(ALocalPath), @opts), 'Clone repository');
@@ -497,7 +515,7 @@ var
   List: TStringList;
   rc: cint;
 begin
-  SetLength(Result, 0);
+  Result := nil;
   List := TStringList.Create;
   try
     CheckGitResult(git_branch_iterator_new(Iterator, FHandle, AType), 'New branch iterator');
@@ -553,12 +571,14 @@ var
   LP: TStatusListPayload;
   function StatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): cint; cdecl;
   begin
+    // APayload parameter reserved for callback context (unused in this implementation)
+    if APayload <> nil then; // Suppress unused parameter hint
     if (AFlags <> GIT_STATUS_CURRENT) then
       LList.Add(string(APath));
     Result := 0; // 继续
   end;
 begin
-  SetLength(Result, 0);
+  Result := nil;
   LList := TStringList.Create;
   try
     LP.List := LList;
@@ -581,6 +601,7 @@ var
   i: Integer;
   LItem: PGitStatusEntry;
 begin
+  Result := nil;
   LList := TList.Create;
   try
     LP.Filter := Filter;
@@ -748,7 +769,7 @@ var
   fetch_opts: git_fetch_options;
 begin
   try
-    FillByte(fetch_opts, SizeOf(fetch_opts), 0);
+    fetch_opts := Default(git_fetch_options);
     CheckGitResult(git_fetch_options_init(@fetch_opts, 1), 'Init fetch options');
     CheckGitResult(git_remote_init_callbacks(@fetch_opts.callbacks, 1), 'Init remote callbacks');
     Result := git_remote_fetch(FHandle, nil, @fetch_opts, nil) = GIT_OK;
@@ -917,13 +938,24 @@ constructor TGit2Manager.Create; begin inherited Create; FInitialized := False; 
 destructor TGit2Manager.Destroy; begin if FInitialized then Finalize; inherited Destroy; end;
 function TGit2Manager.Initialize: Boolean; begin FInitialized := GitManager.Initialize; Result := FInitialized; end;
 procedure TGit2Manager.Finalize; begin if FInitialized then begin GitManager.Finalize; FInitialized := False; end; end;
-function TGit2Manager.OpenRepository(const APath: string): git_repository; var R: TGitRepository; begin R := GitManager.OpenRepository(APath); if Assigned(R) then begin Result := R.FHandle; R.Free; end else Result := nil; end;
+function TGit2Manager.OpenRepository(const APath: string): git_repository;
+var
+  rc: cint;
+begin
+  // Open repository directly, don't use TGitRepository wrapper to avoid double-free
+  if not FInitialized then
+    GitManager.Initialize;
+  Result := nil;
+  rc := git_repository_open(Result, PChar(APath));
+  if rc <> GIT_OK then
+    Result := nil;
+end;
 function TGit2Manager.IsRepository(const APath: string): Boolean; begin Result := GitManager.IsRepository(APath); end;
 function TGit2Manager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean; var R: TGitRepository; begin Result := False; R := GitManager.CloneRepository(AURL, ATargetDir); try Result := Assigned(R); if Result and (ABranch <> '') then Result := R.CheckoutBranch(ABranch) and Result; finally if Assigned(R) then R.Free; end; end;
 function TGit2Manager.UpdateRepository(const ARepoPath: string): Boolean; var R: TGitRepository; begin Result := False; if not IsRepository(ARepoPath) then Exit; R := GitManager.OpenRepository(ARepoPath); if not Assigned(R) then Exit; try Result := R.Fetch('origin'); finally R.Free; end; end;
 function TGit2Manager.GetCurrentBranch(ARepo: git_repository): string; var Ref: git_reference; Target: PChar; FullName: string; begin Result := ''; if not Assigned(ARepo) then Exit; if git_repository_head(Ref, ARepo) = GIT_OK then begin try Target := git_reference_symbolic_target(Ref); if Assigned(Target) then FullName := string(Target) else FullName := string(git_reference_name(Ref)); if Pos('refs/heads/', FullName) = 1 then Result := Copy(FullName, 12, Length(FullName)) else Result := FullName; finally git_reference_free(Ref); end; end; end;
 function TGit2Manager.CheckoutBranch(ARepo: git_repository; const ABranch: string): Boolean; var RepoObj: TGitRepository; begin Result := False; if not FInitialized then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Result := RepoObj.CheckoutBranch(ABranch); finally RepoObj.Free; end; end;
-function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray; var RepoObj: TGitRepository; Branches: TStringArray; i: Integer; begin SetLength(Result,0); if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Branches := RepoObj.ListBranches(GIT_BRANCH_ALL); SetLength(Result, Length(Branches)); for i := 0 to High(Branches) do Result[i] := Branches[i]; finally RepoObj.Free; end; end;
+function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray; var RepoObj: TGitRepository; Branches: TStringArray; i: Integer; begin Result := nil; if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Branches := RepoObj.ListBranches(GIT_BRANCH_ALL); SetLength(Result, Length(Branches)); for i := 0 to High(Branches) do Result[i] := Branches[i]; finally RepoObj.Free; end; end;
 function TGit2Manager.GetLastCommitHash(ARepo: git_repository): string; var RepoObj: TGitRepository; Commit: TGitCommit; begin Result := ''; if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Commit := RepoObj.GetLastCommit; try Result := GitOIDToString(Commit.OID); finally Commit.Free; end; finally RepoObj.Free; end; end;
 
 function CreateGitOIDFromString(const AHashString: string): TGitOID;
@@ -938,11 +970,12 @@ var
   i: Integer;
   s: string;
 begin
+  s := '';
   SetLength(s, 40);
   for i := 0 to 19 do
   begin
-    s[i*2+1] := Hex[(AOID.Data.id[i] shr 4) and $F + 1];
-    s[i*2+2] := Hex[(AOID.Data.id[i] and $F) + 1];
+    s[i*2+1] := Hex[(AOID.Data.id[i] shr 4) and $F];
+    s[i*2+2] := Hex[AOID.Data.id[i] and $F];
   end;
   Result := s;
 end;
@@ -954,13 +987,14 @@ var
   i: Integer;
   s: string;
 begin
+  s := '';
   SetLength(s, 7);
   for i := 0 to 2 do
   begin
-    s[i*2+1] := Hex[(AOID.Data.id[i] shr 4) and $F + 1];
-    s[i*2+2] := Hex[(AOID.Data.id[i] and $F) + 1];
+    s[i*2+1] := Hex[(AOID.Data.id[i] shr 4) and $F];
+    s[i*2+2] := Hex[AOID.Data.id[i] and $F];
   end;
-  s[7] := Hex[(AOID.Data.id[3] shr 4) and $F + 1];
+  s[7] := Hex[(AOID.Data.id[3] shr 4) and $F];
   Result := s;
 end;
 

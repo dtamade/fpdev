@@ -1,6 +1,5 @@
 unit libgit2;
 
-{$codepage utf8}
 {$mode objfpc}{$H+}
 {$PACKRECORDS C}
 
@@ -14,7 +13,7 @@ const
   LIBGIT2_LIB = 'git2.dll';
   {$ENDIF}
   {$IFDEF LINUX}
-  LIBGIT2_LIB = 'libgit2.so.1';
+  LIBGIT2_LIB = 'libgit2.so.1.7';
   {$ENDIF}
   {$IFDEF DARWIN}
   LIBGIT2_LIB = 'libgit2.1.dylib';
@@ -96,31 +95,34 @@ type
 
   git_indexer_progress_cb = function(const stats: Pgit_indexer_progress; payload: Pointer): cint; cdecl;
 
-  // 远程/拉取/检出/克隆选项（最小子集）
+  // 远程/拉取/检出/克隆选项
+  // 注意：这些结构体必须与 libgit2 C 库的实际大小匹配
+  // 使用 _reserved 字节数组确保内存布局正确
+  // 实际大小来自 libgit2 1.7: git_remote_callbacks=120, git_fetch_options=208,
+  // git_checkout_options=144, git_clone_options=408
+
   git_remote_callbacks = record
     version: cuint;
-    progress: Pointer;
-    completion: Pointer;
-    credentials: git_credential_acquire_cb;
-    certificate_check: git_transport_certificate_check_cb;
-    transfer_progress: git_transfer_progress_cb;
+    _reserved: array[0..115] of Byte;  // 120 - sizeof(cuint) = 116 bytes padding
   end;
 
   git_fetch_options = record
     version: cuint;
     callbacks: git_remote_callbacks;
+    _reserved: array[0..83] of Byte;   // 208 - 4 - 120 = 84 bytes padding
   end;
 
   git_checkout_options = record
     version: cuint;
     checkout_strategy: cuint;
-    progress_cb: git_checkout_progress_cb;
+    _reserved: array[0..135] of Byte;  // 144 - 8 = 136 bytes padding
   end;
 
   git_clone_options = record
     version: cuint;
     checkout_opts: git_checkout_options;
     fetch_opts: git_fetch_options;
+    _reserved: array[0..51] of Byte;   // 408 - 4 - 144 - 208 = 52 bytes padding
   end;
 
   // 状态标志

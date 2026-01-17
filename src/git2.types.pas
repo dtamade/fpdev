@@ -15,8 +15,7 @@ type
     gbAll
   );
 
-  // 统一字符串数组类型（与现存模块保持一致）
-  TStringArray = array of string;
+  // 注意: TStringArray 已在 SysUtils 中定义，无需重复定义
 
   // 状态标志（高层抽象，避免直接暴露 libgit2 位掩码）
   TGitStatusFlag = (
