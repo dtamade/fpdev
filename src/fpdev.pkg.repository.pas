@@ -214,9 +214,12 @@ begin
             SetLength(URLs, 1);
             URLs[0] := RepoURL;
             Opt.DestDir := CacheDir;
-            Opt.SHA256 := '';
+            Opt.Hash := '';
+            Opt.HashAlgorithm := haUnknown;
+            Opt.HashDigest := '';
             Opt.TimeoutMS := 15000;
-            if not EnsureDownloadedCached(URLs, TmpPath, Opt.SHA256, Opt.TimeoutMS, Err) then
+            Opt.ExpectedSize := 0;
+            if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
               Continue;
             SL.LoadFromFile(TmpPath);
           end;

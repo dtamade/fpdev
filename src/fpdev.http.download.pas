@@ -2,6 +2,19 @@ unit fpdev.http.download;
 
 {$mode objfpc}{$H+}
 
+{ DEPRECATED: This unit is deprecated and will be removed in a future version.
+  Please use fpdev.toolchain.fetcher instead, which provides:
+  - Multi-mirror fallback support
+  - SHA256/SHA512 hash verification
+  - Manifest integration
+  - Better error handling
+
+  Migration guide:
+  - Replace THTTPDownloader with fpdev.toolchain.fetcher functions
+  - Use FetchWithMirrors() for multi-mirror downloads
+  - Use FetchFromManifest() for manifest-based downloads
+}
+
 interface
 
 uses

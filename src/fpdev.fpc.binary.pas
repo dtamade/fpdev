@@ -7,7 +7,7 @@ interface
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
   fpdev.http.download, fpdev.archive.extract, fpdev.build.cache,
-  fpdev.fpc.verify;
+  fpdev.fpc.verify, fpdev.toolchain.fetcher, fpdev.manifest;
 
 type
   { TBinaryInstaller - Manages FPC binary installation }
@@ -84,6 +84,9 @@ function TBinaryInstaller.DownloadBinary(const AVersion, ADestFile: string): Boo
 var
   Platform: TPlatformInfo;
   URL: string;
+  Err: string;
+  Opt: TFetchOptions;
+  URLs: array of string;
 begin
   Result := False;
 
@@ -111,10 +114,24 @@ begin
   end;
 
   WriteLn('Downloading from: ', URL);
-  Result := FDownloader.Download(URL, ADestFile);
+
+  // Use enhanced fetcher with hash verification
+  // TODO: Integrate manifest parser to get hash and multiple mirrors
+  // For now, use single URL without hash verification (backward compatible)
+  SetLength(URLs, 1);
+  URLs[0] := URL;
+
+  Opt.DestDir := ExtractFileDir(ADestFile);
+  Opt.Hash := '';  // TODO: Get from manifest
+  Opt.HashAlgorithm := haUnknown;
+  Opt.HashDigest := '';
+  Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+  Opt.ExpectedSize := 0;  // TODO: Get from manifest
+
+  Result := EnsureDownloadedCached(URLs, ADestFile, Opt, Err);
 
   if not Result then
-    FLastError := FDownloader.GetLastError;
+    FLastError := Err;
 end;
 
 function TBinaryInstaller.Install(const AVersion, AInstallDir: string): Boolean;

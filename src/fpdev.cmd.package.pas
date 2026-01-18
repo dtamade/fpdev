@@ -661,11 +661,14 @@ begin
 
   // Setup fetch options
   Opt.DestDir := ExtractFileDir(ZipPath);
-  Opt.SHA256 := Avail[BestIdx].Sha256;
+  Opt.Hash := Avail[BestIdx].Sha256;
+  Opt.HashAlgorithm := haSHA256;
+  Opt.HashDigest := Avail[BestIdx].Sha256;
   Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+  Opt.ExpectedSize := 0;
 
   // Download with mirror fallback and SHA256 verification
-  Result := EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err);
+  Result := EnsureDownloadedCached(URLs, ZipPath, Opt, Err);
 end;
 
 function TPackageManager.BuildPackage(const ASourcePath: string): Boolean;
@@ -896,10 +899,13 @@ begin
     for i := 0 to High(URLs) do URLs[i] := Avail[BestIdx].URLs[i];
 
     Opt.DestDir := ExtractFileDir(ZipPath);
-    Opt.SHA256 := Avail[BestIdx].Sha256;
+    Opt.Hash := Avail[BestIdx].Sha256;
+    Opt.HashAlgorithm := haSHA256;
+    Opt.HashDigest := Avail[BestIdx].Sha256;
     Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+    Opt.ExpectedSize := 0;
 
-    if not EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err) then
+    if not EnsureDownloadedCached(URLs, ZipPath, Opt, Err) then
     begin
       Exit;
     end;

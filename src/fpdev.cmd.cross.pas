@@ -468,6 +468,7 @@ var
   RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
   LResult: TProcessResult;
   LO: IOutput;
+  Opt: TFetchOptions;
 begin
   Result := False;
   if ATarget = '' then Exit;
@@ -541,7 +542,15 @@ begin
     LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_BINUTILS, [ATarget]));
     LO.WriteLn(_Fmt(MSG_CROSS_URL, [Binutils.URLs[0]]));
 
-    if not EnsureDownloadedCached(Binutils.URLs, DestPath, Binutils.Sha256, 120000, Err) then
+    // Setup fetch options
+    Opt.DestDir := ExtractFileDir(DestPath);
+    Opt.Hash := Binutils.Sha256;
+    Opt.HashAlgorithm := haSHA256;
+    Opt.HashDigest := Binutils.Sha256;
+    Opt.TimeoutMS := 120000;
+    Opt.ExpectedSize := 0;
+
+    if not EnsureDownloadedCached(Binutils.URLs, DestPath, Opt, Err) then
     begin
       LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
       Exit(False);
@@ -589,6 +598,7 @@ var
   ManifestPath: string;
   LResult: TProcessResult;
   LO: IOutput;
+  Opt: TFetchOptions;
 begin
   Result := False;
   if ATarget = '' then Exit;
@@ -640,8 +650,15 @@ begin
     LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_LIBS, [ATarget]));
     LO.WriteLn(_Fmt(MSG_CROSS_URL, [ManifestTarget.Libraries.URLs[0]]));
 
-    if not EnsureDownloadedCached(ManifestTarget.Libraries.URLs, DestPath,
-                                   ManifestTarget.Libraries.Sha256, 120000, Err) then
+    // Setup fetch options
+    Opt.DestDir := ExtractFileDir(DestPath);
+    Opt.Hash := ManifestTarget.Libraries.Sha256;
+    Opt.HashAlgorithm := haSHA256;
+    Opt.HashDigest := ManifestTarget.Libraries.Sha256;
+    Opt.TimeoutMS := 120000;
+    Opt.ExpectedSize := 0;
+
+    if not EnsureDownloadedCached(ManifestTarget.Libraries.URLs, DestPath, Opt, Err) then
     begin
       LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
       Exit(False);
