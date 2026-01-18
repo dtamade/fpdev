@@ -174,6 +174,7 @@ begin
     URL := AURLs[i];
     Cli := TFPHTTPClient.Create(nil);
     try
+      Cli.AllowRedirect := True;  // Enable HTTP redirect following
       if Opt.TimeoutMS>0 then
       begin
         Cli.ConnectTimeout := Opt.TimeoutMS;
