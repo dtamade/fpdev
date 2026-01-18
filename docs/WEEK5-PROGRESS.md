@@ -121,33 +121,81 @@ Use "fpdev fpc list --remote" to see all available versions.
 
 ---
 
+### 4. ✅ 增强 `fpdev fpc list` 命令
+
+**文件**: `src/fpdev.fpc.version.pas`
+
+**功能**:
+- 从 manifest 读取远程版本列表
+- 优先使用 manifest，fallback 到硬编码版本
+- 自动加载缓存的 manifest
+
+**关键实现**:
+```pascal
+function TFPCVersionManager.GetAvailableVersions: TFPCVersionArray;
+begin
+  // Try to load versions from manifest first
+  Cache := TManifestCache.Create('');
+  if Cache.LoadCachedManifest('fpc', Manifest, False) then
+  begin
+    ManifestVersions := Manifest.ListVersions('fpc');
+    // Return manifest versions
+  end;
+  // Fallback to hardcoded version registry
+end;
+```
+
+**测试结果**:
+```bash
+$ ./bin/fpdev fpc list --remote
+可用的 FPC 版本:
+3.2.2     Installed*
+3.2.0     Available
+3.0.4     Available
+当前 FPC 版本: 3.2.2
+```
+
+**编译状态**: ✅ 成功编译（41,133 行，4.4 秒）
+
+### 5. ✅ 增强 `fpdev fpc install` 命令
+
+**文件**: `src/fpdev.fpc.installer.pas`
+
+**功能**:
+- 使用 manifest 缓存系统进行安装
+- 移除硬编码的 manifest URL
+- 自动从缓存加载 manifest
+- 提供友好的错误提示
+
+**关键实现**:
+```pascal
+function TFPCBinaryInstaller.InstallFromManifest(const AVersion, AInstallPath: string): Boolean;
+begin
+  // Load manifest from cache (will auto-download if needed)
+  Cache := TManifestCache.Create('');
+  if not Cache.LoadCachedManifest('fpc', ManifestParser, False) then
+  begin
+    FErr.WriteLn('[Manifest] Failed to load manifest');
+    FErr.WriteLn('[Manifest] Try running: fpdev fpc update-manifest');
+    Exit;
+  end;
+  // Download using multi-mirror fallback with SHA512 verification
+end;
+```
+
+**编译状态**: ✅ 成功编译（41,111 行，5.4 秒）
+
+---
+
 ## 未完成的任务
 
-### 1. ⏸️ 增强 `fpdev fpc list` 命令
-
-**目标**: 从 manifest 读取远程版本列表
-
-**状态**: 未开始
-
-**原因**: 受 manifest 下载问题阻塞
-
-### 2. ⏸️ 增强 `fpdev fpc install` 命令
-
-**目标**: 使用 manifest 进行安装
-
-**状态**: 未开始
-
-**原因**: 受 manifest 下载问题阻塞
-
-### 3. ⏸️ 端到端集成测试
+### 1. ⏸️ 端到端集成测试
 
 **目标**: 测试完整的安装流程
 
 **状态**: 未开始
 
-**原因**: 受 manifest 下载问题阻塞
-
-### 4. ⏸️ 用户文档更新
+### 2. ⏸️ 用户文档更新
 
 **目标**: 更新 README.md 和用户文档
 
@@ -163,16 +211,18 @@ Use "fpdev fpc list --remote" to see all available versions.
 |------|------|------|
 | fpdev.manifest.cache.pas | 184 | ✅ 新增 |
 | fpdev.cmd.fpc.update_manifest.pas | 127 | ✅ 新增 |
+| fpdev.fpc.version.pas | +33 | ✅ 修改 |
+| fpdev.fpc.installer.pas | +174/-62 | ✅ 修改 |
 | fpdev.lpr | +1 | ✅ 修改 |
-| **总计** | **312** | **✅ 编译通过** |
+| **总计** | **457** | **✅ 编译通过** |
 
 ### 编译结果
 
 ```
-(1008) 41101 lines compiled, 5.2 sec
+(1008) 41111 lines compiled, 5.4 sec
 (1021) 15 warning(s) issued
 (1022) 34 hint(s) issued
-(1023) 13 note(s) issued
+(1023) 12 note(s) issued
 ```
 
 ---
@@ -228,13 +278,14 @@ Week 5 已完成核心基础设施的实现：
 - GitHub 404 错误阻塞了远程 manifest 下载
 - 需要解决仓库访问权限问题
 
-**📊 完成度**: 约 30%（基础设施完成，但功能测试受阻）
+**📊 完成度**: 约 70%（核心功能完成，测试和文档待完成）
 
-**🎯 建议**:
-1. 优先解决 GitHub 访问问题
-2. 使用本地文件进行功能验证
-3. 完成剩余的 CLI 命令增强
-4. 编写完整的集成测试
+**🎯 下一步**:
+1. ✅ GitHub 访问问题已解决（仓库已公开）
+2. ✅ Manifest 缓存系统已完成
+3. ✅ CLI 命令增强已完成（list 和 install）
+4. ⏸️ 编写端到端集成测试
+5. ⏸️ 更新用户文档
 
 ---
 
