@@ -47,12 +47,17 @@ fpdev fpc install 3.2.2 --from-source  # Source installation (customizable)
 fpdev fpc install 3.2.2 --offline   # Offline mode (cache-only, no network)
 fpdev fpc install 3.2.2 --no-cache  # Force fresh download (ignore cache)
 fpdev fpc list --all
+fpdev fpc list --remote             # List versions from manifest
 fpdev fpc use 3.2.2                 # Activate version (alias: default)
 fpdev fpc current
 fpdev fpc show 3.2.2
 fpdev fpc verify 3.2.2              # Verify installation with smoke test
 fpdev fpc clean 3.2.2               # clean build artifacts from source
 fpdev fpc update 3.2.2              # update FPC sources (git pull)
+
+# Manifest management
+fpdev fpc update-manifest           # Download and cache latest manifest
+fpdev fpc update-manifest --force   # Force refresh manifest cache
 
 # Cache management
 fpdev fpc cache list                # List all cached versions
