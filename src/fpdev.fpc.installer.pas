@@ -864,6 +864,7 @@ var
   Target: TManifestTarget;
   TempFile: string;
   TempDir: string;
+  FileExt: string;
   Err: string;
 begin
   Result := False;
@@ -906,7 +907,12 @@ begin
         if not DirectoryExists(TempDir) then
           EnsureDir(TempDir);
 
-        TempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.tar.gz';
+        // Determine file extension from the first URL in the manifest
+        FileExt := ExtractFileExt(Target.URLs[0]);
+        if FileExt = '' then
+          FileExt := '.tar.gz';  // Default fallback
+
+        TempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + FileExt;
 
         FOut.WriteLn('[Manifest] Downloading with multi-mirror fallback...');
         if not FetchFromManifest(Target, TempFile, DEFAULT_DOWNLOAD_TIMEOUT_MS, Err) then
