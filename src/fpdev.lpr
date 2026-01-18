@@ -35,6 +35,7 @@ uses
   fpdev.cmd.fpc.show,
   fpdev.cmd.fpc.test,
   fpdev.cmd.fpc.update,
+  fpdev.cmd.fpc.update_manifest,
   fpdev.cmd.fpc.uninstall,
   fpdev.cmd.fpc.help,
 
@@ -311,7 +312,12 @@ begin
           if not ParseManifestJSON(J.Text, M) then begin Errp.WriteLn('Manifest parse failed'); ExitCode:=2; Exit; end;
           if not FindComponent(M, Name, Ver, OS, Arch, C) then begin Errp.WriteLn('Component not found'); ExitCode:=2; Exit; end;
           if Dest='' then Dest := IncludeTrailingPathDelimiter(GetCacheDir)+'toolchain'+PathDelim+Name+'-'+Ver+'.zip';
-          Opt.DestDir := ExtractFileDir(Dest); Opt.SHA256 := C.Sha256; Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+          Opt.DestDir := ExtractFileDir(Dest);
+          Opt.Hash := C.Sha256;
+          Opt.HashAlgorithm := haSHA256;
+          Opt.HashDigest := C.Sha256;
+          Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+          Opt.ExpectedSize := 0;
           Ok := FetchWithMirrors(C.URLs, Dest, Opt, Err);
           if Ok then begin Outp.WriteLn('Download successful: ' + Dest); ExitCode:=0; end
           else begin Errp.WriteLn('Download failed: ' + Err); ExitCode:=2; end;
