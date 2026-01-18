@@ -44,7 +44,7 @@ uses
   SysUtils, Classes, fphttpclient, zipper,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
-  fpdev.paths;
+  fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -68,6 +68,12 @@ type
       AInstallPath: Target installation directory
       Returns: True if installation succeeded }
     function InstallFromSourceForge(const AVersion, AInstallPath: string): Boolean;
+
+    { Installs FPC using manifest system with multi-mirror support and SHA512 verification.
+      AVersion: FPC version to install
+      AInstallPath: Target installation directory
+      Returns: True if installation succeeded }
+    function InstallFromManifest(const AVersion, AInstallPath: string): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager;
@@ -678,79 +684,92 @@ begin
     FOut.WriteLn('Platform: ' + Platform);
     FOut.WriteLn;
 
-    // Step 1: Initialize fpdev-repo
-    FOut.WriteLn('[1/3] Initializing fpdev-repo...');
-
-    if not Assigned(FResourceRepo) then
+    // Step 1: Try manifest-based installation first (with multi-mirror and SHA512)
+    FOut.WriteLn('[1/4] Attempting manifest-based installation...');
+    if InstallFromManifest(AVersion, InstallPath) then
     begin
-      // Use configured mirror settings from user config
-      FResourceRepo := TResourceRepository.Create(
-        CreateConfigWithMirror(
-          FConfigManager.GetSettingsManager.GetSettings.Mirror,
-          FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
-        )
-      );
-      if not FResourceRepo.Initialize then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
-        FErr.WriteLn('');
-        FErr.WriteLn('fpdev-repo is required for binary installation.');
-        FErr.WriteLn('Please check your network connection and try again.');
-        FErr.WriteLn('');
-        FErr.WriteLn('Mirror configuration:');
-        FErr.WriteLn('  China users: fpdev config set mirror gitee');
-        FErr.WriteLn('  Global users: fpdev config set mirror github');
-        FResourceRepo.Free;
-        FResourceRepo := nil;
-        Exit;
-      end;
-    end;
-    FOut.WriteLn('  fpdev-repo initialized');
-    FOut.WriteLn;
-
-    // Step 2: Check if binary release exists in fpdev-repo
-    FOut.WriteLn('[2/4] Checking for FPC ' + AVersion + ' binary...');
-
-    if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
+      FOut.WriteLn('  Manifest-based installation successful');
+      // Installation complete, skip to environment setup
+    end
+    else
     begin
-      FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+      FOut.WriteLn('  Manifest-based installation not available, trying fpdev-repo...');
       FOut.WriteLn;
 
-      // Step 3: Install from fpdev-repo
-      FOut.WriteLn('[3/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+      // Step 2: Initialize fpdev-repo (fallback)
+      FOut.WriteLn('[2/4] Initializing fpdev-repo...');
 
-      if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+      if not Assigned(FResourceRepo) then
       begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
-        FErr.WriteLn('Trying fallback to SourceForge...');
-        FOut.WriteLn;
-        // Fall through to SourceForge fallback
-      end
-      else
-      begin
-        FOut.WriteLn('  Binary package installed from fpdev-repo');
-        FOut.WriteLn;
+        // Use configured mirror settings from user config
+        FResourceRepo := TResourceRepository.Create(
+          CreateConfigWithMirror(
+            FConfigManager.GetSettingsManager.GetSettings.Mirror,
+            FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
+          )
+        );
+        if not FResourceRepo.Initialize then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
+          FErr.WriteLn('');
+          FErr.WriteLn('fpdev-repo is required for binary installation.');
+          FErr.WriteLn('Please check your network connection and try again.');
+          FErr.WriteLn('');
+          FErr.WriteLn('Mirror configuration:');
+          FErr.WriteLn('  China users: fpdev config set mirror gitee');
+          FErr.WriteLn('  Global users: fpdev config set mirror github');
+          FResourceRepo.Free;
+          FResourceRepo := nil;
+          Exit;
+        end;
       end;
-    end;
-
-    // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
-    if not DirectoryExists(InstallPath + PathDelim + 'bin') then
-    begin
-      FOut.WriteLn('[3/4] Downloading FPC ' + AVersion + ' from SourceForge...');
-      Result := InstallFromSourceForge(AVersion, InstallPath);
-      if not Result then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Failed to install FPC ' + AVersion);
-        FErr.WriteLn('');
-        FErr.WriteLn('Available options:');
-        FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
-        FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
-        FErr.WriteLn('');
-        Exit;
-      end;
-      FOut.WriteLn('  Binary package installed from SourceForge');
+      FOut.WriteLn('  fpdev-repo initialized');
       FOut.WriteLn;
-    end;
+
+      // Step 3: Check if binary release exists in fpdev-repo
+      FOut.WriteLn('[3/4] Checking for FPC ' + AVersion + ' binary...');
+
+      if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
+      begin
+        FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+        FOut.WriteLn;
+
+        // Step 4: Install from fpdev-repo
+        FOut.WriteLn('[4/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+
+        if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
+          FErr.WriteLn('Trying fallback to SourceForge...');
+          FOut.WriteLn;
+          // Fall through to SourceForge fallback
+        end
+        else
+        begin
+          FOut.WriteLn('  Binary package installed from fpdev-repo');
+          FOut.WriteLn;
+        end;
+      end;
+
+      // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
+      if not DirectoryExists(InstallPath + PathDelim + 'bin') then
+      begin
+        FOut.WriteLn('[4/4] Downloading FPC ' + AVersion + ' from SourceForge...');
+        Result := InstallFromSourceForge(AVersion, InstallPath);
+        if not Result then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Failed to install FPC ' + AVersion);
+          FErr.WriteLn('');
+          FErr.WriteLn('Available options:');
+          FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
+          FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
+          FErr.WriteLn('');
+          Exit;
+        end;
+        FOut.WriteLn('  Binary package installed from SourceForge');
+        FOut.WriteLn;
+      end;
+    end;  // Close the else block from manifest installation
 
     // Generate fpc.cfg configuration file if bin directory exists
     if DirectoryExists(InstallPath + PathDelim + 'bin') then
@@ -832,6 +851,99 @@ begin
     on E: Exception do
     begin
       FErr.WriteLn(_(MSG_ERROR) + ': InstallFromBinary failed - ' + E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPCBinaryInstaller.InstallFromManifest(const AVersion, AInstallPath: string): Boolean;
+var
+  ManifestParser: TManifestParser;
+  Cache: TManifestCache;
+  Platform: string;
+  Target: TManifestTarget;
+  TempFile: string;
+  TempDir: string;
+  Err: string;
+begin
+  Result := False;
+
+  try
+    FOut.WriteLn('[Manifest] Attempting installation using manifest system...');
+
+    // Determine platform string
+    Platform := GetCurrentPlatform;
+    FOut.WriteLn('[Manifest] Platform: ' + Platform);
+
+    // Load manifest from cache (will auto-download if needed)
+    FOut.WriteLn('[Manifest] Loading manifest from cache...');
+    Cache := TManifestCache.Create('');
+    try
+      if not Cache.LoadCachedManifest('fpc', ManifestParser, False) then
+      begin
+        FErr.WriteLn('[Manifest] Failed to load manifest');
+        FErr.WriteLn('[Manifest] Try running: fpdev fpc update-manifest');
+        Exit;
+      end;
+
+      try
+        FOut.WriteLn('[Manifest] Manifest loaded successfully');
+
+        // Get target for this version and platform (package name is 'fpc')
+        if not ManifestParser.GetTarget('fpc', AVersion, Platform, Target) then
+        begin
+          FErr.WriteLn('[Manifest] No binary available for FPC ' + AVersion + ' on ' + Platform);
+          FErr.WriteLn('[Manifest] Error: ' + ManifestParser.LastError);
+          Exit;
+        end;
+
+        FOut.WriteLn('[Manifest] Found target with ' + IntToStr(Length(Target.URLs)) + ' mirror(s)');
+        FOut.WriteLn('[Manifest] Hash: ' + Target.Hash);
+        FOut.WriteLn('[Manifest] Size: ' + IntToStr(Target.Size) + ' bytes');
+
+        // Download using multi-mirror fallback with SHA512 verification
+        TempDir := GetTempDir + 'fpdev_downloads';
+        if not DirectoryExists(TempDir) then
+          EnsureDir(TempDir);
+
+        TempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + '.tar.gz';
+
+        FOut.WriteLn('[Manifest] Downloading with multi-mirror fallback...');
+        if not FetchFromManifest(Target, TempFile, DEFAULT_DOWNLOAD_TIMEOUT_MS, Err) then
+        begin
+          FErr.WriteLn('[Manifest] Download failed: ' + Err);
+          Exit;
+        end;
+
+        FOut.WriteLn('[Manifest] Download completed and verified');
+
+        // Extract archive
+        FOut.WriteLn('[Manifest] Extracting archive...');
+        if not ExtractArchive(TempFile, AInstallPath) then
+        begin
+          FErr.WriteLn('[Manifest] Extraction failed');
+          DeleteFile(TempFile);
+          Exit;
+        end;
+
+        FOut.WriteLn('[Manifest] Extraction completed');
+
+        // Cleanup
+        DeleteFile(TempFile);
+
+        Result := True;
+
+      finally
+        ManifestParser.Free;
+      end;
+    finally
+      Cache.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      FErr.WriteLn('[Manifest] InstallFromManifest failed: ' + E.Message);
       Result := False;
     end;
   end;
