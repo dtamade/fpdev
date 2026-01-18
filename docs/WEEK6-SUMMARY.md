@@ -1,14 +1,14 @@
 # Week 6 总结：Manifest 系统集成测试和问题修复
 
 **日期**: 2026-01-18
-**状态**: ✅ 部分完成
-**完成度**: 30%
+**状态**: ✅ 核心完成
+**完成度**: 60%
 
 ---
 
 ## 执行摘要
 
-Week 6 开始了 manifest 系统的完整集成测试，发现并修复了两个关键问题：HTTP 重定向处理和 manifest 文件大小不匹配。虽然受到网络连接问题的阻塞，但核心问题已经诊断并修复。
+Week 6 完成了 manifest 系统的完整集成测试，发现并修复了三个关键问题：HTTP 重定向处理、manifest 文件大小不匹配和 TAR 提取失败。完整安装流程测试通过，验证了 manifest 系统的可用性。核心功能已验证，剩余测试场景和文档工作待完成。
 
 ---
 
@@ -65,23 +65,59 @@ Cli.AllowRedirect := True;  // Enable HTTP redirect following
 
 **提交**: `f0de573` - fix: correct FPC 3.2.0 file size in manifest (fpdev-fpc 仓库)
 
-### 3. ✅ 完善的文档
+### 3. ✅ TAR 提取失败修复
+
+**问题**: 修复前两个问题后，TAR 提取仍然失败，错误码 2
+
+**根本原因**: `InstallFromManifest` 函数硬编码临时文件扩展名为 `.tar.gz`，但 manifest URL 指向普通 TAR 文件
+
+**解决方案**: 动态从 manifest URL 确定文件扩展名
+```pascal
+// fpdev.fpc.installer.pas:909-914
+FileExt := ExtractFileExt(Target.URLs[0]);
+if FileExt = '' then
+  FileExt := '.tar.gz';  // Default fallback
+TempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + FileExt;
+```
+
+**影响**:
+- ✅ TAR 文件现在使用 `tar -xf` 命令
+- ✅ TAR.GZ 文件继续使用 `tar -xzf` 命令
+- ✅ FPC 3.2.0 安装完整流程测试通过
+
+**提交**: `d6ed595` - fix(week6): determine file extension from manifest URL for correct TAR extraction
+
+### 4. ✅ 完整安装流程测试
+
+**测试结果**: FPC 3.2.0 安装完整流程测试通过
+
+**验证项目**:
+- ✅ HTTP 重定向处理正常
+- ✅ 文件大小验证通过 (84336640 bytes)
+- ✅ SHA256 hash 验证通过
+- ✅ TAR 提取成功
+- ✅ 安装完成
+- ✅ 环境配置成功
+- ✅ 安装已缓存供离线使用
+
+### 5. ✅ 完善的文档
 
 **创建的文档**:
 - `docs/WEEK6-PLAN.md`: 详细的 Week 6 计划（377 行）
-- `docs/WEEK6-ISSUES.md`: 问题诊断和解决方案（129 行）
-- `docs/WEEK6-PROGRESS.md`: 进度报告（283 行）
+- `docs/WEEK6-ISSUES.md`: 问题诊断和解决方案（147 行）
+- `docs/WEEK6-PROGRESS.md`: 进度报告（325 行）
 - `docs/WEEK6-SUMMARY.md`: 本总结文档
 
 **提交**:
 - `1aefdca` - docs(week6): create comprehensive Week 6 plan
 - `8af5bb0` - docs(week6): add comprehensive Week 6 progress report
+- `d7489e0` - docs(week6): update progress documentation with all three issues resolved
 
 ---
 
 ## 遇到的问题
 
-### 问题 1: 网络连接问题 ⏸️ 待解决
+### 问题 1: 网络连接问题 ✅ 已解决
 
 **现象**:
 ```bash
@@ -95,13 +131,16 @@ SSL error code: 167772454
 ```
 
 **影响**:
-- ❌ 无法推送 manifest 修复到 GitHub
-- ❌ 无法更新本地 manifest 缓存
-- ❌ 无法重新测试 FPC 3.2.0 安装
+- 无法推送 manifest 修复到 GitHub
+- 无法更新本地 manifest 缓存
+- 无法重新测试 FPC 3.2.0 安装
 
-**缓解措施**:
-- ✅ Manifest 修复已提交到本地 fpdev-fpc 仓库
-- ⏸️ 等待网络恢复后推送和测试
+**解决方案**:
+- 等待网络恢复
+- 推送所有修复到 GitHub
+- 更新本地 manifest 缓存
+
+**状态**: ✅ 网络已恢复，所有修复已推送，测试已完成
 
 ---
 
@@ -112,27 +151,30 @@ SSL error code: 167772454
 | 仓库 | 文件 | 变更 | 状态 |
 |------|------|------|------|
 | fpdev | fpdev.toolchain.fetcher.pas | +1 行 | ✅ 已提交并推送 |
-| fpdev-fpc | manifest.json | 1 行修改 | ✅ 已提交（未推送） |
+| fpdev | fpdev.fpc.installer.pas | +7 行, -1 行 | ✅ 已提交并推送 |
+| fpdev-fpc | manifest.json | 1 行修改 | ✅ 已提交并推送 |
 
 ### Git 提交记录
 
 **fpdev 仓库**:
 ```bash
+d7489e0 docs(week6): update progress documentation with all three issues resolved
+d6ed595 fix(week6): determine file extension from manifest URL for correct TAR extraction
+5a45cef docs(week6): add comprehensive Week 6 summary
 8af5bb0 docs(week6): add comprehensive Week 6 progress report
 0fd00ff fix(week6): enable HTTP redirect following in toolchain fetcher
 1aefdca docs(week6): create comprehensive Week 6 plan
-bb263f7 docs(week5): add comprehensive integration test documentation
 ```
 
 **fpdev-fpc 仓库**:
 ```bash
-f0de573 fix: correct FPC 3.2.0 file size in manifest (未推送)
+f0de573 fix: correct FPC 3.2.0 file size in manifest
 ```
 
 ### 编译结果
 
 ```
-(1008) 41112 lines compiled, 9.2 sec
+(1008) 41118 lines compiled, 4.8 sec
 (1021) 15 warning(s) issued
 (1022) 34 hint(s) issued
 (1023) 12 note(s) issued
@@ -159,19 +201,33 @@ f0de573 fix: correct FPC 3.2.0 file size in manifest (未推送)
 **测试步骤**:
 1. 修复前：下载完成后大小验证失败
 2. 更新 manifest 中的文件大小
-3. 修复后：大小验证应该通过（待网络恢复后验证）
+3. 修复后：大小验证通过
 
-**结果**: ✅ 修复完成（待验证）
+**结果**: ✅ 通过
 
-### 测试 3: 完整安装流程 ⏸️ 待测试
+### 测试 3: TAR 提取 ✅ 已修复
 
-**状态**: 受网络问题阻塞
+**测试步骤**:
+1. 修复前：TAR 提取失败，错误码 2
+2. 动态确定文件扩展名
+3. 修复后：TAR 提取成功
 
-**下一步**:
-1. 推送 manifest 修复到 GitHub
-2. 更新本地 manifest 缓存
-3. 重新测试 FPC 3.2.0 安装
-4. 验证所有步骤正常工作
+**结果**: ✅ 通过
+
+### 测试 4: 完整安装流程 ✅ 通过
+
+**状态**: ✅ 完成
+
+**测试结果**: FPC 3.2.0 安装完整流程测试通过
+
+**验证项目**:
+- ✅ HTTP 重定向处理正常
+- ✅ 文件大小验证通过 (84336640 bytes)
+- ✅ SHA256 hash 验证通过
+- ✅ TAR 提取成功
+- ✅ 安装完成
+- ✅ 环境配置成功
+- ✅ 安装已缓存供离线使用
 
 ---
 
@@ -221,20 +277,17 @@ f0de573 fix: correct FPC 3.2.0 file size in manifest (未推送)
 
 ## 未完成的任务
 
-### 1. ⏸️ 完整安装流程测试
+### 1. ✅ 完整安装流程测试 (已完成)
 
 **目标**: 验证从 manifest 安装 FPC 3.2.0 的完整流程
 
-**状态**: 受网络问题阻塞
+**状态**: ✅ 已完成
+- ✅ HTTP 重定向问题已修复
+- ✅ Manifest 文件大小问题已修复
+- ✅ TAR 提取问题已修复
+- ✅ 完整安装流程测试通过
 
-**优先级**: 高
-
-**下一步**:
-1. 等待网络恢复
-2. 推送 manifest 修复到 GitHub
-3. 更新本地 manifest 缓存
-4. 重新测试 FPC 3.2.0 安装
-5. 验证所有步骤正常工作
+**测试结果**: 所有步骤正常工作
 
 ### 2. ⏸️ 多镜像 Fallback 测试
 
@@ -242,7 +295,7 @@ f0de573 fix: correct FPC 3.2.0 file size in manifest (未推送)
 
 **状态**: 未开始
 
-**优先级**: 高
+**优先级**: 中
 
 **测试场景**:
 - 第一个镜像失败，自动切换到第二个镜像
@@ -327,28 +380,30 @@ f0de573 fix: correct FPC 3.2.0 file size in manifest (未推送)
 
 ## 总结
 
-Week 6 已完成约 30% 的目标，主要成就包括：
+Week 6 已完成约 60% 的目标，主要成就包括：
 
 **✅ 已完成**:
 - HTTP 重定向处理修复（关键问题）
 - Manifest 文件大小不匹配修复（关键问题）
+- TAR 提取失败修复（关键问题）
+- 完整安装流程测试通过
 - 完善的 Week 6 规划和文档
 - 问题诊断和解决方案文档
 
-**⏸️ 受阻**:
-- 网络连接问题阻塞了测试和部署流程
-- 无法推送 manifest 修复到 GitHub
-- 无法更新本地 manifest 缓存
-- 无法重新测试 FPC 3.2.0 安装
+**⏸️ 未完成**:
+- 多镜像 Fallback 测试（优先级：中）
+- 离线模式测试（优先级：中）
+- 用户使用指南文档（优先级：中）
 
-**📊 完成度**: 30%
+**📊 完成度**: 60%（核心功能已验证，剩余测试场景和文档）
 
 **核心价值**:
-- 发现并修复了两个关键的 manifest 系统问题
+- 发现并修复了三个关键的 manifest 系统问题
+- 完整安装流程测试通过，验证了 manifest 系统的可用性
 - 建立了完善的问题诊断和解决流程
-- 为后续测试奠定了基础
+- 为后续测试和文档工作奠定了基础
 
-**🎯 下一步**: 等待网络恢复，推送修复，完成完整安装流程测试
+**🎯 下一步**: 多镜像 fallback 测试、离线模式测试、用户文档编写
 
 ---
 
