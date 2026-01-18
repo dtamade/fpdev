@@ -90,25 +90,33 @@ Error: Failed to download manifest: Unexpected response status code: 404
 
 **原因分析**:
 1. GitHub raw content URL 返回 404
-2. 可能的原因：
-   - 仓库是私有的，需要认证
-   - 文件还未同步到 GitHub 的 raw content CDN
-   - URL 格式不正确
+2. **已确认根本原因**: 仓库是私有的（`isPrivate: true`）
 
 **验证**:
 ```bash
 $ curl -I "https://raw.githubusercontent.com/dtamade/fpdev-fpc/main/manifest.json"
 HTTP/2 404
+
+$ gh repo view dtamade/fpdev-fpc --json isPrivate,visibility
+{"isPrivate":true,"visibility":"PRIVATE"}
+
+$ gh api repos/dtamade/fpdev-fpc/contents/manifest.json --jq '.download_url'
+https://raw.githubusercontent.com/dtamade/fpdev-fpc/main/manifest.json?token=AAZY5IWN7QY3TG3MUTGTLI3JNSVBU
 ```
 
 **影响**:
 - `update-manifest` 命令无法从远程下载 manifest
-- 需要手动复制 manifest 文件到缓存目录进行测试
+- 所有 manifest 仓库（fpdev-fpc, fpdev-lazarus, fpdev-bootstrap, fpdev-cross）都需要公开访问
+- FPDev 设计为公共包分发系统（类似 rustup），需要公开访问 manifest
 
-**解决方案**（待实施）:
-1. **短期**: 使用本地文件路径进行测试
-2. **中期**: 检查 GitHub 仓库权限设置
-3. **长期**: 考虑使用 GitHub API 或其他托管方案
+**解决方案**:
+1. **必须**: 将所有 manifest 仓库设置为 **Public**
+   - fpdev-fpc
+   - fpdev-lazarus
+   - fpdev-bootstrap
+   - fpdev-cross
+2. **短期测试**: 使用本地文件路径进行功能验证
+3. **验证**: 仓库公开后重新测试 `fpdev fpc update-manifest --force`
 
 ---
 
