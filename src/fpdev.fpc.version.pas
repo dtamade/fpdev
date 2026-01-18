@@ -36,7 +36,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants;
+  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
+  fpdev.manifest.cache, fpdev.manifest;
 
 type
   { TFPCVersionInfo - Information about an FPC version }
@@ -190,8 +191,39 @@ function TFPCVersionManager.GetAvailableVersions: TFPCVersionArray;
 var
   i: Integer;
   Releases: TFPCReleaseArray;
+  Cache: TManifestCache;
+  Manifest: TManifestParser;
+  ManifestVersions: TStringArray;
 begin
   Initialize(Result);
+
+  // Try to load versions from manifest first
+  Cache := TManifestCache.Create('');
+  try
+    if Cache.LoadCachedManifest('fpc', Manifest, False) then
+    begin
+      try
+        ManifestVersions := Manifest.ListVersions('fpc');
+        SetLength(Result, Length(ManifestVersions));
+        for i := 0 to High(ManifestVersions) do
+        begin
+          Result[i].Version := ManifestVersions[i];
+          Result[i].ReleaseDate := '';  // Manifest doesn't have release dates
+          Result[i].GitTag := '';
+          Result[i].Branch := '';
+          Result[i].Available := True;
+          Result[i].Installed := CheckVersionInstalled(Result[i].Version);
+        end;
+        Exit;
+      finally
+        Manifest.Free;
+      end;
+    end;
+  finally
+    Cache.Free;
+  end;
+
+  // Fallback to hardcoded version registry if manifest not available
   Releases := TVersionRegistry.Instance.GetFPCReleases;
   SetLength(Result, Length(Releases));
   for i := 0 to High(Releases) do
