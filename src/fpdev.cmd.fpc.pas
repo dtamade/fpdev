@@ -366,6 +366,9 @@ begin
   // Initialize build cache
   CacheDir := FInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
   FBuildCache := TBuildCache.Create(CacheDir);
+
+  // Pass cache instance to installer for binary caching
+  FInstallerMgr.SetCache(FBuildCache);
 end;
 
 destructor TFPCManager.Destroy;

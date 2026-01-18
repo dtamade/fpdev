@@ -45,7 +45,7 @@ end;
 
 function TFPCInstallCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LVer, LJobs, LFrom, LPrefix, LCacheDir, LInstallPath: string;
+  LVer, LJobs, LFrom, LPrefix, LCacheDir, LInstallPath, LInstallRoot: string;
   LMode: TInstallMode;
   LFromSource, LOfflineMode, LNoCache: Boolean;
   LSettings: TFPDevSettings;
@@ -109,8 +109,18 @@ begin
   end;
   if not GetFlagValue(AParams, 'prefix', LPrefix) then LPrefix := '';
 
-  // Initialize cache
-  LCacheDir := GetAppConfigDir(False) + '.fpdev' + PathDelim + 'cache';
+  // Initialize cache (use same directory as TFPCManager for consistency)
+  LSettings := Ctx.Config.GetSettingsManager.GetSettings;
+  LInstallRoot := LSettings.InstallRoot;
+  if LInstallRoot = '' then
+  begin
+    {$IFDEF MSWINDOWS}
+    LInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
+    {$ELSE}
+    LInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
+    {$ENDIF}
+  end;
+  LCacheDir := LInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
   LCache := TBuildCache.Create(LCacheDir);
   try
     // Check cache before installation (unless --no-cache is specified)
@@ -125,12 +135,10 @@ begin
         if LPrefix <> '' then
           LInstallPath := ExpandFileName(LPrefix);
 
-        // Try to restore from cache (use correct artifact type based on install mode)
+        // Try to restore from cache (both binary and source use RestoreArtifacts now)
+        // Binary installations now cache the installed directory, not the downloaded package
         Ctx.Out.WriteLn('[CACHE] Restoring from cache to: ' + LInstallPath);
-        if LMode = imSource then
-          LOk := LCache.RestoreArtifacts(LVer, LInstallPath)
-        else
-          LOk := LCache.RestoreBinaryArtifact(LVer, LInstallPath);
+        LOk := LCache.RestoreArtifacts(LVer, LInstallPath);
 
         if LOk then
         begin
@@ -219,22 +227,9 @@ begin
 
       if LOk then
       begin
-        // Save to cache after successful installation (unless --no-cache)
-        if not LNoCache then
-        begin
-          // Get installation path
-          LInstallPath := LMgr.GetVersionInstallPath(LVer);
-          if LPrefix <> '' then
-            LInstallPath := ExpandFileName(LPrefix);
-
-          // Save installed directory to cache
-          Ctx.Out.WriteLn('[CACHE] Saving installation to cache...');
-          if LCache.SaveArtifacts(LVer, LInstallPath) then
-            Ctx.Out.WriteLn('[CACHE] Installation cached successfully')
-          else
-            Ctx.Out.WriteLn('[WARN] Failed to cache installation (non-fatal)');
-        end;
-
+        // Note: Binary installations are now cached automatically by the installer
+        // Source installations are cached by TFPCManager.InstallVersion
+        // No need to call SaveArtifacts here anymore
         Exit(0);
       end
       else

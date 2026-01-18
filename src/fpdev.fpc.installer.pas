@@ -44,7 +44,8 @@ uses
   SysUtils, Classes, fphttpclient, zipper,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
-  fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher;
+  fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher,
+  fpdev.build.cache;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -55,6 +56,8 @@ type
     FResourceRepo: TResourceRepository;
     FOut: IOutput;
     FErr: IOutput;
+    FCache: TBuildCache;
+    FNoCache: Boolean;
 
     { Gets the installation path for a given FPC version. }
     function GetVersionInstallPath(const AVersion: string): string;
@@ -113,6 +116,14 @@ type
       Returns: True if installation succeeded }
     function InstallFromBinary(const AVersion: string; const APrefix: string = ''): Boolean;
 
+    { Sets the build cache instance for binary caching.
+      ACache: Cache instance to use (nil to disable caching) }
+    procedure SetCache(ACache: TBuildCache);
+
+    { Sets whether to skip cache operations.
+      ANoCache: True to skip cache save/restore }
+    procedure SetNoCache(ANoCache: Boolean);
+
     { Resource repository accessor for external coordination. }
     property ResourceRepo: TResourceRepository read FResourceRepo;
   end;
@@ -132,6 +143,8 @@ begin
   inherited Create;
   FConfigManager := AConfigManager;
   FResourceRepo := nil;
+  FCache := nil;
+  FNoCache := False;
 
   FOut := AOut;
   if FOut = nil then
@@ -159,6 +172,16 @@ begin
   if Assigned(FResourceRepo) then
     FResourceRepo.Free;
   inherited Destroy;
+end;
+
+procedure TFPCBinaryInstaller.SetCache(ACache: TBuildCache);
+begin
+  FCache := ACache;
+end;
+
+procedure TFPCBinaryInstaller.SetNoCache(ANoCache: Boolean);
+begin
+  FNoCache := ANoCache;
 end;
 
 function TFPCBinaryInstaller.GetVersionInstallPath(const AVersion: string): string;
@@ -845,6 +868,17 @@ begin
     FOut.WriteLn('  fpdev fpc use ' + AVersion);
     FOut.WriteLn('===========================================');
 
+    // Save installed FPC to cache (unless --no-cache)
+    if Assigned(FCache) and not FNoCache then
+    begin
+      FOut.WriteLn;
+      FOut.WriteLn('[CACHE] Saving installation to cache...');
+      if FCache.SaveArtifacts(AVersion, InstallPath) then
+        FOut.WriteLn('[CACHE] Installation cached successfully')
+      else
+        FOut.WriteLn('[WARN] Failed to cache installation (non-fatal)');
+    end;
+
     Result := True;
 
   except
@@ -866,6 +900,7 @@ var
   TempDir: string;
   FileExt: string;
   Err: string;
+  SR: TSearchRec;
 begin
   Result := False;
 
@@ -923,21 +958,122 @@ begin
 
         FOut.WriteLn('[Manifest] Download completed and verified');
 
-        // Extract archive
+        // Extract archive (two-stage: outer TAR contains nested binary TAR)
         FOut.WriteLn('[Manifest] Extracting archive...');
-        if not ExtractArchive(TempFile, AInstallPath) then
+
+        // Stage 1: Extract outer TAR to temporary directory
+        TempDir := GetTempDir + 'fpdev_extract_' + IntToStr(GetTickCount64);
+        if not DirectoryExists(TempDir) then
+          EnsureDir(TempDir);
+
+        try
+          if not ExtractArchive(TempFile, TempDir) then
+          begin
+            FErr.WriteLn('[Manifest] Extraction failed');
+            Exit;
+          end;
+
+        // Stage 2: Find and extract nested binary TAR to installation directory
+        // The outer TAR extracts to a subdirectory (e.g., fpc-3.2.0-x86_64-linux/)
+        // Inside that subdirectory is binary.x86_64-linux.tar with the actual FPC binaries
+
+        // Find the extracted subdirectory (should be the only directory in TempDir)
+        FileExt := '';
+        if FindFirst(TempDir + PathDelim + '*', faDirectory, SR) = 0 then
         begin
-          FErr.WriteLn('[Manifest] Extraction failed');
-          DeleteFile(TempFile);
-          Exit;
+          repeat
+            if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
+            begin
+              // Found the extracted subdirectory, look for binary TAR inside it
+              FileExt := TempDir + PathDelim + SR.Name + PathDelim + 'binary.';
+              {$IFDEF CPU64}
+              FileExt := FileExt + 'x86_64';
+              {$ELSE}
+              FileExt := FileExt + 'i386';
+              {$ENDIF}
+              FileExt := FileExt + '-';
+              {$IFDEF LINUX}
+              FileExt := FileExt + 'linux';
+              {$ELSE}
+                {$IFDEF DARWIN}
+                FileExt := FileExt + 'darwin';
+                {$ELSE}
+                  {$IFDEF MSWINDOWS}
+                  FileExt := FileExt + 'win64';
+                  {$ENDIF}
+                {$ENDIF}
+              {$ENDIF}
+              FileExt := FileExt + '.tar';
+              Break;
+            end;
+          until FindNext(SR) <> 0;
+          FindClose(SR);
+        end;
+
+        if (FileExt <> '') and FileExists(FileExt) then
+        begin
+          FOut.WriteLn('[Manifest] Extracting nested binary TAR...');
+          if not ExtractArchive(FileExt, AInstallPath) then
+          begin
+            FErr.WriteLn('[Manifest] Nested extraction failed');
+            Exit;
+          end;
+
+          // Stage 3: Extract base package which contains the actual FPC binaries
+          // The binary TAR contains many .tar.gz files, but base.x86_64-linux.tar.gz has the core compiler
+          FileExt := AInstallPath + PathDelim + 'base.';
+          {$IFDEF CPU64}
+          FileExt := FileExt + 'x86_64';
+          {$ELSE}
+          FileExt := FileExt + 'i386';
+          {$ENDIF}
+          FileExt := FileExt + '-';
+          {$IFDEF LINUX}
+          FileExt := FileExt + 'linux';
+          {$ELSE}
+            {$IFDEF DARWIN}
+            FileExt := FileExt + 'darwin';
+            {$ELSE}
+              {$IFDEF MSWINDOWS}
+              FileExt := FileExt + 'win64';
+              {$ENDIF}
+            {$ENDIF}
+          {$ENDIF}
+          FileExt := FileExt + '.tar.gz';
+
+          if FileExists(FileExt) then
+          begin
+            FOut.WriteLn('[Manifest] Extracting base package...');
+            if not ExtractArchive(FileExt, AInstallPath) then
+            begin
+              FErr.WriteLn('[Manifest] Base package extraction failed');
+              Exit;
+            end;
+            // Clean up the .tar.gz files after extraction
+            DeleteFile(FileExt);
+          end;
+        end
+        else
+        begin
+          // Fallback: if nested TAR not found, assume outer TAR contains binaries directly
+          FOut.WriteLn('[Manifest] No nested TAR found, using direct extraction');
+          if not ExtractArchive(TempFile, AInstallPath) then
+          begin
+            FErr.WriteLn('[Manifest] Extraction failed');
+            Exit;
+          end;
         end;
 
         FOut.WriteLn('[Manifest] Extraction completed');
-
-        // Cleanup
-        DeleteFile(TempFile);
-
         Result := True;
+
+        finally
+          // Cleanup temporary files and directories
+          if FileExists(TempFile) then
+            DeleteFile(TempFile);
+          if DirectoryExists(TempDir) then
+            RemoveDir(TempDir);
+        end;
 
       finally
         ManifestParser.Free;
