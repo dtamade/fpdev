@@ -80,7 +80,7 @@ Options:
 
 ## 遇到的问题
 
-### 问题 1: GitHub 404 错误
+### 问题 1: GitHub 404 错误 ✅ 已解决
 
 **现象**:
 ```bash
@@ -92,31 +92,32 @@ Error: Failed to download manifest: Unexpected response status code: 404
 1. GitHub raw content URL 返回 404
 2. **已确认根本原因**: 仓库是私有的（`isPrivate: true`）
 
-**验证**:
+**解决方案**:
+将所有 manifest 仓库设置为 **Public**
+
+**验证结果** ✅:
 ```bash
-$ curl -I "https://raw.githubusercontent.com/dtamade/fpdev-fpc/main/manifest.json"
-HTTP/2 404
-
 $ gh repo view dtamade/fpdev-fpc --json isPrivate,visibility
-{"isPrivate":true,"visibility":"PRIVATE"}
+{"isPrivate":false,"visibility":"PUBLIC"}
 
-$ gh api repos/dtamade/fpdev-fpc/contents/manifest.json --jq '.download_url'
-https://raw.githubusercontent.com/dtamade/fpdev-fpc/main/manifest.json?token=AAZY5IWN7QY3TG3MUTGTLI3JNSVBU
+$ ./bin/fpdev fpc update-manifest --force
+Updating FPC manifest...
+Forcing manifest refresh...
+
+Manifest updated successfully!
+  Version: 1
+  Date: 2026-01-18
+  Cache: /home/dtamade/.fpdev/cache/manifests
+
+Available FPC versions:
+  - 3.2.2
+  - 3.2.0
+  - 3.0.4
+
+Use "fpdev fpc list --remote" to see all available versions.
 ```
 
-**影响**:
-- `update-manifest` 命令无法从远程下载 manifest
-- 所有 manifest 仓库（fpdev-fpc, fpdev-lazarus, fpdev-bootstrap, fpdev-cross）都需要公开访问
-- FPDev 设计为公共包分发系统（类似 rustup），需要公开访问 manifest
-
-**解决方案**:
-1. **必须**: 将所有 manifest 仓库设置为 **Public**
-   - fpdev-fpc
-   - fpdev-lazarus
-   - fpdev-bootstrap
-   - fpdev-cross
-2. **短期测试**: 使用本地文件路径进行功能验证
-3. **验证**: 仓库公开后重新测试 `fpdev fpc update-manifest --force`
+**状态**: ✅ 已解决，manifest 下载功能正常工作
 
 ---
 
