@@ -3,7 +3,7 @@ program test_package_create;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.package;
+  SysUtils, Classes, fpdev.cmd.package, fpdev.config.interfaces, fpdev.config.managers;
 
 type
   TTestCallback = procedure;
@@ -42,10 +42,12 @@ end;
 procedure TestBasicPackageCreation;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestBasicPackageCreation');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Create basic package
     if not Mgr.CreatePackage('test-package', './test_data/src') then
@@ -60,10 +62,12 @@ end;
 procedure TestPackageWithMetadata;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestPackageWithMetadata');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Create package with full metadata
     // This will require metadata parameter support
@@ -78,10 +82,12 @@ end;
 procedure TestPackageWithDependencies;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestPackageWithDependencies');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Create package that declares dependencies
     // Dependencies should be validated
@@ -96,10 +102,12 @@ end;
 procedure TestPackageValidation;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestPackageValidation');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test package validation logic
     // Check for required files
@@ -116,10 +124,12 @@ end;
 procedure TestPackageArchiveCreation;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestPackageArchiveCreation');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test ZIP archive creation
     // Verify archive contents
@@ -135,10 +145,12 @@ end;
 procedure TestInvalidPackageName;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestInvalidPackageName');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test with invalid package name
     // Should fail with appropriate error
@@ -154,10 +166,12 @@ end;
 procedure TestMissingSourceDirectory;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestMissingSourceDirectory');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test with non-existent source directory
     // Should fail with appropriate error
@@ -173,10 +187,12 @@ end;
 procedure TestEmptySourceDirectory;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestEmptySourceDirectory');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test with empty source directory
     // Should fail or handle gracefully
@@ -191,10 +207,12 @@ end;
 procedure TestPackageWithCircularDeps;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestPackageWithCircularDeps');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test package with circular dependency declaration
     // Should be detected during validation
@@ -209,10 +227,12 @@ end;
 procedure TestMultiplePackageFiles;
 var
   Mgr: TPackageManager;
+  Config: IConfigManager;
 begin
   WriteTestHeader('TestMultiplePackageFiles');
 
-  Mgr := TPackageManager.Create(nil);
+  Config := TConfigManager.Create('');
+  Mgr := TPackageManager.Create(Config);
   try
     // Test package with multiple source files
     // Test file glob patterns
@@ -255,11 +275,15 @@ begin
     WriteLn('  Total:  ', TestPassed + TestFailed);
 
     if TestFailed = 0 then
-      WriteLn('[SUCCESS] All tests passed!')
+    begin
+      WriteLn('[SUCCESS] All tests passed!');
+      ExitCode := 0;
+    end
     else
+    begin
       WriteLn('[FAILURE] Some tests failed!');
-
-    ExitCode := ifthen(TestFailed > 0, 1, 0);
+      ExitCode := 1;
+    end;
   except
     on E: Exception do
     begin
