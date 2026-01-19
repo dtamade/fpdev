@@ -24,7 +24,7 @@ unit fpdev.cmd.package.validate;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, StrUtils;
+  SysUtils, Classes, fpjson, jsonparser;
 
 type
   TValidationLevel = (vlError, vlWarning, vlInfo);
