@@ -29,9 +29,9 @@ type
     FTempDir: string;
     FLastError: string;
 
-    function IsArchive(const APath: string): Boolean;
     function LoadPackageMetadata(const APackageDir: string; out AMetadata: TJSONObject): Boolean;
     function GetTestScript(const AMetadata: TJSONObject): string;
+    function GetShellExecutable: string;
 
   public
     constructor Create;
@@ -64,6 +64,7 @@ begin
   inherited Create;
   FTempDir := '';
   FLastError := '';
+  Randomize;  // Initialize random number generator for temp directory names
 end;
 
 destructor TPackageTestCommand.Destroy;
@@ -74,12 +75,13 @@ begin
   inherited Destroy;
 end;
 
-function TPackageTestCommand.IsArchive(const APath: string): Boolean;
-var
-  Ext: string;
+function TPackageTestCommand.GetShellExecutable: string;
 begin
-  Ext := LowerCase(ExtractFileExt(APath));
-  Result := (Ext = '.gz') or (Ext = '.tgz') or (Ext = '.tar');
+  {$IFDEF WINDOWS}
+  Result := 'cmd.exe';
+  {$ELSE}
+  Result := '/bin/sh';
+  {$ENDIF}
 end;
 
 function TPackageTestCommand.LoadPackageMetadata(const APackageDir: string; out AMetadata: TJSONObject): Boolean;
@@ -272,8 +274,12 @@ begin
     // Execute test script using shell
     Process := TProcess.Create(nil);
     try
-      Process.Executable := '/bin/sh';
+      Process.Executable := GetShellExecutable;
+      {$IFDEF WINDOWS}
+      Process.Parameters.Add('/c');
+      {$ELSE}
       Process.Parameters.Add('-c');
+      {$ENDIF}
       Process.Parameters.Add(TestScript);
       Process.CurrentDirectory := APackageDir;
       Process.Options := [poWaitOnExit, poUsePipes];
