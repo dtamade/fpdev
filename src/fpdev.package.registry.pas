@@ -317,7 +317,6 @@ var
   Packages: TJSONObject;
   PackageInfo: TJSONObject;
   Versions: TJSONArray;
-  VersionInfo: TJSONObject;
   MetadataFile: TJSONData;
   FS: TFileStream;
 begin
