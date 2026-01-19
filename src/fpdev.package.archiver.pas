@@ -25,16 +25,18 @@ unit fpdev.package.archiver;
 interface
 
 uses
-  SysUtils, Classes, StrUtils, Process, fpdev.hash;
+  SysUtils, Classes, StrUtils, Process;
 
 type
   { TPackageArchiver }
   TPackageArchiver = class
   private
     FSourceDir: string;
+    FSourceDirWithDelim: string;
     FOutputFile: string;
     FChecksum: string;
     FIgnorePatterns: TStringList;
+    FLastError: string;
 
     function LoadIgnorePatterns: Boolean;
     function MatchesIgnorePattern(const AFilePath: string): Boolean;
@@ -54,11 +56,17 @@ type
     { Get SHA256 checksum of the archive }
     function GetChecksum: string;
 
+    { Get last error message }
+    function GetLastError: string;
+
     property SourceDir: string read FSourceDir;
     property OutputFile: string read FOutputFile;
   end;
 
 implementation
+
+uses
+  fpdev.hash;
 
 { TPackageArchiver }
 
@@ -66,8 +74,10 @@ constructor TPackageArchiver.Create(const ASourceDir: string);
 begin
   inherited Create;
   FSourceDir := ExpandFileName(ASourceDir);
+  FSourceDirWithDelim := IncludeTrailingPathDelimiter(FSourceDir);
   FOutputFile := '';
   FChecksum := '';
+  FLastError := '';
   FIgnorePatterns := TStringList.Create;
   LoadIgnorePatterns;
 end;
@@ -91,7 +101,11 @@ begin
       FIgnorePatterns.LoadFromFile(IgnoreFile);
       Result := True;
     except
-      // Ignore errors loading .fpdevignore
+      on E: Exception do
+      begin
+        FLastError := 'Failed to load .fpdevignore: ' + E.Message;
+        Result := False;
+      end;
     end;
   end;
 end;
@@ -104,15 +118,15 @@ var
 begin
   Result := False;
 
-  // Get relative path from source directory
-  RelPath := ExtractRelativePath(IncludeTrailingPathDelimiter(FSourceDir), AFilePath);
+  // Get relative path from source directory (using cached path with delimiter)
+  RelPath := ExtractRelativePath(FSourceDirWithDelim, AFilePath);
 
   for I := 0 to FIgnorePatterns.Count - 1 do
   begin
     Pattern := Trim(FIgnorePatterns[I]);
 
     // Skip empty lines and comments
-    if (Pattern = '') or (Pattern[1] = '#') then
+    if (Length(Pattern) = 0) or (Pattern[1] = '#') then
       Continue;
 
     // Simple wildcard matching
@@ -213,12 +227,16 @@ begin
   Result := False;
   FOutputFile := ExpandFileName(AOutputFile);
   FChecksum := '';
+  FLastError := '';
 
   // Collect all source files
   Files := DetectSourceFiles(True);
   try
     if Files.Count = 0 then
+    begin
+      FLastError := 'No source files found to archive';
       Exit;
+    end;
 
     // Create tar.gz archive using external tar command
     Process := TProcess.Create(nil);
@@ -229,10 +247,10 @@ begin
       Process.Parameters.Add('-C');
       Process.Parameters.Add(FSourceDir);
 
-      // Add all files as relative paths
+      // Add all files as relative paths (using cached path with delimiter)
       for I := 0 to Files.Count - 1 do
       begin
-        RelPath := ExtractRelativePath(IncludeTrailingPathDelimiter(FSourceDir), Files[I]);
+        RelPath := ExtractRelativePath(FSourceDirWithDelim, Files[I]);
         Process.Parameters.Add(RelPath);
       end;
 
@@ -243,11 +261,24 @@ begin
         ExitCode := Process.ExitStatus;
         Result := (ExitCode = 0) and FileExists(FOutputFile);
 
-        // Generate checksum if archive was created successfully
-        if Result then
+        if not Result then
+        begin
+          if ExitCode <> 0 then
+            FLastError := Format('tar command failed with exit code %d', [ExitCode])
+          else
+            FLastError := 'Archive file was not created';
+        end
+        else
+        begin
+          // Generate checksum if archive was created successfully
           FChecksum := SHA256FileHex(FOutputFile);
+        end;
       except
-        Result := False;
+        on E: Exception do
+        begin
+          FLastError := 'Failed to execute tar command: ' + E.Message;
+          Result := False;
+        end;
       end;
     finally
       Process.Free;
@@ -260,6 +291,11 @@ end;
 function TPackageArchiver.GetChecksum: string;
 begin
   Result := FChecksum;
+end;
+
+function TPackageArchiver.GetLastError: string;
+begin
+  Result := FLastError;
 end;
 
 end.
