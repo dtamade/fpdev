@@ -35,7 +35,8 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths, fpdev.hash,
   fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils, fpdev.utils.process,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository,
+  fpdev.package.archiver;
 
 type
   { TPackageInfo }
@@ -1558,20 +1559,22 @@ var
   J: TJSONData;
   O: TJSONObject;
   Version, ArchiveName: string;
-  LResult: TProcessResult;
-  LO: IOutput;
+  Archiver: TPackageArchiver;
+  LO, LE: IOutput;
 begin
   Result := False;
 
   LO := Outp;
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   // Check if package is installed/created
   if not IsPackageInstalled(APackageName) then
   begin
-    if Errp <> nil then
-      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [APackageName]));
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [APackageName]));
     Exit;
   end;
 
@@ -1581,8 +1584,7 @@ begin
   // Check if metadata exists
   if not FileExists(MetaPath) then
   begin
-    if Errp <> nil then
-      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, ['Run "fpdev package create" first']));
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, ['Run "fpdev package create" first']));
     Exit;
   end;
 
@@ -1616,33 +1618,29 @@ begin
 
   LO.WriteLn(_Fmt(MSG_PKG_CREATING_ARCHIVE, [ArchiveName]));
 
-  // Create tar.gz archive
-  LResult := TProcessExecutor.Execute('tar',
-    ['-czf', ArchivePath, '-C', ExtractFileDir(InstallPath), ExtractFileName(InstallPath)], '');
-
-  if not LResult.Success then
-  begin
-    if Errp <> nil then
+  // Create tar.gz archive using TPackageArchiver
+  Archiver := TPackageArchiver.Create(InstallPath);
+  try
+    if not Archiver.CreateArchive(ArchivePath) then
     begin
-      if LResult.ErrorMessage <> '' then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, [LResult.ErrorMessage]))
-      else
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, ['exit code ' + IntToStr(LResult.ExitCode)]));
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, [Archiver.GetLastError]));
+      Exit;
     end;
-    Exit;
+
+    // Display archive info with SHA256 checksum
+    LO.WriteLn(_Fmt(MSG_PKG_ARCHIVE_CREATED, [ArchivePath]));
+    LO.WriteLn('SHA256: ' + Archiver.GetChecksum);
+    LO.WriteLn('');
+    LO.WriteLn(_Fmt(MSG_PKG_READY_PUBLISH, [APackageName, Version]));
+    LO.WriteLn('');
+    LO.WriteLn(_(MSG_PKG_TO_PUBLISH));
+    LO.WriteLn(_(MSG_PKG_PUBLISH_STEP1));
+    LO.WriteLn(_(MSG_PKG_PUBLISH_STEP2));
+
+    Result := True;
+  finally
+    Archiver.Free;
   end;
-
-  // Calculate SHA256 of archive
-  LO.WriteLn(_Fmt(MSG_PKG_ARCHIVE_CREATED, [ArchivePath]));
-  LO.WriteLn('SHA256: ' + SHA256FileHex(ArchivePath));
-  LO.WriteLn('');
-  LO.WriteLn(_Fmt(MSG_PKG_READY_PUBLISH, [APackageName, Version]));
-  LO.WriteLn('');
-  LO.WriteLn(_(MSG_PKG_TO_PUBLISH));
-  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP1));
-  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP2));
-
-  Result := True;
 end;
 
 
