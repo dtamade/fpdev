@@ -809,6 +809,7 @@ var
   MetaFile: TStringList;
   SR: TSearchRec;
   SHA256Hash: string;
+  FileExt: string;
 begin
   Result := False;
 
@@ -820,8 +821,13 @@ begin
 
   // Generate binary artifact paths (with -binary suffix)
   // Preserve original file extension (.tar or .tar.gz)
+  // Handle compound extensions like .tar.gz
+  FileExt := ExtractFileExt(ADownloadedFile);
+  if (FileExt = '.gz') and (LowerCase(ExtractFileExt(ChangeFileExt(ADownloadedFile, ''))) = '.tar') then
+    FileExt := '.tar.gz';
+
   ArchivePath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary' + ExtractFileExt(ADownloadedFile);
+    GetArtifactKey(AVersion) + '-binary' + FileExt;
   MetaPath := FCacheDirWithDelim +
     GetArtifactKey(AVersion) + '-binary.meta';
 
@@ -860,7 +866,7 @@ begin
     MetaFile.Add('source_type=binary');
     MetaFile.Add('sha256=' + SHA256Hash);
     MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
-    MetaFile.Add('file_ext=' + ExtractFileExt(ADownloadedFile));  // Store original extension
+    MetaFile.Add('file_ext=' + FileExt);  // Store original extension
 
     // Get archive size
     if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
@@ -1267,10 +1273,10 @@ begin
         if GetArtifactInfo(Version, TempInfo) or GetBinaryArtifactInfo(Version, TempInfo) then
           Entries[Count].CreatedAt := TempInfo.CreatedAt
         else
-          Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+          Entries[Count].CreatedAt := SR.TimeStamp;
       end
       else
-        Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+        Entries[Count].CreatedAt := SR.TimeStamp;
 
       Inc(Count);
     until FindNext(SR) <> 0;
