@@ -2,381 +2,472 @@ unit fpdev.cross.manifest;
 
 {$mode objfpc}{$H+}
 
-(*
-  Cross-Compilation Manifest Parser
-
-  Parses JSON manifest files that define available cross-compilation targets,
-  including binutils and libraries download URLs for each host platform.
-
-  See cross_manifest.json for the manifest structure.
-*)
-
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser;
+  SysUtils, Classes, fpjson, jsonparser, DateUtils;
+
+const
+  ERR_NONE = 0;
+  ERR_MISSING_FIELD = 1;
+  ERR_INVALID_JSON = 2;
+  ERR_INVALID_DATE = 3;
+  ERR_EMPTY_ARRAY = 4;
 
 type
-  { TCrossBinutils - Binutils download info for a specific host platform }
+  { THostPlatform - Host platform specification }
+  THostPlatform = record
+    OS: string;
+    Arch: string;
+  end;
+
+  { TCrossToolchainEntry - Single toolchain entry }
+  TCrossToolchainEntry = record
+    Target: string;
+    ComponentType: string;
+    Version: string;
+    HostPlatforms: array of THostPlatform;
+    URLs: array of string;
+    SHA256: string;
+    ArchiveFormat: string;
+  end;
+
+  TCrossToolchainEntryArray = array of TCrossToolchainEntry;
+
+  { Legacy type aliases for backward compatibility }
   TCrossBinutils = record
-    URLs: TStringArray;
+    URLs: array of string;
     Sha256: string;
   end;
 
-  { TCrossLibraries - Libraries download info }
-  TCrossLibraries = record
-    URLs: TStringArray;
-    Sha256: string;
-  end;
-
-  { TCrossBinutilsEntry - Binutils info for a specific host platform }
-  TCrossBinutilsEntry = record
-    HostPlatform: string;
-    Info: TCrossBinutils;
-  end;
-
-  { Array type for binutils entries }
-  TCrossBinutilsArray = array of TCrossBinutilsEntry;
-
-  { TCrossManifestTarget - A cross-compilation target definition }
   TCrossManifestTarget = record
     Name: string;
-    DisplayName: string;
-    CPU: string;
-    OS: string;
-    BinutilsPrefix: string;
-    Binutils: TCrossBinutilsArray;
-    Libraries: TCrossLibraries;
+    Libraries: TCrossBinutils;
   end;
 
-  { TCrossManifest - Cross-compilation manifest manager }
-  TCrossManifest = class
-  private
-    FTargets: array of TCrossManifestTarget;
-    FVersion: string;
+  { TManifestError - Error information }
+  TManifestError = record
+    Code: Integer;
+    Message: string;
+  end;
 
-    function ParseBinutils(ABinutilsObj: TJSONObject): TCrossBinutilsArray;
-    function ParseLibraries(ALibsObj: TJSONObject): TCrossLibraries;
-    function ParseURLs(AUrlsArray: TJSONArray): TStringArray;
+  { TCrossToolchainManifest - Cross-compilation toolchain manifest }
+  TCrossToolchainManifest = class
+  private
+    FVersion: string;
+    FLastUpdated: TDateTime;
+    FEntries: TCrossToolchainEntryArray;
+    FLastError: TManifestError;
+
+    function ParseJSON(const AJSON: string): Boolean;
+    function ParseHostPlatform(AObj: TJSONObject): THostPlatform;
+    function ParseEntry(AObj: TJSONObject): TCrossToolchainEntry;
+    procedure ClearError;
+    procedure SetError(ACode: Integer; const AMessage: string);
 
   public
     constructor Create;
     destructor Destroy; override;
 
-    { Load manifest from JSON string }
-    function LoadFromJSON(const AJsonText: string): Boolean;
-
     { Load manifest from file }
-    function LoadFromFile(const AFilePath: string): Boolean;
+    function LoadFromFile(const AFileName: string): Boolean;
 
-    { Get a target by name }
-    function GetTarget(const AName: string; out ATarget: TCrossManifestTarget): Boolean;
+    { Load manifest from JSON string }
+    function LoadFromString(const AJSON: string): Boolean;
 
-    { Get list of all target names }
-    function ListTargets: TStringArray;
+    { Find entry by target, component type, and host platform }
+    function FindEntry(const ATarget, AComponentType: string; const AHost: THostPlatform): TCrossToolchainEntry;
 
-    { Get binutils info for a specific host platform }
-    function GetBinutilsForHost(const ATarget: TCrossManifestTarget;
-      const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+    { Check if manifest needs update (older than 7 days) }
+    function NeedsUpdate: Boolean;
 
-    { Detect current host platform }
-    function GetHostPlatform: string;
+    { Serialize manifest to JSON }
+    function ToJSON: string;
 
-    { Number of targets in manifest }
-    function TargetCount: Integer;
+    { Legacy compatibility methods }
+    function GetTarget(const ATarget: string; out AManifestTarget: TCrossManifestTarget): Boolean;
+    function GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
 
-    { Manifest version }
+    { Properties }
     property Version: string read FVersion;
+    property LastUpdated: TDateTime read FLastUpdated;
+    property Entries: TCrossToolchainEntryArray read FEntries;
+    property LastError: TManifestError read FLastError;
   end;
+
+  { Type alias for backward compatibility }
+  TCrossManifest = TCrossToolchainManifest;
+
+{ Helper function to check if two host platforms match }
+function HostPlatformMatches(const A, B: THostPlatform): Boolean;
 
 implementation
 
-{ TCrossManifest }
+{ Helper Functions }
 
-constructor TCrossManifest.Create;
+function HostPlatformMatches(const A, B: THostPlatform): Boolean;
 begin
-  inherited Create;
-  SetLength(FTargets, 0);
-  FVersion := '';
+  Result := SameText(A.OS, B.OS) and SameText(A.Arch, B.Arch);
 end;
 
-destructor TCrossManifest.Destroy;
-var
-  i, j: Integer;
+{ TCrossToolchainManifest }
+
+constructor TCrossToolchainManifest.Create;
 begin
-  // Clean up dynamic arrays in targets
-  for i := 0 to High(FTargets) do
+  inherited Create;
+  FVersion := '';
+  FLastUpdated := 0;
+  SetLength(FEntries, 0);
+  ClearError;
+end;
+
+destructor TCrossToolchainManifest.Destroy;
+var
+  i: Integer;
+begin
+  for i := 0 to High(FEntries) do
   begin
-    SetLength(FTargets[i].Libraries.URLs, 0);
-    for j := 0 to High(FTargets[i].Binutils) do
-      SetLength(FTargets[i].Binutils[j].Info.URLs, 0);
-    SetLength(FTargets[i].Binutils, 0);
+    SetLength(FEntries[i].HostPlatforms, 0);
+    SetLength(FEntries[i].URLs, 0);
   end;
-  SetLength(FTargets, 0);
+  SetLength(FEntries, 0);
   inherited Destroy;
 end;
 
-function TCrossManifest.ParseURLs(AUrlsArray: TJSONArray): TStringArray;
-var
-  i: Integer;
+procedure TCrossToolchainManifest.ClearError;
 begin
-  Result := nil;
-  if AUrlsArray = nil then
-    Exit;
-
-  SetLength(Result, AUrlsArray.Count);
-  for i := 0 to AUrlsArray.Count - 1 do
-    Result[i] := AUrlsArray.Strings[i];
+  FLastError.Code := ERR_NONE;
+  FLastError.Message := '';
 end;
 
-function TCrossManifest.ParseBinutils(ABinutilsObj: TJSONObject): TCrossBinutilsArray;
-var
-  i: Integer;
-  HostPlatform: string;
-  HostObj: TJSONObject;
-  UrlsArr: TJSONArray;
+procedure TCrossToolchainManifest.SetError(ACode: Integer; const AMessage: string);
 begin
-  Result := nil;
-  if ABinutilsObj = nil then
-    Exit;
+  FLastError.Code := ACode;
+  FLastError.Message := AMessage;
+end;
 
-  SetLength(Result, ABinutilsObj.Count);
-  for i := 0 to ABinutilsObj.Count - 1 do
+function TCrossToolchainManifest.ParseHostPlatform(AObj: TJSONObject): THostPlatform;
+begin
+  Result.OS := AObj.Get('os', '');
+  Result.Arch := AObj.Get('arch', '');
+end;
+
+function TCrossToolchainManifest.ParseEntry(AObj: TJSONObject): TCrossToolchainEntry;
+var
+  HostPlatformsArray: TJSONArray;
+  URLsArray: TJSONArray;
+  i: Integer;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  // Required fields
+  Result.Target := AObj.Get('target', '');
+  Result.ComponentType := AObj.Get('componentType', '');
+  Result.Version := AObj.Get('version', '');
+  Result.SHA256 := AObj.Get('sha256', '');
+  Result.ArchiveFormat := AObj.Get('archiveFormat', '');
+
+  // Parse hostPlatforms array
+  if AObj.Find('hostPlatforms') <> nil then
   begin
-    HostPlatform := ABinutilsObj.Names[i];
-    Result[i].HostPlatform := HostPlatform;
-
-    if ABinutilsObj.Items[i].JSONType = jtObject then
+    HostPlatformsArray := AObj.Arrays['hostPlatforms'];
+    SetLength(Result.HostPlatforms, HostPlatformsArray.Count);
+    for i := 0 to HostPlatformsArray.Count - 1 do
     begin
-      HostObj := TJSONObject(ABinutilsObj.Items[i]);
-      Result[i].Info.Sha256 := HostObj.Get('sha256', '');
-
-      if HostObj.Find('urls', UrlsArr) and (UrlsArr.JSONType = jtArray) then
-        Result[i].Info.URLs := ParseURLs(UrlsArr)
-      else
-        SetLength(Result[i].Info.URLs, 0);
+      if HostPlatformsArray.Items[i] is TJSONObject then
+        Result.HostPlatforms[i] := ParseHostPlatform(TJSONObject(HostPlatformsArray.Items[i]));
     end;
   end;
+
+  // Parse urls array
+  if AObj.Find('urls') <> nil then
+  begin
+    URLsArray := AObj.Arrays['urls'];
+    SetLength(Result.URLs, URLsArray.Count);
+    for i := 0 to URLsArray.Count - 1 do
+      Result.URLs[i] := URLsArray.Strings[i];
+  end;
 end;
 
-function TCrossManifest.ParseLibraries(ALibsObj: TJSONObject): TCrossLibraries;
+function TCrossToolchainManifest.ParseJSON(const AJSON: string): Boolean;
 var
-  UrlsArr: TJSONArray;
-begin
-  Result.Sha256 := '';
-  SetLength(Result.URLs, 0);
-
-  if ALibsObj = nil then
-    Exit;
-
-  Result.Sha256 := ALibsObj.Get('sha256', '');
-
-  if ALibsObj.Find('urls', UrlsArr) and (UrlsArr.JSONType = jtArray) then
-    Result.URLs := ParseURLs(UrlsArr);
-end;
-
-function TCrossManifest.LoadFromJSON(const AJsonText: string): Boolean;
-var
-  Data: TJSONData;
+  JSONData: TJSONData;
   RootObj: TJSONObject;
-  TargetsArr: TJSONArray;
-  TargetObj: TJSONObject;
-  BinutilsObj, LibsObj: TJSONObject;
-  i, N: Integer;
+  ToolchainsArray: TJSONArray;
+  i: Integer;
+  DateStr: string;
 begin
   Result := False;
-
-  // Clear existing targets
-  SetLength(FTargets, 0);
-  FVersion := '';
-
-  if Trim(AJsonText) = '' then
-    Exit;
+  ClearError;
 
   try
-    Data := GetJSON(AJsonText);
-  except
-    Exit(False);
-  end;
-
-  try
-    if Data.JSONType <> jtObject then
-      Exit(False);
-
-    RootObj := TJSONObject(Data);
-    FVersion := RootObj.Get('version', '');
-
-    // Parse targets array
-    if RootObj.Find('targets', TargetsArr) and (TargetsArr.JSONType = jtArray) then
-    begin
-      N := TargetsArr.Count;
-      SetLength(FTargets, N);
-
-      for i := 0 to N - 1 do
+    JSONData := GetJSON(AJSON);
+    try
+      if not (JSONData is TJSONObject) then
       begin
-        if TargetsArr.Items[i].JSONType <> jtObject then
-          Continue;
+        SetError(ERR_INVALID_JSON, 'Root element must be an object');
+        Exit;
+      end;
 
-        TargetObj := TJSONObject(TargetsArr.Items[i]);
+      RootObj := TJSONObject(JSONData);
 
-        FTargets[i].Name := TargetObj.Get('name', '');
-        FTargets[i].DisplayName := TargetObj.Get('displayName', '');
-        FTargets[i].CPU := TargetObj.Get('cpu', '');
-        FTargets[i].OS := TargetObj.Get('os', '');
-        FTargets[i].BinutilsPrefix := TargetObj.Get('binutilsPrefix', '');
+      // Check required fields
+      if RootObj.Find('version') = nil then
+      begin
+        SetError(ERR_MISSING_FIELD, 'Missing required field: version');
+        Exit;
+      end;
 
-        // Parse binutils
-        if TargetObj.Find('binutils', BinutilsObj) and (BinutilsObj.JSONType = jtObject) then
-          FTargets[i].Binutils := ParseBinutils(BinutilsObj)
-        else
-          SetLength(FTargets[i].Binutils, 0);
+      if RootObj.Find('lastUpdated') = nil then
+      begin
+        SetError(ERR_MISSING_FIELD, 'Missing required field: lastUpdated');
+        Exit;
+      end;
 
-        // Parse libraries
-        if TargetObj.Find('libraries', LibsObj) and (LibsObj.JSONType = jtObject) then
-          FTargets[i].Libraries := ParseLibraries(LibsObj)
-        else
+      if RootObj.Find('toolchains') = nil then
+      begin
+        SetError(ERR_MISSING_FIELD, 'Missing required field: toolchains');
+        Exit;
+      end;
+
+      // Parse version
+      FVersion := RootObj.Get('version', '');
+
+      // Parse lastUpdated (ISO 8601 format)
+      DateStr := RootObj.Get('lastUpdated', '');
+      try
+        FLastUpdated := ISO8601ToDate(DateStr);
+      except
+        on E: Exception do
         begin
-          FTargets[i].Libraries.Sha256 := '';
-          SetLength(FTargets[i].Libraries.URLs, 0);
+          SetError(ERR_INVALID_DATE, 'Invalid date format: ' + DateStr);
+          Exit;
+        end;
+      end;
+
+      // Parse toolchains array
+      ToolchainsArray := RootObj.Arrays['toolchains'];
+      if ToolchainsArray.Count = 0 then
+      begin
+        SetError(ERR_EMPTY_ARRAY, 'Toolchains array cannot be empty');
+        Exit;
+      end;
+
+      SetLength(FEntries, ToolchainsArray.Count);
+      for i := 0 to ToolchainsArray.Count - 1 do
+      begin
+        if not (ToolchainsArray.Items[i] is TJSONObject) then
+        begin
+          SetError(ERR_INVALID_JSON, 'Toolchain entry must be an object');
+          Exit;
+        end;
+
+        FEntries[i] := ParseEntry(TJSONObject(ToolchainsArray.Items[i]));
+
+        // Validate required entry fields
+        if FEntries[i].Target = '' then
+        begin
+          SetError(ERR_MISSING_FIELD, 'Entry missing required field: target');
+          Exit;
+        end;
+
+        if FEntries[i].ComponentType = '' then
+        begin
+          SetError(ERR_MISSING_FIELD, 'Entry missing required field: componentType');
+          Exit;
+        end;
+
+        if Length(FEntries[i].HostPlatforms) = 0 then
+        begin
+          SetError(ERR_EMPTY_ARRAY, 'Entry hostPlatforms array cannot be empty');
+          Exit;
         end;
       end;
 
       Result := True;
-    end
-    else
-    begin
-      // Empty but valid JSON
-      Result := True;
+    finally
+      JSONData.Free;
     end;
-
-  finally
-    Data.Free;
+  except
+    on E: Exception do
+    begin
+      SetError(ERR_INVALID_JSON, 'JSON parse error: ' + E.Message);
+      Exit;
+    end;
   end;
 end;
 
-function TCrossManifest.LoadFromFile(const AFilePath: string): Boolean;
+function TCrossToolchainManifest.LoadFromFile(const AFileName: string): Boolean;
 var
-  FileContent: TStringList;
+  SL: TStringList;
+  JSON: string;
 begin
   Result := False;
+  ClearError;
 
-  if not FileExists(AFilePath) then
+  if not FileExists(AFileName) then
+  begin
+    SetError(ERR_INVALID_JSON, 'File not found: ' + AFileName);
     Exit;
+  end;
 
-  FileContent := TStringList.Create;
+  SL := TStringList.Create;
   try
-    FileContent.LoadFromFile(AFilePath);
-    Result := LoadFromJSON(FileContent.Text);
+    try
+      SL.LoadFromFile(AFileName);
+      JSON := SL.Text;
+      Result := ParseJSON(JSON);
+    except
+      on E: Exception do
+      begin
+        SetError(ERR_INVALID_JSON, 'Error reading file: ' + E.Message);
+        Exit;
+      end;
+    end;
   finally
-    FileContent.Free;
+    SL.Free;
   end;
 end;
 
-function TCrossManifest.GetTarget(const AName: string; out ATarget: TCrossManifestTarget): Boolean;
+function TCrossToolchainManifest.LoadFromString(const AJSON: string): Boolean;
+begin
+  Result := ParseJSON(AJSON);
+end;
+
+function TCrossToolchainManifest.FindEntry(const ATarget, AComponentType: string; const AHost: THostPlatform): TCrossToolchainEntry;
+var
+  i, j: Integer;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+
+  for i := 0 to High(FEntries) do
+  begin
+    if SameText(FEntries[i].Target, ATarget) and
+       SameText(FEntries[i].ComponentType, AComponentType) then
+    begin
+      // Check if host platform matches
+      for j := 0 to High(FEntries[i].HostPlatforms) do
+      begin
+        if HostPlatformMatches(FEntries[i].HostPlatforms[j], AHost) then
+        begin
+          Result := FEntries[i];
+          Exit;
+        end;
+      end;
+    end;
+  end;
+end;
+
+function TCrossToolchainManifest.NeedsUpdate: Boolean;
+const
+  UPDATE_INTERVAL_DAYS = 7;
+begin
+  // Empty manifest needs update
+  if FLastUpdated = 0 then
+    Exit(True);
+
+  // Check if older than 7 days
+  Result := DaysBetween(Now, FLastUpdated) > UPDATE_INTERVAL_DAYS;
+end;
+
+function TCrossToolchainManifest.ToJSON: string;
+var
+  Root: TJSONObject;
+  ToolchainsArray: TJSONArray;
+  EntryObj: TJSONObject;
+  HostPlatformsArray: TJSONArray;
+  HostObj: TJSONObject;
+  URLsArray: TJSONArray;
+  i, j: Integer;
+begin
+  Root := TJSONObject.Create;
+  try
+    Root.Add('version', FVersion);
+    Root.Add('lastUpdated', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', FLastUpdated));
+
+    ToolchainsArray := TJSONArray.Create;
+    for i := 0 to High(FEntries) do
+    begin
+      EntryObj := TJSONObject.Create;
+      EntryObj.Add('target', FEntries[i].Target);
+      EntryObj.Add('componentType', FEntries[i].ComponentType);
+      EntryObj.Add('version', FEntries[i].Version);
+
+      // Add hostPlatforms
+      HostPlatformsArray := TJSONArray.Create;
+      for j := 0 to High(FEntries[i].HostPlatforms) do
+      begin
+        HostObj := TJSONObject.Create;
+        HostObj.Add('os', FEntries[i].HostPlatforms[j].OS);
+        HostObj.Add('arch', FEntries[i].HostPlatforms[j].Arch);
+        HostPlatformsArray.Add(HostObj);
+      end;
+      EntryObj.Add('hostPlatforms', HostPlatformsArray);
+
+      // Add urls
+      URLsArray := TJSONArray.Create;
+      for j := 0 to High(FEntries[i].URLs) do
+        URLsArray.Add(FEntries[i].URLs[j]);
+      EntryObj.Add('urls', URLsArray);
+
+      EntryObj.Add('sha256', FEntries[i].SHA256);
+      EntryObj.Add('archiveFormat', FEntries[i].ArchiveFormat);
+
+      ToolchainsArray.Add(EntryObj);
+    end;
+    Root.Add('toolchains', ToolchainsArray);
+
+    Result := Root.AsJSON;
+  finally
+    Root.Free;
+  end;
+end;
+
+{ Legacy compatibility methods }
+
+function TCrossToolchainManifest.GetTarget(const ATarget: string; out AManifestTarget: TCrossManifestTarget): Boolean;
 var
   i: Integer;
 begin
   Result := False;
+  FillChar(AManifestTarget, SizeOf(AManifestTarget), 0);
 
-  for i := 0 to High(FTargets) do
+  for i := 0 to High(FEntries) do
   begin
-    if SameText(FTargets[i].Name, AName) then
+    if SameText(FEntries[i].Target, ATarget) then
     begin
-      ATarget := FTargets[i];
+      AManifestTarget.Name := FEntries[i].Target;
+      SetLength(AManifestTarget.Libraries.URLs, Length(FEntries[i].URLs));
+      if Length(FEntries[i].URLs) > 0 then
+        AManifestTarget.Libraries.URLs := Copy(FEntries[i].URLs, 0, Length(FEntries[i].URLs));
+      AManifestTarget.Libraries.Sha256 := FEntries[i].SHA256;
       Result := True;
       Exit;
     end;
   end;
 end;
 
-function TCrossManifest.ListTargets: TStringArray;
-var
-  i: Integer;
-begin
-  Result := nil;
-  SetLength(Result, Length(FTargets));
-  for i := 0 to High(FTargets) do
-    Result[i] := FTargets[i].Name;
-end;
-
-function TCrossManifest.GetBinutilsForHost(const ATarget: TCrossManifestTarget;
-  const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+function TCrossToolchainManifest.GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
 var
   i: Integer;
 begin
   Result := False;
-  ABinutils.Sha256 := '';
-  SetLength(ABinutils.URLs, 0);
+  FillChar(ABinutils, SizeOf(ABinutils), 0);
 
-  for i := 0 to High(ATarget.Binutils) do
+  // Find the entry for this target
+  for i := 0 to High(FEntries) do
   begin
-    if SameText(ATarget.Binutils[i].HostPlatform, AHostPlatform) then
+    if SameText(FEntries[i].Target, AManifestTarget.Name) and
+       SameText(FEntries[i].ComponentType, 'binutils') then
     begin
-      ABinutils := ATarget.Binutils[i].Info;
+      SetLength(ABinutils.URLs, Length(FEntries[i].URLs));
+      if Length(FEntries[i].URLs) > 0 then
+        ABinutils.URLs := Copy(FEntries[i].URLs, 0, Length(FEntries[i].URLs));
+      ABinutils.Sha256 := FEntries[i].SHA256;
       Result := True;
       Exit;
     end;
   end;
-end;
-
-function TCrossManifest.GetHostPlatform: string;
-begin
-  {$IFDEF MSWINDOWS}
-    {$IFDEF CPUX86_64}
-    Result := 'win64';
-    {$ELSE}
-      {$IFDEF CPUI386}
-      Result := 'win32';
-      {$ELSE}
-      Result := 'win64'; // Default to 64-bit
-      {$ENDIF}
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF LINUX}
-    {$IFDEF CPUX86_64}
-    Result := 'linux64';
-    {$ELSE}
-      {$IFDEF CPUI386}
-      Result := 'linux32';
-      {$ELSE}
-        {$IFDEF CPUAARCH64}
-        Result := 'linuxarm64';
-        {$ELSE}
-          {$IFDEF CPUARM}
-          Result := 'linuxarm';
-          {$ELSE}
-          Result := 'linux64'; // Default to 64-bit
-          {$ENDIF}
-        {$ENDIF}
-      {$ENDIF}
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF DARWIN}
-    {$IFDEF CPUAARCH64}
-    Result := 'darwinarm64';
-    {$ELSE}
-      {$IFDEF CPUX86_64}
-      Result := 'darwin64';
-      {$ELSE}
-      Result := 'darwin64'; // Default to 64-bit
-      {$ENDIF}
-    {$ENDIF}
-  {$ENDIF}
-
-  {$IFDEF FREEBSD}
-    {$IFDEF CPUX86_64}
-    Result := 'freebsd64';
-    {$ELSE}
-    Result := 'freebsd32';
-    {$ENDIF}
-  {$ENDIF}
-end;
-
-function TCrossManifest.TargetCount: Integer;
-begin
-  Result := Length(FTargets);
 end;
 
 end.
