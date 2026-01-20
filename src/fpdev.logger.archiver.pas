@@ -5,7 +5,7 @@ unit fpdev.logger.archiver;
 interface
 
 uses
-  Classes, SysUtils, DateUtils, fpdev.logger.structured;
+  Classes, SysUtils, DateUtils;
 
 type
   { TArchiveConfig - Archive configuration }
@@ -71,7 +71,6 @@ end;
 function TLogArchiver.IsRotatedLogFile(const AFileName: string): Boolean;
 var
   Ext: string;
-  BaseName: string;
   LastChar: Char;
 begin
   Result := False;
@@ -267,7 +266,7 @@ begin
         FilePath := FConfig.ArchiveDir + PathDelim + SR.Name;
 
         // Check age
-        FileAge := FileDateToDateTime(SR.Time);
+        FileAge := SR.TimeStamp;
         DaysSinceCreation := DaysBetween(Now, FileAge);
 
         if DaysSinceCreation > FConfig.MaxArchiveAge then

@@ -77,7 +77,6 @@ end;
 function TLogRotator.GetFileAge(const APath: string): TDateTime;
 var
   SR: TSearchRec;
-  FileTime: TDateTime;
 begin
   Result := Now;
   if not FileExists(APath) then
@@ -85,8 +84,7 @@ begin
 
   if FindFirst(APath, faAnyFile, SR) = 0 then
   begin
-    FileTime := FileDateToDateTime(SR.Time);
-    Result := FileTime;
+    Result := SR.TimeStamp;
     FindClose(SR);
   end;
 end;
@@ -185,7 +183,7 @@ begin
         if Pos('.', SR.Name) > 0 then
         begin
           // Check age
-          FileAge := FileDateToDateTime(SR.Time);
+          FileAge := SR.TimeStamp;
           DaysSinceCreation := DaysBetween(Now, FileAge);
 
           if DaysSinceCreation > FConfig.MaxAge then

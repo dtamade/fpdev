@@ -183,8 +183,6 @@ begin
     llInfo: Result := 'info';
     llWarn: Result := 'warn';
     llError: Result := 'error';
-  else
-    Result := 'unknown';
   end;
 end;
 
@@ -269,8 +267,6 @@ begin
     llInfo: Prefix := '[INFO]';
     llWarn: Prefix := '[WARN]';
     llError: Prefix := '[ERROR]';
-  else
-    Prefix := '[UNKNOWN]';
   end;
 
   WriteLn(Timestamp, ' ', Prefix, ' [', AContext.Source, '] ', AMessage);
