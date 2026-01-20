@@ -3,7 +3,8 @@ program test_structured_logger;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, fpdev.logger.intf, fpdev.logger.structured;
+  Classes, SysUtils, fpdev.logger.intf, fpdev.logger.structured,
+  fpdev.logger.writer, fpdev.logger.formatter;
 
 var
   TestsPassed: Integer = 0;
@@ -257,6 +258,105 @@ begin
   AssertTrue(Config.UseColorOutput, 'UseColorOutput should be true by default');
 end;
 
+procedure TestFileLogWriterCreation;
+var
+  Writer: ILogWriter;
+begin
+  WriteLn('Testing TFileLogWriter creation...');
+
+  Writer := TFileLogWriter.Create('test_logs/test.log');
+  AssertTrue(Writer <> nil, 'FileLogWriter should be created');
+end;
+
+procedure TestConsoleLogWriterCreation;
+var
+  Writer: ILogWriter;
+begin
+  WriteLn('Testing TConsoleLogWriter creation...');
+
+  Writer := TConsoleLogWriter.Create(True);
+  AssertTrue(Writer <> nil, 'ConsoleLogWriter should be created');
+end;
+
+procedure TestJsonLogFormatterCreation;
+var
+  Formatter: ILogFormatter;
+begin
+  WriteLn('Testing TJsonLogFormatter creation...');
+
+  Formatter := TJsonLogFormatter.Create;
+  AssertTrue(Formatter <> nil, 'JsonLogFormatter should be created');
+end;
+
+procedure TestConsoleLogFormatterCreation;
+var
+  Formatter: ILogFormatter;
+begin
+  WriteLn('Testing TConsoleLogFormatter creation...');
+
+  Formatter := TConsoleLogFormatter.Create(True, True, True);
+  AssertTrue(Formatter <> nil, 'ConsoleLogFormatter should be created');
+end;
+
+procedure TestJsonLogFormatterFormat;
+var
+  Formatter: ILogFormatter;
+  Entry: TLogEntry;
+  Output: string;
+begin
+  WriteLn('Testing TJsonLogFormatter.Format...');
+
+  Formatter := TJsonLogFormatter.Create;
+
+  Entry.Timestamp := Now;
+  Entry.Level := llInfo;
+  Entry.Message := 'Test message';
+  Entry.Source := 'test.module';
+  Entry.CorrelationId := 'req-123';
+  Entry.ThreadId := 12345;
+  Entry.ProcessId := 67890;
+  Entry.CustomFields := TStringList.Create;
+  try
+    Entry.CustomFields.Values['key1'] := 'value1';
+    Entry.StackTrace := '';
+
+    Output := Formatter.Format(Entry);
+
+    AssertTrue(Pos('"level": "info"', Output) > 0, 'Output should contain level');
+    AssertTrue(Pos('"message": "Test message"', Output) > 0, 'Output should contain message');
+    AssertTrue(Pos('"source": "test.module"', Output) > 0, 'Output should contain source');
+  finally
+    Entry.CustomFields.Free;
+  end;
+end;
+
+procedure TestConsoleLogFormatterFormat;
+var
+  Formatter: ILogFormatter;
+  Entry: TLogEntry;
+  Output: string;
+begin
+  WriteLn('Testing TConsoleLogFormatter.Format...');
+
+  Formatter := TConsoleLogFormatter.Create(False, True, True);
+
+  Entry.Timestamp := Now;
+  Entry.Level := llInfo;
+  Entry.Message := 'Test message';
+  Entry.Source := 'test.module';
+  Entry.CorrelationId := 'req-123';
+  Entry.ThreadId := 12345;
+  Entry.ProcessId := 67890;
+  Entry.CustomFields := nil;
+  Entry.StackTrace := '';
+
+  Output := Formatter.Format(Entry);
+
+  AssertTrue(Pos('[INFO]', Output) > 0, 'Output should contain level prefix');
+  AssertTrue(Pos('test.module', Output) > 0, 'Output should contain source');
+  AssertTrue(Pos('Test message', Output) > 0, 'Output should contain message');
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('Running Structured Logger Tests');
@@ -274,6 +374,12 @@ begin
   TestStructuredLoggerErrorLevel;
   TestStructuredLoggerWithCustomFields;
   TestLoggerConfigDefaults;
+  TestFileLogWriterCreation;
+  TestConsoleLogWriterCreation;
+  TestJsonLogFormatterCreation;
+  TestConsoleLogFormatterCreation;
+  TestJsonLogFormatterFormat;
+  TestConsoleLogFormatterFormat;
 
   WriteLn;
   WriteLn('========================================');
