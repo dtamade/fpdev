@@ -432,6 +432,138 @@ begin
 end;
 ```
 
+### Logging System
+
+**Phase 2 Complete** (2026-01-21): Structured logging system with rotation, archiving, and dual output.
+
+**Core Components**:
+
+1. **TStructuredLogger** (`src/fpdev.logger.structured.pas`) - Main logging interface
+   - Structured JSON logging with context (source, correlation ID, thread/process ID)
+   - Dual output: file (JSON) + console (formatted text)
+   - Independent enable/disable for file and console output
+   - Log level filtering (Debug, Info, Warn, Error)
+   - Custom context fields support
+
+2. **TLogRotator** (`src/fpdev.logger.rotator.pas`) - Log rotation management
+   - Size-based rotation (configurable max file size)
+   - Time-based rotation (configurable interval in hours)
+   - Dual trigger strategy (whichever condition is met first)
+   - Automatic old log cleanup (configurable retention)
+   - Rotated file naming: `app.log.1`, `app.log.2`, etc.
+
+3. **TLogArchiver** (`src/fpdev.logger.archiver.pas`) - Log archiving with compression
+   - Automatic gzip compression of rotated logs
+   - Configurable compression level (0-9)
+   - Archive directory management
+   - Old archive cleanup (configurable max age)
+   - Archive naming: `app.log.1.gz`, `app.log.2.gz`, etc.
+
+**Usage Example**:
+
+```pascal
+uses fpdev.logger.intf, fpdev.logger.structured,
+     fpdev.logger.rotator, fpdev.logger.archiver;
+
+var
+  Config: TLoggerConfig;
+  Logger: IStructuredLogger;
+  Rotator: ILogRotator;
+  Archiver: ILogArchiver;
+  Context: TLogContext;
+begin
+  // Configure logger
+  FillChar(Config, SizeOf(Config), 0);
+  Config.FileOutputEnabled := True;
+  Config.ConsoleOutputEnabled := True;
+  Config.LogDir := 'logs';
+  Config.LogFileName := 'app.log';
+  Config.MinLevel := llInfo;
+
+  // Configure rotation
+  Config.RotationConfig.MaxFileSize := 10 * 1024 * 1024;  // 10MB
+  Config.RotationConfig.RotationInterval := 24;  // 24 hours
+  Config.RotationConfig.MaxFiles := 5;
+  Config.RotationConfig.MaxAge := 7;  // 7 days
+  Config.RotationConfig.CompressOld := True;
+
+  // Create logger
+  Logger := TStructuredLogger.Create(Config);
+  Rotator := TLogRotator.Create(Config.RotationConfig);
+
+  // Create log context
+  FillChar(Context, SizeOf(Context), 0);
+  Context.Source := 'myapp.module';
+  Context.CorrelationId := 'request-123';
+  Context.ThreadId := GetCurrentThreadId;
+  Context.ProcessId := GetProcessID;
+
+  // Log messages
+  Logger.Info('Application started', Context);
+  Logger.Debug('Debug information', Context);
+  Logger.Warn('Warning message', Context);
+  Logger.Error('Error occurred', Context, 'Stack trace here');
+
+  // Check if rotation needed
+  if Rotator.ShouldRotate('logs/app.log') then
+    Rotator.Rotate('logs/app.log');
+
+  // Archive rotated logs
+  Archiver := TLogArchiver.Create(CreateDefaultArchiveConfig);
+  Archiver.ArchiveAll('logs');
+  Archiver.CleanupOldArchives;
+end;
+```
+
+**Configuration Options**:
+
+```pascal
+// Logger configuration
+TLoggerConfig = record
+  FileOutputEnabled: Boolean;      // Enable file output
+  ConsoleOutputEnabled: Boolean;   // Enable console output
+  LogDir: string;                  // Log directory
+  LogFileName: string;             // Log file name
+  MinLevel: TLogLevel;             // Minimum log level
+  RotationConfig: TRotationConfig; // Rotation settings
+  UseColorOutput: Boolean;         // Console color output
+  IncludeThreadId: Boolean;        // Include thread ID
+  IncludeProcessId: Boolean;       // Include process ID
+end;
+
+// Rotation configuration
+TRotationConfig = record
+  MaxFileSize: Int64;        // Max file size in bytes
+  RotationInterval: Integer; // Rotation interval in hours
+  MaxFiles: Integer;         // Number of files to keep
+  MaxAge: Integer;           // Max age in days
+  CompressOld: Boolean;      // Compress old logs
+end;
+
+// Archive configuration
+TArchiveConfig = record
+  Enabled: Boolean;          // Enable archiving
+  CompressionLevel: Integer; // 0-9 (0=none, 9=max)
+  ArchiveDir: string;        // Archive directory
+  MaxArchiveAge: Integer;    // Days to keep archives
+end;
+```
+
+**Test Coverage** (Phase 2):
+- `tests/test_structured_logger.lpr` - 50 tests for structured logging
+- `tests/test_log_rotation.lpr` - 23 tests for log rotation
+- `tests/test_log_archiver.lpr` - 20 tests for log archiving
+- `tests/test_logger_integration.lpr` - 21 tests for full pipeline integration
+- **Total**: 114/114 tests passing (100% pass rate)
+
+**Key Features**:
+- Cross-platform support (Windows, Linux, macOS)
+- Thread-safe logging operations
+- Automatic rotation and archiving
+- Configurable retention policies
+- Zero compiler warnings
+- Production-ready
+
 ### Lazarus IDE Configuration
 
 **Phase 3.4 Complete**: Lazarus IDE configuration is fully implemented with comprehensive test coverage.
