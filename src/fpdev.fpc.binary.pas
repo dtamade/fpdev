@@ -60,17 +60,18 @@ begin
   FExtractor := TArchiveExtractor.Create;
   FCacheManager := TBuildCache.Create(GetUserDir + '.fpdev' + PathDelim + 'cache');
   FVerifier := TFPCVerifier.Create;
-  FManifestParser := TManifestParser.Create;
+  FManifestParser := nil;  // Create lazily when needed
   FLastError := '';
   FUseCache := True;
   FOfflineMode := False;
   FVerifyInstallation := True;
-  FUseManifest := True;  // Enable manifest-based downloads by default
+  FUseManifest := False;  // Disable manifest-based downloads by default (needs more testing)
 end;
 
 destructor TBinaryInstaller.Destroy;
 begin
-  FManifestParser.Free;
+  if Assigned(FManifestParser) then
+    FManifestParser.Free;
   FVerifier.Free;
   FCacheManager.Free;
   FExtractor.Free;
@@ -96,6 +97,10 @@ begin
     WriteLn('Offline mode: skipping manifest download');
     Exit;
   end;
+
+  // Create manifest parser lazily when needed
+  if not Assigned(FManifestParser) then
+    FManifestParser := TManifestParser.Create;
 
   WriteLn('Loading manifest from: ', AManifestURL);
 
@@ -136,6 +141,13 @@ begin
   Platform := DetectPlatform;
 
   // Try to use manifest for enhanced security and multiple mirrors
+  if FUseManifest then
+  begin
+    // Create manifest parser lazily when needed
+    if not Assigned(FManifestParser) then
+      FManifestParser := TManifestParser.Create;
+  end;
+
   if FUseManifest and FManifestParser.GetTarget('fpc', AVersion, Platform.ToString, ManifestTarget) then
   begin
     WriteLn('Using manifest data for download');

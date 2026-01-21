@@ -1,0 +1,4 @@
+{
+  "this is": "not a valid manifest",
+  "missing": ["version", "lastUpdated", "toolchains"]
+}

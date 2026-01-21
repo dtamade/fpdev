@@ -85,6 +85,7 @@ function SSIG1_512(x:QWord):QWord; inline; begin Result := ROR64(x,19) xor ROR64
 procedure sha256_transform(var ctx: TSHA256Ctx; const data: array of byte);
 var w: array[0..63] of DWord; a,b,c,d,e,f,g,h,t1,t2: DWord; i: Integer;
 begin
+  {$Q-} {$R-} // Disable overflow and range checking for SHA256 arithmetic
   // prepare message schedule
   for i:=0 to 15 do
     w[i] := (data[i*4] shl 24) or (data[i*4+1] shl 16) or (data[i*4+2] shl 8) or (data[i*4+3]);
