@@ -122,12 +122,16 @@ var
   MainFile: TextFile;
   ProjectFile: TextFile;
   MainFileName, ProjectFileName: string;
+  SafeProgramName: string;
 begin
+  // Convert project name to valid Pascal identifier (replace hyphens with underscores)
+  SafeProgramName := StringReplace(AProjectName, '-', '_', [rfReplaceAll]);
+  
   // Create main program file
   MainFileName := ATargetDir + PathDelim + AProjectName + '.lpr';
   AssignFile(MainFile, MainFileName);
   Rewrite(MainFile);
-  WriteLn(MainFile, 'program ', AProjectName, ';');
+  WriteLn(MainFile, 'program ', SafeProgramName, ';');
   WriteLn(MainFile, '');
   WriteLn(MainFile, '{$mode objfpc}{$H+}');
   WriteLn(MainFile, '');

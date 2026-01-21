@@ -462,8 +462,26 @@ begin
     end
     else
     begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Installation verification failed');
-      FErr.WriteLn('  Expected directories not found in: ' + AInstallPath);
+      FErr.WriteLn('');
+      FErr.WriteLn('===========================================');
+      FErr.WriteLn('Binary Installation Failed');
+      FErr.WriteLn('===========================================');
+      FErr.WriteLn('');
+      FErr.WriteLn('No binary packages are currently available for automatic download.');
+      FErr.WriteLn('');
+      FErr.WriteLn('Options:');
+      FErr.WriteLn('  1. Install from source (requires bootstrap compiler):');
+      FErr.WriteLn('     fpdev fpc install ' + AVersion + ' --from-source');
+      FErr.WriteLn('');
+      FErr.WriteLn('  2. Use existing FPC installation:');
+      FErr.WriteLn('     fpdev fpc use <version>');
+      FErr.WriteLn('');
+      FErr.WriteLn('  3. Download manually from:');
+      FErr.WriteLn('     https://www.freepascal.org/download.html');
+      FErr.WriteLn('');
+      FErr.WriteLn('Note: Binary downloads are not yet available in this version.');
+      FErr.WriteLn('      Source installation is the recommended method.');
+      Exit(False);
     end;
 
   except
@@ -548,6 +566,9 @@ begin
     HTTPClient := TFPHTTPClient.Create(nil);
     try
       HTTPClient.AllowRedirect := True;
+      // Add timeout to prevent hanging (30 seconds)
+      HTTPClient.ConnectTimeout := 30000;
+      HTTPClient.IOTimeout := 30000;
       FileStream := TFileStream.Create(ATempFile, fmCreate);
       try
         HTTPClient.Get(URL, FileStream);
@@ -811,20 +832,17 @@ begin
       end;
 
       // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
-      if not DirectoryExists(InstallPath + PathDelim + 'bin') then
+      FOut.WriteLn('');
+      FOut.WriteLn('');
+      FOut.WriteLn('[4/4] Attempting SourceForge download (with 30s timeout)...');
+      Result := InstallFromSourceForge(AVersion, InstallPath);
+
+      if Result then
       begin
-        FOut.WriteLn('[4/4] Downloading FPC ' + AVersion + ' from SourceForge...');
-        Result := InstallFromSourceForge(AVersion, InstallPath);
-        if not Result then
-        begin
-          FErr.WriteLn(_(MSG_ERROR) + ': Failed to install FPC ' + AVersion);
-          FErr.WriteLn('');
-          FErr.WriteLn('Available options:');
-          FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
-          FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
-          FErr.WriteLn('');
-          Exit;
-        end;
+        FOut.WriteLn('');
+        FOut.WriteLn('===========================================');
+        FOut.WriteLn('Installation Summary');
+        FOut.WriteLn('===========================================');
         FOut.WriteLn('  Binary package installed from SourceForge');
         FOut.WriteLn;
       end;
