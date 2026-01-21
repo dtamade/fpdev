@@ -28,8 +28,7 @@ var
   PM: TPackageManager;
 begin
   // 使用相对路径定位示例仓库索引
-  RepoPath := ExtractFileDir(ParamStr(0)) + DirectorySeparator + '..' + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo' + DirectorySeparator + 'index.json';
-  RepoPath := ExpandFileName(RepoPath);
+  RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo' + DirectorySeparator + 'index.json');
   AssertTrue(FileExists(RepoPath), 'Sample repo index should exist: ' + RepoPath);
 
   // 通过 file:// URL 暴露本地索引
@@ -46,6 +45,11 @@ begin
     // 初始化新配置，使 InstallRoot 定位到测试程序旁 data 目录
     if not Cfg.LoadConfig then
       AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
+
+    // Set InstallRoot to local test directory to avoid permission issues
+    Settings := Cfg.GetSettings;
+    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data';
+    Cfg.SetSettings(Settings);
 
     // 添加仓库并保存
     AssertTrue(Cfg.AddRepository('local-sample', RepoURL), 'Add local sample repository');

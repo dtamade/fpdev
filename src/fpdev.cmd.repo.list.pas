@@ -10,12 +10,13 @@ uses
   fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoListCommand = class(TInterfacedObject, ICommand)
+  TRepoListCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
   public
     function Name: string;
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer; overload;
+    procedure Execute(const AParams: array of string; const Ctx: ICommandContext); overload;
   end;
 
 implementation
@@ -47,6 +48,17 @@ begin
   Names := Ctx.Config.GetRepositoryManager.ListRepositories;
   for i := 0 to High(Names) do
     Ctx.Out.WriteLn(Names[i] + ' = ' + Ctx.Config.GetRepositoryManager.GetRepository(Names[i]));
+end;
+
+procedure TRepoListCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+var
+  Names: TStringArray;
+  i: Integer;
+begin
+  // AParams not used in legacy interface
+  if Length(AParams) >= 0 then; // Suppress unused parameter warning
+  Names := Ctx.Config.ListRepositories;
+  // Silent execution for legacy interface - no output
 end;
 
 function RepoListFactory: ICommand;

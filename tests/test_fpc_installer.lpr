@@ -146,13 +146,13 @@ begin
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock: git clone succeeds, make succeeds
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
   MockProcessRunner.SetResult('make', 0, 'Build complete', '');
   MockFileSystem.AddDirectory(SourceDir);
-  MockFileSystem.AddDirectory(InstallDir);
-  
+  // Note: Don't add InstallDir - it should be created by the installer
+
   Result := Installer.InstallVersion('3.2.2', True);
 
   AssertTrue(Result.Success, 'InstallVersion from source should succeed');
@@ -370,16 +370,16 @@ begin
       SetupTestEnvironment;
       try
         // Create version manager
-        VersionManager := TFPCVersionManager.Create(ConfigManager);
+        VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;
           MockProcessRunner := TMockProcessRunner.Create;
-          
+
           // Create builder with mock dependencies
           Builder := TFPCBuilder.Create(VersionManager, ConfigManager,
             MockFileSystem, MockProcessRunner);
-          
+
           // Create installer with mock dependencies
           Installer := TFPCInstaller.Create(VersionManager, ConfigManager,
             Builder, MockFileSystem, MockProcessRunner);

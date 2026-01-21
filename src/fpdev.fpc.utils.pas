@@ -220,12 +220,12 @@ begin
       Result := ExtractTarGz(AArchivePath, ADestPath);
     afTar:
       begin
-        // TAR 格式暂不支持，可以扩展
-        Result := OperationError(ecExtractionFailed, '暂不支持纯 TAR 格式，请使用 TAR.GZ');
+        // TAR format not yet supported, can be extended
+        Result := OperationError(ecExtractionFailed, 'Pure TAR format not supported, please use TAR.GZ');
       end;
   else
-    Result := OperationError(ecExtractionFailed, 
-      '不支持的归档格式: ' + ExtractFileExt(AArchivePath));
+    Result := OperationError(ecExtractionFailed,
+      'Unsupported archive format: ' + ExtractFileExt(AArchivePath));
   end;
 end;
 

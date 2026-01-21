@@ -3,7 +3,10 @@ program mock_fpc;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF};
 
 var
   i: Integer;

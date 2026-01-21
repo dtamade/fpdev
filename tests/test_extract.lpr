@@ -7,7 +7,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
-  fpdev.toolchain.extract;
+  fpdev.toolchain.extract, fpdev.fpc.utils, fpdev.fpc.types;
 
 type
   { TExtractTest }
@@ -176,69 +176,76 @@ end;
 
 procedure TExtractTest.TestZipExtract;
 var
-  ZipFile, OutputDir, ErrMsg: string;
+  ZipFile, OutputDir: string;
+  OpResult: TOperationResult;
 begin
   WriteLn('TestZipExtract:');
-  
+
   ZipFile := FTestDataDir + 'win64-binutils-2.40-test.zip';
   OutputDir := FTestOutputDir + 'zip_test' + PathDelim;
-  
+
   // Test extraction
   if FileExists(ZipFile) then
   begin
-    AssertTrue(ZipExtract(ZipFile, OutputDir, ErrMsg), 
+    OpResult := ExtractZip(ZipFile, OutputDir);
+    AssertTrue(OpResult.Success,
       'Should extract ZIP file successfully');
     AssertTrue(DirectoryExists(OutputDir), 'Output directory should exist');
-    
+
     // Check for extracted content
-    AssertTrue(DirectoryExists(OutputDir + 'bin') or 
+    AssertTrue(DirectoryExists(OutputDir + 'bin') or
                FileExists(OutputDir + 'README.txt') or
-               (ErrMsg = ''),
-      'Should have extracted content or no error');
+               OpResult.Success,
+      'Should have extracted content or success');
   end
   else
   begin
     WriteLn('  [SKIP] Test ZIP file not found: ', ZipFile);
   end;
-  
+
   // Test with non-existent file
-  AssertFalse(ZipExtract('nonexistent.zip', OutputDir, ErrMsg),
+  OpResult := ExtractZip('nonexistent.zip', OutputDir);
+  AssertFalse(OpResult.Success,
     'Should fail for non-existent file');
-  AssertTrue(ErrMsg <> '', 'Should have error message');
-  
+  AssertTrue(OpResult.ErrorMessage <> '', 'Should have error message');
+
   // Test with empty dest dir
-  AssertFalse(ZipExtract(ZipFile, '', ErrMsg),
+  OpResult := ExtractZip(ZipFile, '');
+  AssertFalse(OpResult.Success,
     'Should fail for empty dest dir');
-  
+
   WriteLn;
 end;
 
 procedure TExtractTest.TestExtractArchiveUnified;
 var
-  ZipFile, OutputDir, ErrMsg: string;
+  ZipFile, OutputDir: string;
+  OpResult: TOperationResult;
 begin
   WriteLn('TestExtractArchiveUnified:');
-  
+
   ZipFile := FTestDataDir + 'win64-binutils-2.40-test.zip';
   OutputDir := FTestOutputDir + 'unified_test' + PathDelim;
-  
+
   // Test unified extraction with ZIP
   if FileExists(ZipFile) then
   begin
-    AssertTrue(ExtractArchive(ZipFile, OutputDir, ErrMsg),
+    OpResult := ExtractArchive(ZipFile, OutputDir);
+    AssertTrue(OpResult.Success,
       'Should extract ZIP via unified function');
   end
   else
   begin
     WriteLn('  [SKIP] Test ZIP file not found');
   end;
-  
+
   // Test with unsupported format
-  AssertFalse(ExtractArchive('test.txt', OutputDir, ErrMsg),
+  OpResult := ExtractArchive('test.txt', OutputDir);
+  AssertFalse(OpResult.Success,
     'Should fail for unsupported format');
-  AssertTrue(Pos('unsupported', LowerCase(ErrMsg)) > 0,
+  AssertTrue(Pos('unsupported', LowerCase(OpResult.ErrorMessage)) > 0,
     'Error should mention unsupported format');
-  
+
   WriteLn;
 end;
 
@@ -246,10 +253,10 @@ procedure TExtractTest.TestProperty4_ArchiveFormatSupport;
 {
   **Feature: cross-toolchain-download, Property 4: Archive Format Support**
   **Validates: Requirements 2.5, 3.5**
-  
-  *For any* archive in ZIP or TAR.GZ format containing valid files, extraction 
+
+  *For any* archive in ZIP or TAR.GZ format containing valid files, extraction
   SHALL produce the same directory structure and file contents regardless of format.
-  
+
   Note: This test verifies that both ZIP and TAR.GZ formats can be extracted.
   Full content comparison requires both format archives with identical content.
 }
@@ -257,58 +264,60 @@ const
   ITERATIONS = 100;
 var
   i, PassCount: Integer;
-  ZipFile, OutputDir, ErrMsg: string;
+  ZipFile, OutputDir: string;
+  OpResult: TOperationResult;
   AllPassed: Boolean;
 begin
   WriteLn('TestProperty4_ArchiveFormatSupport:');
   WriteLn('  Running ', ITERATIONS, ' iterations...');
-  
+
   AllPassed := True;
   PassCount := 0;
-  
+
   ZipFile := FTestDataDir + 'win64-binutils-2.40-test.zip';
-  
+
   if not FileExists(ZipFile) then
   begin
     WriteLn('  [SKIP] Test archive not found');
     AssertTrue(True, 'Property 4: Skipped - test archive not found');
     Exit;
   end;
-  
+
   for i := 1 to ITERATIONS do
   begin
     OutputDir := FTestOutputDir + 'prop4_' + IntToStr(i) + PathDelim;
-    
+
     // Test ZIP extraction
-    if not ExtractArchive(ZipFile, OutputDir, ErrMsg) then
+    OpResult := ExtractArchive(ZipFile, OutputDir);
+    if not OpResult.Success then
     begin
       AllPassed := False;
       Continue;
     end;
-    
+
     // Verify output directory was created
     if not DirectoryExists(OutputDir) then
     begin
       AllPassed := False;
       Continue;
     end;
-    
+
     // Verify format detection works correctly
     if DetectArchiveFormat(ZipFile) <> afZip then
     begin
       AllPassed := False;
       Continue;
     end;
-    
+
     Inc(PassCount);
-    
+
     // Cleanup this iteration
     CleanupDir(OutputDir);
     if DirectoryExists(OutputDir) then
       RemoveDir(OutputDir);
   end;
-  
-  AssertTrue(AllPassed, 'Property 4: Archive format support (' + 
+
+  AssertTrue(AllPassed, 'Property 4: Archive format support (' +
     IntToStr(PassCount) + '/' + IntToStr(ITERATIONS) + ' passed)');
   WriteLn;
 end;

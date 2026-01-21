@@ -4,26 +4,28 @@ program test_fpc_update;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, Process;
+  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config.interfaces, fpdev.config.managers, Process;
 
 var
   TestInstallRoot: string;
   TestSourceDir: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   FPCManager: TFPCManager;
 
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
 begin
   // Create temporary install root directory
   TestInstallRoot := 'test_install_root_' + IntToStr(GetTickCount64);
   ForceDirectories(TestInstallRoot);
 
   // Set configuration manager to use test directory
-  Settings := ConfigManager.GetSettings;
+  SettingsMgr := ConfigManager.GetSettingsManager;
+  Settings := SettingsMgr.GetSettings;
   Settings.InstallRoot := TestInstallRoot;
-  ConfigManager.SetSettings(Settings);
+  SettingsMgr.SetSettings(Settings);
 
   WriteLn('[Setup] Created test install root: ', TestInstallRoot);
 end;
@@ -241,40 +243,36 @@ begin
 
   try
     // Initialize configuration manager
-    ConfigManager := TFPDevConfigManager.Create;
+    ConfigManager := TConfigManager.Create('');
+    if not ConfigManager.LoadConfig then
+      ConfigManager.CreateDefaultConfig;
+
+    // Setup test environment (before creating FPCManager)
+    SetupTestEnvironment;
     try
-      if not ConfigManager.LoadConfig then
-        ConfigManager.CreateDefaultConfig;
-
-      // Setup test environment (before creating FPCManager)
-      SetupTestEnvironment;
+      // Create FPC manager (will use updated configuration)
+      FPCManager := TFPCManager.Create(ConfigManager);
       try
-        // Create FPC manager (will use updated configuration)
-        FPCManager := TFPCManager.Create(ConfigManager);
-        try
-          // Test 1: Handle non-existent directory
-          TestUpdateNonExistentDirectory;
+        // Test 1: Handle non-existent directory
+        TestUpdateNonExistentDirectory;
 
-          // Test 2: Handle non-git directory
-          TestUpdateNonGitDirectory;
+        // Test 2: Handle non-git directory
+        TestUpdateNonGitDirectory;
 
-          // Test 3: Update valid git repository
-          TestUpdateValidGitRepository;
+        // Test 3: Update valid git repository
+        TestUpdateValidGitRepository;
 
-          WriteLn;
-          WriteLn('========================================');
-          WriteLn('  All tests passed');
-          WriteLn('========================================');
-          ExitCode := 0;
+        WriteLn;
+        WriteLn('========================================');
+        WriteLn('  All tests passed');
+        WriteLn('========================================');
+        ExitCode := 0;
 
-        finally
-          FPCManager.Free;
-        end;
       finally
-        TeardownTestEnvironment;
+        FPCManager.Free;
       end;
     finally
-      ConfigManager.Free;
+      TeardownTestEnvironment;
     end;
 
   except

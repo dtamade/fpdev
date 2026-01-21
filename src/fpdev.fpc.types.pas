@@ -18,6 +18,7 @@ uses
 type
   { TFPCErrorCode - Error codes for FPC operations }
   TFPCErrorCode = (
+    ecNone = 0,           // Alias for ecSuccess
     ecSuccess = 0,
     ecUnknownError = 1,
     ecVersionNotFound = 10,

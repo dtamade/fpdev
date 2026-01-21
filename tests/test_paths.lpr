@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
-  fpdev.paths;
+  fpdev.paths, fpdev.utils;
 
 type
   { TPathsTest }
@@ -60,9 +60,9 @@ destructor TPathsTest.Destroy;
 begin
   // Restore FPDEV_DATA_ROOT
   if FSavedDataRoot <> '' then
-    SetEnvironmentVariable('FPDEV_DATA_ROOT', PChar(FSavedDataRoot))
+    set_env('FPDEV_DATA_ROOT', FSavedDataRoot)
   else
-    SetEnvironmentVariable('FPDEV_DATA_ROOT', nil);
+    set_env('FPDEV_DATA_ROOT', '');
   inherited Destroy;
 end;
 
@@ -153,7 +153,7 @@ begin
   WriteLn('-- TestGetDataRoot --');
 
   // Clear env override for this test
-  SetEnvironmentVariable('FPDEV_DATA_ROOT', nil);
+  set_env('FPDEV_DATA_ROOT', '');
 
   Root := GetDataRoot();
   AssertNotEmpty(Root, 'GetDataRoot() should return non-empty string');
@@ -181,13 +181,13 @@ begin
   WriteLn('-- TestGetDataRootEnvOverride --');
 
   TestPath := GetTempDir + 'fpdev_test_data_root';
-  SetEnvironmentVariable('FPDEV_DATA_ROOT', PChar(TestPath));
+  set_env('FPDEV_DATA_ROOT', TestPath);
 
   Root := GetDataRoot();
   AssertTrue(Root = TestPath, 'GetDataRoot() should respect FPDEV_DATA_ROOT env var');
 
   // Clean up
-  SetEnvironmentVariable('FPDEV_DATA_ROOT', nil);
+  set_env('FPDEV_DATA_ROOT', '');
 end;
 
 procedure TPathsTest.TestGetCacheDir;
@@ -254,7 +254,7 @@ begin
 
   // Use a unique test directory
   TestRoot := GetTempDir + 'fpdev_paths_test_' + IntToStr(Random(100000));
-  SetEnvironmentVariable('FPDEV_DATA_ROOT', PChar(TestRoot));
+  set_env('FPDEV_DATA_ROOT', TestRoot);
 
   try
     // These calls should create directories
@@ -268,7 +268,7 @@ begin
 
   finally
     // Cleanup
-    SetEnvironmentVariable('FPDEV_DATA_ROOT', nil);
+    set_env('FPDEV_DATA_ROOT', '');
     // Remove test directories
     RemoveDir(CacheDir);
     RemoveDir(SandboxDir);

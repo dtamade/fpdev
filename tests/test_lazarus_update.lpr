@@ -3,34 +3,36 @@ program test_lazarus_update;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.lazarus, fpdev.config, fpdev.git2;
+  SysUtils, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2;
 
 var
   TestRootDir: string;
-  ConfigManager: TFPDevConfigManager;
-  LazarusManager: TLazarusManager;
+  ConfigManager: IConfigManager;
+  LazarusManager: fpdev.cmd.lazarus.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
 procedure InitTestEnvironment;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
 begin
   // Create test root directory in temp
   TestRootDir := GetTempDir + 'test_lazarus_update_' + IntToStr(GetTickCount64);
   ForceDirectories(TestRootDir);
 
   // Initialize config manager
-  ConfigManager := TFPDevConfigManager.Create('');
+  ConfigManager := TConfigManager.Create('');
   ConfigManager.LoadConfig;
 
   // Override install root to test directory
-  Settings := ConfigManager.GetSettings;
+  SettingsMgr := ConfigManager.GetSettingsManager;
+  Settings := SettingsMgr.GetSettings;
   Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  SettingsMgr.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.cmd.lazarus.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;
@@ -67,8 +69,6 @@ begin
 
   if Assigned(LazarusManager) then
     LazarusManager.Free;
-  if Assigned(ConfigManager) then
-    ConfigManager.Free;
 
   WriteLn;
   WriteLn('========================================');

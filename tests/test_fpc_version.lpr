@@ -447,7 +447,7 @@ begin
       SetupTestEnvironment;
       try
         // Create version manager
-        VersionManager := TFPCVersionManager.Create(ConfigManager);
+        VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try
           // Run tests
           TestGetAvailableVersions;

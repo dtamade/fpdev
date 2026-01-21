@@ -3,35 +3,40 @@ program test_lazarus_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.lazarus, fpdev.config;
+  SysUtils, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF};
 
 var
   TestRootDir: string;
   TestSourceDir: string;
-  ConfigManager: TFPDevConfigManager;
-  LazarusManager: TLazarusManager;
+  ConfigManager: IConfigManager;
+  LazarusManager: fpdev.cmd.lazarus.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
 procedure InitTestEnvironment;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
 begin
   // Create test root directory in temp
   TestRootDir := GetTempDir + 'test_lazarus_clean_' + IntToStr(GetTickCount64);
   ForceDirectories(TestRootDir);
 
   // Initialize config manager
-  ConfigManager := TFPDevConfigManager.Create('');
+  ConfigManager := TConfigManager.Create('');
   ConfigManager.LoadConfig;
 
   // Override install root to test directory
-  Settings := ConfigManager.GetSettings;
+  SettingsMgr := ConfigManager.GetSettingsManager;
+  Settings := SettingsMgr.GetSettings;
   Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  SettingsMgr.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.cmd.lazarus.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;
@@ -68,8 +73,6 @@ begin
 
   if Assigned(LazarusManager) then
     LazarusManager.Free;
-  if Assigned(ConfigManager) then
-    ConfigManager.Free;
 
   WriteLn;
   WriteLn('========================================');
@@ -157,12 +160,17 @@ begin
     // Executable (platform-specific)
     {$IFDEF MSWINDOWS}
     AssignFile(TestFile, TestSourceDir + PathDelim + 'lazarus.exe');
-    {$ELSE}
-    AssignFile(TestFile, TestSourceDir + PathDelim + 'lazarus');
-    {$ENDIF}
     Rewrite(TestFile);
     WriteLn(TestFile, 'dummy executable');
     CloseFile(TestFile);
+    {$ELSE}
+    AssignFile(TestFile, TestSourceDir + PathDelim + 'lazarus');
+    Rewrite(TestFile);
+    WriteLn(TestFile, 'dummy executable');
+    CloseFile(TestFile);
+    // Set execute permission on Unix
+    FpChmod(TestSourceDir + PathDelim + 'lazarus', &755);
+    {$ENDIF}
 
     // Create source files that should be preserved
     // Pascal source files (.pas)

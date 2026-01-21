@@ -133,11 +133,12 @@ var
   Index: TPackageArray;
   Graph: TDependencyGraph;
   SortedOrder: TStringArray;
-  i, j, k: Integer;
+  i, j, k, m: Integer;
   DepName: string;
   DepParts: TStringArray;
   DepFound: Boolean;
   AllDepsIncluded: Boolean;
+  HasDuplicates: Boolean;
 begin
   WriteLn('');
   WriteLn('=== Property 1: Dependency Resolution Completeness ===');
@@ -163,7 +164,7 @@ begin
           DepFound := False;
           
           // Check if dependency is in graph
-          for var m := 0 to High(Graph) do
+          for m := 0 to High(Graph) do
           begin
             if SameText(Graph[m].Name, DepName) then
             begin
@@ -192,7 +193,7 @@ begin
   Assert(Length(SortedOrder) = Length(Graph), 'Topo sort includes all nodes');
   
   // Verify: no duplicates in sorted order
-  var HasDuplicates: Boolean := False;
+  HasDuplicates := False;
   for i := 0 to High(SortedOrder) do
   begin
     for j := i + 1 to High(SortedOrder) do
@@ -366,7 +367,9 @@ var
   MetaJson: string;
   OutputPath: string;
   Err: string;
-  i: Integer;
+  i, j: Integer;
+  HasBuildArtifact: Boolean;
+  SourceCount: Integer;
   SourceFiles: array[0..3] of record
     Name: string;
     Content: string;
@@ -405,9 +408,9 @@ begin
     // Collect source files
     SetLength(Options.ExcludePatterns, 0);
     Files := CollectPackageSourceFiles(SourceDir, Options.ExcludePatterns);
-    
+
     // Verify build artifacts are excluded
-    var HasBuildArtifact: Boolean := False;
+    HasBuildArtifact := False;
     for i := 0 to High(Files) do
     begin
       if IsBuildArtifact(Files[i]) then
@@ -417,12 +420,12 @@ begin
       end;
     end;
     Assert(not HasBuildArtifact, 'Build artifacts excluded from collection');
-    
+
     // Verify source files are included
-    var SourceCount: Integer := 0;
+    SourceCount := 0;
     for i := 0 to High(SourceFiles) do
     begin
-      for var j := 0 to High(Files) do
+      for j := 0 to High(Files) do
       begin
         if SameText(ExtractFileName(Files[j]), SourceFiles[i].Name) then
         begin
@@ -473,10 +476,11 @@ var
   TestDir: string;
   Files: TStringArray;
   ExcludePatterns: TStringArray;
-  i: Integer;
+  i, j: Integer;
   BuildArtifacts: array[0..8] of string;
   SourceFiles: array[0..3] of string;
   HasArtifact: Boolean;
+  SourceCount: Integer;
 begin
   WriteLn('');
   WriteLn('=== Property 7: Build Artifact Exclusion ===');
@@ -525,10 +529,10 @@ begin
     Assert(not HasArtifact, 'No build artifacts in collected files');
     
     // Verify: all source files are included
-    var SourceCount: Integer := 0;
+    SourceCount := 0;
     for i := 0 to High(SourceFiles) do
     begin
-      for var j := 0 to High(Files) do
+      for j := 0 to High(Files) do
       begin
         if SameText(ExtractFileName(Files[j]), SourceFiles[i]) then
         begin
@@ -566,7 +570,7 @@ end;
 procedure PropertyTestErrorResultConsistency;
 var
   Result: TPackageOperationResult;
-  i: Integer;
+  i, j: Integer;
   ErrorCodes: array[0..9] of TPackageErrorCode;
 begin
   WriteLn('');
@@ -610,9 +614,9 @@ begin
   // Test: Verify error code enum values are distinct
   for i := 0 to High(ErrorCodes) do
   begin
-    for var j := i + 1 to High(ErrorCodes) do
+    for j := i + 1 to High(ErrorCodes) do
     begin
-      Assert(ErrorCodes[i] <> ErrorCodes[j], 
+      Assert(ErrorCodes[i] <> ErrorCodes[j],
         'Error codes are distinct: ' + IntToStr(i) + ' vs ' + IntToStr(j));
     end;
   end;

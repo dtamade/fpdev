@@ -10,12 +10,13 @@ uses
   fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoRemoveCommand = class(TInterfacedObject, ICommand)
+  TRepoRemoveCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
   public
     function Name: string;
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer; overload;
+    procedure Execute(const AParams: array of string; const Ctx: ICommandContext); overload;
   end;
 
 implementation
@@ -58,6 +59,22 @@ begin
     Exit(0);
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_REMOVE_FAILED, [RepoName]));
   Result := 3;
+end;
+
+procedure TRepoRemoveCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+var
+  RepoName: string;
+begin
+  if Length(AParams) < 1 then
+    Exit;
+
+  RepoName := AParams[0];
+
+  if Trim(RepoName) = '' then
+    Exit;
+
+  Ctx.Config.RemoveRepository(RepoName);
+  Ctx.SaveIfModified;
 end;
 
 function RepoRemoveFactory: ICommand;

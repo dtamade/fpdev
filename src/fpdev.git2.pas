@@ -496,9 +496,33 @@ end;
 
 function TGitRepository.GetCurrentBranch: string;
 var
+  RefHandle: git_reference;
+  rc: cint;
   HeadRef: TGitReference;
 begin
-  HeadRef := GetHead;
+  // Try to get HEAD reference
+  rc := git_repository_head(RefHandle, FHandle);
+
+  // If repository is empty (no commits yet), return empty string
+  if rc = GIT_EUNBORNBRANCH then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  // If HEAD reference not found, return empty string
+  if rc = GIT_ENOTFOUND then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  // For other errors, raise exception
+  if rc <> GIT_OK then
+    raise EGitError.Create(rc, 'Get HEAD reference');
+
+  // Get branch name from reference
+  HeadRef := TGitReference.Create(Self, RefHandle);
   try
     Result := HeadRef.ShortName;
   finally

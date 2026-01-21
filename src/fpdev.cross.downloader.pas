@@ -14,6 +14,7 @@ const
   DEFAULT_TIMEOUT_MS = 30000;
   MAX_RETRY_COUNT = 3;
   RETRY_DELAYS: array[0..2] of Integer = (1000, 2000, 4000); // Exponential backoff
+  MANIFEST_UPDATE_DAYS = 7; // Manifest update check interval in days
 
 type
   { TCacheMode - Cache operation mode }
@@ -45,6 +46,9 @@ type
   { TProgressCallback - Callback for progress updates }
   TProgressCallback = procedure(const Progress: TDownloadProgress) of object;
 
+  { TStringDynArray - Dynamic array of strings }
+  TStringDynArray = array of string;
+
   { TCrossVerificationResult - Result of cross-toolchain verification }
   TCrossVerificationResult = record
     Success: Boolean;
@@ -68,7 +72,6 @@ type
     function GetCacheDir: string;
     function GetInstallDir(const ATarget: string): string;
     procedure ReportProgress(const AProgress: TDownloadProgress);
-    procedure HandleFetchProgress(const AFetchProgress: TFetchProgress);
     function DownloadWithRetry(const AURLs: TStringDynArray; const ADestFile, ASHA256: string): Boolean;
     function SleepMS(AMilliseconds: Integer): Boolean;
     function ExecuteVersionCheck(const ABinaryPath: string): string;
@@ -163,19 +166,6 @@ begin
     FOnProgress(AProgress);
 end;
 
-procedure TCrossToolchainDownloader.HandleFetchProgress(const AFetchProgress: TFetchProgress);
-var
-  Progress: TDownloadProgress;
-begin
-  // Combine fetch progress with current download context
-  Progress := FCurrentProgress;
-  Progress.TotalBytes := AFetchProgress.TotalBytes;
-  Progress.DownloadedBytes := AFetchProgress.DownloadedBytes;
-  Progress.SpeedBytesPerSec := AFetchProgress.SpeedBytesPerSec;
-  
-  ReportProgress(Progress);
-end;
-
 function TCrossToolchainDownloader.SleepMS(AMilliseconds: Integer): Boolean;
 begin
   Sleep(AMilliseconds);
@@ -238,8 +228,11 @@ begin
   
   URLs[0] := FManifestURL;
   Opt.DestDir := ExtractFileDir(ManifestPath);
-  Opt.SHA256 := ''; // No checksum for manifest
+  Opt.Hash := ''; // No checksum for manifest
+  Opt.HashAlgorithm := haUnknown;
+  Opt.HashDigest := '';
   Opt.TimeoutMS := FOptions.TimeoutMS;
+  Opt.ExpectedSize := 0;
   
   if not FetchWithMirrors(URLs, TempPath, Opt, ErrMsg) then
   begin
@@ -323,11 +316,13 @@ var
 begin
   Result := False;
   FLastError := '';
-  
+
   Opt.DestDir := ExtractFileDir(ADestFile);
-  Opt.SHA256 := ASHA256;
+  Opt.Hash := 'sha256:' + ASHA256;
+  Opt.HashAlgorithm := haSHA256;
+  Opt.HashDigest := ASHA256;
   Opt.TimeoutMS := FOptions.TimeoutMS;
-  Opt.OnProgress := nil; // Will be set per-download if needed
+  Opt.ExpectedSize := 0;
   
   for MirrorIdx := 0 to High(AURLs) do
   begin
@@ -343,16 +338,10 @@ begin
       ReportProgress(Progress);
       
       SingleURL[0] := AURLs[MirrorIdx];
-      
-      // Set up progress callback wrapper
-      if Assigned(FOnProgress) then
-        Opt.OnProgress := @HandleFetchProgress
-      else
-        Opt.OnProgress := nil;
-      
+
       // Store current state for progress callback
       FCurrentProgress := Progress;
-      
+
       if FetchWithMirrors(SingleURL, ADestFile, Opt, ErrMsg) then
       begin
         // Report completion
@@ -432,8 +421,8 @@ begin
   // Extract to install directory
   InstallDir := GetInstallDir(ATarget);
   ForceDirectories(InstallDir);
-  
-  if not ExtractArchive(CachePath, InstallDir, ErrMsg) then
+
+  if not ZipExtract(CachePath, InstallDir, ErrMsg) then
   begin
     FLastError := 'Failed to extract binutils: ' + ErrMsg;
     Exit;
@@ -503,8 +492,8 @@ begin
   // Extract to install directory
   InstallDir := GetInstallDir(ATarget);
   ForceDirectories(InstallDir);
-  
-  if not ExtractArchive(CachePath, InstallDir, ErrMsg) then
+
+  if not ZipExtract(CachePath, InstallDir, ErrMsg) then
   begin
     FLastError := 'Failed to extract libraries: ' + ErrMsg;
     Exit;
@@ -565,7 +554,16 @@ begin
   
   InstallDir := GetInstallDir(ATarget);
   BinDir := InstallDir + 'bin' + PathDelim;
-  Prefix := Entry.BinutilsPrefix;
+
+  // Determine prefix from target (e.g., 'win64' -> 'x86_64-w64-mingw32-')
+  case LowerCase(ATarget) of
+    'win64': Prefix := 'x86_64-w64-mingw32-';
+    'win32': Prefix := 'i686-w64-mingw32-';
+    'linux64': Prefix := 'x86_64-linux-gnu-';
+    'linux32': Prefix := 'i686-linux-gnu-';
+  else
+    Prefix := ATarget + '-';
+  end;
   
   // Check for required binaries
   RequiredBins[0] := 'ld';

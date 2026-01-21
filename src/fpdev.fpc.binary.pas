@@ -18,13 +18,16 @@ type
     FExtractor: TArchiveExtractor;
     FCacheManager: TBuildCache;
     FVerifier: TFPCVerifier;
+    FManifestParser: TManifestParser;
     FLastError: string;
     FUseCache: Boolean;
     FOfflineMode: Boolean;
     FVerifyInstallation: Boolean;
+    FUseManifest: Boolean;
 
     function GetCacheKey(const AVersion: string): string;
     function DownloadBinary(const AVersion, ADestFile: string): Boolean;
+    function LoadManifest(const AManifestURL: string): Boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -39,6 +42,7 @@ type
     property UseCache: Boolean read FUseCache write FUseCache;
     property OfflineMode: Boolean read FOfflineMode write FOfflineMode;
     property VerifyInstallation: Boolean read FVerifyInstallation write FVerifyInstallation;
+    property UseManifest: Boolean read FUseManifest write FUseManifest;
 
     { Get last error message }
     function GetLastError: string;
@@ -56,14 +60,17 @@ begin
   FExtractor := TArchiveExtractor.Create;
   FCacheManager := TBuildCache.Create(GetUserDir + '.fpdev' + PathDelim + 'cache');
   FVerifier := TFPCVerifier.Create;
+  FManifestParser := TManifestParser.Create;
   FLastError := '';
   FUseCache := True;
   FOfflineMode := False;
   FVerifyInstallation := True;
+  FUseManifest := True;  // Enable manifest-based downloads by default
 end;
 
 destructor TBinaryInstaller.Destroy;
 begin
+  FManifestParser.Free;
   FVerifier.Free;
   FCacheManager.Free;
   FExtractor.Free;
@@ -80,6 +87,29 @@ begin
   Result := 'fpc-' + AVersion + '-' + Platform.ToString;
 end;
 
+function TBinaryInstaller.LoadManifest(const AManifestURL: string): Boolean;
+begin
+  Result := False;
+
+  if FOfflineMode then
+  begin
+    WriteLn('Offline mode: skipping manifest download');
+    Exit;
+  end;
+
+  WriteLn('Loading manifest from: ', AManifestURL);
+
+  if not FManifestParser.LoadFromURL(AManifestURL) then
+  begin
+    WriteLn('Warning: Failed to load manifest: ', FManifestParser.LastError);
+    WriteLn('Falling back to legacy download method');
+    Exit;
+  end;
+
+  Result := True;
+  WriteLn('Manifest loaded successfully');
+end;
+
 function TBinaryInstaller.DownloadBinary(const AVersion, ADestFile: string): Boolean;
 var
   Platform: TPlatformInfo;
@@ -87,6 +117,9 @@ var
   Err: string;
   Opt: TFetchOptions;
   URLs: array of string;
+  ManifestTarget: TManifestTarget;
+  I: Integer;
+  HashAlgo, HashDigest: string;
 begin
   Result := False;
 
@@ -101,32 +134,74 @@ begin
   end;
 
   Platform := DetectPlatform;
-  URL := FMirrorManager.GetDownloadURL(AVersion, Platform.ToString);
 
-  if URL = '' then
+  // Try to use manifest for enhanced security and multiple mirrors
+  if FUseManifest and FManifestParser.GetTarget('fpc', AVersion, Platform.ToString, ManifestTarget) then
   begin
-    FLastError := 'Failed to generate download URL for ' + AVersion + LineEnding +
-                  'Troubleshooting:' + LineEnding +
-                  '  1. Verify version exists: fpdev fpc list --all' + LineEnding +
-                  '  2. Check platform support for this version' + LineEnding +
-                  '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source';
-    Exit;
+    WriteLn('Using manifest data for download');
+
+    // Use multiple mirrors from manifest
+    SetLength(URLs, Length(ManifestTarget.URLs));
+    for I := 0 to High(ManifestTarget.URLs) do
+      URLs[I] := ManifestTarget.URLs[I];
+
+    // Parse hash from manifest
+    if ParseHashAlgorithm(ManifestTarget.Hash, HashAlgo, HashDigest) then
+    begin
+      Opt.Hash := ManifestTarget.Hash;
+      if HashAlgo = 'sha256' then
+        Opt.HashAlgorithm := haSHA256
+      else if HashAlgo = 'sha512' then
+        Opt.HashAlgorithm := haSHA512
+      else
+        Opt.HashAlgorithm := haUnknown;
+      Opt.HashDigest := HashDigest;
+      WriteLn('Hash verification enabled: ', HashAlgo);
+    end
+    else
+    begin
+      Opt.Hash := '';
+      Opt.HashAlgorithm := haUnknown;
+      Opt.HashDigest := '';
+      WriteLn('Warning: Invalid hash format in manifest, skipping verification');
+    end;
+
+    Opt.ExpectedSize := ManifestTarget.Size;
+    if Opt.ExpectedSize > 0 then
+      WriteLn('Expected size: ', Opt.ExpectedSize, ' bytes');
+  end
+  else
+  begin
+    // Fallback to legacy mirror manager
+    WriteLn('Using legacy download method (no manifest)');
+    URL := FMirrorManager.GetDownloadURL(AVersion, Platform.ToString);
+
+    if URL = '' then
+    begin
+      FLastError := 'Failed to generate download URL for ' + AVersion + LineEnding +
+                    'Troubleshooting:' + LineEnding +
+                    '  1. Verify version exists: fpdev fpc list --all' + LineEnding +
+                    '  2. Check platform support for this version' + LineEnding +
+                    '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source';
+      Exit;
+    end;
+
+    SetLength(URLs, 1);
+    URLs[0] := URL;
+
+    Opt.Hash := '';
+    Opt.HashAlgorithm := haUnknown;
+    Opt.HashDigest := '';
+    Opt.ExpectedSize := 0;
+    WriteLn('Warning: No hash verification (manifest not available)');
   end;
 
-  WriteLn('Downloading from: ', URL);
-
-  // Use enhanced fetcher with hash verification
-  // TODO: Integrate manifest parser to get hash and multiple mirrors
-  // For now, use single URL without hash verification (backward compatible)
-  SetLength(URLs, 1);
-  URLs[0] := URL;
-
   Opt.DestDir := ExtractFileDir(ADestFile);
-  Opt.Hash := '';  // TODO: Get from manifest
-  Opt.HashAlgorithm := haUnknown;
-  Opt.HashDigest := '';
   Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
-  Opt.ExpectedSize := 0;  // TODO: Get from manifest
+
+  WriteLn('Downloading from: ', URLs[0]);
+  if Length(URLs) > 1 then
+    WriteLn('Fallback mirrors available: ', Length(URLs) - 1);
 
   Result := EnsureDownloadedCached(URLs, ADestFile, Opt, Err);
 

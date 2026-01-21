@@ -845,6 +845,133 @@ fpdev package info mylib
 
 See `docs/WEEK10-SUMMARY.md` for detailed implementation documentation.
 
+### Logging System (Phase 2)
+
+**Phase 2 Complete**: Production-ready structured logging system with rotation, archiving, and comprehensive test coverage.
+
+**Core Components**:
+
+1. **TStructuredLogger** (`src/fpdev.logger.structured.pas`) - Core logging with dual output
+   - Structured JSON logging for file output
+   - Formatted text logging for console output
+   - Log level filtering (Debug, Info, Warning, Error)
+   - Context management (source, correlation ID, thread/process ID)
+   - Custom fields support
+   - Independent file/console enable/disable
+
+2. **TLogRotator** (`src/fpdev.logger.rotator.pas`) - Automatic log rotation
+   - Size-based rotation (configurable max file size)
+   - Time-based rotation (configurable interval)
+   - Dual trigger strategy (size OR time)
+   - Automatic file renaming (app.log → app.log.1 → app.log.2)
+   - Configurable retention (max files, max age)
+   - Old log cleanup
+
+3. **TLogArchiver** (`src/fpdev.logger.archiver.pas`) - Log compression and archiving
+   - Automatic gzip compression
+   - Configurable compression level (0-9)
+   - Archive directory management
+   - Old archive cleanup (configurable max age)
+   - SHA256 checksum generation
+
+**Usage Example**:
+
+```pascal
+uses fpdev.logger.structured, fpdev.logger.rotator, fpdev.logger.archiver;
+
+var
+  Logger: TStructuredLogger;
+  Rotator: TLogRotator;
+  Archiver: TLogArchiver;
+begin
+  // Create logger with dual output
+  Logger := TStructuredLogger.Create('app.log');
+  try
+    Logger.SetMinLevel(llInfo);
+    Logger.SetFileOutputEnabled(True);
+    Logger.SetConsoleOutputEnabled(True);
+
+    // Add context
+    Logger.SetSource('MyApp');
+    Logger.SetCorrelationID('req-12345');
+
+    // Log messages
+    Logger.Info('Application started');
+    Logger.Warning('Configuration file not found, using defaults');
+    Logger.Error('Failed to connect to database');
+
+    // Log with custom fields
+    Logger.LogWithFields(llInfo, 'User login', ['username', 'john', 'ip', '192.168.1.1']);
+  finally
+    Logger.Free;
+  end;
+
+  // Configure log rotation
+  Rotator := TLogRotator.Create('app.log');
+  try
+    Rotator.SetMaxFileSize(10 * 1024 * 1024);  // 10 MB
+    Rotator.SetRotationInterval(24 * 60 * 60);  // 24 hours
+    Rotator.SetMaxFiles(7);  // Keep 7 rotated files
+    Rotator.SetMaxAge(30 * 24 * 60 * 60);  // 30 days
+
+    if Rotator.ShouldRotate then
+      Rotator.Rotate;
+  finally
+    Rotator.Free;
+  end;
+
+  // Configure log archiving
+  Archiver := TLogArchiver.Create('logs', 'archives');
+  try
+    Archiver.SetCompressionLevel(6);  // Balanced compression
+    Archiver.SetMaxArchiveAge(90 * 24 * 60 * 60);  // 90 days
+
+    Archiver.ArchiveLog('app.log.1');
+    Archiver.CleanupOldArchives;
+  finally
+    Archiver.Free;
+  end;
+end;
+```
+
+**Configuration Options**:
+
+```pascal
+// Logger configuration
+Logger.SetMinLevel(llDebug);           // Set minimum log level
+Logger.SetFileOutputEnabled(True);     // Enable file output
+Logger.SetConsoleOutputEnabled(True);  // Enable console output
+Logger.SetSource('MyApp');             // Set source identifier
+Logger.SetCorrelationID('req-123');    // Set correlation ID
+
+// Rotator configuration
+Rotator.SetMaxFileSize(10485760);      // 10 MB max file size
+Rotator.SetRotationInterval(86400);    // 24 hours rotation interval
+Rotator.SetMaxFiles(7);                // Keep 7 rotated files
+Rotator.SetMaxAge(2592000);            // 30 days max age
+
+// Archiver configuration
+Archiver.SetCompressionLevel(6);       // Compression level (0-9)
+Archiver.SetMaxArchiveAge(7776000);    // 90 days max archive age
+```
+
+**Test Coverage** (Phase 2):
+- `tests/test_structured_logger.lpr` - 50 test scenarios for TStructuredLogger
+- `tests/test_log_rotation.lpr` - 23 test scenarios for TLogRotator
+- `tests/test_log_archiver.lpr` - 20 test scenarios for TLogArchiver
+- `tests/test_logger_integration.lpr` - 21 integration test scenarios
+- Total: 114/114 tests passing (100% pass rate)
+
+**Key Features**:
+- TDD methodology (Red-Green-Refactor cycle)
+- Cross-platform support (Windows, Linux, macOS)
+- Thread-safe operations
+- Comprehensive error handling
+- Zero compiler warnings
+- Production-ready with extensive test coverage
+
+See `SLEEP_MODE_SUMMARY.md` for detailed Phase 2 implementation documentation.
+
 ## Important Documentation
 
 - **README.md** - Quick start and usage guide

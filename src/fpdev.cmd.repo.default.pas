@@ -10,12 +10,13 @@ uses
   fpdev.i18n, fpdev.i18n.strings;
 
 type
-  TRepoDefaultCommand = class(TInterfacedObject, ICommand)
+  TRepoDefaultCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
   public
     function Name: string;
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer; overload;
+    procedure Execute(const AParams: array of string; const Ctx: ICommandContext); overload;
   end;
 
 implementation
@@ -61,6 +62,25 @@ begin
     Exit(0);
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_DEFAULT_FAILED, [RepoName]));
   Result := 3;
+end;
+
+procedure TRepoDefaultCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+var
+  RepoName: string;
+  Settings: TFPDevSettings;
+begin
+  if Length(AParams) < 1 then
+    Exit;
+
+  RepoName := AParams[0];
+
+  if Ctx.Config.GetRepository(RepoName) = '' then
+    Exit;
+
+  Settings := Ctx.Config.GetSettings;
+  Settings.DefaultRepo := RepoName;
+  Ctx.Config.SetSettings(Settings);
+  Ctx.SaveIfModified;
 end;
 
 function RepoDefaultFactory: ICommand;

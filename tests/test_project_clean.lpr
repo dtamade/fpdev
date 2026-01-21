@@ -4,7 +4,10 @@ program test_project_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.project, fpdev.config;
+  SysUtils, Classes, fpdev.cmd.project, fpdev.config
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF};
 
 var
   TestProjectDir: string;
@@ -46,12 +49,17 @@ begin
   // Executable (.exe on Windows, no extension on Unix)
   {$IFDEF MSWINDOWS}
   AssignFile(TestFile, TestProjectDir + PathDelim + 'myapp.exe');
-  {$ELSE}
-  AssignFile(TestFile, TestProjectDir + PathDelim + 'myapp');
-  {$ENDIF}
   Rewrite(TestFile);
   WriteLn(TestFile, 'dummy executable');
   CloseFile(TestFile);
+  {$ELSE}
+  AssignFile(TestFile, TestProjectDir + PathDelim + 'myapp');
+  Rewrite(TestFile);
+  WriteLn(TestFile, 'dummy executable');
+  CloseFile(TestFile);
+  // Set execute permission on Unix
+  FpChmod(TestProjectDir + PathDelim + 'myapp', &755);
+  {$ENDIF}
   Inc(TestFilesCreated);
 
   // Source files that should NOT be cleaned

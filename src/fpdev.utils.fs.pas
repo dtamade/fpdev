@@ -10,7 +10,10 @@ unit fpdev.utils.fs;
 interface
 
 uses
-  SysUtils, Classes, fphttpclient, opensslsockets;
+  SysUtils, Classes, fphttpclient, opensslsockets
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF};
 
 // Directory operations
 function DeleteDirRecursive(const ADir: string): Boolean;
@@ -201,6 +204,10 @@ function CleanBuildArtifacts(const ADir: string;
   var
     SR: TSearchRec;
     FilePath, FileExt: string;
+    {$IFDEF UNIX}
+    StatBuf: TStat;
+    IsExecutable: Boolean;
+    {$ENDIF}
   begin
     Result := 0;
     if not DirectoryExists(APath) then
@@ -226,7 +233,23 @@ function CleanBuildArtifacts(const ADir: string;
           begin
             if DeleteFile(FilePath) then
               Inc(Result);
+          end
+          {$IFDEF UNIX}
+          // On Unix, also check for executables without extension
+          else if AIncludeExec and (FileExt = '') then
+          begin
+            // Check if file has execute permission
+            if FpStat(FilePath, StatBuf) = 0 then
+            begin
+              IsExecutable := (StatBuf.st_mode and S_IXUSR) <> 0;
+              if IsExecutable then
+              begin
+                if DeleteFile(FilePath) then
+                  Inc(Result);
+              end;
+            end;
           end;
+          {$ENDIF}
         end;
       until FindNext(SR) <> 0;
       FindClose(SR);

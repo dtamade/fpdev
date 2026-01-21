@@ -45,7 +45,8 @@ uses
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
   fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher,
-  fpdev.build.cache;
+  fpdev.build.cache, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version,
+  fpdev.fpc.builder, fpdev.config;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -126,6 +127,41 @@ type
 
     { Resource repository accessor for external coordination. }
     property ResourceRepo: TResourceRepository read FResourceRepo;
+  end;
+
+  { TFPCInstaller - FPC installer with dependency injection for testing }
+  TFPCInstaller = class
+  private
+    FVersionManager: TFPCVersionManager;
+    FConfigManager: TFPDevConfigManager;
+    FBuilder: TFPCBuilder;
+    FFileSystem: IFileSystem;
+    FProcessRunner: IProcessRunner;
+
+    function GetInstallDir(const AVersion: string): string;
+  public
+    constructor Create(AVersionManager: TFPCVersionManager;
+      AConfigManager: TFPDevConfigManager;
+      ABuilder: TFPCBuilder;
+      AFileSystem: IFileSystem;
+      AProcessRunner: IProcessRunner);
+    destructor Destroy; override;
+
+    { Installs FPC version }
+    function InstallVersion(const AVersion: string; AFromSource: Boolean;
+      const APrefix: string = ''; AEnsure: Boolean = False): TOperationResult;
+
+    { Uninstalls FPC version }
+    function UninstallVersion(const AVersion: string): TOperationResult;
+
+    { Gets binary download URL for version }
+    function GetBinaryDownloadURL(const AVersion: string): string;
+
+    property VersionManager: TFPCVersionManager read FVersionManager;
+    property ConfigManager: TFPDevConfigManager read FConfigManager;
+    property Builder: TFPCBuilder read FBuilder;
+    property FileSystem: IFileSystem read FFileSystem;
+    property ProcessRunner: IProcessRunner read FProcessRunner;
   end;
 
 implementation
@@ -236,7 +272,7 @@ var
   TempDir: string;
   ExtractDir: string;
   InstallerScript: string;
-  LResult: TProcessResult;
+  LResult: fpdev.utils.process.TProcessResult;
   I: Integer;
   InnerTempDir: string;
   BaseArchive: string;
@@ -566,7 +602,7 @@ function TFPCBinaryInstaller.ExtractArchive(const AArchivePath, ADestPath: strin
 var
   Unzipper: TUnZipper;
   FileExt: string;
-  LResult: TProcessResult;
+  LResult: fpdev.utils.process.TProcessResult;
 begin
   Result := False;
 
@@ -1089,6 +1125,165 @@ begin
       Result := False;
     end;
   end;
+end;
+
+{ TFPCInstaller }
+
+constructor TFPCInstaller.Create(AVersionManager: TFPCVersionManager;
+  AConfigManager: TFPDevConfigManager;
+  ABuilder: TFPCBuilder;
+  AFileSystem: IFileSystem;
+  AProcessRunner: IProcessRunner);
+begin
+  inherited Create;
+  FVersionManager := AVersionManager;
+  FConfigManager := AConfigManager;
+  FBuilder := ABuilder;
+  FFileSystem := AFileSystem;
+  FProcessRunner := AProcessRunner;
+end;
+
+destructor TFPCInstaller.Destroy;
+begin
+  inherited Destroy;
+end;
+
+function TFPCInstaller.GetInstallDir(const AVersion: string): string;
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := FConfigManager.GetSettings;
+  Result := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+end;
+
+function TFPCInstaller.InstallVersion(const AVersion: string; AFromSource: Boolean;
+  const APrefix: string; AEnsure: Boolean): TOperationResult;
+var
+  InstallDir, SourceDir: string;
+  BuildResult: TOperationResult;
+begin
+  // Validate version
+  if not FVersionManager.ValidateVersion(AVersion) then
+  begin
+    Result := OperationError(ecVersionInvalid, 'Invalid version: ' + AVersion);
+    Exit;
+  end;
+
+  // Determine install directory
+  if APrefix <> '' then
+    InstallDir := APrefix
+  else
+    InstallDir := GetInstallDir(AVersion);
+
+  // Check if already installed
+  if FFileSystem.DirectoryExists(InstallDir) then
+  begin
+    if AEnsure then
+    begin
+      // Ensure mode: already installed is success
+      Result := OperationSuccess;
+      Exit;
+    end
+    else
+    begin
+      Result := OperationError(ecVersionAlreadyInstalled, 'Version already installed: ' + AVersion);
+      Exit;
+    end;
+  end;
+
+  if AFromSource then
+  begin
+    // Install from source
+    SourceDir := FConfigManager.GetSettings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
+
+    // Download source if not exists
+    if not FFileSystem.DirectoryExists(SourceDir) then
+    begin
+      BuildResult := FBuilder.DownloadSource(AVersion, SourceDir);
+      if not BuildResult.Success then
+      begin
+        Result := BuildResult;
+        Exit;
+      end;
+    end;
+
+    // Build from source
+    BuildResult := FBuilder.BuildFromSource(SourceDir, InstallDir);
+    if not BuildResult.Success then
+    begin
+      Result := BuildResult;
+      Exit;
+    end;
+  end
+  else
+  begin
+    // Binary installation not implemented in test version
+    Result := OperationError(ecDownloadFailed, 'Binary installation not implemented');
+    Exit;
+  end;
+
+  Result := OperationSuccess;
+end;
+
+function TFPCInstaller.UninstallVersion(const AVersion: string): TOperationResult;
+var
+  InstallDir: string;
+  ProcResult: fpdev.fpc.interfaces.TProcessResult;
+begin
+  InstallDir := GetInstallDir(AVersion);
+
+  // Check if installed
+  if not FFileSystem.DirectoryExists(InstallDir) then
+  begin
+    // Not installed - success (nothing to uninstall)
+    Result := OperationSuccess;
+    Exit;
+  end;
+
+  // Remove directory
+  {$IFDEF MSWINDOWS}
+  ProcResult := FProcessRunner.Execute('cmd', ['/c', 'rmdir', '/s', '/q', InstallDir], '');
+  {$ELSE}
+  ProcResult := FProcessRunner.Execute('rm', ['-rf', InstallDir], '');
+  {$ENDIF}
+
+  if not ProcResult.Success then
+  begin
+    Result := OperationError(ecUninstallationFailed, 'Failed to remove directory: ' + InstallDir);
+    Exit;
+  end;
+
+  Result := OperationSuccess;
+end;
+
+function TFPCInstaller.GetBinaryDownloadURL(const AVersion: string): string;
+begin
+  // Generate SourceForge URL for binary download
+  Result := 'https://sourceforge.net/projects/freepascal/files/';
+
+  {$IFDEF MSWINDOWS}
+    {$IFDEF CPU64}
+    Result := Result + 'Win64/' + AVersion + '/fpc-' + AVersion + '.x86_64-win64.exe';
+    {$ELSE}
+    Result := Result + 'Win32/' + AVersion + '/fpc-' + AVersion + '.i386-win32.exe';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF LINUX}
+    {$IFDEF CPU64}
+    Result := Result + 'Linux/' + AVersion + '/fpc-' + AVersion + '.x86_64-linux.tar';
+    {$ELSE}
+    Result := Result + 'Linux/' + AVersion + '/fpc-' + AVersion + '.i386-linux.tar';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF DARWIN}
+    {$IFDEF CPU64}
+    Result := Result + 'macOS/' + AVersion + '/fpc-' + AVersion + '.x86_64-macosx.dmg';
+    {$ELSE}
+    Result := Result + 'macOS/' + AVersion + '/fpc-' + AVersion + '.i386-macosx.dmg';
+    {$ENDIF}
+  {$ENDIF}
 end;
 
 end.
