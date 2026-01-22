@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
+## [2.0.6] - 2026-01-22
+### Added
+- **Documentation Improvements**
+  - Added QUICKSTART.md - 5-minute quick start guide
+  - Added FAQ.md - Comprehensive frequently asked questions
+  - Added examples/hello-console - Simple console application example
+  - Added examples/README.md - Examples directory documentation
+
+### Fixed
+- **Critical Usability Issues**
+  - Fixed HTTP timeout in binary installation (30s timeout)
+  - Fixed project name validation (hyphen → underscore conversion)
+  - Improved error messages when binary installation fails
+
+### Changed
+- **README.md Updates**
+  - Added "Known Limitations" section
+  - Documented binary installation dependency on manifest system
+  - Documented project name hyphen-to-underscore conversion
+  - Added recommended workflow section
+
+### Documentation
+- Updated README.md with known limitations
+- Created comprehensive quick start guide
+- Created FAQ with common troubleshooting steps
+- Added example projects for learning
+
+### Notes
+- Project is now truly usable with end-to-end workflow verified
+- All core functionality tested and working
+- Ready for v2.1.0 release preparation
+
 ## [2.0.5] - 2026-01-17
 ### Added
 - **Lazarus IDE Configuration Test Coverage (Phase 3.4)**

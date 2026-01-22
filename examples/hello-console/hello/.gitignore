@@ -1,0 +1,22 @@
+# Compiled units
+*.o
+*.ppu
+*.a
+*.compiled
+*.res
+*.rst
+*.rsj
+
+# Executables
+hello
+*.so
+*.dylib
+
+# Lazarus files
+*.lps
+backup/
+lib/
+
+# IDE folders
+.lazarus/
+.vscode/
