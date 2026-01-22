@@ -250,11 +250,22 @@ procedure TestBootstrapDownload;
 var
   Settings: TFPDevSettings;
   DownloadResult: Boolean;
+  SkipNetworkTests: Boolean;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 5: Bootstrap Download (Network-Dependent)');
   WriteLn('==================================================');
+
+  // Check if network tests should be skipped
+  SkipNetworkTests := GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1';
+  
+  if SkipNetworkTests then
+  begin
+    WriteLn('[SKIP] Network-dependent test - skipped by FPDEV_SKIP_NETWORK_TESTS=1');
+    WriteLn('  Note: DownloadBootstrapCompiler is deprecated, use fpdev-repo instead');
+    Exit;
+  end;
 
   try
     Settings := ConfigManager.GetSettings;
@@ -263,7 +274,8 @@ begin
 
     SourceManager := TFPCSourceManager.Create(TestRootDir + PathDelim + 'sources' + PathDelim + 'fpc');
 
-    // Test download (current implementation is stub - returns True)
+    // Test download (DEPRECATED: DownloadBootstrapCompiler uses SourceForge which may be unavailable)
+    // This test is kept for backward compatibility but should be skipped in CI
     DownloadResult := SourceManager.DownloadBootstrapCompiler('3.2.2');
 
     AssertTrue(DownloadResult, 'Download succeeded',
