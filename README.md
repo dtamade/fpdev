@@ -715,6 +715,38 @@ fpc -Fu. ../tests/test_config_management.lpr
 
 本项目采用 **MIT 许可证** - 查看 [LICENSE](LICENSE) 文件了解详情。
 
+## ⚠️ 已知限制
+
+### 当前版本限制 (v2.0.5)
+
+1. **二进制安装依赖 manifest 系统**
+   - 二进制安装需要有效的 manifest 文件和镜像源
+   - 如果 manifest 不可用，建议使用源码安装：`fpdev fpc install 3.2.2 --from-source`
+
+2. **项目名称限制**
+   - 项目名称中的连字符会自动转换为下划线（Pascal 标识符要求）
+   - 示例：`hello-world` → 程序名为 `hello_world`
+
+3. **跨平台注意事项**
+   - Windows 需要 `git2.dll` 在 PATH 或可执行文件目录
+   - 源码安装需要 bootstrap 编译器（自动下载）
+   - 某些功能可能需要管理员权限
+
+### 推荐工作流
+
+```bash
+# 1. 使用源码安装（最可靠）
+fpdev fpc install 3.2.2 --from-source
+
+# 2. 创建项目（避免使用连字符）
+fpdev project new console myapp
+
+# 3. 构建和运行
+cd myapp
+fpdev project build
+fpdev project run
+```
+
 ## 🙏 致谢
 
 - **FreePascal 团队** - 提供优秀的编译器
