@@ -101,8 +101,6 @@ end;
 // Test 1: Bootstrap Types Exist
 // ============================================================================
 procedure TestBootstrapTypesExist;
-var
-  PlatformStr, ArchStr: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -111,9 +109,6 @@ begin
 
   try
     // Verify that platform/architecture detection types compile
-    PlatformStr := '';
-    ArchStr := '';
-
     AssertTrue(True, 'Bootstrap types defined', 'Types should compile');
   except
     on E: Exception do
@@ -127,7 +122,7 @@ end;
 procedure TestPlatformDetection;
 var
   Settings: TFPDevSettings;
-  DetectedPlatform, DetectedArch: string;
+  DetectedPlatform: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -143,7 +138,6 @@ begin
 
     // Test platform detection (this method doesn't exist yet - Red Phase)
     // DetectedPlatform := SourceManager.DetectPlatform;
-    // DetectedArch := SourceManager.DetectArchitecture;
 
     // For now, verify we can detect current platform
     {$IFDEF MSWINDOWS}
@@ -276,7 +270,10 @@ begin
 
     // Test download (DEPRECATED: DownloadBootstrapCompiler uses SourceForge which may be unavailable)
     // This test is kept for backward compatibility but should be skipped in CI
+    {$PUSH}
+    {$WARN SYMBOL_DEPRECATED OFF}
     DownloadResult := SourceManager.DownloadBootstrapCompiler('3.2.2');
+    {$POP}
 
     AssertTrue(DownloadResult, 'Download succeeded',
       'Expected download to succeed');
