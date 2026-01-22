@@ -8,6 +8,8 @@ uses
 var
   Installer: TBinaryInstaller;
   TestsPassed, TestsFailed: Integer;
+  UseCacheValue, OfflineModeValue, IsCachedValue: Boolean;
+  ErrorMsg: string;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -37,21 +39,27 @@ begin
 
     // Test 2: UseCache property works
     Installer.UseCache := False;
-    Assert(not Installer.UseCache, 'Can disable cache');
+    UseCacheValue := Installer.UseCache;
+    Assert(not UseCacheValue, 'Can disable cache');
     Installer.UseCache := True;
-    Assert(Installer.UseCache, 'Can enable cache');
+    UseCacheValue := Installer.UseCache;
+    Assert(UseCacheValue, 'Can enable cache');
 
     // Test 3: OfflineMode property works
     Installer.OfflineMode := True;
-    Assert(Installer.OfflineMode, 'Can enable offline mode');
+    OfflineModeValue := Installer.OfflineMode;
+    Assert(OfflineModeValue, 'Can enable offline mode');
     Installer.OfflineMode := False;
-    Assert(not Installer.OfflineMode, 'Can disable offline mode');
+    OfflineModeValue := Installer.OfflineMode;
+    Assert(not OfflineModeValue, 'Can disable offline mode');
 
     // Test 4: IsCached returns false for non-existent version
-    Assert(not Installer.IsCached('999.999.999'), 'Non-existent version not cached');
+    IsCachedValue := Installer.IsCached('999.999.999');
+    Assert(not IsCachedValue, 'Non-existent version not cached');
 
     // Test 5: Can get last error
-    Assert(Length(Installer.GetLastError) >= 0, 'Can get last error');
+    ErrorMsg := Installer.GetLastError;
+    Assert(Length(ErrorMsg) >= 0, 'Can get last error');
 
   finally
     Installer.Free;
