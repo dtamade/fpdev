@@ -134,9 +134,11 @@ end;
 ```
 
 **Internal Implementation**:
-- `fpdev.utils.git.pas` - Uses `IGitManager` internally (17 references migrated)
+- `fpdev.utils.git.pas` - Uses `IGitManager` internally via `SharedGitManager` (marked `@deprecated`)
 - `fpdev.git2.pas` - Legacy `GitManager()` function marked `@deprecated`
-- All new code should use `git2.api.pas` + `git2.impl.pas`
+- All new code should use `git2.api.pas` + `git2.impl.pas` directly
+
+**Phase 2 Wave 2 Complete** (2026-01-31): `SharedGitManager` global singleton marked `@deprecated` with migration guide. Will be removed in Wave 4.
 
 **Windows Runtime**: Requires `git2.dll` in PATH or executable directory.
 
