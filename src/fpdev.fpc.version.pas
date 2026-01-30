@@ -36,7 +36,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants;
+  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
+  fpdev.manifest.cache, fpdev.manifest;
 
 type
   { TFPCVersionInfo - Information about an FPC version }
@@ -103,7 +104,45 @@ type
       AVersion: Version to set as default
       Returns: True if successful }
     function SetDefaultVersion(const AVersion: string): Boolean;
+
+    { Gets detailed version information.
+      AVersion: Version string to query
+      Info: Output parameter for version information
+      Returns: True if version is found }
+    function GetVersionInfo(const AVersion: string; out Info: TFPCVersionInfo): Boolean;
+
+    { Gets the Git tag for a version.
+      AVersion: Version string (e.g., '3.2.2')
+      Returns: Git tag (e.g., '3_2_2') or empty string if not found }
+    function GetGitTag(const AVersion: string): string;
+
+    { Gets the Git branch for a version.
+      AVersion: Version string (e.g., '3.2.2')
+      Returns: Git branch (e.g., 'fixes_3_2') or empty string if not found }
+    function GetBranch(const AVersion: string): string;
+
+    { Gets the FPC executable path for a version.
+      AVersion: Version string
+      Returns: Full path to FPC executable }
+    function GetFPCExecutablePath(const AVersion: string): string;
   end;
+
+{ Utility functions for version parsing and comparison }
+
+{ Parses a version string into major, minor, and patch components.
+  AVersion: Version string (e.g., '3.2.2')
+  Major, Minor, Patch: Output parameters for version components }
+procedure ParseVersion(const AVersion: string; out Major, Minor, Patch: Integer);
+
+{ Compares two semantic version strings.
+  AVersion1, AVersion2: Version strings to compare
+  Returns: -1 if AVersion1 < AVersion2, 0 if equal, 1 if AVersion1 > AVersion2 }
+function CompareSemVer(const AVersion1, AVersion2: string): Integer;
+
+{ Checks if two versions have the same major.minor components.
+  AVersion1, AVersion2: Version strings to compare
+  Returns: True if major.minor are the same }
+function SameMajorMinor(const AVersion1, AVersion2: string): Boolean;
 
 implementation
 
@@ -142,35 +181,9 @@ function TFPCVersionManager.CheckVersionInstalled(const AVersion: string): Boole
 var
   InstallPath: string;
   FPCExe: string;
-  ToolchainInfo: TToolchainInfo;
-  ProjectRoot: string;
 begin
-  // First check if registered in config
-  if FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, ToolchainInfo) then
-  begin
-    if ToolchainInfo.Installed and (ToolchainInfo.InstallPath <> '') then
-    begin
-      {$IFDEF MSWINDOWS}
-      FPCExe := ToolchainInfo.InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-      {$ELSE}
-      FPCExe := ToolchainInfo.InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
-      {$ENDIF}
-      if FileExists(FPCExe) then
-        Exit(True);
-    end;
-  end;
-
-  // Check project-level installation (.fpdev/toolchains/fpc/)
-  ProjectRoot := GetCurrentDir;
-  {$IFDEF MSWINDOWS}
-  FPCExe := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-  {$ELSE}
-  FPCExe := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
-  {$ENDIF}
-  if FileExists(FPCExe) then
-    Exit(True);
-
-  // Fallback: check default user installation path
+  // Only check the configured InstallRoot path
+  // This ensures test environments with custom InstallRoot are isolated
   InstallPath := GetVersionInstallPath(AVersion);
   {$IFDEF MSWINDOWS}
   FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
@@ -192,6 +205,9 @@ var
   Releases: TFPCReleaseArray;
 begin
   Initialize(Result);
+
+  // Always use version registry as the authoritative source
+  // This ensures development versions like 'main' are always included
   Releases := TVersionRegistry.Instance.GetFPCReleases;
   SetLength(Result, Length(Releases));
   for i := 0 to High(Releases) do
@@ -342,6 +358,120 @@ begin
   except
     Result := False;
   end;
+end;
+
+function TFPCVersionManager.GetVersionInfo(const AVersion: string; out Info: TFPCVersionInfo): Boolean;
+var
+  Releases: TFPCReleaseArray;
+  i: Integer;
+begin
+  Result := False;
+  FillChar(Info, SizeOf(Info), 0);
+
+  // Query version registry for release information
+  Releases := TVersionRegistry.Instance.GetFPCReleases;
+  for i := 0 to High(Releases) do
+  begin
+    if SameText(Releases[i].Version, AVersion) then
+    begin
+      Info.Version := Releases[i].Version;
+      Info.ReleaseDate := Releases[i].ReleaseDate;
+      Info.GitTag := Releases[i].GitTag;
+      Info.Branch := Releases[i].Branch;
+      Info.Available := True;
+      Info.Installed := CheckVersionInstalled(AVersion);
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function TFPCVersionManager.GetGitTag(const AVersion: string): string;
+var
+  Info: TFPCVersionInfo;
+begin
+  Result := '';
+  if GetVersionInfo(AVersion, Info) then
+    Result := Info.GitTag;
+end;
+
+function TFPCVersionManager.GetBranch(const AVersion: string): string;
+var
+  Info: TFPCVersionInfo;
+begin
+  Result := '';
+  if GetVersionInfo(AVersion, Info) then
+    Result := Info.Branch;
+end;
+
+function TFPCVersionManager.GetFPCExecutablePath(const AVersion: string): string;
+var
+  InstallPath: string;
+begin
+  InstallPath := GetVersionInstallPath(AVersion);
+  {$IFDEF MSWINDOWS}
+  Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+end;
+
+{ Utility functions }
+
+procedure ParseVersion(const AVersion: string; out Major, Minor, Patch: Integer);
+var
+  Parts: TStringArray;
+begin
+  Major := 0;
+  Minor := 0;
+  Patch := 0;
+
+  Parts := AVersion.Split(['.']);
+  if Length(Parts) >= 1 then
+    Major := StrToIntDef(Parts[0], 0);
+  if Length(Parts) >= 2 then
+    Minor := StrToIntDef(Parts[1], 0);
+  if Length(Parts) >= 3 then
+    Patch := StrToIntDef(Parts[2], 0);
+end;
+
+function CompareSemVer(const AVersion1, AVersion2: string): Integer;
+var
+  Major1, Minor1, Patch1: Integer;
+  Major2, Minor2, Patch2: Integer;
+begin
+  ParseVersion(AVersion1, Major1, Minor1, Patch1);
+  ParseVersion(AVersion2, Major2, Minor2, Patch2);
+
+  // Compare major version
+  if Major1 > Major2 then
+    Exit(1)
+  else if Major1 < Major2 then
+    Exit(-1);
+
+  // Compare minor version
+  if Minor1 > Minor2 then
+    Exit(1)
+  else if Minor1 < Minor2 then
+    Exit(-1);
+
+  // Compare patch version
+  if Patch1 > Patch2 then
+    Exit(1)
+  else if Patch1 < Patch2 then
+    Exit(-1);
+
+  Result := 0;
+end;
+
+function SameMajorMinor(const AVersion1, AVersion2: string): Boolean;
+var
+  Major1, Minor1, Patch1: Integer;
+  Major2, Minor2, Patch2: Integer;
+begin
+  ParseVersion(AVersion1, Major1, Minor1, Patch1);
+  ParseVersion(AVersion2, Major2, Minor2, Patch2);
+  Result := (Major1 = Major2) and (Minor1 = Minor2);
 end;
 
 end.

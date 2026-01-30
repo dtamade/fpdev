@@ -15,6 +15,8 @@ procedure SetupTestEnvironment;
 var
   TestProgram: TextFile;
   ExeName: string;
+  P: TProcess;
+  CompileExitCode: Integer;
 begin
   // Create temporary test project directory
   TestProjectDir := 'test_run_temp_' + IntToStr(GetTickCount64);
@@ -42,9 +44,29 @@ begin
   WriteLn(TestProgram, 'end.');
   CloseFile(TestProgram);
 
-  // Compile the test program
+  // Compile the test program using TProcess instead of ExecuteProcess
   WriteLn('[Setup] Compiling test program...');
-  if ExecuteProcess('fpc', ['-o' + ExeName, TestProjectDir + PathDelim + 'testapp.lpr']) <> 0 then
+  P := TProcess.Create(nil);
+  try
+    P.Executable := 'fpc';
+    P.Parameters.Add('-o' + ExeName);
+    P.Parameters.Add(TestProjectDir + PathDelim + 'testapp.lpr');
+    P.Options := [poWaitOnExit];
+    try
+      P.Execute;
+      CompileExitCode := P.ExitStatus;
+    except
+      on E: Exception do
+      begin
+        WriteLn('[Setup] WARNING: Could not compile test program: ', E.Message);
+        CompileExitCode := 1;
+      end;
+    end;
+  finally
+    P.Free;
+  end;
+
+  if CompileExitCode <> 0 then
   begin
     WriteLn('[Setup] WARNING: Could not compile test program, some tests may be skipped');
   end

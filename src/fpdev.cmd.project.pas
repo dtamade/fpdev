@@ -613,8 +613,8 @@ begin
 
     LO.WriteLn(_Fmt(CMD_PROJECT_RUNNING_TESTS, [ExtractFileName(FoundExe)]));
 
-    // Execute test
-    LResult := TProcessExecutor.Execute(FoundExe, [], AProjectDir);
+    // Execute test - use absolute path to avoid path resolution issues
+    LResult := TProcessExecutor.Execute(ExpandFileName(FoundExe), [], AProjectDir);
     Result := LResult.Success;
 
     if Result then
@@ -733,8 +733,8 @@ begin
       end;
     end;
 
-    // Execute
-    LResult := TProcessExecutor.Execute(FoundExe, Params, AProjectDir);
+    // Execute - use absolute path to avoid path resolution issues
+    LResult := TProcessExecutor.Execute(ExpandFileName(FoundExe), Params, AProjectDir);
     Result := LResult.Success;
 
     if not Result then

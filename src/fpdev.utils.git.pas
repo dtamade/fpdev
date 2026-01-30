@@ -58,12 +58,23 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, fpdev.git2;
+  fpdev.utils.process, fpdev.git2, git2.api, git2.impl;
 
 var
   Libgit2Available: Boolean = False;
   Libgit2Checked: Boolean = False;
-  SharedGitManager: TGitManager = nil;
+  
+  { @deprecated Internal implementation detail. Use git2.api.pas + git2.impl.pas directly.
+    This global singleton will be removed in Phase 2 Wave 4.
+    
+    Migration example:
+      uses git2.api, git2.impl;
+      var Mgr: IGitManager;
+      Mgr := NewGitManager();
+      Mgr.Initialize;
+      // Use Mgr...
+  }
+  SharedGitManager: IGitManager = nil;
 
 // Forward declarations for libgit2 backend functions
 function CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean; forward;
@@ -109,7 +120,11 @@ begin
     try
       // Note: GitManager singleton handles shutdown
     except
-      // Ignore cleanup errors
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('Error during Git cleanup: ', E.Message);
+      end;
     end;
   end;
   inherited Destroy;
@@ -124,22 +139,27 @@ begin
     Libgit2Available := False;
 
     try
-      // Create and initialize GitManager
+      // Create and initialize GitManager (using modern interface)
       if SharedGitManager = nil then
-        SharedGitManager := TGitManager.Create;
+        SharedGitManager := NewGitManager();
 
       // Try to initialize libgit2
       if SharedGitManager.Initialize then
         Libgit2Available := True
       else
       begin
-        // Initialization failed, free the manager
-        FreeAndNil(SharedGitManager);
+        // Initialization failed, release the interface
+        SharedGitManager := nil;
       end;
     except
-      // libgit2 library not available or initialization failed
-      FreeAndNil(SharedGitManager);
-      Libgit2Available := False;
+      on E: Exception do
+      begin
+        // libgit2 library not available or initialization failed
+        if FVerbose then
+          WriteLn('libgit2 initialization failed: ', E.Message);
+        SharedGitManager := nil;
+        Libgit2Available := False;
+      end;
     end;
   end;
 
@@ -260,7 +280,11 @@ begin
     try
       Result := IsRepositoryWithLibgit2(APath);
     except
-      // Ignore - use directory check result
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('libgit2 repository check exception: ', E.Message, ', using directory check');
+      end;
     end;
   end;
 end;
@@ -290,7 +314,11 @@ begin
       Result := GetBranchWithLibgit2(ARepoPath);
       if Result <> '' then Exit;
     except
-      // Fall through to command-line
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('libgit2 get branch exception: ', E.Message, ', falling back to command-line');
+      end;
     end;
   end;
 
@@ -306,7 +334,7 @@ end;
 
 function CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean;
 var
-  Repo: TGitRepository;
+  Repo: IGitRepository;
 begin
   Result := False;
   AError := '';
@@ -318,25 +346,22 @@ begin
   end;
 
   try
-    // CloneRepository takes only 2 parameters in TGitManager
+    // CloneRepository returns IGitRepository interface
     Repo := SharedGitManager.CloneRepository(AURL, ALocalPath);
 
     if Repo <> nil then
     begin
-      try
-        // Checkout branch if specified
-        if ABranch <> '' then
+      // Checkout branch if specified
+      if ABranch <> '' then
+      begin
+        if not Repo.CheckoutBranch(ABranch) then
         begin
-          if not Repo.CheckoutBranch(ABranch) then
-          begin
-            AError := 'libgit2 clone succeeded but branch checkout failed: ' + ABranch;
-            // Still return true as clone succeeded
-          end;
+          AError := 'libgit2 clone succeeded but branch checkout failed: ' + ABranch;
+          // Still return true as clone succeeded
         end;
-        Result := True;
-      finally
-        Repo.Free;
       end;
+      Result := True;
+      // No manual Free needed - interface reference counting
     end
     else
       AError := 'libgit2 clone returned nil repository';
@@ -348,7 +373,7 @@ end;
 
 function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
 var
-  Repo: TGitRepository;
+  Repo: IGitRepository;
 begin
   Result := False;
   AError := '';
@@ -363,13 +388,10 @@ begin
     Repo := SharedGitManager.OpenRepository(ARepoPath);
     if Repo <> nil then
     begin
-      try
-        Result := Repo.Fetch(ARemote);
-        if not Result then
-          AError := 'libgit2 fetch failed';
-      finally
-        Repo.Free;
-      end;
+      Result := Repo.Fetch(ARemote);
+      if not Result then
+        AError := 'libgit2 fetch failed';
+      // No manual Free needed - interface reference counting
     end
     else
       AError := 'libgit2 could not open repository: ' + ARepoPath;
@@ -389,13 +411,17 @@ begin
   try
     Result := SharedGitManager.IsRepository(APath);
   except
-    Result := False;
+    on E: Exception do
+    begin
+      // Silent failure - return false
+      Result := False;
+    end;
   end;
 end;
 
 function GetBranchWithLibgit2(const ARepoPath: string): string;
 var
-  Repo: TGitRepository;
+  Repo: IGitRepository;
 begin
   Result := '';
 
@@ -406,11 +432,8 @@ begin
     Repo := SharedGitManager.OpenRepository(ARepoPath);
     if Repo <> nil then
     begin
-      try
-        Result := Repo.GetCurrentBranch;
-      finally
-        Repo.Free;
-      end;
+      Result := Repo.CurrentBranch;
+      // No manual Free needed - interface reference counting
     end;
   except
     Result := '';
@@ -422,7 +445,7 @@ finalization
   if SharedGitManager <> nil then
   begin
     try
-      SharedGitManager.Free;
+      SharedGitManager.Finalize;
     except
       // Ignore cleanup errors
     end;

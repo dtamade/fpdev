@@ -6,11 +6,11 @@ interface
 
 uses
   SysUtils, Classes, fpdev.build.config, fpdev.build.logger, fpdev.build.toolchain,
-  fpdev.build.cache;
+  fpdev.build.cache, fpdev.build.interfaces;
 
 type
   { TBuildManager }
-  TBuildManager = class
+  TBuildManager = class(TInterfacedObject, IBuildManager)
   private
     FSourceRoot: string;
     FParallelJobs: Integer;
@@ -18,6 +18,7 @@ type
     FSandboxRoot: string;
     FLogDir: string;
     FAllowInstall: Boolean;
+    FLastError: string;  // Last error message for IBuildManager interface
     FLogger: TBuildLogger;  // Logger service (Facade delegation)
     FToolchainChecker: TBuildToolchainChecker;  // Toolchain service (Facade delegation)
     FStrictResults: Boolean; // Strict mode for sandbox artifact validation
@@ -72,6 +73,11 @@ type
     function GetParallelJobs: Integer;
     function GetCurrentStep: TBuildStep;
     // 构建方法
+    { IBuildManager interface methods }
+    function Preflight: Boolean; overload;  // Interface method (no version parameter)
+    function GetLastError: string;
+    
+    { Legacy methods with version parameter }
     function BuildCompiler(const AVersion: string): Boolean;
     function BuildRTL(const AVersion: string): Boolean;
     function BuildPackages(const AVersion: string): Boolean;
@@ -79,7 +85,7 @@ type
     function Install(const AVersion: string): Boolean;
     function Configure(const AVersion: string): Boolean;
     function TestResults(const AVersion: string): Boolean;
-    function Preflight(const AVersion: string): Boolean;
+    function Preflight(const AVersion: string): Boolean; overload;  // Legacy method
     function FullBuild(const AVersion: string): Boolean;
     // 缓存支持
     procedure CreateBuildStamp(const AVersion: string);
@@ -1210,6 +1216,19 @@ begin
     Result := ListPackages;
 end;
 
+{ IBuildManager interface implementation }
+
+function TBuildManager.Preflight: Boolean;
+begin
+  // Interface method without version parameter
+  // Use empty string as default version
+  Result := Preflight('');
+end;
+
+function TBuildManager.GetLastError: string;
+begin
+  Result := FLastError;
+end;
 
 end.
 

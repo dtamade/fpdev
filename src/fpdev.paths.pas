@@ -5,7 +5,7 @@ unit fpdev.paths;
 interface
 
 uses
-  SysUtils, fpdev.constants;
+  SysUtils, fpdev.constants, fpdev.utils;
 
 // 便携模式控制
 function IsPortableMode: Boolean;
@@ -97,28 +97,28 @@ begin
     Exit(EnsureDir(GetProgramDir + 'data'));
 
   // 优先环境变量覆盖
-  R := GetEnvironmentVariable('FPDEV_DATA_ROOT');
+  R := get_env('FPDEV_DATA_ROOT');
   if R<>'' then Exit(R);
 
   {$IFDEF MSWINDOWS}
-  AppData := GetEnvironmentVariable('APPDATA');
+  AppData := get_env('APPDATA');
   if AppData<>'' then
     Result := IncludeTrailingPathDelimiter(AppData)+'fpdev'
   else
   begin
-    Home := GetEnvironmentVariable('USERPROFILE');
+    Home := get_env('USERPROFILE');
     if Home<>'' then
       Result := IncludeTrailingPathDelimiter(Home)+'AppData'+PathDelim+'Roaming'+PathDelim+'fpdev'
     else
       Result := FPDEV_CONFIG_DIR;
   end;
   {$ELSE}
-  Home := GetEnvironmentVariable('XDG_DATA_HOME');
+  Home := get_env('XDG_DATA_HOME');
   if Home<>'' then
     Result := IncludeTrailingPathDelimiter(Home)+'fpdev'
   else
   begin
-    Home := GetEnvironmentVariable('HOME');
+    Home := get_env('HOME');
     if Home<>'' then
       Result := IncludeTrailingPathDelimiter(Home)+FPDEV_CONFIG_DIR
     else

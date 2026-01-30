@@ -62,6 +62,7 @@ type
     SourceType: string;       // NEW: 'binary' | 'source'
     SHA256: string;           // NEW: File checksum
     DownloadURL: string;      // NEW: Original download URL
+    FileExt: string;          // NEW: File extension (.tar or .tar.gz)
     AccessCount: Integer;     // Phase 3: Access count for statistics
     LastAccessed: TDateTime;  // Phase 3: Last access time for LRU
   end;
@@ -92,6 +93,7 @@ type
   TBuildCache = class
   private
     FCacheDir: string;
+    FCacheDirWithDelim: string;  // Cached path with delimiter for performance
     FEntries: TStringList;  // Version -> entry line
     FCacheHits: Integer;    // Statistics: cache hits
     FCacheMisses: Integer;  // Statistics: cache misses
@@ -133,7 +135,7 @@ type
     function ListCachedVersions: TStringArray;
 
     { Binary artifact cache (downloaded binaries) }
-    function SaveBinaryArtifact(const AVersion, ADownloadedFile: string): Boolean;
+    function SaveBinaryArtifact(const AVersion, ADownloadedFile: string; const ASHA256: string = ''): Boolean;
     function RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
     function GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 
@@ -216,7 +218,11 @@ begin
     else
       Result := 0;  // Invalid format
   except
-    Result := 0;  // Fallback to epoch if parsing fails
+    on E: Exception do
+    begin
+      // Silent failure - parsing error
+      Result := 0;  // Fallback to epoch if parsing fails
+    end;
   end;
 end;
 
@@ -226,6 +232,7 @@ constructor TBuildCache.Create(const ACacheDir: string);
 begin
   inherited Create;
   FCacheDir := ACacheDir;
+  FCacheDirWithDelim := IncludeTrailingPathDelimiter(ACacheDir);  // Cache for performance
   FEntries := TStringList.Create;
   FEntries.Sorted := True;
   FEntries.Duplicates := dupIgnore;
@@ -291,6 +298,11 @@ end;
 
 function TBuildCache.GetArtifactKey(const AVersion: string): string;
 begin
+  // Sanitize version string to prevent path traversal attacks
+  if (Pos('..', AVersion) > 0) or (Pos(PathDelim, AVersion) > 0) or
+     (Pos('/', AVersion) > 0) or (Pos('\', AVersion) > 0) then
+    raise Exception.Create('Invalid version string: contains path traversal characters');
+
   Result := 'fpc-' + AVersion + '-' + GetCurrentCPU + '-' + GetCurrentOS;
 end;
 
@@ -313,18 +325,22 @@ begin
       SourceStream.Free;
     end;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      // Silent failure - extraction error
+      Result := False;
+    end;
   end;
 end;
 
 function TBuildCache.GetArtifactArchivePath(const AVersion: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.tar.gz';
+  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.tar.gz';
 end;
 
 function TBuildCache.GetArtifactMetaPath(const AVersion: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.meta';
+  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.meta';
 end;
 
 function TBuildCache.RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
@@ -345,7 +361,11 @@ begin
       P.Execute;
       Result := (P.ExitStatus = 0);
     except
-      Result := False;
+      on E: Exception do
+      begin
+        // Silent failure - command execution error
+        Result := False;
+      end;
     end;
   finally
     P.Free;
@@ -354,7 +374,7 @@ end;
 
 function TBuildCache.GetCacheFilePath: string;
 begin
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + 'build-cache.txt';
+  Result := FCacheDirWithDelim + 'build-cache.txt';
 end;
 
 function TBuildCache.GetEntryCount: Integer;
@@ -366,20 +386,23 @@ procedure TBuildCache.LoadEntries;
 var
   F: TextFile;
   Line: string;
+  FileOpened: Boolean;
 begin
   if not FileExists(GetCacheFilePath) then Exit;
   AssignFile(F, GetCacheFilePath);
+  FileOpened := False;
   try
     Reset(F);
+    FileOpened := True;
     while not Eof(F) do
     begin
       ReadLn(F, Line);
       if Line <> '' then
         FEntries.Add(Line);
     end;
-    CloseFile(F);
-  except
-    // Ignore read errors
+  finally
+    if FileOpened then
+      CloseFile(F);
   end;
 end;
 
@@ -387,16 +410,19 @@ procedure TBuildCache.SaveEntries;
 var
   F: TextFile;
   i: Integer;
+  FileOpened: Boolean;
 begin
   ForceDirectories(FCacheDir);
   AssignFile(F, GetCacheFilePath);
+  FileOpened := False;
   try
     Rewrite(F);
+    FileOpened := True;
     for i := 0 to FEntries.Count - 1 do
       WriteLn(F, FEntries[i]);
-    CloseFile(F);
-  except
-    // Ignore write errors
+  finally
+    if FileOpened then
+      CloseFile(F);
   end;
 end;
 
@@ -528,14 +554,16 @@ end;
 
 function TBuildCache.HasArtifacts(const AVersion: string): Boolean;
 var
-  SourceArchive, BinaryArchive: string;
+  SourceArchive, BinaryMetaPath: string;
 begin
   // Check for both source and binary artifacts
   SourceArchive := GetArtifactArchivePath(AVersion);
-  BinaryArchive := IncludeTrailingPathDelimiter(FCacheDir) +
-    GetArtifactKey(AVersion) + '-binary.tar.gz';
+  BinaryMetaPath := FCacheDirWithDelim +
+    GetArtifactKey(AVersion) + '-binary.meta';
 
-  Result := FileExists(SourceArchive) or FileExists(BinaryArchive);
+  // For binary artifacts, check if metadata file exists (more reliable than checking archive)
+  // The metadata file contains the actual file extension (.tar or .tar.gz)
+  Result := FileExists(SourceArchive) or FileExists(BinaryMetaPath);
 end;
 
 function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
@@ -589,8 +617,11 @@ begin
     // Get archive size
     if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
     begin
-      MetaFile.Add('archive_size=' + IntToStr(SR.Size));
-      FindClose(SR);
+      try
+        MetaFile.Add('archive_size=' + IntToStr(SR.Size));
+      finally
+        FindClose(SR);
+      end;
     end;
 
     MetaFile.SaveToFile(MetaPath);
@@ -725,7 +756,7 @@ begin
   if not DirectoryExists(FCacheDir) then
     Exit;
 
-  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.tar.gz', faAnyFile, SR) = 0 then
+  if FindFirst(FCacheDirWithDelim + '*.tar.gz', faAnyFile, SR) = 0 then
   begin
     repeat
       Result := Result + SR.Size;
@@ -748,7 +779,7 @@ begin
 
   List := TStringList.Create;
   try
-    if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + 'fpc-*.tar.gz', faAnyFile, SR) = 0 then
+    if FindFirst(FCacheDirWithDelim + 'fpc-*.tar.gz', faAnyFile, SR) = 0 then
     begin
       repeat
         FileName := SR.Name;
@@ -784,12 +815,13 @@ end;
 
 { Binary Artifact Cache Methods }
 
-function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string): Boolean;
+function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string; const ASHA256: string = ''): Boolean;
 var
   ArchivePath, MetaPath: string;
   MetaFile: TStringList;
   SR: TSearchRec;
   SHA256Hash: string;
+  FileExt: string;
 begin
   Result := False;
 
@@ -800,9 +832,15 @@ begin
   ForceDirectories(FCacheDir);
 
   // Generate binary artifact paths (with -binary suffix)
-  ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
-    GetArtifactKey(AVersion) + '-binary.tar.gz';
-  MetaPath := IncludeTrailingPathDelimiter(FCacheDir) +
+  // Preserve original file extension (.tar or .tar.gz)
+  // Handle compound extensions like .tar.gz
+  FileExt := ExtractFileExt(ADownloadedFile);
+  if (FileExt = '.gz') and (LowerCase(ExtractFileExt(ChangeFileExt(ADownloadedFile, ''))) = '.tar') then
+    FileExt := '.tar.gz';
+
+  ArchivePath := FCacheDirWithDelim +
+    GetArtifactKey(AVersion) + '-binary' + FileExt;
+  MetaPath := FCacheDirWithDelim +
     GetArtifactKey(AVersion) + '-binary.meta';
 
   // Copy downloaded file to cache
@@ -810,18 +848,30 @@ begin
     if not FileCopy(ADownloadedFile, ArchivePath) then
       Exit;
   except
-    Exit;
+    on E: Exception do
+    begin
+      // Silent failure - file copy error
+      Exit;
+    end;
   end;
 
-  // Calculate SHA256 hash (simplified - just use file size as placeholder)
-  // In production, use proper SHA256 library
-  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-  begin
-    SHA256Hash := IntToHex(SR.Size, 16); // Placeholder
-    FindClose(SR);
-  end
+  // Use provided SHA256 hash or calculate placeholder
+  if ASHA256 <> '' then
+    SHA256Hash := ASHA256
   else
-    SHA256Hash := '';
+  begin
+    // Fallback: use file size as placeholder if no hash provided
+    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+    begin
+      try
+        SHA256Hash := IntToHex(SR.Size, 16);
+      finally
+        FindClose(SR);
+      end;
+    end
+    else
+      SHA256Hash := '';
+  end;
 
   // Write metadata file
   MetaFile := TStringList.Create;
@@ -832,12 +882,16 @@ begin
     MetaFile.Add('source_type=binary');
     MetaFile.Add('sha256=' + SHA256Hash);
     MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+    MetaFile.Add('file_ext=' + FileExt);  // Store original extension
 
     // Get archive size
     if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
     begin
-      MetaFile.Add('archive_size=' + IntToStr(SR.Size));
-      FindClose(SR);
+      try
+        MetaFile.Add('archive_size=' + IntToStr(SR.Size));
+      finally
+        FindClose(SR);
+      end;
     end;
 
     MetaFile.SaveToFile(MetaPath);
@@ -851,11 +905,21 @@ function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): B
 var
   ArchivePath: string;
   Info: TArtifactInfo;
+  FileExt: string;
+  TarFlags: string;
 begin
   Result := False;
 
-  ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
-    GetArtifactKey(AVersion) + '-binary.tar.gz';
+  // Get file extension from metadata to find the correct archive file
+  if not GetBinaryArtifactInfo(AVersion, Info) then
+    Exit;
+
+  FileExt := Info.FileExt;
+  if FileExt = '' then
+    FileExt := '.tar.gz';  // Default fallback
+
+  ArchivePath := FCacheDirWithDelim +
+    GetArtifactKey(AVersion) + '-binary' + FileExt;
 
   if not FileExists(ArchivePath) then
     Exit;
@@ -863,7 +927,7 @@ begin
   // Verify integrity before extraction (Fix: add integrity verification)
   if FVerifyOnRestore then
   begin
-    if GetBinaryArtifactInfo(AVersion, Info) and (Info.SHA256 <> '') then
+    if Info.SHA256 <> '' then
     begin
       if not VerifyArtifact(ArchivePath, Info.SHA256) then
       begin
@@ -879,7 +943,15 @@ begin
   // Ensure destination directory exists
   ForceDirectories(ADestPath);
 
-  // Extract tar.gz archive
+  // Determine tar flags based on file extension
+  if (FileExt = '.tar.gz') or (FileExt = '.tgz') then
+    TarFlags := '-xzf'  // Gzipped tar
+  else if FileExt = '.tar' then
+    TarFlags := '-xf'   // Plain tar
+  else
+    TarFlags := '-xzf'; // Default to gzipped
+
+  // Extract archive (strip top-level directory to extract directly into target)
   {$IFDEF MSWINDOWS}
   if not RunCommand('tar', ['--version'], '') then
   begin
@@ -887,9 +959,9 @@ begin
     Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, ArchivePath], '');
   end
   else
-    Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+    Result := RunCommand('tar', [TarFlags, ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
   {$ELSE}
-  Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
+  Result := RunCommand('tar', [TarFlags, ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
   {$ENDIF}
 
   if Result then
@@ -909,7 +981,7 @@ begin
   Result := False;
   Initialize(AInfo);
 
-  MetaPath := IncludeTrailingPathDelimiter(FCacheDir) +
+  MetaPath := FCacheDirWithDelim +
     GetArtifactKey(AVersion) + '-binary.meta';
 
   if not FileExists(MetaPath) then
@@ -919,7 +991,7 @@ begin
   try
     MetaFile.LoadFromFile(MetaPath);
 
-    AInfo.ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) +
+    AInfo.ArchivePath := FCacheDirWithDelim +
       GetArtifactKey(AVersion) + '-binary.tar.gz';
 
     for i := 0 to MetaFile.Count - 1 do
@@ -941,6 +1013,8 @@ begin
           AInfo.SourceType := Value
         else if Key = 'sha256' then
           AInfo.SHA256 := Value
+        else if Key = 'file_ext' then
+          AInfo.FileExt := Value
         else if Key = 'archive_size' then
           AInfo.ArchiveSize := StrToInt64Def(Value, 0);
         // Note: CreatedAt parsing omitted for simplicity
@@ -988,10 +1062,10 @@ begin
     Exit;
 
   // Scan all .meta files
-  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.meta', faAnyFile, SR) = 0 then
+  if FindFirst(FCacheDirWithDelim + '*.meta', faAnyFile, SR) = 0 then
   begin
     repeat
-      MetaPath := IncludeTrailingPathDelimiter(FCacheDir) + SR.Name;
+      MetaPath := FCacheDirWithDelim + SR.Name;
       FileName := SR.Name;
 
       // Extract version from filename
@@ -1086,7 +1160,11 @@ begin
         end;
       end;
     except
-      Result := '';
+      on E: Exception do
+      begin
+        // Silent failure - SHA256 calculation error
+        Result := '';
+      end;
     end;
   finally
     P.Free;
@@ -1186,14 +1264,14 @@ begin
   Count := 0;
   SetLength(Entries, 100);  // Initial capacity
 
-  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + '*.tar.gz', faAnyFile, SR) = 0 then
+  if FindFirst(FCacheDirWithDelim + '*.tar.gz', faAnyFile, SR) = 0 then
   begin
     repeat
       if Count >= Length(Entries) then
         SetLength(Entries, Length(Entries) * 2);
 
       Initialize(Entries[Count]);
-      Entries[Count].ArchivePath := IncludeTrailingPathDelimiter(FCacheDir) + SR.Name;
+      Entries[Count].ArchivePath := FCacheDirWithDelim + SR.Name;
       Entries[Count].ArchiveSize := SR.Size;
 
       // Extract version from filename
@@ -1215,10 +1293,10 @@ begin
         if GetArtifactInfo(Version, TempInfo) or GetBinaryArtifactInfo(Version, TempInfo) then
           Entries[Count].CreatedAt := TempInfo.CreatedAt
         else
-          Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+          Entries[Count].CreatedAt := SR.TimeStamp;
       end
       else
-        Entries[Count].CreatedAt := FileDateToDateTime(SR.Time);
+        Entries[Count].CreatedAt := SR.TimeStamp;
 
       Inc(Count);
     until FindNext(SR) <> 0;
@@ -1271,7 +1349,7 @@ end;
 
 function TBuildCache.GetJSONMetaPath(const AVersion: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + GetArtifactKey(AVersion) + '.json';
+  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.json';
 end;
 
 function TBuildCache.HasMetadataJSON(const AVersion: string): Boolean;
@@ -1380,7 +1458,11 @@ begin
         JSONObj.Free;
       end;
     except
-      Result := False;
+      on E: Exception do
+      begin
+        // Silent failure - JSON parsing error
+        Result := False;
+      end;
     end;
   finally
     JSONStr.Free;
@@ -1423,7 +1505,7 @@ end;
 
 function TBuildCache.GetIndexPath: string;
 begin
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + 'cache-index.json';
+  Result := FCacheDirWithDelim + 'cache-index.json';
 end;
 
 procedure TBuildCache.LoadIndex;
@@ -1540,7 +1622,7 @@ begin
     Exit;
 
   // Scan all .json metadata files
-  if FindFirst(IncludeTrailingPathDelimiter(FCacheDir) + 'fpc-*.json', faAnyFile, SR) = 0 then
+  if FindFirst(FCacheDirWithDelim + 'fpc-*.json', faAnyFile, SR) = 0 then
   begin
     repeat
       FileName := SR.Name;

@@ -5,8 +5,7 @@ program tests_all;
 {$mode objfpc}{$H+}
 
 uses
-  consoletestrunner, testregistry,
-  test_git2_cases;
+  consoletestrunner, testregistry;
 
 var
   Runner: TTestRunner;

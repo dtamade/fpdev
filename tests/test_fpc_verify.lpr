@@ -3,12 +3,13 @@ program test_fpc_verify;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, fpdev.cmd.fpc, fpdev.config;
+  SysUtils, Classes, Process, fpdev.cmd.fpc, fpdev.config, fpdev.fpc.validator,
+  fpdev.config.interfaces, fpdev.config.managers;
 
 var
   TestInstallRoot: string;
   TestFPCInstallDir: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   FPCManager: TFPCManager;
 
 procedure SetupTestEnvironment;
@@ -24,9 +25,9 @@ begin
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
-  Settings := ConfigManager.GetSettings;
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestInstallRoot;
-  ConfigManager.SetSettings(Settings);
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   // Create FPC install structure: InstallRoot/fpc/3.2.2/bin
   TestFPCInstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
@@ -252,14 +253,13 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TFPDevConfigManager.Create;
-    try
-      if not ConfigManager.LoadConfig then
-        ConfigManager.CreateDefaultConfig;
+    ConfigManager := TConfigManager.Create('');
+    if not ConfigManager.LoadConfig then
+      ConfigManager.CreateDefaultConfig;
 
-      // Setup test environment (before creating FPCManager)
-      SetupTestEnvironment;
-      try
+    // Setup test environment (before creating FPCManager)
+    SetupTestEnvironment;
+    try
         // Create FPC manager (will use updated config)
         FPCManager := TFPCManager.Create(ConfigManager);
         try
@@ -287,9 +287,6 @@ begin
       finally
         TeardownTestEnvironment;
       end;
-    finally
-      ConfigManager.Free;
-    end;
 
   except
     on E: Exception do

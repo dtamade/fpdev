@@ -1,0 +1,94 @@
+# .fpdev.toml - FPDev Project Configuration Example
+
+# This is a complete example of .fpdev.toml configuration file
+# demonstrating all available options.
+
+# ============================================================================
+# [toolchain] - FPC Toolchain Configuration (REQUIRED)
+# ============================================================================
+[toolchain]
+# FPC version (semantic version format: major.minor.patch)
+# This is the ONLY required field in .fpdev.toml
+version = "3.2.2"
+
+# Installation source: "binary" (fast, default) or "source" (customizable)
+source = "binary"
+
+# Release channel: "stable" (default), "fixes", or "main"
+channel = "stable"
+
+# ============================================================================
+# [components] - FPC Components to Install (OPTIONAL)
+# ============================================================================
+[components]
+# Runtime Library (always installed, default: true)
+rtl = true
+
+# Free Component Library (default: true)
+fcl = true
+
+# Additional FPC packages to install
+# Run `fpdev package list --all` to see available packages
+packages = [
+    "synapse",      # TCP/IP library
+    "indy",         # Internet Direct components
+    "fcl-json",     # JSON parser
+    "fcl-xml",      # XML parser
+    "zeos",         # Database connectivity
+]
+
+# ============================================================================
+# [targets] - Cross-Compilation Targets (OPTIONAL)
+# ============================================================================
+[targets]
+# Cross-compilation target platforms
+# Run `fpdev cross list --all` to see available targets
+cross = [
+    "win64",            # Windows 64-bit
+    "linux-arm",        # Linux ARM
+    "darwin-x86_64",    # macOS Intel
+]
+
+# ============================================================================
+# [build] - Build Settings (OPTIONAL)
+# ============================================================================
+[build]
+# Build mode: "debug" (default) or "release"
+mode = "release"
+
+# Optimization level: "0" (none), "1", "2" (default for release), "3" (max)
+optimization = "2"
+
+# Target CPU architecture (default: host CPU)
+# Examples: "x86_64", "i386", "arm", "aarch64"
+target-cpu = "x86_64"
+
+# Custom FPC compiler options
+custom-options = [
+    "-dUSE_SSL",        # Define USE_SSL symbol
+    "-Fu../lib",        # Add unit search path
+    "-Fi../include",    # Add include search path
+]
+
+# ============================================================================
+# [lazarus] - Lazarus IDE Integration (OPTIONAL)
+# ============================================================================
+[lazarus]
+# Lazarus IDE version
+version = "3.0"
+
+# Automatically configure IDE when switching FPC versions
+auto-configure = true
+
+# ============================================================================
+# [project] - Project Metadata (OPTIONAL)
+# ============================================================================
+[project]
+# Project name (default: directory name)
+name = "myapp"
+
+# Project type: "console" (default), "gui", or "library"
+type = "console"
+
+# Main program file (default: <name>.lpr)
+main = "src/myapp.lpr"

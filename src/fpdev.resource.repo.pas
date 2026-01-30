@@ -569,7 +569,11 @@ begin
 
     Result := Platforms.IndexOfName(APlatform) >= 0;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error checking bootstrap compiler: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -631,7 +635,11 @@ begin
 
     Result := (AInfo.Executable <> '') or (AInfo.URL <> '') or (AInfo.Path <> '');
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error getting bootstrap info: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -710,7 +718,11 @@ begin
     if Result = '' then
       Result := GetHardcodedMapping(AFPCVersion);
   except
-    Result := GetHardcodedMapping(AFPCVersion);
+    on E: Exception do
+    begin
+      LogFmt('Error getting bootstrap version from manifest: %s', [E.Message]);
+      Result := GetHardcodedMapping(AFPCVersion);
+    end;
   end;
 end;
 
@@ -784,7 +796,11 @@ begin
       end;
     end;
   except
-    Result := '';
+    on E: Exception do
+    begin
+      LogFmt('Error parsing bootstrap version from Makefile: %s', [E.Message]);
+      Result := '';
+    end;
   end;
 end;
 
@@ -807,7 +823,11 @@ begin
     for i := 0 to BootstrapCompilers.Count - 1 do
       Result[i] := BootstrapCompilers.Names[i];
   except
-    SetLength(Result, 0);
+    on E: Exception do
+    begin
+      LogFmt('Error listing bootstrap versions: %s', [E.Message]);
+      SetLength(Result, 0);
+    end;
   end;
 end;
 
@@ -953,7 +973,11 @@ begin
 
     Result := Platforms.IndexOfName(APlatform) >= 0;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error checking binary release: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -1017,7 +1041,11 @@ begin
 
     Result := (AInfo.URL <> '') or (AInfo.Path <> '');
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error getting binary release info: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -1269,9 +1297,13 @@ begin
           Free;
         end;
       except
+      on E: Exception do
+      begin
+        LogFmt('Error detecting timezone: %s', [E.Message]);
         TZ := '';
       end;
     end;
+  end;
   end;
   {$ENDIF}
 
@@ -1322,7 +1354,11 @@ begin
       Result := Round(StrToFloatDef(Trim(LResult.StdOut), 999) * 1000);
     end;
   except
-    Result := -1;
+    on E: Exception do
+    begin
+      LogFmt('Error testing mirror latency: %s', [E.Message]);
+      Result := -1;
+    end;
   end;
 end;
 
@@ -1433,8 +1469,12 @@ begin
     FMirrorCacheTime := Now;
 
   except
-    // Fall back to primary URL on any error
-    Result := FConfig.URL;
+    on E: Exception do
+    begin
+      LogFmt('Error selecting best mirror: %s', [E.Message]);
+      // Fall back to primary URL on any error
+      Result := FConfig.URL;
+    end;
   end;
 end;
 
@@ -1468,7 +1508,11 @@ begin
       end;
     end;
   except
-    SetLength(Result, 0);
+    on E: Exception do
+    begin
+      LogFmt('Error getting mirrors: %s', [E.Message]);
+      SetLength(Result, 0);
+    end;
   end;
 end;
 
@@ -1505,7 +1549,11 @@ begin
 
     Result := HostPlatforms.IndexOfName(AHostPlatform) >= 0;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error checking cross toolchain: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -1554,7 +1602,11 @@ begin
 
     Result := (AInfo.BinutilsArchive <> '') or (AInfo.LibsArchive <> '');
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error getting cross toolchain info: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -1577,7 +1629,11 @@ begin
     for i := 0 to CrossToolchains.Count - 1 do
       Result[i] := CrossToolchains.Names[i];
   except
-    SetLength(Result, 0);
+    on E: Exception do
+    begin
+      LogFmt('Error listing cross targets: %s', [E.Message]);
+      SetLength(Result, 0);
+    end;
   end;
 end;
 
@@ -1692,7 +1748,11 @@ begin
     // For now, return false until package index is implemented
     Result := False;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error checking package availability: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -1776,7 +1836,11 @@ begin
       Parser.Free;
     end;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      LogFmt('Error checking package availability: %s', [E.Message]);
+      Result := False;
+    end;
   end;
 end;
 

@@ -1,0 +1,23 @@
+{
+  "version" : "1.0",
+  "default_toolchain" : "",
+  "toolchains" : {},
+  "lazarus" : {
+    "default_version" : "",
+    "versions" : {}
+  },
+  "cross_targets" : {},
+  "repositories" : {
+    "official_fpc" : "https://gitlab.com/freepascal.org/fpc/source.git",
+    "official_lazarus" : "https://gitlab.com/freepascal.org/lazarus/lazarus.git"
+  },
+  "settings" : {
+    "auto_update" : false,
+    "parallel_jobs" : 4,
+    "keep_sources" : true,
+    "install_root" : "test_current_root_90469220/",
+    "default_repo" : "",
+    "mirror" : "auto",
+    "custom_repo_url" : ""
+  }
+}

@@ -1,19 +1,22 @@
-# FPDev 安装指南
+# FPDev Installation Guide / FPDev 安装指南
 
-## 📋 系统要求
+Complete installation guide for FPDev - FreePascal Development Environment Manager.
 
-### 支持的操作系统
-- **Windows**: Windows 10 或更高版本
+## 📋 System Requirements / 系统要求
+
+### Supported Operating Systems / 支持的操作系统
+- **Windows**: Windows 7+ / Windows 10 或更高版本
 - **Linux**: Ubuntu 18.04+, Debian 10+, CentOS 8+, Fedora 30+
-- **macOS**: macOS 10.14 (Mojave) 或更高版本
+- **macOS**: macOS 10.12+ / macOS 10.14 (Mojave) 或更高版本
 
-### 硬件要求
-- **最低内存**: 512MB RAM
-- **推荐内存**: 2GB+ RAM
-- **磁盘空间**: 
-  - FPDev 本身: 100MB
-  - 完整安装 (包括 FPC/Lazarus): 5GB+
-- **网络连接**: 用于下载源码和包
+### Hardware Requirements / 硬件要求
+- **Minimum RAM / 最低内存**: 2GB RAM (512MB minimum)
+- **Recommended RAM / 推荐内存**: 4GB+ RAM
+- **Disk Space / 磁盘空间**:
+  - FPDev itself / FPDev 本身: 100MB
+  - Per FPC version / 每个 FPC 版本: 200-500MB
+  - Full installation / 完整安装 (包括 FPC/Lazarus): 5GB+
+- **Network / 网络连接**: Internet connection for downloads (optional with cache) / 用于下载源码和包（缓存模式可离线）
 
 ### 依赖软件
 

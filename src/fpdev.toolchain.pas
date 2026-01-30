@@ -256,33 +256,40 @@ end;
 function ReportToJSON(const R: TToolchainReport): string;
 var
   i,j: Integer;
+  Builder: TStringBuilder;
 begin
-  Result := '{';
-  Result := Result + '"hostOS":"' + JsonEscape(R.HostOS) + '",';
-  Result := Result + '"hostCPU":"' + JsonEscape(R.HostCPU) + '",';
-  Result := Result + '"pathHead":[';
-  for i := 0 to High(R.PathHead) do
-  begin
-    if i>0 then Result := Result + ',';
-    Result := Result + '"' + JsonEscape(R.PathHead[i]) + '"';
+  Builder := TStringBuilder.Create;
+  try
+    Builder.Append('{');
+    Builder.Append('"hostOS":"' + JsonEscape(R.HostOS) + '",');
+    Builder.Append('"hostCPU":"' + JsonEscape(R.HostCPU) + '",');
+    Builder.Append('"pathHead":[');
+    for i := 0 to High(R.PathHead) do
+    begin
+      if i>0 then Builder.Append(',');
+      Builder.Append('"' + JsonEscape(R.PathHead[i]) + '"');
+    end;
+    Builder.Append('],"tools":[');
+    for i := 0 to High(R.Tools) do
+    begin
+      if i>0 then Builder.Append(',');
+      Builder.Append('{"name":"'+JsonEscape(R.Tools[i].Name)+'",'+
+                '"found":'+LowerCase(BoolToStr(R.Tools[i].Found, True))+','+
+                '"version":"'+JsonEscape(R.Tools[i].Version)+'",'+
+                '"path":"'+JsonEscape(R.Tools[i].Path)+'",'+
+                '"notes":"'+JsonEscape(R.Tools[i].Notes)+'"}');
+    end;
+    Builder.Append('],"issues":[');
+    for j := 0 to High(R.Issues) do
+    begin
+      if j>0 then Builder.Append(',');
+      Builder.Append('"'+JsonEscape(R.Issues[j])+'"');
+    end;
+    Builder.Append('],"level":"'+JsonEscape(R.Level)+'"}');
+    Result := Builder.ToString;
+  finally
+    Builder.Free;
   end;
-  Result := Result + '],"tools":[';
-  for i := 0 to High(R.Tools) do
-  begin
-    if i>0 then Result := Result + ',';
-    Result := Result + '{"name":"'+JsonEscape(R.Tools[i].Name)+'",'+
-              '"found":'+LowerCase(BoolToStr(R.Tools[i].Found, True))+','+
-              '"version":"'+JsonEscape(R.Tools[i].Version)+'",'+
-              '"path":"'+JsonEscape(R.Tools[i].Path)+'",'+
-              '"notes":"'+JsonEscape(R.Tools[i].Notes)+'"}';
-  end;
-  Result := Result + '],"issues":[';
-  for j := 0 to High(R.Issues) do
-  begin
-    if j>0 then Result := Result + ',';
-    Result := Result + '"'+JsonEscape(R.Issues[j])+'"';
-  end;
-  Result := Result + '],"level":"'+JsonEscape(R.Level)+'"}';
 end;
 
 function GetFPCVersion(out AFPCVersion: string): boolean;

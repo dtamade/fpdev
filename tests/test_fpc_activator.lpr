@@ -12,11 +12,12 @@ program test_fpc_activator;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.fpc.types, fpdev.config;
+  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.fpc.types,
+  fpdev.config.interfaces, fpdev.config.managers;
 
 var
   TestInstallRoot: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   VersionManager: TFPCVersionManager;
   Activator: TFPCActivator;
   TestsPassed: Integer = 0;
@@ -31,9 +32,9 @@ begin
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
-  Settings := ConfigManager.GetSettings;
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestInstallRoot;
-  ConfigManager.SetSettings(Settings);
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   WriteLn('[Setup] Created test directory: ', TestInstallRoot);
 end;
@@ -282,6 +283,7 @@ end;
 procedure TestActivationScope;
 var
   ActivationResult: TActivationResult;
+  OriginalDir, TempDir: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -295,17 +297,30 @@ begin
     Exit;
   end;
 
-  ActivationResult := Activator.ActivateVersion('3.2.2');
+  // Save original directory and change to a temp directory outside the project
+  OriginalDir := GetCurrentDir;
+  TempDir := GetTempDir + 'fpdev_test_' + IntToStr(GetTickCount64);
+  ForceDirectories(TempDir);
+  try
+    SetCurrentDir(TempDir);
 
-  if ActivationResult.Success then
-  begin
-    // Should be user scope since we're not in a project directory
-    AssertTrue(ActivationResult.Scope = isUser, 
-      'Scope should be isUser when not in project directory');
-  end
-  else
-  begin
-    WriteLn('  INFO: Activation returned: ', ActivationResult.ErrorMessage);
+    ActivationResult := Activator.ActivateVersion('3.2.2');
+
+    if ActivationResult.Success then
+    begin
+      // Should be user scope since we're not in a project directory
+      AssertTrue(ActivationResult.Scope = isUser,
+        'Scope should be isUser when not in project directory');
+    end
+    else
+    begin
+      WriteLn('  INFO: Activation returned: ', ActivationResult.ErrorMessage);
+    end;
+  finally
+    // Restore original directory and clean up temp directory
+    SetCurrentDir(OriginalDir);
+    if DirectoryExists(TempDir) then
+      RemoveDir(TempDir);
   end;
 end;
 
@@ -365,61 +380,57 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TFPDevConfigManager.Create;
+    ConfigManager := TConfigManager.Create('');
+    if not ConfigManager.LoadConfig then
+      ConfigManager.CreateDefaultConfig;
+
+    // Setup test environment
+    SetupTestEnvironment;
     try
-      if not ConfigManager.LoadConfig then
-        ConfigManager.CreateDefaultConfig;
-
-      // Setup test environment
-      SetupTestEnvironment;
+      // Create version manager
+      VersionManager := TFPCVersionManager.Create(ConfigManager);
       try
-        // Create version manager
-        VersionManager := TFPCVersionManager.Create(ConfigManager);
+        // Create activator
+        Activator := TFPCActivator.Create(VersionManager, ConfigManager);
         try
-          // Create activator
-          Activator := TFPCActivator.Create(VersionManager, ConfigManager);
-          try
-            // Run tests
-            TestActivateNonInstalled;
-            TestActivationResultInit;
-            TestActivatorUsesVersionManager;
-            TestActivateCreatesScripts;
-            TestWindowsActivationScriptContent;
-            TestActivationScope;
-            TestMultipleActivations;
+          // Run tests
+          TestActivateNonInstalled;
+          TestActivationResultInit;
+          TestActivatorUsesVersionManager;
+          TestActivateCreatesScripts;
+          TestWindowsActivationScriptContent;
+          TestActivationScope;
+          TestMultipleActivations;
 
-            // Summary
-            WriteLn;
-            WriteLn('========================================');
-            WriteLn('  Test Summary');
-            WriteLn('========================================');
-            WriteLn('  Passed: ', TestsPassed);
-            WriteLn('  Failed: ', TestsFailed);
-            WriteLn('  Total:  ', TestsPassed + TestsFailed);
-            WriteLn;
+          // Summary
+          WriteLn;
+          WriteLn('========================================');
+          WriteLn('  Test Summary');
+          WriteLn('========================================');
+          WriteLn('  Passed: ', TestsPassed);
+          WriteLn('  Failed: ', TestsFailed);
+          WriteLn('  Total:  ', TestsPassed + TestsFailed);
+          WriteLn;
 
-            if TestsFailed > 0 then
-            begin
-              WriteLn('  SOME TESTS FAILED');
-              ExitCode := 1;
-            end
-            else
-            begin
-              WriteLn('  ALL TESTS PASSED');
-              ExitCode := 0;
-            end;
-
-          finally
-            Activator.Free;
+          if TestsFailed > 0 then
+          begin
+            WriteLn('  SOME TESTS FAILED');
+            ExitCode := 1;
+          end
+          else
+          begin
+            WriteLn('  ALL TESTS PASSED');
+            ExitCode := 0;
           end;
+
         finally
-          VersionManager.Free;
+          Activator.Free;
         end;
       finally
-        TeardownTestEnvironment;
+        VersionManager.Free;
       end;
     finally
-      ConfigManager.Free;
+      TeardownTestEnvironment;
     end;
 
   except

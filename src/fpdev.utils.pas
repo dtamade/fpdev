@@ -80,11 +80,28 @@ function chdir(const aDir: string): Boolean;
 function get_home_dir: String;
 function get_tmp_dir: String;
 function get_env(const aName: string): String; overload;
+function get_env(const aName: string; out aValue: string): Boolean; overload;
 function set_env(const aName, aValue: string): Boolean;
+function unset_env(const aName: string): Boolean;
 
 // Basic functions
 function exepath: string;
 function get_pid: pid_t;
+function get_ppid: pid_t;
+
+// System information functions
+function uname(var system_info: utsname_t): LongInt;
+function get_hostname: string;
+function get_cpu_count: UInt32;
+function hrtime: UInt64;
+function uptime: Integer;
+function get_free_memory: UInt64;
+function get_total_memory: UInt64;
+function available_parallelism: UInt32;
+
+// File I/O utilities
+procedure SafeWriteAllText(const AFileName, AContent: string);
+function ReadAllTextIfExists(const AFileName: string): string;
 
 // String utilities
 function JsonEscape(const S: string): string;
@@ -99,6 +116,7 @@ implementation
 {$IFDEF UNIX}
 function c_setenv(name, value: PChar; overwrite: cint): cint; cdecl; external 'c' name 'setenv';
 function c_unsetenv(name: PChar): cint; cdecl; external 'c' name 'unsetenv';
+function c_getenv(name: PChar): PChar; cdecl; external 'c' name 'getenv';
 {$ENDIF}
 
 // Essential implementations
@@ -123,8 +141,59 @@ begin
 end;
 
 function get_env(const aName: string): String;
+{$IFDEF UNIX}
+var
+  P: PChar;
+{$ENDIF}
 begin
+  {$IFDEF UNIX}
+  // Use C library getenv for consistency with setenv
+  P := c_getenv(PChar(aName));
+  if P <> nil then
+    Result := StrPas(P)
+  else
+    Result := '';
+  {$ELSE}
   Result := SysUtils.GetEnvironmentVariable(aName);
+  {$ENDIF}
+end;
+
+function get_env(const aName: string; out aValue: string): Boolean;
+{$IFDEF UNIX}
+var
+  P: PChar;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  // Use C library getenv for consistency with setenv
+  P := c_getenv(PChar(aName));
+  if P <> nil then
+  begin
+    aValue := StrPas(P);
+    Result := True;
+  end
+  else
+  begin
+    aValue := '';
+    Result := False;
+  end;
+  {$ELSE}
+  aValue := SysUtils.GetEnvironmentVariable(aName);
+  Result := aValue <> '';
+  {$ENDIF}
+end;
+
+function unset_env(const aName: string): Boolean;
+begin
+  {$IFDEF UNIX}
+  Result := c_unsetenv(PChar(aName)) = 0;
+  {$ELSE}
+    {$IFDEF MSWINDOWS}
+  Result := SetEnvironmentVariableW(PWideChar(UTF8Decode(aName)), nil);
+    {$ELSE}
+  Result := False;
+    {$ENDIF}
+  {$ENDIF}
 end;
 
 function set_env(const aName, aValue: string): Boolean;
@@ -154,6 +223,227 @@ end;
 function get_pid: pid_t;
 begin
   Result := GetProcessID;
+end;
+
+function get_ppid: pid_t;
+begin
+  {$IFDEF UNIX}
+  Result := fpgetppid;
+  {$ELSE}
+  Result := 0; // Not available on Windows
+  {$ENDIF}
+end;
+
+function get_hostname: string;
+begin
+  {$IFDEF UNIX}
+  Result := GetEnvironmentVariable('HOSTNAME');
+  if Result = '' then
+    Result := GetEnvironmentVariable('HOST');
+  if Result = '' then
+    Result := 'localhost';
+  {$ELSE}
+  Result := GetEnvironmentVariable('COMPUTERNAME');
+  if Result = '' then
+    Result := 'localhost';
+  {$ENDIF}
+end;
+
+function get_cpu_count: UInt32;
+begin
+  Result := GetCPUCount;
+end;
+
+function hrtime: UInt64;
+begin
+  // Return high-resolution time in nanoseconds
+  Result := GetTickCount64 * 1000000; // Convert milliseconds to nanoseconds
+end;
+
+function uptime: Integer;
+{$IFDEF UNIX}
+var
+  F: TextFile;
+  Line: string;
+  UptimeSeconds: Double;
+  Code: Integer;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  // Read from /proc/uptime on Linux
+  Result := 0;
+  if FileExists('/proc/uptime') then
+  begin
+    try
+      AssignFile(F, '/proc/uptime');
+      Reset(F);
+      ReadLn(F, Line);
+      CloseFile(F);
+      // First value is uptime in seconds
+      Val(Copy(Line, 1, Pos(' ', Line) - 1), UptimeSeconds, Code);
+      if Code = 0 then
+        Result := Trunc(UptimeSeconds);
+    except
+      Result := 0;
+    end;
+  end;
+  {$ELSE}
+  // Windows: return uptime in seconds based on GetTickCount64
+  Result := GetTickCount64 div 1000;
+  {$ENDIF}
+end;
+
+function get_free_memory: UInt64;
+{$IFDEF UNIX}
+var
+  F: TextFile;
+  Line: string;
+  Parts: TStringList;
+  MemFree: Int64;
+  Code: Integer;
+{$ENDIF}
+begin
+  Result := 0;
+  {$IFDEF UNIX}
+  // Read from /proc/meminfo on Linux
+  if FileExists('/proc/meminfo') then
+  begin
+    try
+      AssignFile(F, '/proc/meminfo');
+      Reset(F);
+      Parts := TStringList.Create;
+      try
+        while not Eof(F) do
+        begin
+          ReadLn(F, Line);
+          if Pos('MemAvailable:', Line) = 1 then
+          begin
+            // MemAvailable: 12345678 kB
+            Delete(Line, 1, 13); // Remove "MemAvailable:"
+            Line := Trim(Line);
+            // Remove " kB" suffix
+            if Pos(' kB', Line) > 0 then
+              Delete(Line, Pos(' kB', Line), 3);
+            Val(Line, MemFree, Code);
+            if Code = 0 then
+              Result := MemFree * 1024; // Convert kB to bytes
+            Break;
+          end;
+        end;
+      finally
+        Parts.Free;
+      end;
+      CloseFile(F);
+    except
+      Result := 0;
+    end;
+  end;
+  {$ELSE}
+    {$IFDEF MSWINDOWS}
+  var
+    MemStatus: TMemoryStatusEx;
+  begin
+    MemStatus.dwLength := SizeOf(MemStatus);
+    if GlobalMemoryStatusEx(MemStatus) then
+      Result := MemStatus.ullAvailPhys
+    else
+      Result := 0;
+  end;
+    {$ELSE}
+  Result := 0;
+    {$ENDIF}
+  {$ENDIF}
+end;
+
+function get_total_memory: UInt64;
+{$IFDEF UNIX}
+var
+  F: TextFile;
+  Line: string;
+  MemTotal: Int64;
+  Code: Integer;
+{$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  MemStatus: TMemoryStatusEx;
+{$ENDIF}
+begin
+  Result := 0;
+  {$IFDEF UNIX}
+  // Read from /proc/meminfo on Linux
+  if FileExists('/proc/meminfo') then
+  begin
+    try
+      AssignFile(F, '/proc/meminfo');
+      Reset(F);
+      while not Eof(F) do
+      begin
+        ReadLn(F, Line);
+        if Pos('MemTotal:', Line) = 1 then
+        begin
+          // MemTotal: 12345678 kB
+          Delete(Line, 1, 9); // Remove "MemTotal:"
+          Line := Trim(Line);
+          // Remove " kB" suffix
+          if Pos(' kB', Line) > 0 then
+            Delete(Line, Pos(' kB', Line), 3);
+          Val(Line, MemTotal, Code);
+          if Code = 0 then
+            Result := MemTotal * 1024; // Convert kB to bytes
+          Break;
+        end;
+      end;
+      CloseFile(F);
+    except
+      Result := 0;
+    end;
+  end;
+  {$ELSE}
+    {$IFDEF MSWINDOWS}
+  MemStatus.dwLength := SizeOf(MemStatus);
+  if GlobalMemoryStatusEx(MemStatus) then
+    Result := MemStatus.ullTotalPhys
+  else
+    Result := 0;
+    {$ELSE}
+  Result := 0;
+    {$ENDIF}
+  {$ENDIF}
+end;
+
+function available_parallelism: UInt32;
+begin
+  // Return the number of logical CPU cores available for parallel execution
+  Result := GetCPUCount;
+end;
+
+procedure SafeWriteAllText(const AFileName, AContent: string);
+var
+  SL: TStringList;
+begin
+  SL := TStringList.Create;
+  try
+    SL.Text := AContent;
+    SL.SaveToFile(AFileName);
+  finally
+    SL.Free;
+  end;
+end;
+
+function ReadAllTextIfExists(const AFileName: string): string;
+var
+  SL: TStringList;
+begin
+  Result := '';
+  if not FileExists(AFileName) then Exit;
+
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(AFileName);
+    Result := SL.Text;
+  finally
+    SL.Free;
+  end;
 end;
 
 function JsonEscape(const S: string): string;

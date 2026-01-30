@@ -428,7 +428,7 @@ begin
       SetupTestEnvironment;
       try
         // Create version manager
-        VersionManager := TFPCVersionManager.Create(ConfigManager);
+        VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;

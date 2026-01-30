@@ -3,24 +3,35 @@ program test_fpc_scoped_install;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config;
+  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.types,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.utils;
 
 var
   TestRootDir: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   FPCManager: TFPCManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
 procedure InitTestEnvironment;
+var
+  Settings: TFPDevSettings;
 begin
   // Create test root directory in temp (outside project to avoid .fpdev detection)
   TestRootDir := GetTempDir + 'test_scoped_install_' + IntToStr(GetTickCount64);
   ForceDirectories(TestRootDir);
 
-  // Initialize config manager
-  ConfigManager := TFPDevConfigManager.Create;
-  ConfigManager.LoadConfig;
+  // Set FPDEV_DATA_ROOT environment variable to override GetDataRoot
+  set_env('FPDEV_DATA_ROOT', TestRootDir);
+
+  // Initialize config manager with test-specific config file
+  ConfigManager := TConfigManager.Create(TestRootDir + PathDelim + 'test_config.json');
+  ConfigManager.CreateDefaultConfig;
+
+  // Set InstallRoot immediately after creating config to ensure it's used
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := TestRootDir;
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   TestsPassed := 0;
   TestsFailed := 0;
@@ -57,8 +68,7 @@ begin
 
   if Assigned(FPCManager) then
     FPCManager.Free;
-  if Assigned(ConfigManager) then
-    ConfigManager.Free;
+  // ConfigManager is an interface, no need to Free
 
   WriteLn;
   WriteLn('========================================');
@@ -146,9 +156,9 @@ begin
     SetCurrentDir(TestRootDir);
 
     // Setup: Override install root to test directory
-    Settings := ConfigManager.GetSettings;
+    Settings := ConfigManager.GetSettingsManager.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    ConfigManager.GetSettingsManager.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -204,9 +214,9 @@ begin
     SetCurrentDir(ProjectDir);
 
     // Setup manager
-    Settings := ConfigManager.GetSettings;
+    Settings := ConfigManager.GetSettingsManager.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    ConfigManager.GetSettingsManager.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -248,9 +258,9 @@ begin
   CustomPrefix := TestRootDir + PathDelim + 'custom_prefix';
 
   // Setup
-  Settings := ConfigManager.GetSettings;
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -284,9 +294,9 @@ begin
   ForceDirectories(TestInstallPath);
 
   // Setup manager
-  Settings := ConfigManager.GetSettings;
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -331,9 +341,9 @@ begin
   ForceDirectories(TestInstallPath);
 
   // Setup manager
-  Settings := ConfigManager.GetSettings;
+  Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestRootDir;
-  ConfigManager.SetSettings(Settings);
+  ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   FPCManager := TFPCManager.Create(ConfigManager);
 

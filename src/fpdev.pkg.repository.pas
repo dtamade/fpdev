@@ -174,7 +174,12 @@ begin
   try
     // Target cache directory and index file
     CacheDir := FPackageRegistry;
-    EnsureDir(CacheDir);
+    if not EnsureDir(CacheDir) then
+    begin
+      if Errp <> nil then
+        Errp.WriteLn('Failed to create cache directory: ' + CacheDir);
+      Exit(False);
+    end;
     IndexPath := CacheDir + PathDelim + 'index.json';
     TmpPath := CacheDir + PathDelim + 'index.json.tmp';
 
@@ -199,9 +204,15 @@ begin
           if IsFileURL then
           begin
             LocalFile := Copy(RepoURL, 8, MaxInt);
-            // Windows may have file:///C:/... prefix
+            {$IFDEF MSWINDOWS}
+            // Windows: file:///C:/... -> C:/...
             while (Length(LocalFile) > 0) and ((LocalFile[1] = '/') or (LocalFile[1] = '\')) do
               Delete(LocalFile, 1, 1);
+            {$ELSE}
+            // Unix: file:///home/... -> /home/... (keep one leading slash)
+            while (Length(LocalFile) > 1) and (LocalFile[1] = '/') and (LocalFile[2] = '/') do
+              Delete(LocalFile, 1, 1);
+            {$ENDIF}
             LocalFile := StringReplace(LocalFile, '/', PathDelim, [rfReplaceAll]);
             if FileExists(LocalFile) then
               SL.LoadFromFile(LocalFile)
@@ -214,9 +225,12 @@ begin
             SetLength(URLs, 1);
             URLs[0] := RepoURL;
             Opt.DestDir := CacheDir;
-            Opt.SHA256 := '';
+            Opt.Hash := '';
+            Opt.HashAlgorithm := haUnknown;
+            Opt.HashDigest := '';
             Opt.TimeoutMS := 15000;
-            if not EnsureDownloadedCached(URLs, TmpPath, Opt.SHA256, Opt.TimeoutMS, Err) then
+            Opt.ExpectedSize := 0;
+            if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
               Continue;
             SL.LoadFromFile(TmpPath);
           end;

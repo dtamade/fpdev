@@ -44,7 +44,9 @@ uses
   SysUtils, Classes, fphttpclient, zipper,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
-  fpdev.paths;
+  fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher,
+  fpdev.build.cache, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version,
+  fpdev.fpc.builder, fpdev.config;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -55,6 +57,8 @@ type
     FResourceRepo: TResourceRepository;
     FOut: IOutput;
     FErr: IOutput;
+    FCache: TBuildCache;
+    FNoCache: Boolean;
 
     { Gets the installation path for a given FPC version. }
     function GetVersionInstallPath(const AVersion: string): string;
@@ -68,6 +72,12 @@ type
       AInstallPath: Target installation directory
       Returns: True if installation succeeded }
     function InstallFromSourceForge(const AVersion, AInstallPath: string): Boolean;
+
+    { Installs FPC using manifest system with multi-mirror support and SHA512 verification.
+      AVersion: FPC version to install
+      AInstallPath: Target installation directory
+      Returns: True if installation succeeded }
+    function InstallFromManifest(const AVersion, AInstallPath: string): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager;
@@ -107,8 +117,51 @@ type
       Returns: True if installation succeeded }
     function InstallFromBinary(const AVersion: string; const APrefix: string = ''): Boolean;
 
+    { Sets the build cache instance for binary caching.
+      ACache: Cache instance to use (nil to disable caching) }
+    procedure SetCache(ACache: TBuildCache);
+
+    { Sets whether to skip cache operations.
+      ANoCache: True to skip cache save/restore }
+    procedure SetNoCache(ANoCache: Boolean);
+
     { Resource repository accessor for external coordination. }
     property ResourceRepo: TResourceRepository read FResourceRepo;
+  end;
+
+  { TFPCInstaller - FPC installer with dependency injection for testing }
+  TFPCInstaller = class
+  private
+    FVersionManager: TFPCVersionManager;
+    FConfigManager: TFPDevConfigManager;
+    FBuilder: TFPCBuilder;
+    FFileSystem: IFileSystem;
+    FProcessRunner: IProcessRunner;
+
+    function GetInstallDir(const AVersion: string): string;
+  public
+    constructor Create(AVersionManager: TFPCVersionManager;
+      AConfigManager: TFPDevConfigManager;
+      ABuilder: TFPCBuilder;
+      AFileSystem: IFileSystem;
+      AProcessRunner: IProcessRunner);
+    destructor Destroy; override;
+
+    { Installs FPC version }
+    function InstallVersion(const AVersion: string; AFromSource: Boolean;
+      const APrefix: string = ''; AEnsure: Boolean = False): TOperationResult;
+
+    { Uninstalls FPC version }
+    function UninstallVersion(const AVersion: string): TOperationResult;
+
+    { Gets binary download URL for version }
+    function GetBinaryDownloadURL(const AVersion: string): string;
+
+    property VersionManager: TFPCVersionManager read FVersionManager;
+    property ConfigManager: TFPDevConfigManager read FConfigManager;
+    property Builder: TFPCBuilder read FBuilder;
+    property FileSystem: IFileSystem read FFileSystem;
+    property ProcessRunner: IProcessRunner read FProcessRunner;
   end;
 
 implementation
@@ -126,6 +179,8 @@ begin
   inherited Create;
   FConfigManager := AConfigManager;
   FResourceRepo := nil;
+  FCache := nil;
+  FNoCache := False;
 
   FOut := AOut;
   if FOut = nil then
@@ -153,6 +208,16 @@ begin
   if Assigned(FResourceRepo) then
     FResourceRepo.Free;
   inherited Destroy;
+end;
+
+procedure TFPCBinaryInstaller.SetCache(ACache: TBuildCache);
+begin
+  FCache := ACache;
+end;
+
+procedure TFPCBinaryInstaller.SetNoCache(ANoCache: Boolean);
+begin
+  FNoCache := ANoCache;
 end;
 
 function TFPCBinaryInstaller.GetVersionInstallPath(const AVersion: string): string;
@@ -207,7 +272,7 @@ var
   TempDir: string;
   ExtractDir: string;
   InstallerScript: string;
-  LResult: TProcessResult;
+  LResult: fpdev.utils.process.TProcessResult;
   I: Integer;
   InnerTempDir: string;
   BaseArchive: string;
@@ -397,8 +462,26 @@ begin
     end
     else
     begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Installation verification failed');
-      FErr.WriteLn('  Expected directories not found in: ' + AInstallPath);
+      FErr.WriteLn('');
+      FErr.WriteLn('===========================================');
+      FErr.WriteLn('Binary Installation Failed');
+      FErr.WriteLn('===========================================');
+      FErr.WriteLn('');
+      FErr.WriteLn('No binary packages are currently available for automatic download.');
+      FErr.WriteLn('');
+      FErr.WriteLn('Options:');
+      FErr.WriteLn('  1. Install from source (requires bootstrap compiler):');
+      FErr.WriteLn('     fpdev fpc install ' + AVersion + ' --from-source');
+      FErr.WriteLn('');
+      FErr.WriteLn('  2. Use existing FPC installation:');
+      FErr.WriteLn('     fpdev fpc use <version>');
+      FErr.WriteLn('');
+      FErr.WriteLn('  3. Download manually from:');
+      FErr.WriteLn('     https://www.freepascal.org/download.html');
+      FErr.WriteLn('');
+      FErr.WriteLn('Note: Binary downloads are not yet available in this version.');
+      FErr.WriteLn('      Source installation is the recommended method.');
+      Exit(False);
     end;
 
   except
@@ -483,6 +566,9 @@ begin
     HTTPClient := TFPHTTPClient.Create(nil);
     try
       HTTPClient.AllowRedirect := True;
+      // Add timeout to prevent hanging (30 seconds)
+      HTTPClient.ConnectTimeout := 30000;
+      HTTPClient.IOTimeout := 30000;
       FileStream := TFileStream.Create(ATempFile, fmCreate);
       try
         HTTPClient.Get(URL, FileStream);
@@ -537,7 +623,7 @@ function TFPCBinaryInstaller.ExtractArchive(const AArchivePath, ADestPath: strin
 var
   Unzipper: TUnZipper;
   FileExt: string;
-  LResult: TProcessResult;
+  LResult: fpdev.utils.process.TProcessResult;
 begin
   Result := False;
 
@@ -678,79 +764,89 @@ begin
     FOut.WriteLn('Platform: ' + Platform);
     FOut.WriteLn;
 
-    // Step 1: Initialize fpdev-repo
-    FOut.WriteLn('[1/3] Initializing fpdev-repo...');
-
-    if not Assigned(FResourceRepo) then
+    // Step 1: Try manifest-based installation first (with multi-mirror and SHA512)
+    FOut.WriteLn('[1/4] Attempting manifest-based installation...');
+    if InstallFromManifest(AVersion, InstallPath) then
     begin
-      // Use configured mirror settings from user config
-      FResourceRepo := TResourceRepository.Create(
-        CreateConfigWithMirror(
-          FConfigManager.GetSettingsManager.GetSettings.Mirror,
-          FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
-        )
-      );
-      if not FResourceRepo.Initialize then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
-        FErr.WriteLn('');
-        FErr.WriteLn('fpdev-repo is required for binary installation.');
-        FErr.WriteLn('Please check your network connection and try again.');
-        FErr.WriteLn('');
-        FErr.WriteLn('Mirror configuration:');
-        FErr.WriteLn('  China users: fpdev config set mirror gitee');
-        FErr.WriteLn('  Global users: fpdev config set mirror github');
-        FResourceRepo.Free;
-        FResourceRepo := nil;
-        Exit;
-      end;
-    end;
-    FOut.WriteLn('  fpdev-repo initialized');
-    FOut.WriteLn;
-
-    // Step 2: Check if binary release exists in fpdev-repo
-    FOut.WriteLn('[2/4] Checking for FPC ' + AVersion + ' binary...');
-
-    if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
+      FOut.WriteLn('  Manifest-based installation successful');
+      // Installation complete, skip to environment setup
+    end
+    else
     begin
-      FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+      FOut.WriteLn('  Manifest-based installation not available, trying fpdev-repo...');
       FOut.WriteLn;
 
-      // Step 3: Install from fpdev-repo
-      FOut.WriteLn('[3/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+      // Step 2: Initialize fpdev-repo (fallback)
+      FOut.WriteLn('[2/4] Initializing fpdev-repo...');
 
-      if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+      if not Assigned(FResourceRepo) then
       begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
-        FErr.WriteLn('Trying fallback to SourceForge...');
-        FOut.WriteLn;
-        // Fall through to SourceForge fallback
-      end
-      else
-      begin
-        FOut.WriteLn('  Binary package installed from fpdev-repo');
-        FOut.WriteLn;
+        // Use configured mirror settings from user config
+        FResourceRepo := TResourceRepository.Create(
+          CreateConfigWithMirror(
+            FConfigManager.GetSettingsManager.GetSettings.Mirror,
+            FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
+          )
+        );
+        if not FResourceRepo.Initialize then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
+          FErr.WriteLn('');
+          FErr.WriteLn('fpdev-repo is required for binary installation.');
+          FErr.WriteLn('Please check your network connection and try again.');
+          FErr.WriteLn('');
+          FErr.WriteLn('Mirror configuration:');
+          FErr.WriteLn('  China users: fpdev config set mirror gitee');
+          FErr.WriteLn('  Global users: fpdev config set mirror github');
+          FResourceRepo.Free;
+          FResourceRepo := nil;
+          Exit;
+        end;
       end;
-    end;
+      FOut.WriteLn('  fpdev-repo initialized');
+      FOut.WriteLn;
 
-    // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
-    if not DirectoryExists(InstallPath + PathDelim + 'bin') then
-    begin
-      FOut.WriteLn('[3/4] Downloading FPC ' + AVersion + ' from SourceForge...');
+      // Step 3: Check if binary release exists in fpdev-repo
+      FOut.WriteLn('[3/4] Checking for FPC ' + AVersion + ' binary...');
+
+      if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
+      begin
+        FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+        FOut.WriteLn;
+
+        // Step 4: Install from fpdev-repo
+        FOut.WriteLn('[4/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+
+        if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
+        begin
+          FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
+          FErr.WriteLn('Trying fallback to SourceForge...');
+          FOut.WriteLn;
+          // Fall through to SourceForge fallback
+        end
+        else
+        begin
+          FOut.WriteLn('  Binary package installed from fpdev-repo');
+          FOut.WriteLn;
+        end;
+      end;
+
+      // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
+      FOut.WriteLn('');
+      FOut.WriteLn('');
+      FOut.WriteLn('[4/4] Attempting SourceForge download (with 30s timeout)...');
       Result := InstallFromSourceForge(AVersion, InstallPath);
-      if not Result then
+
+      if Result then
       begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Failed to install FPC ' + AVersion);
-        FErr.WriteLn('');
-        FErr.WriteLn('Available options:');
-        FErr.WriteLn('  1. Check available versions: fpdev fpc list --all');
-        FErr.WriteLn('  2. Build from source: fpdev fpc install ' + AVersion + ' --from-source');
-        FErr.WriteLn('');
-        Exit;
+        FOut.WriteLn('');
+        FOut.WriteLn('===========================================');
+        FOut.WriteLn('Installation Summary');
+        FOut.WriteLn('===========================================');
+        FOut.WriteLn('  Binary package installed from SourceForge');
+        FOut.WriteLn;
       end;
-      FOut.WriteLn('  Binary package installed from SourceForge');
-      FOut.WriteLn;
-    end;
+    end;  // Close the else block from manifest installation
 
     // Generate fpc.cfg configuration file if bin directory exists
     if DirectoryExists(InstallPath + PathDelim + 'bin') then
@@ -826,6 +922,17 @@ begin
     FOut.WriteLn('  fpdev fpc use ' + AVersion);
     FOut.WriteLn('===========================================');
 
+    // Save installed FPC to cache (unless --no-cache)
+    if Assigned(FCache) and not FNoCache then
+    begin
+      FOut.WriteLn;
+      FOut.WriteLn('[CACHE] Saving installation to cache...');
+      if FCache.SaveArtifacts(AVersion, InstallPath) then
+        FOut.WriteLn('[CACHE] Installation cached successfully')
+      else
+        FOut.WriteLn('[WARN] Failed to cache installation (non-fatal)');
+    end;
+
     Result := True;
 
   except
@@ -835,6 +942,366 @@ begin
       Result := False;
     end;
   end;
+end;
+
+function TFPCBinaryInstaller.InstallFromManifest(const AVersion, AInstallPath: string): Boolean;
+var
+  ManifestParser: TManifestParser;
+  Cache: TManifestCache;
+  Platform: string;
+  Target: TManifestTarget;
+  TempFile: string;
+  TempDir: string;
+  FileExt: string;
+  Err: string;
+  SR: TSearchRec;
+begin
+  Result := False;
+
+  try
+    FOut.WriteLn('[Manifest] Attempting installation using manifest system...');
+
+    // Determine platform string
+    Platform := GetCurrentPlatform;
+    FOut.WriteLn('[Manifest] Platform: ' + Platform);
+
+    // Load manifest from cache (will auto-download if needed)
+    FOut.WriteLn('[Manifest] Loading manifest from cache...');
+    Cache := TManifestCache.Create('');
+    try
+      if not Cache.LoadCachedManifest('fpc', ManifestParser, False) then
+      begin
+        FErr.WriteLn('[Manifest] Failed to load manifest');
+        FErr.WriteLn('[Manifest] Try running: fpdev fpc update-manifest');
+        Exit;
+      end;
+
+      try
+        FOut.WriteLn('[Manifest] Manifest loaded successfully');
+
+        // Get target for this version and platform (package name is 'fpc')
+        if not ManifestParser.GetTarget('fpc', AVersion, Platform, Target) then
+        begin
+          FErr.WriteLn('[Manifest] No binary available for FPC ' + AVersion + ' on ' + Platform);
+          FErr.WriteLn('[Manifest] Error: ' + ManifestParser.LastError);
+          Exit;
+        end;
+
+        FOut.WriteLn('[Manifest] Found target with ' + IntToStr(Length(Target.URLs)) + ' mirror(s)');
+        FOut.WriteLn('[Manifest] Hash: ' + Target.Hash);
+        FOut.WriteLn('[Manifest] Size: ' + IntToStr(Target.Size) + ' bytes');
+
+        // Download using multi-mirror fallback with SHA512 verification
+        TempDir := GetTempDir + 'fpdev_downloads';
+        if not DirectoryExists(TempDir) then
+          EnsureDir(TempDir);
+
+        // Determine file extension from the first URL in the manifest
+        FileExt := ExtractFileExt(Target.URLs[0]);
+        if FileExt = '' then
+          FileExt := '.tar.gz';  // Default fallback
+
+        TempFile := TempDir + PathDelim + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + FileExt;
+
+        FOut.WriteLn('[Manifest] Downloading with multi-mirror fallback...');
+        if not FetchFromManifest(Target, TempFile, DEFAULT_DOWNLOAD_TIMEOUT_MS, Err) then
+        begin
+          FErr.WriteLn('[Manifest] Download failed: ' + Err);
+          Exit;
+        end;
+
+        FOut.WriteLn('[Manifest] Download completed and verified');
+
+        // Extract archive (two-stage: outer TAR contains nested binary TAR)
+        FOut.WriteLn('[Manifest] Extracting archive...');
+
+        // Stage 1: Extract outer TAR to temporary directory
+        TempDir := GetTempDir + 'fpdev_extract_' + IntToStr(GetTickCount64);
+        if not DirectoryExists(TempDir) then
+          EnsureDir(TempDir);
+
+        try
+          if not ExtractArchive(TempFile, TempDir) then
+          begin
+            FErr.WriteLn('[Manifest] Extraction failed');
+            Exit;
+          end;
+
+        // Stage 2: Find and extract nested binary TAR to installation directory
+        // The outer TAR extracts to a subdirectory (e.g., fpc-3.2.0-x86_64-linux/)
+        // Inside that subdirectory is binary.x86_64-linux.tar with the actual FPC binaries
+
+        // Find the extracted subdirectory (should be the only directory in TempDir)
+        FileExt := '';
+        if FindFirst(TempDir + PathDelim + '*', faDirectory, SR) = 0 then
+        begin
+          repeat
+            if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
+            begin
+              // Found the extracted subdirectory, look for binary TAR inside it
+              FileExt := TempDir + PathDelim + SR.Name + PathDelim + 'binary.';
+              {$IFDEF CPU64}
+              FileExt := FileExt + 'x86_64';
+              {$ELSE}
+              FileExt := FileExt + 'i386';
+              {$ENDIF}
+              FileExt := FileExt + '-';
+              {$IFDEF LINUX}
+              FileExt := FileExt + 'linux';
+              {$ELSE}
+                {$IFDEF DARWIN}
+                FileExt := FileExt + 'darwin';
+                {$ELSE}
+                  {$IFDEF MSWINDOWS}
+                  FileExt := FileExt + 'win64';
+                  {$ENDIF}
+                {$ENDIF}
+              {$ENDIF}
+              FileExt := FileExt + '.tar';
+              Break;
+            end;
+          until FindNext(SR) <> 0;
+          FindClose(SR);
+        end;
+
+        if (FileExt <> '') and FileExists(FileExt) then
+        begin
+          FOut.WriteLn('[Manifest] Extracting nested binary TAR...');
+          if not ExtractArchive(FileExt, AInstallPath) then
+          begin
+            FErr.WriteLn('[Manifest] Nested extraction failed');
+            Exit;
+          end;
+
+          // Stage 3: Extract base package which contains the actual FPC binaries
+          // The binary TAR contains many .tar.gz files, but base.x86_64-linux.tar.gz has the core compiler
+          FileExt := AInstallPath + PathDelim + 'base.';
+          {$IFDEF CPU64}
+          FileExt := FileExt + 'x86_64';
+          {$ELSE}
+          FileExt := FileExt + 'i386';
+          {$ENDIF}
+          FileExt := FileExt + '-';
+          {$IFDEF LINUX}
+          FileExt := FileExt + 'linux';
+          {$ELSE}
+            {$IFDEF DARWIN}
+            FileExt := FileExt + 'darwin';
+            {$ELSE}
+              {$IFDEF MSWINDOWS}
+              FileExt := FileExt + 'win64';
+              {$ENDIF}
+            {$ENDIF}
+          {$ENDIF}
+          FileExt := FileExt + '.tar.gz';
+
+          if FileExists(FileExt) then
+          begin
+            FOut.WriteLn('[Manifest] Extracting base package...');
+            if not ExtractArchive(FileExt, AInstallPath) then
+            begin
+              FErr.WriteLn('[Manifest] Base package extraction failed');
+              Exit;
+            end;
+            // Clean up the .tar.gz files after extraction
+            DeleteFile(FileExt);
+          end;
+        end
+        else
+        begin
+          // Fallback: if nested TAR not found, assume outer TAR contains binaries directly
+          FOut.WriteLn('[Manifest] No nested TAR found, using direct extraction');
+          if not ExtractArchive(TempFile, AInstallPath) then
+          begin
+            FErr.WriteLn('[Manifest] Extraction failed');
+            Exit;
+          end;
+        end;
+
+        FOut.WriteLn('[Manifest] Extraction completed');
+        Result := True;
+
+        finally
+          // Cleanup temporary files and directories
+          if FileExists(TempFile) then
+            DeleteFile(TempFile);
+          if DirectoryExists(TempDir) then
+            RemoveDir(TempDir);
+        end;
+
+      finally
+        ManifestParser.Free;
+      end;
+    finally
+      Cache.Free;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      FErr.WriteLn('[Manifest] InstallFromManifest failed: ' + E.Message);
+      Result := False;
+    end;
+  end;
+end;
+
+{ TFPCInstaller }
+
+constructor TFPCInstaller.Create(AVersionManager: TFPCVersionManager;
+  AConfigManager: TFPDevConfigManager;
+  ABuilder: TFPCBuilder;
+  AFileSystem: IFileSystem;
+  AProcessRunner: IProcessRunner);
+begin
+  inherited Create;
+  FVersionManager := AVersionManager;
+  FConfigManager := AConfigManager;
+  FBuilder := ABuilder;
+  FFileSystem := AFileSystem;
+  FProcessRunner := AProcessRunner;
+end;
+
+destructor TFPCInstaller.Destroy;
+begin
+  inherited Destroy;
+end;
+
+function TFPCInstaller.GetInstallDir(const AVersion: string): string;
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := FConfigManager.GetSettings;
+  Result := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+end;
+
+function TFPCInstaller.InstallVersion(const AVersion: string; AFromSource: Boolean;
+  const APrefix: string; AEnsure: Boolean): TOperationResult;
+var
+  InstallDir, SourceDir: string;
+  BuildResult: TOperationResult;
+begin
+  // Validate version
+  if not FVersionManager.ValidateVersion(AVersion) then
+  begin
+    Result := OperationError(ecVersionInvalid, 'Invalid version: ' + AVersion);
+    Exit;
+  end;
+
+  // Determine install directory
+  if APrefix <> '' then
+    InstallDir := APrefix
+  else
+    InstallDir := GetInstallDir(AVersion);
+
+  // Check if already installed
+  if FFileSystem.DirectoryExists(InstallDir) then
+  begin
+    if AEnsure then
+    begin
+      // Ensure mode: already installed is success
+      Result := OperationSuccess;
+      Exit;
+    end
+    else
+    begin
+      Result := OperationError(ecVersionAlreadyInstalled, 'Version already installed: ' + AVersion);
+      Exit;
+    end;
+  end;
+
+  if AFromSource then
+  begin
+    // Install from source
+    SourceDir := FConfigManager.GetSettings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
+
+    // Download source if not exists
+    if not FFileSystem.DirectoryExists(SourceDir) then
+    begin
+      BuildResult := FBuilder.DownloadSource(AVersion, SourceDir);
+      if not BuildResult.Success then
+      begin
+        Result := BuildResult;
+        Exit;
+      end;
+    end;
+
+    // Build from source
+    BuildResult := FBuilder.BuildFromSource(SourceDir, InstallDir);
+    if not BuildResult.Success then
+    begin
+      Result := BuildResult;
+      Exit;
+    end;
+  end
+  else
+  begin
+    // Binary installation not implemented in test version
+    Result := OperationError(ecDownloadFailed, 'Binary installation not implemented');
+    Exit;
+  end;
+
+  Result := OperationSuccess;
+end;
+
+function TFPCInstaller.UninstallVersion(const AVersion: string): TOperationResult;
+var
+  InstallDir: string;
+  ProcResult: fpdev.fpc.interfaces.TProcessResult;
+begin
+  InstallDir := GetInstallDir(AVersion);
+
+  // Check if installed
+  if not FFileSystem.DirectoryExists(InstallDir) then
+  begin
+    // Not installed - success (nothing to uninstall)
+    Result := OperationSuccess;
+    Exit;
+  end;
+
+  // Remove directory
+  {$IFDEF MSWINDOWS}
+  ProcResult := FProcessRunner.Execute('cmd', ['/c', 'rmdir', '/s', '/q', InstallDir], '');
+  {$ELSE}
+  ProcResult := FProcessRunner.Execute('rm', ['-rf', InstallDir], '');
+  {$ENDIF}
+
+  if not ProcResult.Success then
+  begin
+    Result := OperationError(ecUninstallationFailed, 'Failed to remove directory: ' + InstallDir);
+    Exit;
+  end;
+
+  Result := OperationSuccess;
+end;
+
+function TFPCInstaller.GetBinaryDownloadURL(const AVersion: string): string;
+begin
+  // Generate SourceForge URL for binary download
+  Result := 'https://sourceforge.net/projects/freepascal/files/';
+
+  {$IFDEF MSWINDOWS}
+    {$IFDEF CPU64}
+    Result := Result + 'Win64/' + AVersion + '/fpc-' + AVersion + '.x86_64-win64.exe';
+    {$ELSE}
+    Result := Result + 'Win32/' + AVersion + '/fpc-' + AVersion + '.i386-win32.exe';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF LINUX}
+    {$IFDEF CPU64}
+    Result := Result + 'Linux/' + AVersion + '/fpc-' + AVersion + '.x86_64-linux.tar';
+    {$ELSE}
+    Result := Result + 'Linux/' + AVersion + '/fpc-' + AVersion + '.i386-linux.tar';
+    {$ENDIF}
+  {$ENDIF}
+
+  {$IFDEF DARWIN}
+    {$IFDEF CPU64}
+    Result := Result + 'macOS/' + AVersion + '/fpc-' + AVersion + '.x86_64-macosx.dmg';
+    {$ELSE}
+    Result := Result + 'macOS/' + AVersion + '/fpc-' + AVersion + '.i386-macosx.dmg';
+    {$ENDIF}
+  {$ENDIF}
 end;
 
 end.

@@ -20,7 +20,7 @@ uses
 {$ENDIF}
   SysUtils, Classes,
   fpdev.fpc.types, fpdev.fpc.utils, fpdev.fpc.logger,
-  fpdev.config, fpdev.fpc.version, fpdev.fpc.installer;
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.fpc.version, fpdev.fpc.installer;
 
 type
   { TFPCUtilsTest }
@@ -534,21 +534,20 @@ end;
 
 procedure TFPCUtilsTest.TestGetBinaryDownloadURL;
 var
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   VersionManager: TFPCVersionManager;
-  Installer: TFPCInstaller;
+  Installer: TFPCBinaryInstaller;
   URL: string;
 begin
   WriteLn('TestGetBinaryDownloadURL:');
-  
-  ConfigManager := TFPDevConfigManager.Create('');
+
+  ConfigManager := TConfigManager.Create('');
+  ConfigManager.LoadConfig;
+  VersionManager := TFPCVersionManager.Create(ConfigManager);
   try
-    ConfigManager.LoadConfig;
-    VersionManager := TFPCVersionManager.Create(ConfigManager);
+    Installer := TFPCBinaryInstaller.Create(ConfigManager);
     try
-      Installer := TFPCInstaller.Create(VersionManager, ConfigManager);
-      try
-        URL := Installer.GetBinaryDownloadURL('3.2.2');
+      URL := Installer.GetBinaryDownloadURL('3.2.2');
         
         // 验证 URL 不为空（在支持的平台上）
         {$IFDEF MSWINDOWS}
@@ -575,10 +574,7 @@ begin
     finally
       VersionManager.Free;
     end;
-  finally
-    ConfigManager.Free;
-  end;
-  
+
   WriteLn;
 end;
 
@@ -645,25 +641,24 @@ const
   TEST_VERSIONS: array[0..2] of string = ('3.2.2', '3.2.0', '3.0.4');
 var
   i, j, PassCount: Integer;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   VersionManager: TFPCVersionManager;
-  Installer: TFPCInstaller;
+  Installer: TFPCBinaryInstaller;
   URL: string;
   AllPassed: Boolean;
 begin
   WriteLn('TestProperty5_PlatformURLGeneration:');
   WriteLn('  Running ', ITERATIONS, ' iterations...');
-  
+
   AllPassed := True;
   PassCount := 0;
-  
-  ConfigManager := TFPDevConfigManager.Create('');
+
+  ConfigManager := TConfigManager.Create('');
+  ConfigManager.LoadConfig;
+  VersionManager := TFPCVersionManager.Create(ConfigManager);
   try
-    ConfigManager.LoadConfig;
-    VersionManager := TFPCVersionManager.Create(ConfigManager);
+    Installer := TFPCBinaryInstaller.Create(ConfigManager);
     try
-      Installer := TFPCInstaller.Create(VersionManager, ConfigManager);
-      try
         for i := 1 to ITERATIONS do
         begin
           for j := 0 to High(TEST_VERSIONS) do
@@ -695,11 +690,8 @@ begin
     finally
       VersionManager.Free;
     end;
-  finally
-    ConfigManager.Free;
-  end;
-  
-  AssertTrue(AllPassed, 'Property 5: Platform URL generation (' + 
+
+  AssertTrue(AllPassed, 'Property 5: Platform URL generation (' +
     IntToStr(PassCount) + '/' + IntToStr(ITERATIONS) + ' passed)');
   WriteLn;
 end;

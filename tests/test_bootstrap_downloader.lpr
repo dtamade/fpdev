@@ -101,8 +101,6 @@ end;
 // Test 1: Bootstrap Types Exist
 // ============================================================================
 procedure TestBootstrapTypesExist;
-var
-  PlatformStr, ArchStr: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -111,9 +109,6 @@ begin
 
   try
     // Verify that platform/architecture detection types compile
-    PlatformStr := '';
-    ArchStr := '';
-
     AssertTrue(True, 'Bootstrap types defined', 'Types should compile');
   except
     on E: Exception do
@@ -127,7 +122,7 @@ end;
 procedure TestPlatformDetection;
 var
   Settings: TFPDevSettings;
-  DetectedPlatform, DetectedArch: string;
+  DetectedPlatform: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -143,7 +138,6 @@ begin
 
     // Test platform detection (this method doesn't exist yet - Red Phase)
     // DetectedPlatform := SourceManager.DetectPlatform;
-    // DetectedArch := SourceManager.DetectArchitecture;
 
     // For now, verify we can detect current platform
     {$IFDEF MSWINDOWS}
@@ -250,11 +244,22 @@ procedure TestBootstrapDownload;
 var
   Settings: TFPDevSettings;
   DownloadResult: Boolean;
+  SkipNetworkTests: Boolean;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 5: Bootstrap Download (Network-Dependent)');
   WriteLn('==================================================');
+
+  // Check if network tests should be skipped
+  SkipNetworkTests := GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1';
+  
+  if SkipNetworkTests then
+  begin
+    WriteLn('[SKIP] Network-dependent test - skipped by FPDEV_SKIP_NETWORK_TESTS=1');
+    WriteLn('  Note: DownloadBootstrapCompiler is deprecated, use fpdev-repo instead');
+    Exit;
+  end;
 
   try
     Settings := ConfigManager.GetSettings;
@@ -263,8 +268,12 @@ begin
 
     SourceManager := TFPCSourceManager.Create(TestRootDir + PathDelim + 'sources' + PathDelim + 'fpc');
 
-    // Test download (current implementation is stub - returns True)
+    // Test download (DEPRECATED: DownloadBootstrapCompiler uses SourceForge which may be unavailable)
+    // This test is kept for backward compatibility but should be skipped in CI
+    {$PUSH}
+    {$WARN SYMBOL_DEPRECATED OFF}
     DownloadResult := SourceManager.DownloadBootstrapCompiler('3.2.2');
+    {$POP}
 
     AssertTrue(DownloadResult, 'Download succeeded',
       'Expected download to succeed');

@@ -11,11 +11,11 @@ program test_fpc_current;
 }
 
 uses
-  SysUtils, Classes, fpdev.command.intf, fpdev.config, fpdev.cmd.fpc;
+  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.fpc;
 
 var
   TestInstallRoot: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
@@ -55,13 +55,15 @@ end;
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
 begin
   TestInstallRoot := 'test_current_root_' + IntToStr(GetTickCount64);
   ForceDirectories(TestInstallRoot);
 
-  Settings := ConfigManager.GetSettings;
+  SettingsMgr := ConfigManager.GetSettingsManager;
+  Settings := SettingsMgr.GetSettings;
   Settings.InstallRoot := TestInstallRoot;
-  ConfigManager.SetSettings(Settings);
+  SettingsMgr.SetSettings(Settings);
 
   WriteLn('[Setup] Created test directory: ', TestInstallRoot);
 end;
@@ -162,42 +164,41 @@ begin
   WriteLn;
 
   try
-    ConfigManager := TFPDevConfigManager.Create;
+    // Use test-specific config file to avoid interference from user's config
+    TestInstallRoot := 'test_current_root_' + IntToStr(GetTickCount64);
+    ForceDirectories(TestInstallRoot);
+
+    ConfigManager := TConfigManager.Create(TestInstallRoot + PathDelim + 'test_config.json');
+    ConfigManager.CreateDefaultConfig;
+
+    SetupTestEnvironment;
     try
-      if not ConfigManager.LoadConfig then
-        ConfigManager.CreateDefaultConfig;
+      TestManagerCreation;
+      TestGetCurrentVersionEmpty;
+      TestSetDefaultNonInstalled;
 
-      SetupTestEnvironment;
-      try
-        TestManagerCreation;
-        TestGetCurrentVersionEmpty;
-        TestSetDefaultNonInstalled;
+      WriteLn;
+      WriteLn('========================================');
+      WriteLn('  Test Summary');
+      WriteLn('========================================');
+      WriteLn('  Passed: ', TestsPassed);
+      WriteLn('  Failed: ', TestsFailed);
+      WriteLn('  Total:  ', TestsPassed + TestsFailed);
+      WriteLn;
 
-        WriteLn;
-        WriteLn('========================================');
-        WriteLn('  Test Summary');
-        WriteLn('========================================');
-        WriteLn('  Passed: ', TestsPassed);
-        WriteLn('  Failed: ', TestsFailed);
-        WriteLn('  Total:  ', TestsPassed + TestsFailed);
-        WriteLn;
-
-        if TestsFailed > 0 then
-        begin
-          WriteLn('  SOME TESTS FAILED');
-          ExitCode := 1;
-        end
-        else
-        begin
-          WriteLn('  ALL TESTS PASSED');
-          ExitCode := 0;
-        end;
-
-      finally
-        TeardownTestEnvironment;
+      if TestsFailed > 0 then
+      begin
+        WriteLn('  SOME TESTS FAILED');
+        ExitCode := 1;
+      end
+      else
+      begin
+        WriteLn('  ALL TESTS PASSED');
+        ExitCode := 0;
       end;
+
     finally
-      ConfigManager.Free;
+      TeardownTestEnvironment;
     end;
 
   except

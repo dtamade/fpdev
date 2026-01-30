@@ -27,7 +27,7 @@ interface
 
 uses
   SysUtils, Classes, DateUtils, ctypes,
-  libgit2, git2.types;
+  libgit2, git2.types, git2.api;
 
 type
   EGitError = class(Exception)
@@ -179,7 +179,7 @@ type
     property URL: string read FURL;
   end;
 
-  TGitManager = class
+  TGitManager = class  // Legacy concrete class - use IGitManager from git2.api for new code
   private
     FInitialized: Boolean;
     FVerifySSL: Boolean;
@@ -218,7 +218,7 @@ type
     function GetLastCommitHash(ARepo: git_repository): string;
   end;
 
-function GitManager: TGitManager;
+function GitManager: TGitManager; deprecated 'Use NewGitManager() from git2.impl instead';
 procedure CheckGitResult(AResult: Integer; const AOperation: string = '');
 function GetGitErrorMessage: string;
 
@@ -231,6 +231,9 @@ function CreateGitTimeFromGitTime(const AGitTime: git_time): TGitTime;
 function GitTimeToString(const ATime: TGitTime): string;
 
 implementation
+
+uses
+  git2.impl;
 
 type
   PStatusListPayload = ^TStatusListPayload;
@@ -496,9 +499,33 @@ end;
 
 function TGitRepository.GetCurrentBranch: string;
 var
+  RefHandle: git_reference;
+  rc: cint;
   HeadRef: TGitReference;
 begin
-  HeadRef := GetHead;
+  // Try to get HEAD reference
+  rc := git_repository_head(RefHandle, FHandle);
+
+  // If repository is empty (no commits yet), return empty string
+  if rc = GIT_EUNBORNBRANCH then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  // If HEAD reference not found, return empty string
+  if rc = GIT_ENOTFOUND then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  // For other errors, raise exception
+  if rc <> GIT_OK then
+    raise EGitError.Create(rc, 'Get HEAD reference');
+
+  // Get branch name from reference
+  HeadRef := TGitReference.Create(Self, RefHandle);
   try
     Result := HeadRef.ShortName;
   finally

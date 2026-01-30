@@ -1,0 +1,56 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-01-06T00:00:00Z",
+  "toolchains": [
+    {
+      "target": "win64",
+      "componentType": "binutils",
+      "version": "2.41",
+      "hostPlatforms": [
+        {
+          "os": "windows",
+          "arch": "x86_64"
+        },
+        {
+          "os": "linux",
+          "arch": "x86_64"
+        }
+      ],
+      "urls": [
+        "https://example.com/binutils-win64-2.41.tar.gz",
+        "https://mirror.example.com/binutils-win64-2.41.tar.gz"
+      ],
+      "sha256": "abc123def456789012345678901234567890123456789012345678901234567890"
+    },
+    {
+      "target": "win64",
+      "componentType": "libraries",
+      "version": "1.0.0",
+      "hostPlatforms": [
+        {
+          "os": "windows",
+          "arch": "x86_64"
+        }
+      ],
+      "urls": [
+        "https://example.com/libraries-win64-1.0.0.tar.gz"
+      ],
+      "sha256": "def456789012345678901234567890123456789012345678901234567890abcd"
+    },
+    {
+      "target": "linux-arm64",
+      "componentType": "binutils",
+      "version": "2.41",
+      "hostPlatforms": [
+        {
+          "os": "linux",
+          "arch": "x86_64"
+        }
+      ],
+      "urls": [
+        "https://example.com/binutils-linux-arm64-2.41.tar.gz"
+      ],
+      "sha256": "789012345678901234567890123456789012345678901234567890abcdef123"
+    }
+  ]
+}

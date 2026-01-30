@@ -142,8 +142,6 @@ begin
     csProject: Result := 'project config';
     csCommandLine: Result := 'command line';
     csEnvironment: Result := 'environment variable';
-  else
-    Result := 'unknown';
   end;
 end;
 

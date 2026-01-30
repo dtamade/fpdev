@@ -15,6 +15,8 @@ procedure SetupTestEnvironment;
 var
   TestProgram: TextFile;
   ExeName: string;
+  P: TProcess;
+  CompileExitCode: Integer;
 begin
   // 创建临时测试项目目录
   TestProjectDir := 'test_testcmd_temp_' + IntToStr(GetTickCount64);
@@ -57,7 +59,27 @@ begin
   {$ENDIF}
 
   WriteLn('[Setup] 编译测试程序...');
-  if ExecuteProcess('fpc', ['-o' + ExeName, TestProjectDir + PathDelim + 'test_example.lpr']) <> 0 then
+  P := TProcess.Create(nil);
+  try
+    P.Executable := 'fpc';
+    P.Parameters.Add('-o' + ExeName);
+    P.Parameters.Add(TestProjectDir + PathDelim + 'test_example.lpr');
+    P.Options := [poWaitOnExit];
+    try
+      P.Execute;
+      CompileExitCode := P.ExitStatus;
+    except
+      on E: Exception do
+      begin
+        WriteLn('[Setup] 警告: 无法编译测试程序: ', E.Message);
+        CompileExitCode := 1;
+      end;
+    end;
+  finally
+    P.Free;
+  end;
+
+  if CompileExitCode <> 0 then
   begin
     WriteLn('[Setup] 警告: 无法编译测试程序，某些测试将被跳过');
   end
@@ -70,6 +92,8 @@ var
   TestProgram: TextFile;
   ExeName: string;
   FailDir: string;
+  P: TProcess;
+  CompileExitCode: Integer;
 begin
   // 创建一个会失败的测试项目
   FailDir := 'test_fail_temp_' + IntToStr(GetTickCount64);
@@ -93,7 +117,24 @@ begin
   ExeName := FailDir + PathDelim + 'test_failing';
   {$ENDIF}
 
-  if ExecuteProcess('fpc', ['-o' + ExeName, FailDir + PathDelim + 'test_failing.lpr']) = 0 then
+  P := TProcess.Create(nil);
+  try
+    P.Executable := 'fpc';
+    P.Parameters.Add('-o' + ExeName);
+    P.Parameters.Add(FailDir + PathDelim + 'test_failing.lpr');
+    P.Options := [poWaitOnExit];
+    try
+      P.Execute;
+      CompileExitCode := P.ExitStatus;
+    except
+      on E: Exception do
+        CompileExitCode := 1;
+    end;
+  finally
+    P.Free;
+  end;
+
+  if CompileExitCode = 0 then
     WriteLn('[Setup] 失败测试程序编译成功: ', ExeName);
 end;
 

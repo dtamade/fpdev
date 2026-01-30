@@ -286,7 +286,7 @@ var
   Info: utsname_t;
 begin
   WriteLn('-- TestUname --');
-  AssertTrue(uname(@Info), 'uname() should succeed');
+  AssertTrue(uname(Info) = 0, 'uname() should succeed');
   AssertTrue(Info.sysname[0] <> #0, 'uname() should set sysname');
   AssertTrue(Info.machine[0] <> #0, 'uname() should set machine');
 end;

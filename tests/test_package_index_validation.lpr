@@ -28,8 +28,9 @@ var
   Avail: TPackageArray;
   i: Integer;
   Names: TStringList;
+  Settings: TFPDevSettings;
 begin
-  RepoPath := ExpandFileName(ExtractFileDir(ParamStr(0)) + DirectorySeparator + '..' + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo-invalid' + DirectorySeparator + 'index.json');
+  RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo-invalid' + DirectorySeparator + 'index.json');
   AssertTrue(FileExists(RepoPath), 'Invalid sample repo index should exist: ' + RepoPath);
 
   {$IFDEF MSWINDOWS}
@@ -42,6 +43,12 @@ begin
   Cfg := TFPDevConfigManager.Create('tests_repo_config_invalid.json');
   try
     if not Cfg.LoadConfig then AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
+
+    // Set InstallRoot to local test directory to avoid permission issues
+    Settings := Cfg.GetSettings;
+    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data_invalid';
+    Cfg.SetSettings(Settings);
+
     AssertTrue(Cfg.AddRepository('invalid-sample', RepoURL), 'Add invalid repo');
     AssertTrue(Cfg.SaveConfig, 'Save config');
 

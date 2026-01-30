@@ -3,11 +3,11 @@ program test_fpc_binary_install;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, opensslsockets, fpdev.cmd.fpc, fpdev.config;
+  SysUtils, Classes, opensslsockets, fpdev.cmd.fpc, fpdev.config.interfaces, fpdev.config.managers;
 
 var
   TestRootDir: string;
-  ConfigManager: TFPDevConfigManager;
+  ConfigManager: IConfigManager;
   FPCManager: TFPCManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
@@ -19,7 +19,7 @@ begin
   ForceDirectories(TestRootDir);
 
   // Initialize config manager
-  ConfigManager := TFPDevConfigManager.Create;
+  ConfigManager := TConfigManager.Create('');
   ConfigManager.LoadConfig;
 
   TestsPassed := 0;
@@ -57,8 +57,6 @@ begin
 
   if Assigned(FPCManager) then
     FPCManager.Free;
-  if Assigned(ConfigManager) then
-    ConfigManager.Free;
 
   WriteLn;
   WriteLn('========================================');
@@ -136,6 +134,7 @@ end;
 procedure TestDownloadURLResolution;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   URL: string;
 begin
   WriteLn;
@@ -144,9 +143,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -174,6 +174,7 @@ end;
 procedure TestFileDownloadToTemp;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   TempFile: string;
   DownloadResult: Boolean;
 begin
@@ -183,9 +184,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -213,6 +215,7 @@ end;
 procedure TestChecksumVerification;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   TempFile: string;
   VerifyResult: Boolean;
 begin
@@ -222,9 +225,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -255,6 +259,7 @@ end;
 procedure TestArchiveExtraction;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   TestArchive, ExtractDir: string;
   ExtractResult: Boolean;
 begin
@@ -264,9 +269,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -292,6 +298,7 @@ end;
 procedure TestBinaryInstallation;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   InstallPath: string;
   InstallResult: Boolean;
 begin
@@ -301,9 +308,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 
@@ -328,6 +336,7 @@ end;
 procedure TestPostInstallVerification;
 var
   Settings: TFPDevSettings;
+  SettingsMgr: ISettingsManager;
   InstallPath, FPCExe: string;
 begin
   WriteLn;
@@ -336,9 +345,10 @@ begin
   WriteLn('==================================================');
 
   try
-    Settings := ConfigManager.GetSettings;
+    SettingsMgr := ConfigManager.GetSettingsManager;
+    Settings := SettingsMgr.GetSettings;
     Settings.InstallRoot := TestRootDir;
-    ConfigManager.SetSettings(Settings);
+    SettingsMgr.SetSettings(Settings);
 
     FPCManager := TFPCManager.Create(ConfigManager);
 

@@ -36,7 +36,7 @@ uses
   fpdev.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
-  fpdev.fpc.builder, fpdev.constants, fpdev.build.cache, fpdev.paths;
+  fpdev.fpc.builder, fpdev.fpc.verify, fpdev.constants, fpdev.build.cache, fpdev.paths;
 
 type
   { Source Mode for installation }
@@ -366,6 +366,9 @@ begin
   // Initialize build cache
   CacheDir := FInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
   FBuildCache := TBuildCache.Create(CacheDir);
+
+  // Pass cache instance to installer for binary caching
+  FInstallerMgr.SetCache(FBuildCache);
 end;
 
 destructor TFPCManager.Destroy;
@@ -689,8 +692,9 @@ end;
 
 function TFPCManager.InstallVersion(const AVersion: string; const AFromSource: Boolean; const APrefix: string; const AEnsure: Boolean): Boolean;
 var
-  InstallPath, SourceDir: string;
+  InstallPath, SourceDir, FPCExe: string;
   CacheRestored: Boolean;
+  Verifier: TFPCVerifier;
 begin
   Result := False;
 
@@ -700,12 +704,38 @@ begin
     Exit;
   end;
 
-  // If already installed and not forcing reinstall, skip
+  // If already installed and not forcing reinstall, verify it works
   if IsVersionInstalled(AVersion) and (APrefix = '') and (not AEnsure) then
   begin
     FOut.WriteLn(_Fmt(ERR_ALREADY_INSTALLED, ['FPC ' + AVersion]));
-    Result := True;
-    Exit;
+    FOut.WriteLn('Verifying installation...');
+
+    // Verify the installation actually works
+    InstallPath := GetVersionInstallPath(AVersion);
+    {$IFDEF MSWINDOWS}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+
+    Verifier := TFPCVerifier.Create;
+    try
+      if Verifier.VerifyVersion(FPCExe, AVersion) then
+      begin
+        FOut.WriteLn('Installation verified successfully');
+        Result := True;
+        Exit;
+      end
+      else
+      begin
+        FOut.WriteLn('Warning: Installation verification failed');
+        FOut.WriteLn('Reason: ' + Verifier.GetLastError);
+        FOut.WriteLn('Proceeding with reinstallation...');
+        // Continue with installation below
+      end;
+    finally
+      Verifier.Free;
+    end;
   end;
 
   try

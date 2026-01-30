@@ -35,7 +35,8 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths, fpdev.hash,
   fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils, fpdev.utils.process,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository,
+  fpdev.package.archiver, fpdev.pkg.version;
 
 type
   { TPackageInfo }
@@ -57,6 +58,58 @@ type
   end;
 
   TPackageArray = array of TPackageInfo;
+
+  { TSemanticVersion - Semantic version parsing and comparison }
+  TSemanticVersion = record
+    Valid: Boolean;
+    Major: Integer;
+    Minor: Integer;
+    Patch: Integer;
+    PreRelease: string;
+  end;
+
+  { TDependencyGraph - Array-based dependency graph for test compatibility }
+  TDependencyGraph = TDependencyNodeArray;
+
+  { TVerificationStatus - Package verification status enum }
+  TVerificationStatus = (vsValid, vsInvalid, vsMissingFiles, vsMetadataError);
+
+  { TPackageVerificationResult - Package verification result }
+  TPackageVerificationResult = record
+    Status: TVerificationStatus;
+    PackageName: string;
+    Version: string;
+    MissingFiles: TStringArray;
+  end;
+
+  { TPackageCreationOptions - Package creation options }
+  TPackageCreationOptions = record
+    Name: string;
+    Version: string;
+    SourcePath: string;
+    ExcludePatterns: TStringArray;
+  end;
+
+  { TPackageErrorCode - Package operation error codes }
+  TPackageErrorCode = (
+    pecNone,
+    pecPackageNotFound,
+    pecDependencyNotFound,
+    pecCircularDependency,
+    pecVersionConflict,
+    pecInvalidMetadata,
+    pecChecksumMismatch,
+    pecNetworkError,
+    pecFileSystemError,
+    pecRepositoryNotConfigured
+  );
+
+  { TPackageOperationResult - Package operation result }
+  TPackageOperationResult = record
+    Success: Boolean;
+    ErrorCode: TPackageErrorCode;
+    ErrorMessage: string;
+  end;
 
   { TPackageManager }
   TPackageManager = class
@@ -121,6 +174,30 @@ type
     function CreatePackage(const APackageName, APath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function PublishPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
   end;
+
+{ Semantic Version Functions }
+function ParseSemanticVersion(const AVersion: string): TSemanticVersion;
+function CompareVersions(const AVersion1, AVersion2: string): Integer;
+function VersionSatisfiesConstraint(const AVersion, AConstraint: string): Boolean;
+
+{ Dependency Graph Functions }
+function BuildDependencyGraph(const ARootPackage: string; const APackages: TPackageArray): TDependencyNodeArray;
+function TopologicalSortDependencies(const AGraph: TDependencyNodeArray): TStringArray;
+
+{ Package Verification Functions }
+function VerifyInstalledPackage(const TestDir: string): TPackageVerificationResult;
+function VerifyPackageChecksum(const FilePath, Hash: string): Boolean;
+
+{ Package Creation Functions }
+function CollectPackageSourceFiles(const SourceDir: string; const ExcludePatterns: TStringArray): TStringArray;
+function IsBuildArtifact(const FileName: string): Boolean;
+function GeneratePackageMetadataJson(const Options: TPackageCreationOptions): string;
+function CreatePackageZipArchive(const SourceDir: string; const Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
+
+{ Package Validation Functions }
+function ValidatePackageSourcePath(const SourcePath: string): Boolean;
+function ValidatePackageMetadata(const MetadataPath: string): Boolean;
+function CheckPackageRequiredFiles(const PackageDir: string): TStringArray;
 
 implementation
 
@@ -239,7 +316,7 @@ end;
 
 function TPackageManager.ResolveAndInstallDependencies(const APackageInfo: TPackageInfo; Outp, Errp: IOutput): Boolean;
 var
-  Graph: TDependencyGraph;
+  Graph: fpdev.pkg.deps.TDependencyGraph;
   Avail: TPackageArray;
   i, j, DepIdx: Integer;
   ResolveResult: TResolveResult;
@@ -257,7 +334,7 @@ begin
   Avail := GetAvailablePackages;
 
   // Build dependency graph
-  Graph := TDependencyGraph.Create;
+  Graph := fpdev.pkg.deps.TDependencyGraph.Create;
   try
     // Add root package
     Graph.AddNode(APackageInfo.Name, APackageInfo.Version);
@@ -661,11 +738,14 @@ begin
 
   // Setup fetch options
   Opt.DestDir := ExtractFileDir(ZipPath);
-  Opt.SHA256 := Avail[BestIdx].Sha256;
+  Opt.Hash := Avail[BestIdx].Sha256;
+  Opt.HashAlgorithm := haSHA256;
+  Opt.HashDigest := Avail[BestIdx].Sha256;
   Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+  Opt.ExpectedSize := 0;
 
   // Download with mirror fallback and SHA256 verification
-  Result := EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err);
+  Result := EnsureDownloadedCached(URLs, ZipPath, Opt, Err);
 end;
 
 function TPackageManager.BuildPackage(const ASourcePath: string): Boolean;
@@ -716,7 +796,7 @@ end;
 
 function TPackageManager.ResolveDependencies(const APackageName: string): TStringArray;
 var
-  Graph: TDependencyGraph;
+  Graph: fpdev.pkg.deps.TDependencyGraph;
   ResolveResult: TResolveResult;
   Avail: TPackageArray;
   Visited: TStringList;
@@ -726,6 +806,7 @@ var
   var
     Idx, k: Integer;
     PkgInfo: TPackageInfo;
+    DepName: string;
   begin
     // Avoid infinite recursion
     if Visited.IndexOf(APkgName) >= 0 then
@@ -753,8 +834,12 @@ var
       // Add dependencies from installed package
       for k := 0 to High(PkgInfo.Dependencies) do
       begin
-        Graph.AddDependency(APkgName, PkgInfo.Dependencies[k]);
-        BuildDependencyTree(PkgInfo.Dependencies[k]);
+        // Parse version constraint to extract package name
+        DepName := ExtractPackageName(PkgInfo.Dependencies[k]);
+        if DepName = '' then
+          DepName := PkgInfo.Dependencies[k];  // Fallback to original if parsing fails
+        Graph.AddDependency(APkgName, DepName);
+        BuildDependencyTree(DepName);
       end;
     end
     else
@@ -764,8 +849,12 @@ var
       // Add dependencies
       for k := 0 to High(Avail[Idx].Dependencies) do
       begin
-        Graph.AddDependency(APkgName, Avail[Idx].Dependencies[k]);
-        BuildDependencyTree(Avail[Idx].Dependencies[k]);
+        // Parse version constraint to extract package name
+        DepName := ExtractPackageName(Avail[Idx].Dependencies[k]);
+        if DepName = '' then
+          DepName := Avail[Idx].Dependencies[k];  // Fallback to original if parsing fails
+        Graph.AddDependency(APkgName, DepName);
+        BuildDependencyTree(DepName);
       end;
     end;
   end;
@@ -780,7 +869,7 @@ begin
   // Get all available packages for dependency lookup
   Avail := GetAvailablePackages;
 
-  Graph := TDependencyGraph.Create;
+  Graph := fpdev.pkg.deps.TDependencyGraph.Create;
   Visited := TStringList.Create;
   try
     Visited.CaseSensitive := False;
@@ -896,10 +985,13 @@ begin
     for i := 0 to High(URLs) do URLs[i] := Avail[BestIdx].URLs[i];
 
     Opt.DestDir := ExtractFileDir(ZipPath);
-    Opt.SHA256 := Avail[BestIdx].Sha256;
+    Opt.Hash := Avail[BestIdx].Sha256;
+    Opt.HashAlgorithm := haSHA256;
+    Opt.HashDigest := Avail[BestIdx].Sha256;
     Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
+    Opt.ExpectedSize := 0;
 
-    if not EnsureDownloadedCached(URLs, ZipPath, Opt.SHA256, Opt.TimeoutMS, Err) then
+    if not EnsureDownloadedCached(URLs, ZipPath, Opt, Err) then
     begin
       Exit;
     end;
@@ -1552,20 +1644,22 @@ var
   J: TJSONData;
   O: TJSONObject;
   Version, ArchiveName: string;
-  LResult: TProcessResult;
-  LO: IOutput;
+  Archiver: TPackageArchiver;
+  LO, LE: IOutput;
 begin
   Result := False;
 
   LO := Outp;
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
+  LE := Errp;
+  if LE = nil then
+    LE := TConsoleOutput.Create(True) as IOutput;
 
   // Check if package is installed/created
   if not IsPackageInstalled(APackageName) then
   begin
-    if Errp <> nil then
-      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [APackageName]));
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [APackageName]));
     Exit;
   end;
 
@@ -1575,8 +1669,7 @@ begin
   // Check if metadata exists
   if not FileExists(MetaPath) then
   begin
-    if Errp <> nil then
-      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, ['Run "fpdev package create" first']));
+    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND, ['Run "fpdev package create" first']));
     Exit;
   end;
 
@@ -1610,39 +1703,785 @@ begin
 
   LO.WriteLn(_Fmt(MSG_PKG_CREATING_ARCHIVE, [ArchiveName]));
 
-  // Create tar.gz archive
-  LResult := TProcessExecutor.Execute('tar',
-    ['-czf', ArchivePath, '-C', ExtractFileDir(InstallPath), ExtractFileName(InstallPath)], '');
-
-  if not LResult.Success then
-  begin
-    if Errp <> nil then
+  // Create tar.gz archive using TPackageArchiver
+  Archiver := TPackageArchiver.Create(InstallPath);
+  try
+    if not Archiver.CreateArchive(ArchivePath) then
     begin
-      if LResult.ErrorMessage <> '' then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, [LResult.ErrorMessage]))
-      else
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, ['exit code ' + IntToStr(LResult.ExitCode)]));
+      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_ARCHIVE_FAILED, [Archiver.GetLastError]));
+      Exit;
     end;
-    Exit;
+
+    // Display archive info with SHA256 checksum
+    LO.WriteLn(_Fmt(MSG_PKG_ARCHIVE_CREATED, [ArchivePath]));
+    LO.WriteLn('SHA256: ' + Archiver.GetChecksum);
+    LO.WriteLn('');
+    LO.WriteLn(_Fmt(MSG_PKG_READY_PUBLISH, [APackageName, Version]));
+    LO.WriteLn('');
+    LO.WriteLn(_(MSG_PKG_TO_PUBLISH));
+    LO.WriteLn(_(MSG_PKG_PUBLISH_STEP1));
+    LO.WriteLn(_(MSG_PKG_PUBLISH_STEP2));
+
+    Result := True;
+  finally
+    Archiver.Free;
   end;
-
-  // Calculate SHA256 of archive
-  LO.WriteLn(_Fmt(MSG_PKG_ARCHIVE_CREATED, [ArchivePath]));
-  LO.WriteLn('SHA256: ' + SHA256FileHex(ArchivePath));
-  LO.WriteLn('');
-  LO.WriteLn(_Fmt(MSG_PKG_READY_PUBLISH, [APackageName, Version]));
-  LO.WriteLn('');
-  LO.WriteLn(_(MSG_PKG_TO_PUBLISH));
-  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP1));
-  LO.WriteLn(_(MSG_PKG_PUBLISH_STEP2));
-
-  Result := True;
 end;
 
 
 function TPackageManager.GetAvailablePackageList: TPackageArray;
 begin
   Result := GetAvailablePackages;
+end;
+
+{ Semantic Version Functions Implementation }
+
+function ParseSemanticVersion(const AVersion: string): TSemanticVersion;
+var
+  Parts: TStringArray;
+  PreReleaseParts: TStringArray;
+  VersionPart: string;
+  Code: Integer;
+  i, DotCount: Integer;
+begin
+  // Initialize result
+  Result.Valid := False;
+  Result.Major := 0;
+  Result.Minor := 0;
+  Result.Patch := 0;
+  Result.PreRelease := '';
+
+  if AVersion = '' then
+    Exit;
+
+  // Split by '-' to separate version from prerelease
+  SetLength(PreReleaseParts, 0);
+  if Pos('-', AVersion) > 0 then
+  begin
+    SetLength(PreReleaseParts, 2);
+    PreReleaseParts[0] := Copy(AVersion, 1, Pos('-', AVersion) - 1);
+    PreReleaseParts[1] := Copy(AVersion, Pos('-', AVersion) + 1, Length(AVersion));
+    VersionPart := PreReleaseParts[0];
+    Result.PreRelease := PreReleaseParts[1];
+  end
+  else
+    VersionPart := AVersion;
+
+  // Split version by '.'
+  SetLength(Parts, 0);
+  DotCount := 0;
+  for i := 1 to Length(VersionPart) do
+    if VersionPart[i] = '.' then
+      Inc(DotCount);
+
+  SetLength(Parts, DotCount + 1);
+  if DotCount = 0 then
+  begin
+    Parts[0] := VersionPart;
+  end
+  else
+  begin
+    i := 0;
+    while Pos('.', VersionPart) > 0 do
+    begin
+      Parts[i] := Copy(VersionPart, 1, Pos('.', VersionPart) - 1);
+      Delete(VersionPart, 1, Pos('.', VersionPart));
+      Inc(i);
+    end;
+    Parts[i] := VersionPart;
+  end;
+
+  // Parse major version
+  if Length(Parts) >= 1 then
+  begin
+    Val(Parts[0], Result.Major, Code);
+    if Code <> 0 then
+      Exit;
+  end;
+
+  // Parse minor version
+  if Length(Parts) >= 2 then
+  begin
+    Val(Parts[1], Result.Minor, Code);
+    if Code <> 0 then
+      Exit;
+  end;
+
+  // Parse patch version
+  if Length(Parts) >= 3 then
+  begin
+    Val(Parts[2], Result.Patch, Code);
+    if Code <> 0 then
+      Exit;
+  end;
+
+  Result.Valid := True;
+end;
+
+function CompareVersions(const AVersion1, AVersion2: string): Integer;
+var
+  V1, V2: TSemanticVersion;
+begin
+  V1 := ParseSemanticVersion(AVersion1);
+  V2 := ParseSemanticVersion(AVersion2);
+
+  // Handle invalid versions
+  if not V1.Valid and not V2.Valid then
+    Exit(0);
+  if not V1.Valid then
+    Exit(-1);
+  if not V2.Valid then
+    Exit(1);
+
+  // Compare major version
+  if V1.Major < V2.Major then
+    Exit(-1);
+  if V1.Major > V2.Major then
+    Exit(1);
+
+  // Compare minor version
+  if V1.Minor < V2.Minor then
+    Exit(-1);
+  if V1.Minor > V2.Minor then
+    Exit(1);
+
+  // Compare patch version
+  if V1.Patch < V2.Patch then
+    Exit(-1);
+  if V1.Patch > V2.Patch then
+    Exit(1);
+
+  // Compare prerelease
+  // Version without prerelease is higher than version with prerelease
+  if (V1.PreRelease = '') and (V2.PreRelease <> '') then
+    Exit(1);
+  if (V1.PreRelease <> '') and (V2.PreRelease = '') then
+    Exit(-1);
+
+  // Both have prerelease, compare lexicographically
+  if V1.PreRelease < V2.PreRelease then
+    Exit(-1);
+  if V1.PreRelease > V2.PreRelease then
+    Exit(1);
+
+  Result := 0;
+end;
+
+function VersionSatisfiesConstraint(const AVersion, AConstraint: string): Boolean;
+var
+  V, ConstraintV: TSemanticVersion;
+  Op: string;
+  ConstraintVersion: string;
+  Cmp: Integer;
+begin
+  Result := False;
+
+  // Empty or wildcard constraint accepts any version
+  if (AConstraint = '') or (AConstraint = '*') then
+    Exit(True);
+
+  V := ParseSemanticVersion(AVersion);
+  if not V.Valid then
+    Exit(False);
+
+  // Extract operator and version
+  if (Length(AConstraint) >= 2) and (AConstraint[1] in ['>', '<', '=', '^', '~']) then
+  begin
+    if (AConstraint[1] = '>') and (AConstraint[2] = '=') then
+    begin
+      Op := '>=';
+      ConstraintVersion := Copy(AConstraint, 3, Length(AConstraint));
+    end
+    else if (AConstraint[1] = '<') and (AConstraint[2] = '=') then
+    begin
+      Op := '<=';
+      ConstraintVersion := Copy(AConstraint, 3, Length(AConstraint));
+    end
+    else if AConstraint[1] = '>' then
+    begin
+      Op := '>';
+      ConstraintVersion := Copy(AConstraint, 2, Length(AConstraint));
+    end
+    else if AConstraint[1] = '<' then
+    begin
+      Op := '<';
+      ConstraintVersion := Copy(AConstraint, 2, Length(AConstraint));
+    end
+    else if AConstraint[1] = '=' then
+    begin
+      Op := '=';
+      ConstraintVersion := Copy(AConstraint, 2, Length(AConstraint));
+    end
+    else if AConstraint[1] = '^' then
+    begin
+      Op := '^';
+      ConstraintVersion := Copy(AConstraint, 2, Length(AConstraint));
+    end
+    else if AConstraint[1] = '~' then
+    begin
+      Op := '~';
+      ConstraintVersion := Copy(AConstraint, 2, Length(AConstraint));
+    end
+    else
+    begin
+      // No operator, exact match
+      Op := '=';
+      ConstraintVersion := AConstraint;
+    end;
+  end
+  else
+  begin
+    // No operator, exact match
+    Op := '=';
+    ConstraintVersion := AConstraint;
+  end;
+
+  ConstraintV := ParseSemanticVersion(ConstraintVersion);
+  if not ConstraintV.Valid then
+    Exit(False);
+
+  Cmp := CompareVersions(AVersion, ConstraintVersion);
+
+  if Op = '=' then
+    Result := Cmp = 0
+  else if Op = '>' then
+    Result := Cmp > 0
+  else if Op = '<' then
+    Result := Cmp < 0
+  else if Op = '>=' then
+    Result := Cmp >= 0
+  else if Op = '<=' then
+    Result := Cmp <= 0
+  else if Op = '^' then
+    // Compatible version (same major)
+    Result := (V.Major = ConstraintV.Major) and (Cmp >= 0)
+  else if Op = '~' then
+    // Patch version (same major.minor)
+    Result := (V.Major = ConstraintV.Major) and (V.Minor = ConstraintV.Minor) and (Cmp >= 0)
+  else
+    Result := False;
+end;
+
+{ Dependency Graph Functions }
+
+function BuildDependencyGraph(const ARootPackage: string; const APackages: TPackageArray): TDependencyNodeArray;
+var
+  i, j, k, NodeIdx: Integer;
+  DepName, DepVersion: string;
+  DepParts: TStringArray;
+  Visited: TStringList;
+
+  procedure AddPackageAndDeps(const APkgName: string);
+  var
+    PkgIdx, DepIdx, m: Integer;
+    DepNamePart, DepConstraint: string;
+    Parts: TStringArray;
+  begin
+    // Check if already visited
+    if Visited.IndexOf(APkgName) >= 0 then
+      Exit;
+    Visited.Add(APkgName);
+
+    // Find package in available packages
+    PkgIdx := -1;
+    for m := 0 to High(APackages) do
+    begin
+      if SameText(APackages[m].Name, APkgName) then
+      begin
+        PkgIdx := m;
+        Break;
+      end;
+    end;
+
+    if PkgIdx < 0 then
+      Exit;  // Package not found
+
+    // Add node to graph
+    NodeIdx := Length(Result);
+    SetLength(Result, NodeIdx + 1);
+    Result[NodeIdx].Name := APackages[PkgIdx].Name;
+    Result[NodeIdx].Version := APackages[PkgIdx].Version;
+    SetLength(Result[NodeIdx].Dependencies, Length(APackages[PkgIdx].Dependencies));
+
+    // Copy dependencies
+    for m := 0 to High(APackages[PkgIdx].Dependencies) do
+      Result[NodeIdx].Dependencies[m] := APackages[PkgIdx].Dependencies[m];
+
+    SetLength(Result[NodeIdx].Constraints, 0);
+    Result[NodeIdx].Visited := False;
+    Result[NodeIdx].InStack := False;
+
+    // Recursively add dependencies
+    for DepIdx := 0 to High(APackages[PkgIdx].Dependencies) do
+    begin
+      // Parse dependency (format: "pkgName:>=1.0.0" or "pkgName")
+      Parts := APackages[PkgIdx].Dependencies[DepIdx].Split([':']);
+      if Length(Parts) > 0 then
+      begin
+        DepNamePart := Trim(Parts[0]);
+        AddPackageAndDeps(DepNamePart);
+      end;
+    end;
+  end;
+
+begin
+  SetLength(Result, 0);
+  Visited := TStringList.Create;
+  try
+    Visited.CaseSensitive := False;
+    AddPackageAndDeps(ARootPackage);
+  finally
+    Visited.Free;
+  end;
+end;
+
+function TopologicalSortDependencies(const AGraph: TDependencyNodeArray): TStringArray;
+var
+  InDegree: array of Integer;
+  Queue: TStringArray;
+  QueueHead, QueueTail: Integer;
+  i, j, k, Idx, ProcessedCount: Integer;
+  DepName: string;
+  DepParts: TStringArray;
+begin
+  Result := nil;
+
+  if Length(AGraph) = 0 then
+    Exit;
+
+  // Calculate in-degree for each node (how many nodes depend on it)
+  SetLength(InDegree, Length(AGraph));
+  for i := 0 to High(AGraph) do
+    InDegree[i] := 0;
+
+  // Count dependencies
+  for i := 0 to High(AGraph) do
+  begin
+    for j := 0 to High(AGraph[i].Dependencies) do
+    begin
+      // Parse dependency name
+      DepParts := AGraph[i].Dependencies[j].Split([':']);
+      if Length(DepParts) > 0 then
+      begin
+        DepName := Trim(DepParts[0]);
+
+        // Find the dependency node and increment its in-degree
+        for k := 0 to High(AGraph) do
+        begin
+          if SameText(AGraph[k].Name, DepName) then
+          begin
+            Inc(InDegree[k]);
+            Break;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  // Initialize queue with nodes that have no incoming edges (dependencies)
+  SetLength(Queue, Length(AGraph));
+  QueueHead := 0;
+  QueueTail := 0;
+
+  for i := 0 to High(AGraph) do
+  begin
+    if InDegree[i] = 0 then
+    begin
+      Queue[QueueTail] := AGraph[i].Name;
+      Inc(QueueTail);
+    end;
+  end;
+
+  // Process queue (Kahn's algorithm)
+  SetLength(Result, Length(AGraph));
+  ProcessedCount := 0;
+
+  while QueueHead < QueueTail do
+  begin
+    // Dequeue
+    Result[ProcessedCount] := Queue[QueueHead];
+    Idx := -1;
+    for i := 0 to High(AGraph) do
+    begin
+      if SameText(AGraph[i].Name, Queue[QueueHead]) then
+      begin
+        Idx := i;
+        Break;
+      end;
+    end;
+    Inc(QueueHead);
+    Inc(ProcessedCount);
+
+    if Idx < 0 then
+      Continue;
+
+    // For each node that this node depends on, decrease their in-degree
+    for i := 0 to High(AGraph[Idx].Dependencies) do
+    begin
+      DepParts := AGraph[Idx].Dependencies[i].Split([':']);
+      if Length(DepParts) > 0 then
+      begin
+        DepName := Trim(DepParts[0]);
+
+        // Find the dependency node
+        for j := 0 to High(AGraph) do
+        begin
+          if SameText(AGraph[j].Name, DepName) then
+          begin
+            Dec(InDegree[j]);
+            if InDegree[j] = 0 then
+            begin
+              Queue[QueueTail] := AGraph[j].Name;
+              Inc(QueueTail);
+            end;
+            Break;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  // Trim result to actual count
+  SetLength(Result, ProcessedCount);
+end;
+
+{ Package Verification Functions Implementation }
+
+function VerifyInstalledPackage(const TestDir: string): TPackageVerificationResult;
+var
+  MetaPath: string;
+  SL: TStringList;
+  J: TJSONData;
+  O: TJSONObject;
+  FilesArray: TJSONArray;
+  i: Integer;
+  FilePath: string;
+begin
+  // Initialize result
+  Result.Status := vsInvalid;
+  Result.PackageName := '';
+  Result.Version := '';
+  SetLength(Result.MissingFiles, 0);
+
+  // Check if package.json exists
+  MetaPath := IncludeTrailingPathDelimiter(TestDir) + 'package.json';
+  if not FileExists(MetaPath) then
+  begin
+    Result.Status := vsMetadataError;
+    Exit;
+  end;
+
+  // Read and parse package.json
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(MetaPath);
+    try
+      J := GetJSON(SL.Text);
+      if J.JSONType = jtObject then
+      begin
+        O := TJSONObject(J);
+        Result.PackageName := O.Get('name', '');
+        Result.Version := O.Get('version', '');
+
+        // Check if all declared files exist
+        if O.Find('files') <> nil then
+        begin
+          FilesArray := O.Arrays['files'];
+          for i := 0 to FilesArray.Count - 1 do
+          begin
+            FilePath := IncludeTrailingPathDelimiter(TestDir) + FilesArray.Strings[i];
+            if not FileExists(FilePath) then
+            begin
+              SetLength(Result.MissingFiles, Length(Result.MissingFiles) + 1);
+              Result.MissingFiles[High(Result.MissingFiles)] := FilesArray.Strings[i];
+            end;
+          end;
+        end;
+
+        // Determine status based on validation results
+        if (Result.PackageName = '') or (Result.Version = '') then
+          Result.Status := vsMetadataError
+        else if Length(Result.MissingFiles) > 0 then
+          Result.Status := vsMissingFiles
+        else
+          Result.Status := vsValid;
+      end
+      else
+        Result.Status := vsMetadataError;
+      J.Free;
+    except
+      // JSON parsing error
+      Result.Status := vsMetadataError;
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+
+function VerifyPackageChecksum(const FilePath, Hash: string): Boolean;
+var
+  ActualHash: string;
+begin
+  Result := False;
+  if not FileExists(FilePath) then
+    Exit;
+
+  ActualHash := SHA256FileHex(FilePath);
+  Result := SameText(ActualHash, Hash);
+end;
+
+{ Package Creation Functions Implementation }
+
+function IsBuildArtifact(const FileName: string): Boolean;
+var
+  Ext: string;
+begin
+  Ext := LowerCase(ExtractFileExt(FileName));
+  Result := (Ext = '.o') or (Ext = '.ppu') or (Ext = '.a') or
+            (Ext = '.exe') or (Ext = '.dll') or (Ext = '.so') or
+            (Ext = '.dylib') or (Ext = '.compiled') or (Ext = '.res') or
+            (Ext = '.or') or (Ext = '.dcu') or (Ext = '.bpl') or (Ext = '.dcp');
+end;
+
+function CollectPackageSourceFiles(const SourceDir: string; const ExcludePatterns: TStringArray): TStringArray;
+var
+  Files: TStringList;
+  i: Integer;
+  Excluded: Boolean;
+  j: Integer;
+  RelPath: string;
+
+  procedure ScanDirectory(const Dir: string);
+  var
+    SearchRec: TSearchRec;
+    FullPath: string;
+    Ext: string;
+  begin
+    if FindFirst(Dir + PathDelim + '*', faAnyFile, SearchRec) = 0 then
+    begin
+      repeat
+        if (SearchRec.Name = '.') or (SearchRec.Name = '..') then
+          Continue;
+
+        FullPath := Dir + PathDelim + SearchRec.Name;
+
+        if (SearchRec.Attr and faDirectory) <> 0 then
+        begin
+          // Recursively scan subdirectories
+          ScanDirectory(FullPath);
+        end
+        else
+        begin
+          // Check if it's a source file or documentation
+          Ext := LowerCase(ExtractFileExt(SearchRec.Name));
+          if (Ext = '.pas') or (Ext = '.pp') or (Ext = '.inc') or (Ext = '.lpr') or (Ext = '.lpi') or (Ext = '.lpk') or
+             (Ext = '.md') or (Ext = '.txt') or (Ext = '.rst') or (Ext = '.json') then
+          begin
+            // Skip build artifacts
+            if not IsBuildArtifact(SearchRec.Name) then
+              Files.Add(FullPath);
+          end;
+        end;
+      until FindNext(SearchRec) <> 0;
+      FindClose(SearchRec);
+    end;
+  end;
+
+begin
+  Files := TStringList.Create;
+  try
+    // Scan directory recursively
+    ScanDirectory(SourceDir);
+
+    // Filter out excluded patterns
+    SetLength(Result, 0);
+    for i := 0 to Files.Count - 1 do
+    begin
+      RelPath := ExtractRelativePath(IncludeTrailingPathDelimiter(SourceDir), Files[i]);
+      Excluded := False;
+
+      // Check against exclude patterns
+      for j := 0 to High(ExcludePatterns) do
+      begin
+        if Pos(ExcludePatterns[j], RelPath) > 0 then
+        begin
+          Excluded := True;
+          Break;
+        end;
+      end;
+
+      if not Excluded then
+      begin
+        SetLength(Result, Length(Result) + 1);
+        Result[High(Result)] := Files[i];
+      end;
+    end;
+  finally
+    Files.Free;
+  end;
+end;
+
+function GeneratePackageMetadataJson(const Options: TPackageCreationOptions): string;
+begin
+  // Manually construct JSON to ensure compact format without spaces
+  Result := '{"name":"' + Options.Name + '",' +
+            '"version":"' + Options.Version + '",' +
+            '"description":"A FreePascal package",' +
+            '"author":"",' +
+            '"license":"MIT",' +
+            '"dependencies":[]}';
+end;
+
+function CreatePackageZipArchive(const SourceDir: string; const Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
+var
+  Archiver: TPackageArchiver;
+  i: Integer;
+  RelPath: string;
+begin
+  Result := False;
+  Err := '';
+
+  // Ensure output directory exists
+  if not DirectoryExists(ExtractFileDir(OutputPath)) then
+    EnsureDir(ExtractFileDir(OutputPath));
+
+  // Use TPackageArchiver to create archive
+  Archiver := TPackageArchiver.Create(SourceDir);
+  try
+    if not Archiver.CreateArchive(OutputPath) then
+    begin
+      Err := Archiver.GetLastError;
+      Exit;
+    end;
+    Result := True;
+  finally
+    Archiver.Free;
+  end;
+end;
+
+{ Package Validation Functions Implementation }
+
+function ValidatePackageSourcePath(const SourcePath: string): Boolean;
+var
+  SearchRec: TSearchRec;
+  HasLpk, HasMakefile: Boolean;
+begin
+  Result := False;
+
+  // Check if directory exists
+  if not DirectoryExists(SourcePath) then
+    Exit;
+
+  // Check for .lpk or Makefile
+  HasLpk := False;
+  HasMakefile := False;
+
+  if FindFirst(IncludeTrailingPathDelimiter(SourcePath) + '*', faAnyFile, SearchRec) = 0 then
+  begin
+    repeat
+      if (SearchRec.Attr and faDirectory) = 0 then
+      begin
+        if LowerCase(ExtractFileExt(SearchRec.Name)) = '.lpk' then
+          HasLpk := True;
+        if LowerCase(SearchRec.Name) = 'makefile' then
+          HasMakefile := True;
+      end;
+    until FindNext(SearchRec) <> 0;
+    FindClose(SearchRec);
+  end;
+
+  Result := HasLpk or HasMakefile;
+end;
+
+function ValidatePackageMetadata(const MetadataPath: string): Boolean;
+var
+  SL: TStringList;
+  J: TJSONData;
+  O: TJSONObject;
+  Name, Version: string;
+begin
+  Result := False;
+
+  // Check if file exists
+  if not FileExists(MetadataPath) then
+    Exit;
+
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(MetadataPath);
+
+    // Check if file is empty
+    if SL.Text = '' then
+      Exit;
+
+    try
+      J := GetJSON(SL.Text);
+      try
+        if J.JSONType = jtObject then
+        begin
+          O := TJSONObject(J);
+          Name := O.Get('name', '');
+          Version := O.Get('version', '');
+
+          // Valid if both name and version are non-empty
+          Result := (Name <> '') and (Version <> '');
+        end;
+      finally
+        J.Free;
+      end;
+    except
+      // JSON parsing error
+      Result := False;
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+
+function CheckPackageRequiredFiles(const PackageDir: string): TStringArray;
+var
+  HasPackageJson, HasLpk, HasMakefile: Boolean;
+  SearchRec: TSearchRec;
+  MissingCount: Integer;
+begin
+  SetLength(Result, 0);
+  MissingCount := 0;
+
+  // Check for package.json
+  HasPackageJson := FileExists(IncludeTrailingPathDelimiter(PackageDir) + 'package.json');
+
+  // Check for .lpk or Makefile
+  HasLpk := False;
+  HasMakefile := False;
+
+  if FindFirst(IncludeTrailingPathDelimiter(PackageDir) + '*', faAnyFile, SearchRec) = 0 then
+  begin
+    repeat
+      if (SearchRec.Attr and faDirectory) = 0 then
+      begin
+        if LowerCase(ExtractFileExt(SearchRec.Name)) = '.lpk' then
+          HasLpk := True;
+        if LowerCase(SearchRec.Name) = 'makefile' then
+          HasMakefile := True;
+      end;
+    until FindNext(SearchRec) <> 0;
+    FindClose(SearchRec);
+  end;
+
+  // Add missing files to result
+  if not HasPackageJson then
+  begin
+    SetLength(Result, MissingCount + 1);
+    Result[MissingCount] := 'package.json';
+    Inc(MissingCount);
+  end;
+
+  if not (HasLpk or HasMakefile) then
+  begin
+    SetLength(Result, MissingCount + 1);
+    Result[MissingCount] := '.lpk or Makefile';
+    Inc(MissingCount);
+  end;
 end;
 
 end.

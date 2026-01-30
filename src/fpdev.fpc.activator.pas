@@ -16,48 +16,48 @@ unit fpdev.fpc.activator;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, fpdev.config, fpdev.fpc.types, 
-  fpdev.fpc.version, fpdev.fpc.interfaces;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.config.interfaces, fpdev.fpc.types,
+  fpdev.fpc.version, fpdev.fpc.interfaces, fpdev.fpc.utils;
 
 type
   { TFPCActivator - Handles FPC version activation }
   TFPCActivator = class
   private
     FVersionManager: TFPCVersionManager;
-    FConfigManager: TFPDevConfigManager;
+    FConfigManager: IConfigManager;
     FFileSystem: IFileSystem;
     FOwnsInterfaces: Boolean;
-    
+
     function CreateWindowsActivationScript(const AScriptPath, ABinPath: string): Boolean;
     function CreateUnixActivationScript(const AScriptPath, ABinPath: string): Boolean;
     function UpdateVSCodeSettings(const AProjectRoot, ABinPath: string): Boolean;
     function ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
     function ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
-    
+
   public
     { Creates a new activator with default file system. }
-    constructor Create(AVersionManager: TFPCVersionManager; AConfigManager: TFPDevConfigManager); overload;
-    
+    constructor Create(AVersionManager: TFPCVersionManager; AConfigManager: IConfigManager); overload;
+
     { Creates a new activator with custom dependencies for testing. }
-    constructor Create(AVersionManager: TFPCVersionManager; AConfigManager: TFPDevConfigManager;
+    constructor Create(AVersionManager: TFPCVersionManager; AConfigManager: IConfigManager;
       AFileSystem: IFileSystem); overload;
     destructor Destroy; override;
-    
+
     { Activates a specific FPC version for the current scope. }
     function ActivateVersion(const AVersion: string): TActivationResult;
-    
+
     property VersionManager: TFPCVersionManager read FVersionManager;
-    property ConfigManager: TFPDevConfigManager read FConfigManager;
+    property ConfigManager: IConfigManager read FConfigManager;
     property FileSystem: IFileSystem read FFileSystem;
   end;
 
 implementation
 
-uses fpdev.fpc.utils, fpdev.fpc.defaults;
+uses fpdev.fpc.defaults;
 
 { TFPCActivator }
 
-constructor TFPCActivator.Create(AVersionManager: TFPCVersionManager; AConfigManager: TFPDevConfigManager);
+constructor TFPCActivator.Create(AVersionManager: TFPCVersionManager; AConfigManager: IConfigManager);
 begin
   inherited Create;
   FVersionManager := AVersionManager;
@@ -66,7 +66,7 @@ begin
   FOwnsInterfaces := True;
 end;
 
-constructor TFPCActivator.Create(AVersionManager: TFPCVersionManager; AConfigManager: TFPDevConfigManager;
+constructor TFPCActivator.Create(AVersionManager: TFPCVersionManager; AConfigManager: IConfigManager;
   AFileSystem: IFileSystem);
 begin
   inherited Create;
@@ -266,7 +266,7 @@ var
 begin
   Result := False;
 
-  EnvDir := ExtractFileDir(FConfigManager.ConfigPath) + PathDelim + 'env';
+  EnvDir := ExtractFileDir(FConfigManager.GetConfigPath) + PathDelim + 'env';
   if not FFileSystem.DirectoryExists(EnvDir) then
     FFileSystem.ForceDirectories(EnvDir);
 
@@ -313,7 +313,7 @@ begin
   InstallPath := FVersionManager.GetVersionInstallPath(AVersion);
   BinPath := InstallPath + PathDelim + 'bin';
 
-  Scope := fpdev.fpc.types.TInstallScope(FVersionManager.GetCurrentScope);
+  Scope := DetectInstallScope(GetCurrentDir);
   Result.Scope := Scope;
 
   if Scope = fpdev.fpc.types.isProject then
@@ -327,7 +327,7 @@ begin
       Exit;
   end;
 
-  if not FConfigManager.SetDefaultToolchain('fpc-' + AVersion) then
+  if not FConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-' + AVersion) then
   begin
     Result.ErrorMessage := 'Failed to set default version';
     Exit;
