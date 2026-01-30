@@ -6,6 +6,15 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 
 ## [Unreleased]
 ### Added
+- **Phase 2: Architecture Refactoring - COMPLETE (2026-01-31)**
+  - **2.1 TBuildManager Interface Extraction**: Extracted IBuildLogger, IToolchainChecker, IBuildManager interfaces
+  - **2.2 Git Manager Unification**: Unified SharedGitManager and FGitManager into IGitManager interface
+  - **2.3 Global Singleton Migration**: Removed TErrorRegistry singleton, migrated to scoped instances with dependency injection
+  - **2.4 Utility Class Interfacing**: Verified IProcessRunner and IGitManager interfaces for test mocking support
+  - Improved testability and maintainability through interface-driven design
+  - Reduced global state and coupling between components
+  - All tests passing after refactoring (zero regressions)
+
 - **Phase 4: Polish and Optimization - COMPLETE (2026-01-30)**
   - **4.1 Build Cache System**: TTL-based expiration, SHA256 verification, LRU cleanup, detailed statistics (18/18 tests)
   - **4.2 Bootstrap Compiler Management**: Platform detection, download & extract, version mapping (14/14 tests)

@@ -66,25 +66,23 @@ type
   end;
 
   { Error registry for managing error codes and default suggestions }
-  TErrorRegistry = class
+  TErrorRegistry = class(TInterfacedObject, IErrorRegistry)
   private
-    class var FInstance: TErrorRegistry;
     FErrorMessages: array[TErrorCode] of string;
     FDefaultSuggestions: array[TErrorCode] of TRecoverySuggestions;
-    constructor Create;
   public
-    class function Instance: TErrorRegistry;
-    class destructor Destroy;
+    constructor Create;
 
-    { Register error message and default suggestions }
-    procedure RegisterError(ACode: TErrorCode; const AMessage: string;
+    { IErrorRegistry implementation }
+    procedure RegisterError(ACode: Integer; const AMessage: string);
+    function CreateError(ACode: Integer; const AMessage: string = ''): TObject;
+    function GetErrorMessage(ACode: Integer): string;
+
+    { Legacy methods for backward compatibility }
+    procedure RegisterErrorWithSuggestions(ACode: TErrorCode; const AMessage: string;
       const ASuggestions: TRecoverySuggestions);
-
-    { Create enhanced error with default suggestions }
-    function CreateError(ACode: TErrorCode; const AMessage: string = ''): TEnhancedError;
-
-    { Get error message for code }
-    function GetErrorMessage(ACode: TErrorCode): string;
+    function CreateEnhancedError(ACode: TErrorCode; const AMessage: string = ''): TEnhancedError;
+    function GetErrorMessageByCode(ACode: TErrorCode): string;
   end;
 
 { Helper function to create enhanced error }
@@ -190,6 +188,7 @@ end;
 
 constructor TErrorRegistry.Create;
 begin
+  inherited Create;
   // Initialize default error messages
   FErrorMessages[ecSuccess] := 'Operation completed successfully';
   FErrorMessages[ecNetworkTimeout] := 'Network connection timeout';
@@ -207,26 +206,40 @@ begin
   FErrorMessages[ecUnknownError] := 'Unknown error';
 end;
 
-class function TErrorRegistry.Instance: TErrorRegistry;
+{ IErrorRegistry implementation }
+
+procedure TErrorRegistry.RegisterError(ACode: Integer; const AMessage: string);
 begin
-  if FInstance = nil then
-    FInstance := TErrorRegistry.Create;
-  Result := FInstance;
+  if (ACode >= Ord(Low(TErrorCode))) and (ACode <= Ord(High(TErrorCode))) then
+    FErrorMessages[TErrorCode(ACode)] := AMessage;
 end;
 
-class destructor TErrorRegistry.Destroy;
+function TErrorRegistry.CreateError(ACode: Integer; const AMessage: string): TObject;
 begin
-  FreeAndNil(FInstance);
+  if (ACode >= Ord(Low(TErrorCode))) and (ACode <= Ord(High(TErrorCode))) then
+    Result := CreateEnhancedError(TErrorCode(ACode), AMessage)
+  else
+    Result := nil;
 end;
 
-procedure TErrorRegistry.RegisterError(ACode: TErrorCode; const AMessage: string;
+function TErrorRegistry.GetErrorMessage(ACode: Integer): string;
+begin
+  if (ACode >= Ord(Low(TErrorCode))) and (ACode <= Ord(High(TErrorCode))) then
+    Result := FErrorMessages[TErrorCode(ACode)]
+  else
+    Result := '';
+end;
+
+{ Legacy methods for backward compatibility }
+
+procedure TErrorRegistry.RegisterErrorWithSuggestions(ACode: TErrorCode; const AMessage: string;
   const ASuggestions: TRecoverySuggestions);
 begin
   FErrorMessages[ACode] := AMessage;
   FDefaultSuggestions[ACode] := ASuggestions;
 end;
 
-function TErrorRegistry.CreateError(ACode: TErrorCode; const AMessage: string): TEnhancedError;
+function TErrorRegistry.CreateEnhancedError(ACode: TErrorCode; const AMessage: string): TEnhancedError;
 var
   Msg: string;
   I: Integer;
@@ -248,7 +261,7 @@ begin
   end;
 end;
 
-function TErrorRegistry.GetErrorMessage(ACode: TErrorCode): string;
+function TErrorRegistry.GetErrorMessageByCode(ACode: TErrorCode): string;
 begin
   Result := FErrorMessages[ACode];
 end;
@@ -256,8 +269,15 @@ end;
 { Helper functions }
 
 function NewError(ACode: TErrorCode; const AMessage: string): TEnhancedError;
+var
+  Registry: TErrorRegistry;
 begin
-  Result := TErrorRegistry.Instance.CreateError(ACode, AMessage);
+  Registry := TErrorRegistry.Create;
+  try
+    Result := Registry.CreateEnhancedError(ACode, AMessage);
+  finally
+    Registry.Free;
+  end;
 end;
 
 function ErrorCodeToString(ACode: TErrorCode): string;
