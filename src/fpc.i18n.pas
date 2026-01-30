@@ -70,8 +70,23 @@ type
     langHindi       // hi - Hindi
   );
 
+  { II18nManager - Internationalization manager interface }
+  II18nManager = interface
+    ['{F6A7B8C9-D0E1-2345-ABCD-456789012345}']
+    function DetectSystemLanguage: TLanguage;
+    procedure Reg(const ALang: TLanguage; const AID, AText: string);
+    procedure RegMulti(const AID: string; const ATranslations: array of string);
+    function Get(const AID: string): string;
+    function GetFmt(const AID: string; const AArgs: array of const): string;
+    procedure SetLanguage(const ALang: TLanguage); overload;
+    procedure SetLanguage(const ACode: string); overload;
+    function GetLanguageCode: string;
+    function GetCurrentLanguage: TLanguage;
+    procedure SetFallbackLanguage(const ALang: TLanguage);
+  end;
+
   { TI18nManager - Core internationalization manager }
-  TI18nManager = class
+  TI18nManager = class(TInterfacedObject, II18nManager)
   private
     FCurrentLang: TLanguage;
     FTranslations: array[TLanguage] of TStringList;
@@ -97,6 +112,8 @@ type
     procedure SetLanguage(const ALang: TLanguage); overload;
     procedure SetLanguage(const ACode: string); overload;
     function GetLanguageCode: string;
+    function GetCurrentLanguage: TLanguage;
+    procedure SetFallbackLanguage(const ALang: TLanguage);
 
     { Utilities }
     class function LangToCode(const ALang: TLanguage): string; static;
@@ -106,7 +123,7 @@ type
     function Count(const ALang: TLanguage): Integer;
 
     property CurrentLanguage: TLanguage read FCurrentLang write SetLanguage;
-    property FallbackLanguage: TLanguage read FFallbackLang write FFallbackLang;
+    property FallbackLanguage: TLanguage read FFallbackLang write SetFallbackLanguage;
   end;
 
 { Global singleton - lazy initialization }
@@ -403,6 +420,18 @@ end;
 function TI18nManager.Count(const ALang: TLanguage): Integer;
 begin
   Result := FTranslations[ALang].Count;
+end;
+
+{ II18nManager interface implementation }
+
+function TI18nManager.GetCurrentLanguage: TLanguage;
+begin
+  Result := FCurrentLang;
+end;
+
+procedure TI18nManager.SetFallbackLanguage(const ALang: TLanguage);
+begin
+  FFallbackLang := ALang;
 end;
 
 initialization

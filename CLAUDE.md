@@ -83,29 +83,66 @@ fpdev (root)
 - `src/fpdev.cmd.*.pas` - Root command implementations
 - `src/fpdev.cmd.*.<action>.pas` - Sub-command implementations
 
-### Three-Layer Git Integration
+### Git Integration (Unified Interface Architecture)
 
-Git operations use a **three-layer adapter pattern** to isolate libgit2 dependency:
+**Phase 2 Architecture Refactoring Complete** (2026-01-31): Git operations now use unified `IGitManager` interface.
+
+Git operations use a **three-layer adapter pattern** with interface-driven design:
 
 ```
-Application Layer (TFPCSourceManager, etc.)
+Application Layer (TFPCSourceManager, TGitOperations, etc.)
          ↓
-Adapter Layer (fpdev.git2.pas - TGitManager/TGitRepository)
-         ↓  OR  ↓
-Modern Interface (git2.api.pas + git2.impl.pas - IGitManager)
+Unified Interface (git2.api.pas - IGitManager, IGitRepository)
+         ↓
+Implementation Layer (git2.impl.pas - TGitManagerImpl)
          ↓
 C API Binding (libgit2.pas - raw FFI calls)
          ↓
 Native Library (git2.dll / libgit2.so / libgit2.dylib)
 ```
 
-**Recommended for new code**: Use `git2.api.pas` + `git2.impl.pas` (interface-based, easier to test).
+**New Code Pattern (Interface-Based)**:
+```pascal
+uses git2.api, git2.impl;
 
-**Legacy code**: Can continue using `fpdev.git2.pas` (concrete classes like `TGitManager`).
+var
+  Mgr: IGitManager;
+  Repo: IGitRepository;
+begin
+  Mgr := NewGitManager();
+  Mgr.Initialize;
+  Repo := Mgr.OpenRepository('.');
+  WriteLn('Current branch: ', Repo.CurrentBranch);
+  // No manual Free needed - automatic reference counting
+end;
+```
+
+**Legacy Code Pattern (Still Supported)**:
+```pascal
+uses fpdev.git2;
+
+var
+  Repo: TGitRepository;
+begin
+  Repo := GitManager.OpenRepository('.');
+  try
+    WriteLn('Current branch: ', Repo.GetCurrentBranch);
+  finally
+    Repo.Free;
+  end;
+end;
+```
+
+**Internal Implementation**:
+- `fpdev.utils.git.pas` - Uses `IGitManager` internally (17 references migrated)
+- `fpdev.git2.pas` - Legacy `GitManager()` function marked `@deprecated`
+- All new code should use `git2.api.pas` + `git2.impl.pas`
 
 **Windows Runtime**: Requires `git2.dll` in PATH or executable directory.
 
-### Configuration Management (Refactored to Interfaces)
+### Configuration Management (Interface-Driven Architecture)
+
+**Phase 2 Architecture Refactoring Complete** (2026-01-31): Configuration system now uses interface-driven design with dependency injection.
 
 Configuration system uses **interface-driven design** with reference counting:
 
@@ -143,9 +180,69 @@ end;
 
 See `docs/config-architecture.md` for detailed architecture documentation.
 
-### Build Manager
+### Build Manager (Interface-Based Architecture)
 
-`fpdev.build.manager.pas` - Manages FPC source compilation with **sandbox isolation**:
+**Phase 2 Architecture Refactoring Complete** (2026-01-31): Build system now uses interface-driven design with dependency injection.
+
+**Core Interfaces** (`fpdev.build.interfaces.pas`):
+- `IBuildLogger` - Logging interface
+- `IToolchainChecker` - Toolchain validation interface
+- `IBuildManager` - Build management interface
+
+**Implementation Classes**:
+- `TBuildLogger` - Implements `IBuildLogger`
+- `TBuildToolchainChecker` - Implements `IToolchainChecker`
+- `TBuildManager` - Implements `IBuildManager`
+
+**New Code Pattern (Interface-Based)**:
+```pascal
+uses fpdev.build.interfaces, fpdev.build.logger, fpdev.build.toolchain, fpdev.build.manager;
+
+var
+  Logger: IBuildLogger;
+  Checker: IToolchainChecker;
+  Manager: IBuildManager;
+begin
+  // Create instances (automatic reference counting)
+  Logger := TBuildLogger.Create('logs');
+  Checker := TBuildToolchainChecker.Create(False);
+  Manager := TBuildManager.Create('sources/fpc/fpc-main', 4, True);
+  
+  // Use interfaces
+  Logger.Log('Starting build...');
+  if Checker.IsMakeAvailable then
+    Logger.Log('Make is available');
+  
+  if Manager.Preflight then
+    Manager.BuildCompiler('main');
+  
+  // No manual Free needed - automatic cleanup
+end;
+```
+
+**Legacy Code Pattern (Still Supported)**:
+```pascal
+uses fpdev.build.manager;
+
+var
+  BM: TBuildManager;
+begin
+  BM := TBuildManager.Create('sources/fpc/fpc-main', 4, True);
+  try
+    BM.SetSandboxRoot('sandbox');
+    BM.SetAllowInstall(True);
+    
+    if not BM.Preflight('main') then Exit;
+    if not BM.BuildCompiler('main') then Exit;
+    if not BM.BuildRTL('main') then Exit;
+    if not BM.Install('main') then Exit;
+    
+    WriteLn('Build successful!');
+  finally
+    BM.Free;
+  end;
+end;
+```
 
 **Safety defaults**:
 - All builds write to `sandbox/<version>/` directory (never system directories)
@@ -161,6 +258,35 @@ See `docs/config-architecture.md` for detailed architecture documentation.
 5. `TestResults()` - Verify build artifacts
 
 **Logging**: Each build creates `logs/build_yyyymmdd_hhnnss_zzz.log` with timestamps, commands, and artifact samples.
+
+**Testing**: Interface isolation enables mock-based testing:
+```pascal
+// Mock logger for testing
+type
+  TMockLogger = class(TInterfacedObject, IBuildLogger)
+  private
+    FMessages: TStringList;
+  public
+    procedure Log(const AMessage: string);
+    function GetMessageCount: Integer;
+  end;
+
+// Use mock in tests
+var
+  MockLogger: TMockLogger;
+  Logger: IBuildLogger;
+begin
+  MockLogger := TMockLogger.Create;
+  Logger := MockLogger;
+  Logger.Log('Test message');
+  Assert(MockLogger.GetMessageCount = 1);
+end;
+```
+
+**Test Coverage**:
+- `tests/test_build_manager.lpr` - Legacy tests (backward compatibility)
+- `tests/test_build_interfaces.lpr` - Interface isolation tests
+- All tests passing (100% backward compatibility)
 
 ### Build Cache System
 

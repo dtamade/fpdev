@@ -18,7 +18,7 @@ unit fpdev.build.toolchain;
 interface
 
 uses
-  SysUtils, Classes, DateUtils;
+  SysUtils, Classes, DateUtils, fpdev.build.interfaces;
 
 const
   DEFAULT_CACHE_TTL_SECONDS = 30;  // Cache results for 30 seconds
@@ -46,7 +46,7 @@ type
   end;
 
   { TBuildToolchainChecker }
-  TBuildToolchainChecker = class
+  TBuildToolchainChecker = class(TInterfacedObject, IToolchainChecker)
   private
     FVerbose: Boolean;
     FLastInfo: TToolchainInfo;
@@ -64,25 +64,23 @@ type
   public
     constructor Create(AVerbose: Boolean = False);
 
-    { Check if a tool exists and can be executed with given arguments }
+    { IToolchainChecker interface methods }
+    function IsMakeAvailable: Boolean;
+    function IsFPCAvailable: Boolean;
+    function IsSourceDirValid(const ASourceDir: string): Boolean;
+    function IsSandboxWritable(const ASandboxDir: string): Boolean;
+    function GetMakeCommand: string;
+    function GetFPCCommand: string;
+    function GetVerbosity: Integer;
+    procedure SetVerbosity(AValue: Integer);
+
+    { Legacy methods (kept for backward compatibility) }
     function HasTool(const AExe: string; const AArgs: array of string): Boolean;
-
-    { Resolve the make command (make or gmake) }
     function ResolveMakeCmd: string;
-
-    { Check complete toolchain for FPC building }
     function CheckToolchain: Boolean;
-
-    { Get detailed toolchain information }
     function GetToolchainInfo: TToolchainInfo;
-
-    { Get FPC version if available }
     function GetFPCVersion: string;
-
-    { Clear the tool cache }
     procedure ClearCache;
-
-    { Get cache statistics }
     function GetCacheStats: string;
 
     property Verbose: Boolean read FVerbose write FVerbose;
@@ -341,6 +339,85 @@ begin
     Result := '';
     FLastInfo.HasFPC := False;
   end;
+end;
+
+{ IToolchainChecker interface implementation }
+
+function TBuildToolchainChecker.IsMakeAvailable: Boolean;
+begin
+  Result := HasTool('make', ['--version']) or HasTool('gmake', ['--version']);
+end;
+
+function TBuildToolchainChecker.IsFPCAvailable: Boolean;
+begin
+  Result := HasTool('fpc', ['-iV']);
+end;
+
+function TBuildToolchainChecker.IsSourceDirValid(const ASourceDir: string): Boolean;
+begin
+  Result := DirectoryExists(ASourceDir) and 
+            FileExists(ASourceDir + PathDelim + 'Makefile');
+end;
+
+function TBuildToolchainChecker.IsSandboxWritable(const ASandboxDir: string): Boolean;
+var
+  TestFile: string;
+  F: TextFile;
+begin
+  Result := False;
+  
+  // Create directory if it doesn't exist
+  if not DirectoryExists(ASandboxDir) then
+  begin
+    try
+      ForceDirectories(ASandboxDir);
+    except
+      Exit(False);
+    end;
+  end;
+  
+  // Try to write a test file
+  TestFile := ASandboxDir + PathDelim + '.fpdev_write_test';
+  try
+    AssignFile(F, TestFile);
+    try
+      Rewrite(F);
+      WriteLn(F, 'test');
+      CloseFile(F);
+      DeleteFile(TestFile);
+      Result := True;
+    except
+      Result := False;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
+function TBuildToolchainChecker.GetMakeCommand: string;
+begin
+  Result := ResolveMakeCmd;
+end;
+
+function TBuildToolchainChecker.GetFPCCommand: string;
+begin
+  if IsFPCAvailable then
+    Result := 'fpc'
+  else
+    Result := '';
+end;
+
+function TBuildToolchainChecker.GetVerbosity: Integer;
+begin
+  if FVerbose then
+    Result := 1
+  else
+    Result := 0;
+end;
+
+procedure TBuildToolchainChecker.SetVerbosity(AValue: Integer);
+begin
+  FVerbose := (AValue > 0);
 end;
 
 end.
