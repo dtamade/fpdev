@@ -33,7 +33,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
-  fpdev.cross.manifest, fpdev.toolchain.fetcher, fpdev.toolchain.extract,
+  fpdev.cross.manifest, fpdev.cross.downloader, fpdev.toolchain.fetcher, fpdev.toolchain.extract,
   fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester;
 
@@ -66,8 +66,9 @@ type
   private
     FConfigManager: IConfigManager;
     FInstallRoot: string;
-    FResourceRepo: TResourceRepository;  // fpdev-repo integration
+    FResourceRepo: TResourceRepository;  // fpdev-repo integration (legacy)
     FBuildTester: TCrossBuildTester;     // Cross-build testing service
+    FDownloader: TCrossToolchainDownloader;  // Modern toolchain downloader
 
     function GetAvailableTargets: TCrossTargetArray;
     function GetInstalledTargets: TCrossTargetArray;
@@ -169,10 +170,19 @@ begin
 
   // Initialize build tester service
   FBuildTester := TCrossBuildTester.Create(FConfigManager, FInstallRoot);
+
+  // Initialize modern toolchain downloader
+  FDownloader := TCrossToolchainDownloader.Create(
+    FInstallRoot,
+    'https://raw.githubusercontent.com/fpdev/fpdev-repo/main/cross-manifest.json'
+  );
+  FDownloader.LoadManifest;
 end;
 
 destructor TCrossCompilerManager.Destroy;
 begin
+  if Assigned(FDownloader) then
+    FDownloader.Free;
   if Assigned(FBuildTester) then
     FBuildTester.Free;
   if Assigned(FResourceRepo) then
@@ -459,242 +469,67 @@ end;
 
 function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
 var
-  Manifest: TCrossManifest;
-  ManifestTarget: TCrossManifestTarget;
-  Binutils: TCrossBinutils;
-  HostPlatform: string;
-  DestPath, ExtractPath, Err: string;
-  ManifestPath: string;
-  RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
-  LResult: TProcessResult;
   LO: IOutput;
-  Opt: TFetchOptions;
 begin
   Result := False;
   if ATarget = '' then Exit;
-  if ATargetInfo.Name = '' then Exit;
 
   LO := Outp;
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
 
-  HostPlatform := GetCurrentPlatform;
-
-  // First try to install from fpdev-repo
-  if Assigned(FResourceRepo) and FResourceRepo.HasCrossToolchain(ATarget, HostPlatform) then
+  // Use modern TCrossToolchainDownloader
+  if not Assigned(FDownloader) then
   begin
-    if FResourceRepo.GetCrossToolchainInfo(ATarget, HostPlatform, RepoInfo) then
-    begin
-      DestPath := GetTargetInstallPath(ATarget);
-      if FResourceRepo.InstallCrossToolchain(ATarget, HostPlatform, DestPath) then
-      begin
-        LO.WriteLn(_(MSG_CROSS_BINUTILS_INSTALLED));
-        Result := True;
-        Exit;
-      end;
-    end;
+    LO.WriteLn(_(MSG_ERROR) + ': Toolchain downloader not initialized');
+    Exit;
   end;
 
-  // Fallback to cross_manifest.json
-  Manifest := TCrossManifest.Create;
-  try
-    // Try to load from install root first, then from current directory
-    ManifestPath := FInstallRoot + PathDelim + 'cross_manifest.json';
-    if not FileExists(ManifestPath) then
-      ManifestPath := 'cross_manifest.json';
+  LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_BINUTILS, [ATarget]));
 
-    if not Manifest.LoadFromFile(ManifestPath) then
-    begin
-      // Manifest not found - return False to trigger instructions
-      LO.WriteLn(_Fmt(MSG_CROSS_MANIFEST_NOT_FOUND, [ManifestPath]));
-      Result := False;
-      Exit;
-    end;
+  // Delegate to modern downloader
+  Result := FDownloader.DownloadBinutils(ATarget);
 
-    // Get target info from manifest
-    if not Manifest.GetTarget(ATarget, ManifestTarget) then
-    begin
-      LO.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_IN_MANIFEST, [ATarget]));
-      Result := False;
-      Exit;
-    end;
-
-    // Get binutils for current host platform
-    if not Manifest.GetBinutilsForHost(ManifestTarget, HostPlatform, Binutils) then
-    begin
-      LO.WriteLn(_Fmt(MSG_CROSS_NO_BINUTILS, [ATarget, HostPlatform]));
-      Result := False;
-      Exit;
-    end;
-
-    // Check if we have download URLs
-    if Length(Binutils.URLs) = 0 then
-    begin
-      LO.WriteLn(_Fmt(MSG_CROSS_NO_DOWNLOAD_URLS, [ATarget]));
-      Result := False;
-      Exit;
-    end;
-
-    // Download binutils
-    DestPath := GetTargetInstallPath(ATarget) + PathDelim + 'binutils.tar.xz';
-    ExtractPath := GetTargetInstallPath(ATarget) + PathDelim + 'bin';
-
-    LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_BINUTILS, [ATarget]));
-    LO.WriteLn(_Fmt(MSG_CROSS_URL, [Binutils.URLs[0]]));
-
-    // Setup fetch options
-    Opt.DestDir := ExtractFileDir(DestPath);
-    Opt.Hash := Binutils.Sha256;
-    Opt.HashAlgorithm := haSHA256;
-    Opt.HashDigest := Binutils.Sha256;
-    Opt.TimeoutMS := 120000;
-    Opt.ExpectedSize := 0;
-
-    if not EnsureDownloadedCached(Binutils.URLs, DestPath, Opt, Err) then
-    begin
-      LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
-      Exit(False);
-    end;
-
-    LO.WriteLn(_(MSG_CROSS_EXTRACTING));
-
-    // Create extraction directory
-    if not DirectoryExists(ExtractPath) then
-      EnsureDir(ExtractPath);
-
-    // Extract based on file extension
-    if (Pos('.zip', LowerCase(DestPath)) > 0) or (Pos('.zip', LowerCase(Binutils.URLs[0])) > 0) then
-    begin
-      if not ZipExtract(DestPath, ExtractPath, Err) then
-      begin
-        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXTRACT_FAILED, [Err]));
-        Exit(False);
-      end;
-    end
-    else
-    begin
-      // For tar.xz, tar.gz, use system tar command
-      LResult := TProcessExecutor.Execute('tar', ['-xf', DestPath, '-C', ExtractPath], '');
-      if not LResult.Success then
-      begin
-        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TAR_FAILED, [LResult.ExitCode]));
-        Exit(False);
-      end;
-    end;
-
-    LO.WriteLn(_(MSG_CROSS_BINUTILS_SUCCESS));
-    Result := True;
-
-  finally
-    Manifest.Free;
+  if Result then
+    LO.WriteLn(_(MSG_CROSS_BINUTILS_SUCCESS))
+  else
+  begin
+    LO.WriteLn(_(MSG_ERROR) + ': ' + FDownloader.LastError);
+    LO.WriteLn(_Fmt(MSG_CROSS_MANIFEST_NOT_FOUND, ['cross-manifest.json']));
   end;
 end;
 
 function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
 var
-  Manifest: TCrossManifest;
-  ManifestTarget: TCrossManifestTarget;
-  DestPath, ExtractPath, Err: string;
-  ManifestPath: string;
-  LResult: TProcessResult;
   LO: IOutput;
-  Opt: TFetchOptions;
 begin
   Result := False;
   if ATarget = '' then Exit;
-  if ATargetInfo.Name = '' then Exit;
 
   LO := Outp;
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
 
-  // Load manifest
-  Manifest := TCrossManifest.Create;
-  try
-    // Try to load from install root first, then from current directory
-    ManifestPath := FInstallRoot + PathDelim + 'cross_manifest.json';
-    if not FileExists(ManifestPath) then
-      ManifestPath := 'cross_manifest.json';
+  // Use modern TCrossToolchainDownloader
+  if not Assigned(FDownloader) then
+  begin
+    LO.WriteLn(_(MSG_ERROR) + ': Toolchain downloader not initialized');
+    Exit;
+  end;
 
-    if not Manifest.LoadFromFile(ManifestPath) then
-    begin
-      // Manifest not found - allow manual configuration
-      LO.WriteLn(_(MSG_CROSS_LIBS_MANIFEST_NOT_FOUND));
-      LO.WriteLn(_(MSG_CROSS_LIBS_MANUAL_INSTALL));
-      Result := True; // Allow manual configuration
-      Exit;
-    end;
+  LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_LIBS, [ATarget]));
 
-    // Get target info from manifest
-    if not Manifest.GetTarget(ATarget, ManifestTarget) then
-    begin
-      LO.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_IN_MANIFEST, [ATarget]));
-      LO.WriteLn(_(MSG_CROSS_LIBS_MANUAL_INSTALL));
-      Result := True; // Allow manual configuration
-      Exit;
-    end;
+  // Delegate to modern downloader
+  Result := FDownloader.DownloadLibraries(ATarget);
 
-    // Check if we have library download URLs
-    if Length(ManifestTarget.Libraries.URLs) = 0 then
-    begin
-      LO.WriteLn(_Fmt(MSG_CROSS_NO_LIBS_URL, [ATarget]));
-      LO.WriteLn(_(MSG_CROSS_LIBS_NOTE));
-      Result := True; // Allow manual configuration
-      Exit;
-    end;
-
-    // Download libraries
-    DestPath := GetTargetInstallPath(ATarget) + PathDelim + 'libraries.tar.xz';
-    ExtractPath := GetTargetInstallPath(ATarget) + PathDelim + 'lib';
-
-    LO.WriteLn(_Fmt(MSG_CROSS_DOWNLOADING_LIBS, [ATarget]));
-    LO.WriteLn(_Fmt(MSG_CROSS_URL, [ManifestTarget.Libraries.URLs[0]]));
-
-    // Setup fetch options
-    Opt.DestDir := ExtractFileDir(DestPath);
-    Opt.Hash := ManifestTarget.Libraries.Sha256;
-    Opt.HashAlgorithm := haSHA256;
-    Opt.HashDigest := ManifestTarget.Libraries.Sha256;
-    Opt.TimeoutMS := 120000;
-    Opt.ExpectedSize := 0;
-
-    if not EnsureDownloadedCached(ManifestTarget.Libraries.URLs, DestPath, Opt, Err) then
-    begin
-      LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_DOWNLOAD_FAILED, [Err]));
-      Exit(False);
-    end;
-
-    LO.WriteLn(_(MSG_CROSS_EXTRACTING));
-
-    // Create extraction directory
-    if not DirectoryExists(ExtractPath) then
-      EnsureDir(ExtractPath);
-
-    // Extract based on file extension
-    if (Pos('.zip', LowerCase(DestPath)) > 0) or (Pos('.zip', LowerCase(ManifestTarget.Libraries.URLs[0])) > 0) then
-    begin
-      if not ZipExtract(DestPath, ExtractPath, Err) then
-      begin
-        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_EXTRACT_FAILED, [Err]));
-        Exit(False);
-      end;
-    end
-    else
-    begin
-      // For tar.xz, tar.gz, use system tar command
-      LResult := TProcessExecutor.Execute('tar', ['-xf', DestPath, '-C', ExtractPath], '');
-      if not LResult.Success then
-      begin
-        LO.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TAR_FAILED, [LResult.ExitCode]));
-        Exit(False);
-      end;
-    end;
-
-    LO.WriteLn(_(MSG_CROSS_LIBS_SUCCESS));
-    Result := True;
-
-  finally
-    Manifest.Free;
+  if Result then
+    LO.WriteLn(_(MSG_CROSS_LIBS_SUCCESS))
+  else
+  begin
+    // Libraries are optional - allow manual configuration
+    LO.WriteLn(_(MSG_CROSS_LIBS_MANUAL_INSTALL));
+    LO.WriteLn(_(MSG_CROSS_LIBS_NOTE));
+    Result := True; // Allow manual configuration
   end;
 end;
 

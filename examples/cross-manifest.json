@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "updated": "2026-01-30",
+  "toolchains": [
+    {
+      "target": "x86_64-linux",
+      "type": "binutils",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/binutils-2.40/x86_64-linux-binutils-2.40.tar.gz",
+      "mirrors": [
+        "https://mirror1.example.com/binutils/x86_64-linux-binutils-2.40.tar.gz",
+        "https://mirror2.example.com/binutils/x86_64-linux-binutils-2.40.tar.gz"
+      ],
+      "sha256": "abc123def456...",
+      "size": 52428800,
+      "version": "2.40"
+    },
+    {
+      "target": "x86_64-linux",
+      "type": "libraries",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/libs-3.2.2/x86_64-linux-libs-3.2.2.tar.gz",
+      "mirrors": [
+        "https://mirror1.example.com/libs/x86_64-linux-libs-3.2.2.tar.gz"
+      ],
+      "sha256": "def456abc789...",
+      "size": 104857600,
+      "version": "3.2.2"
+    },
+    {
+      "target": "aarch64-linux",
+      "type": "binutils",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/binutils-2.40/aarch64-linux-binutils-2.40.tar.gz",
+      "mirrors": [],
+      "sha256": "ghi789jkl012...",
+      "size": 48234496,
+      "version": "2.40"
+    },
+    {
+      "target": "aarch64-linux",
+      "type": "libraries",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/libs-3.2.2/aarch64-linux-libs-3.2.2.tar.gz",
+      "mirrors": [],
+      "sha256": "mno345pqr678...",
+      "size": 98765432,
+      "version": "3.2.2"
+    },
+    {
+      "target": "x86_64-win64",
+      "type": "binutils",
+      "host": "x86_64-win64",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/binutils-2.40/x86_64-win64-binutils-2.40.zip",
+      "mirrors": [],
+      "sha256": "stu901vwx234...",
+      "size": 61865984,
+      "version": "2.40"
+    },
+    {
+      "target": "x86_64-win64",
+      "type": "libraries",
+      "host": "x86_64-win64",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/libs-3.2.2/x86_64-win64-libs-3.2.2.zip",
+      "mirrors": [],
+      "sha256": "yz567abc890...",
+      "size": 123456789,
+      "version": "3.2.2"
+    },
+    {
+      "target": "arm-embedded",
+      "type": "binutils",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/binutils-2.40/arm-embedded-binutils-2.40.tar.gz",
+      "mirrors": [],
+      "sha256": "def123ghi456...",
+      "size": 45678901,
+      "version": "2.40"
+    },
+    {
+      "target": "arm-embedded",
+      "type": "libraries",
+      "host": "x86_64-linux",
+      "url": "https://github.com/fpdev/fpdev-repo/releases/download/libs-3.2.2/arm-embedded-libs-3.2.2.tar.gz",
+      "mirrors": [],
+      "sha256": "jkl789mno012...",
+      "size": 87654321,
+      "version": "3.2.2"
+    }
+  ]
+}

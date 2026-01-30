@@ -25,11 +25,11 @@ unit fpdev.build.logger;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.build.interfaces;
 
 type
   { TBuildLogger - Build process logging service }
-  TBuildLogger = class
+  TBuildLogger = class(TInterfacedObject, IBuildLogger)
   private
     FLogDir: string;
     FLogFileName: string;
@@ -56,7 +56,9 @@ type
     property LogFileName: string read GetLogFileName;
 
     { Verbosity level: 0=normal, 1=verbose }
-    property Verbosity: Integer read FVerbosity write FVerbosity;
+    function GetVerbosity: Integer;
+    procedure SetVerbosity(AValue: Integer);
+    property Verbosity: Integer read GetVerbosity write SetVerbosity;
   end;
 
 implementation
@@ -177,6 +179,16 @@ end;
 procedure TBuildLogger.LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
 begin
   Log('Summary: version=' + AVersion + ' context=' + AContext + ' result=' + AResult + ' elapsed_ms=' + IntToStr(AElapsedMs));
+end;
+
+function TBuildLogger.GetVerbosity: Integer;
+begin
+  Result := FVerbosity;
+end;
+
+procedure TBuildLogger.SetVerbosity(AValue: Integer);
+begin
+  FVerbosity := AValue;
 end;
 
 end.
