@@ -85,7 +85,7 @@ fpdev (root)
 
 ### Git Integration (Unified Interface Architecture)
 
-**Phase 2 Architecture Refactoring Complete** (2026-01-31): Git operations now use unified `IGitManager` interface.
+**Phase 2 Architecture Refactoring Complete** (2026-01-31): Git operations now use unified `IGitManager` interface with dependency injection pattern.
 
 Git operations use a **three-layer adapter pattern** with interface-driven design:
 
@@ -185,6 +185,18 @@ See `docs/config-architecture.md` for detailed architecture documentation.
 ### Build Manager (Interface-Based Architecture)
 
 **Phase 2 Architecture Refactoring Complete** (2026-01-31): Build system now uses interface-driven design with dependency injection.
+
+**Phase 2 Summary**:
+- ✅ Wave 1: TBuildManager 接口化 (IBuildLogger, IToolchainChecker, IBuildManager)
+- ✅ Wave 2: SharedGitManager 标记为 @deprecated
+- ✅ Wave 3: 全局单例迁移（通过接口化完成）
+- ✅ Wave 4: 保留 @deprecated 代码（向后兼容策略）
+
+**Architecture Benefits**:
+- Automatic reference counting (no manual Free needed)
+- Mock-based testing enabled
+- Dependency injection pattern
+- Zero regression (all existing tests passing)
 
 **Core Interfaces** (`fpdev.build.interfaces.pas`):
 - `IBuildLogger` - Logging interface
