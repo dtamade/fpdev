@@ -31,7 +31,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.package.metadata,
-  fpdev.pkg.deps;
+  fpdev.pkg.deps,
+  fpdev.package.lockfile;
 
 type
   { TPackageResolveResult - Result of package dependency resolution }
@@ -49,38 +50,55 @@ type
     FPackageDir: string;
     FGraph: TDependencyGraph;
     FLoadedPackages: TStringList;  // Track loaded packages to avoid duplicates
+    FLockFile: TPackageLockFile;
+    FProjectDir: string;
+    FUseLockFile: Boolean;
 
     function GetPackageMetadataPath(const APackageName: string): string;
     function LoadPackageMetadata(const APackageName: string): TPackageMetadata;
     procedure BuildDependencyGraph(const APackageName: string);
+    function GetLockFilePath: string;
+    procedure GenerateLockFile(const AResolveResult: TPackageResolveResult);
 
   public
-    constructor Create(const APackageDir: string);
+    constructor Create(const APackageDir: string; const AProjectDir: string = '');
     destructor Destroy; override;
 
     { Resolve dependencies for a package and return installation order }
     function Resolve(const APackageName: string): TPackageResolveResult;
 
+    { Enable/disable lock file usage }
+    procedure SetUseLockFile(AUse: Boolean);
+
     { Get the dependency graph (for testing/debugging) }
     property Graph: TDependencyGraph read FGraph;
+
+    { Get lock file instance (for testing) }
+    property LockFile: TPackageLockFile read FLockFile;
   end;
 
 implementation
 
 { TPackageResolver }
 
-constructor TPackageResolver.Create(const APackageDir: string);
+constructor TPackageResolver.Create(const APackageDir: string; const AProjectDir: string = '');
 begin
   inherited Create;
   FPackageDir := APackageDir;
+  FProjectDir := AProjectDir;
+  if FProjectDir = '' then
+    FProjectDir := GetCurrentDir;
   FGraph := TDependencyGraph.Create;
   FLoadedPackages := TStringList.Create;
   FLoadedPackages.Sorted := True;
   FLoadedPackages.Duplicates := dupIgnore;
+  FLockFile := TPackageLockFile.Create(GetLockFilePath);
+  FUseLockFile := True;
 end;
 
 destructor TPackageResolver.Destroy;
 begin
+  FLockFile.Free;
   FGraph.Free;
   FLoadedPackages.Free;
   inherited Destroy;
@@ -142,6 +160,7 @@ end;
 function TPackageResolver.Resolve(const APackageName: string): TPackageResolveResult;
 var
   GraphResult: TResolveResult;
+  Meta: TPackageMetadata;
 begin
   Initialize(Result);
   Result.Success := False;
@@ -158,6 +177,17 @@ begin
   FGraph := TDependencyGraph.Create;
 
   try
+    // Load project metadata for lock file
+    if FUseLockFile then
+    begin
+      Meta := LoadPackageMetadata(APackageName);
+      try
+        FLockFile.SetProjectInfo(Meta.Name, Meta.Version);
+      finally
+        Meta.Free;
+      end;
+    end;
+
     // Build dependency graph recursively
     BuildDependencyGraph(APackageName);
 
@@ -171,15 +201,75 @@ begin
     Result.HasCircularDependency := GraphResult.HasCycle;
     Result.CircularPath := GraphResult.CyclePackages;
 
+    // Generate lock file if successful
+    if Result.Success and FUseLockFile then
+      GenerateLockFile(Result);
+
   except
     on E: Exception do
     begin
       Result.Success := False;
       Result.ErrorMessage := E.Message;
-      // Note: FGraph is already created and will be freed in destructor
-      // This is acceptable as the resolver maintains consistent state
     end;
   end;
+end;
+
+function TPackageResolver.GetLockFilePath: string;
+begin
+  Result := FProjectDir + PathDelim + LOCKFILE_NAME;
+end;
+
+procedure TPackageResolver.GenerateLockFile(const AResolveResult: TPackageResolveResult);
+var
+  i: Integer;
+  PkgName: string;
+  Meta: TPackageMetadata;
+  Deps: TStringList;
+  j: Integer;
+begin
+  FLockFile.Clear;
+
+  // Add all resolved packages to lock file
+  for i := 0 to High(AResolveResult.InstallOrder) do
+  begin
+    PkgName := AResolveResult.InstallOrder[i];
+    
+    try
+      Meta := LoadPackageMetadata(PkgName);
+      try
+        // Convert dependencies to string list
+        Deps := TStringList.Create;
+        try
+          for j := 0 to Meta.Dependencies.Count - 1 do
+            Deps.Add(Meta.Dependencies.Keys[j] + '=' + Meta.Dependencies.Data[j]);
+
+          // Add package to lock file
+          FLockFile.AddPackage(
+            Meta.Name,
+            Meta.Version,
+            GetPackageMetadataPath(PkgName),  // Resolved path
+            'sha256-placeholder',  // TODO: Calculate actual checksum
+            Deps
+          );
+        finally
+          Deps.Free;
+        end;
+      finally
+        Meta.Free;
+      end;
+    except
+      // Skip packages that fail to load
+      Continue;
+    end;
+  end;
+
+  // Save lock file
+  FLockFile.Save;
+end;
+
+procedure TPackageResolver.SetUseLockFile(AUse: Boolean);
+begin
+  FUseLockFile := AUse;
 end;
 
 end.

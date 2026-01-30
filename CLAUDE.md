@@ -985,6 +985,85 @@ fpdev package info mylib
 
 See `docs/WEEK10-SUMMARY.md` for detailed implementation documentation.
 
+### Package Lock File System
+
+**Feature Complete** (2026-01-31): Package version locking system ensures reproducible builds across environments.
+
+**Core Components**:
+
+1. **TPackageLockFile** (`src/fpdev.package.lockfile.pas`) - Lock file management
+   - JSON-based lock file format (`fpdev-lock.json`)
+   - Package version locking with integrity checksums
+   - Dependency tree snapshot
+   - Automatic generation during package resolution
+   - Load/save operations with validation
+
+2. **TPackageResolver Integration** - Automatic lock file generation
+   - Generates lock file after successful dependency resolution
+   - Records exact versions of all resolved packages
+   - Includes resolved paths and SHA256 checksums
+   - Supports `SetUseLockFile()` to enable/disable
+
+**Lock File Format** (`fpdev-lock.json`):
+```json
+{
+  "name": "myproject",
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "packages": {
+    "": {
+      "name": "myproject",
+      "version": "1.0.0"
+    },
+    "libfoo": {
+      "version": "1.2.3",
+      "resolved": "~/.fpdev/registry/packages/libfoo/1.2.3/libfoo-1.2.3.tar.gz",
+      "integrity": "sha256-...",
+      "dependencies": {
+        "libbar": ">=2.0.0"
+      }
+    }
+  }
+}
+```
+
+**Usage Example**:
+```pascal
+uses fpdev.package.resolver, fpdev.package.lockfile;
+
+var
+  Resolver: TPackageResolver;
+  Result: TPackageResolveResult;
+begin
+  Resolver := TPackageResolver.Create('/packages', '/project');
+  try
+    Resolver.SetUseLockFile(True);  // Enable lock file generation
+    
+    Result := Resolver.Resolve('mypackage');
+    if Result.Success then
+    begin
+      WriteLn('Dependencies resolved');
+      WriteLn('Lock file generated: fpdev-lock.json');
+    end;
+  finally
+    Resolver.Free;
+  end;
+end;
+```
+
+**Key Features**:
+- Reproducible builds (exact version locking)
+- Integrity verification (SHA256 checksums)
+- Dependency tree snapshot
+- Automatic generation during resolution
+- Cross-platform support (Windows, Linux, macOS)
+
+**Test Coverage**:
+- `tests/test_package_lockfile.lpr` - 23 test scenarios for TPackageLockFile
+- All tests passing (100% pass rate)
+
+See `docs/PACKAGE-LOCK-DESIGN.md` for detailed design documentation.
+
 ### Logging System (Phase 2)
 
 **Phase 2 Complete**: Production-ready structured logging system with rotation, archiving, and comprehensive test coverage.
