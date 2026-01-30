@@ -109,7 +109,11 @@ begin
     try
       // Note: GitManager singleton handles shutdown
     except
-      // Ignore cleanup errors
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('Error during Git cleanup: ', E.Message);
+      end;
     end;
   end;
   inherited Destroy;
@@ -137,9 +141,14 @@ begin
         FreeAndNil(SharedGitManager);
       end;
     except
-      // libgit2 library not available or initialization failed
-      FreeAndNil(SharedGitManager);
-      Libgit2Available := False;
+      on E: Exception do
+      begin
+        // libgit2 library not available or initialization failed
+        if FVerbose then
+          WriteLn('libgit2 initialization failed: ', E.Message);
+        FreeAndNil(SharedGitManager);
+        Libgit2Available := False;
+      end;
     end;
   end;
 
@@ -260,7 +269,11 @@ begin
     try
       Result := IsRepositoryWithLibgit2(APath);
     except
-      // Ignore - use directory check result
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('libgit2 repository check exception: ', E.Message, ', using directory check');
+      end;
     end;
   end;
 end;
@@ -290,7 +303,11 @@ begin
       Result := GetBranchWithLibgit2(ARepoPath);
       if Result <> '' then Exit;
     except
-      // Fall through to command-line
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('libgit2 get branch exception: ', E.Message, ', falling back to command-line');
+      end;
     end;
   end;
 
@@ -389,7 +406,11 @@ begin
   try
     Result := SharedGitManager.IsRepository(APath);
   except
-    Result := False;
+    on E: Exception do
+    begin
+      // Silent failure - return false
+      Result := False;
+    end;
   end;
 end;
 

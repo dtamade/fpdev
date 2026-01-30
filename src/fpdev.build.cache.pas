@@ -218,7 +218,11 @@ begin
     else
       Result := 0;  // Invalid format
   except
-    Result := 0;  // Fallback to epoch if parsing fails
+    on E: Exception do
+    begin
+      // Silent failure - parsing error
+      Result := 0;  // Fallback to epoch if parsing fails
+    end;
   end;
 end;
 
@@ -321,7 +325,11 @@ begin
       SourceStream.Free;
     end;
   except
-    Result := False;
+    on E: Exception do
+    begin
+      // Silent failure - extraction error
+      Result := False;
+    end;
   end;
 end;
 
@@ -353,7 +361,11 @@ begin
       P.Execute;
       Result := (P.ExitStatus = 0);
     except
-      Result := False;
+      on E: Exception do
+      begin
+        // Silent failure - command execution error
+        Result := False;
+      end;
     end;
   finally
     P.Free;
@@ -836,7 +848,11 @@ begin
     if not FileCopy(ADownloadedFile, ArchivePath) then
       Exit;
   except
-    Exit;
+    on E: Exception do
+    begin
+      // Silent failure - file copy error
+      Exit;
+    end;
   end;
 
   // Use provided SHA256 hash or calculate placeholder
@@ -1144,7 +1160,11 @@ begin
         end;
       end;
     except
-      Result := '';
+      on E: Exception do
+      begin
+        // Silent failure - SHA256 calculation error
+        Result := '';
+      end;
     end;
   finally
     P.Free;
@@ -1438,7 +1458,11 @@ begin
         JSONObj.Free;
       end;
     except
-      Result := False;
+      on E: Exception do
+      begin
+        // Silent failure - JSON parsing error
+        Result := False;
+      end;
     end;
   finally
     JSONStr.Free;
