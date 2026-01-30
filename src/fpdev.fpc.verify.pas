@@ -39,7 +39,7 @@ type
 implementation
 
 uses
-  fpjson, jsonparser;
+  fpjson, jsonparser, fpdev.platform;
 
 { TFPCVerifier }
 
@@ -201,11 +201,15 @@ var
   JSON: TJSONObject;
   FileStream: TFileStream;
   JSONString: string;
+  Platform: TPlatformInfo;
 begin
   Result := False;
   
   try
     MetaFile := AInstallPath + PathDelim + '.fpdev-meta.json';
+    
+    // Detect current platform
+    Platform := DetectPlatform;
     
     // Create JSON metadata
     JSON := TJSONObject.Create;
@@ -213,7 +217,7 @@ begin
       JSON.Add('version', AVersion);
       JSON.Add('install_date', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
       JSON.Add('source_type', 'binary');
-      JSON.Add('platform', 'linux-x86_64'); // TODO: Use actual platform detection
+      JSON.Add('platform', Platform.ToString);
       
       JSONString := JSON.FormatJSON;
       
