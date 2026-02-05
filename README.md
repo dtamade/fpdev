@@ -94,6 +94,8 @@ hello-world.exe      # Windows
 | [安装指南](docs/INSTALLATION.md) | 详细的安装步骤 |
 | [架构文档](docs/ARCHITECTURE.md) | 内部设计和架构 |
 | [开发者指南](CLAUDE.md) | 贡献代码的指南 |
+| [测试指南](docs/testing.md) | fpcunit 测试框架使用说明 |
+| [BuildManager 指南](docs/build-manager.md) | 构建管理器使用和 API 参考 |
 | [Git2 使用指南](docs/GIT2_USAGE.md) | libgit2 集成技术细节 |
 | [路线图](docs/ROADMAP.md) | 功能规划和进度 |
 
