@@ -24,12 +24,19 @@ procedure Main;
 var
   Cfg: TFPDevConfigManager;
   PM: TPackageManager;
+  TempRoot: string;
+  ConfigPath: string;
   RepoPath, RepoURL: string;
   Avail: TPackageArray;
   i: Integer;
   Names: TStringList;
   Settings: TFPDevSettings;
 begin
+  // Use temp config to avoid mutating tracked repo fixtures
+  TempRoot := GetTempDir + 'fpdev_test_index_validation_' + IntToStr(GetTickCount64);
+  ForceDirectories(TempRoot);
+  ConfigPath := TempRoot + DirectorySeparator + 'config.json';
+
   RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo-invalid' + DirectorySeparator + 'index.json');
   AssertTrue(FileExists(RepoPath), 'Invalid sample repo index should exist: ' + RepoPath);
 
@@ -40,13 +47,13 @@ begin
   RepoURL := 'file://' + RepoPath;
   {$ENDIF}
 
-  Cfg := TFPDevConfigManager.Create('tests_repo_config_invalid.json');
+  Cfg := TFPDevConfigManager.Create(ConfigPath);
   try
     if not Cfg.LoadConfig then AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
 
     // Set InstallRoot to local test directory to avoid permission issues
     Settings := Cfg.GetSettings;
-    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data_invalid';
+    Settings.InstallRoot := TempRoot + DirectorySeparator + 'install_root';
     Cfg.SetSettings(Settings);
 
     AssertTrue(Cfg.AddRepository('invalid-sample', RepoURL), 'Add invalid repo');
@@ -90,4 +97,3 @@ begin
     end;
   end;
 end.
-

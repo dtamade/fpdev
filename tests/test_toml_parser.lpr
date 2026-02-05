@@ -378,7 +378,9 @@ end;
 
 begin
   RegisterTest(TTOMLParserTest);
-  
+  DefaultFormat := fPlain;
+  DefaultRunAllTests := True;
+
   with TTestRunner.Create(nil) do
   try
     Initialize;

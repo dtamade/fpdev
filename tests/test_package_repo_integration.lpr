@@ -23,10 +23,17 @@ end;
 procedure Main;
 var
   Cfg: TFPDevConfigManager;
+  TempRoot: string;
+  ConfigPath: string;
   RepoPath, RepoURL: string;
   Settings: TFPDevSettings;
   PM: TPackageManager;
 begin
+  // Use temp config to avoid mutating tracked repo fixtures
+  TempRoot := GetTempDir + 'fpdev_test_repo_integration_' + IntToStr(GetTickCount64);
+  ForceDirectories(TempRoot);
+  ConfigPath := TempRoot + DirectorySeparator + 'config.json';
+
   // 使用相对路径定位示例仓库索引
   RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo' + DirectorySeparator + 'index.json');
   AssertTrue(FileExists(RepoPath), 'Sample repo index should exist: ' + RepoPath);
@@ -40,7 +47,7 @@ begin
   {$ENDIF}
 
   // 初始化配置
-  Cfg := TFPDevConfigManager.Create('tests_repo_config.json');
+  Cfg := TFPDevConfigManager.Create(ConfigPath);
   try
     // 初始化新配置，使 InstallRoot 定位到测试程序旁 data 目录
     if not Cfg.LoadConfig then
@@ -48,7 +55,7 @@ begin
 
     // Set InstallRoot to local test directory to avoid permission issues
     Settings := Cfg.GetSettings;
-    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data';
+    Settings.InstallRoot := TempRoot + DirectorySeparator + 'install_root';
     Cfg.SetSettings(Settings);
 
     // 添加仓库并保存
@@ -82,4 +89,3 @@ begin
     end;
   end;
 end.
-
