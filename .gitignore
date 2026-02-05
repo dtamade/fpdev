@@ -9,10 +9,12 @@ lib/
 *.lps
 *.exe
 .runlogs/
+logs/
 .lazarus-pcp/
 out/
 
 .fpdev/
+fpdev-lock.json
 
 # 自动添加的忽略模式
 # 编译产物
@@ -36,9 +38,19 @@ tests/tmp*/
 tests/bin/tmp*/
 test_install_root_*/
 test_testcmd_temp_*/
+test_archive_cleanup_*/
+test_current_root_*/
+test_fail_temp_*/
+test_full_pipeline_*/
+test_run_temp_*/
 nul
 reference/
 .cunzhi-memory/
 .vscode/
 .ace-tool/
 src/fpdev
+
+# planning-with-files（agent 工作记录）
+task_plan.md
+findings.md
+progress.md
