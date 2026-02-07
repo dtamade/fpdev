@@ -58,7 +58,7 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, fpdev.git2, git2.api, git2.impl;
+  fpdev.utils.process, git2.api, git2.impl;
 
 var
   Libgit2Available: Boolean = False;

@@ -473,6 +473,7 @@ function TManifestParser.ListVersions(const AName: string): TStringArray;
 var
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, Length(FPackages));
   for I := 0 to High(FPackages) do
     Result[I] := FPackages[I].Version;
@@ -483,6 +484,7 @@ var
   Pkg: TManifestPackage;
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, 0);
 
   if not GetPackage(AName, AVersion, '', Pkg) then

@@ -5,7 +5,7 @@ unit fpdev.command.context;
 interface
 
 uses
-  SysUtils, Classes, fpdev.command.intf, fpdev.config, fpdev.config.interfaces, fpdev.config.managers,
+  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.output.intf, fpdev.output.console, fpdev.logger.intf, fpdev.logger.console;
 
 type

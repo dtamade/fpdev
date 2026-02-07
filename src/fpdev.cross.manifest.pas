@@ -158,7 +158,14 @@ var
   URLsArray: TJSONArray;
   i: Integer;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  // Initialize managed type fields
+  Result.Target := '';
+  Result.ComponentType := '';
+  Result.Version := '';
+  Result.SHA256 := '';
+  Result.ArchiveFormat := '';
+  SetLength(Result.HostPlatforms, 0);
+  SetLength(Result.URLs, 0);
 
   // Required fields
   Result.Target := AObj.Get('target', '');
@@ -338,7 +345,14 @@ function TCrossToolchainManifest.FindEntry(const ATarget, AComponentType: string
 var
   i, j: Integer;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  // Initialize managed type fields
+  Result.Target := '';
+  Result.ComponentType := '';
+  Result.Version := '';
+  Result.SHA256 := '';
+  Result.ArchiveFormat := '';
+  SetLength(Result.HostPlatforms, 0);
+  SetLength(Result.URLs, 0);
 
   for i := 0 to High(FEntries) do
   begin

@@ -209,6 +209,7 @@ begin
             case Opt.HashAlgorithm of
               haSHA256: AErr := 'SHA256 hash mismatch for ' + URL;
               haSHA512: AErr := 'SHA512 hash mismatch for ' + URL;
+              haUnknown: AErr := 'Hash mismatch for ' + URL;
             end;
             DeleteFile(Tmp);
             Continue;

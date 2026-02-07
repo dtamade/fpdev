@@ -2288,6 +2288,7 @@ var
   end;
 
 begin
+  Result := nil;
   Files := TStringList.Create;
   try
     // Scan directory recursively
@@ -2444,6 +2445,7 @@ var
   SearchRec: TSearchRec;
   MissingCount: Integer;
 begin
+  Result := nil;
   SetLength(Result, 0);
   MissingCount := 0;
 

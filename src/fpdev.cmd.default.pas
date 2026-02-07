@@ -36,7 +36,6 @@ function DefaultCommandFactory: ICommand;
 implementation
 
 uses
-  fpdev.i18n,
   fpdev.config.interfaces,
   fpdev.config.project,
   fpdev.constants;

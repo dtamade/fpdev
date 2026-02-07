@@ -160,7 +160,6 @@ implementation
 
 function OperationSuccess: TOperationResult;
 begin
-  FillChar(Result, SizeOf(Result), 0);
   Result.Success := True;
   Result.ErrorCode := ecSuccess;
   Result.ErrorMessage := '';
@@ -170,7 +169,6 @@ end;
 
 function OperationError(AErrorCode: TFPCErrorCode; const AMessage: string): TOperationResult;
 begin
-  FillChar(Result, SizeOf(Result), 0);
   Result.Success := False;
   Result.ErrorCode := AErrorCode;
   Result.ErrorMessage := AMessage;

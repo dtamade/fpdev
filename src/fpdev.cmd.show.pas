@@ -40,8 +40,7 @@ implementation
 
 uses
   fpdev.config.interfaces,
-  fpdev.config.project,
-  fpdev.constants;
+  fpdev.config.project;
 
 const
   HELP_SHOW = 'Usage: fpdev show [options]' + LineEnding +
@@ -121,6 +120,8 @@ begin
         Ctx.Out.WriteLn('         (global default)');
       csProject:
         Ctx.Out.WriteLn('         (set by ' + LResolved.FPCSourceFile + ')');
+      csCommandLine:
+        Ctx.Out.WriteLn('         (set by command line)');
       csEnvironment:
         Ctx.Out.WriteLn('         (set by $' + LResolved.FPCSourceFile + ')');
     end;
@@ -136,6 +137,8 @@ begin
         Ctx.Out.WriteLn('         (global default)');
       csProject:
         Ctx.Out.WriteLn('         (set by ' + LResolved.LazarusSourceFile + ')');
+      csCommandLine:
+        Ctx.Out.WriteLn('         (set by command line)');
       csEnvironment:
         Ctx.Out.WriteLn('         (set by $' + LResolved.LazarusSourceFile + ')');
     end;

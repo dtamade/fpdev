@@ -321,6 +321,7 @@ var
   LItems: TStringList;
   I: Integer;
 begin
+  Result := nil;
   SetLength(Result, 0);
 
   LValue := Trim(AValue);

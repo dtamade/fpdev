@@ -61,7 +61,7 @@ function CreateConfigCommand: ICommand;
 implementation
 
 uses
-  fpdev.output.console, fpdev.constants;
+  fpdev.output.console;
 
 function CreateConfigCommand: ICommand;
 begin
