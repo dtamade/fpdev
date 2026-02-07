@@ -137,6 +137,10 @@ var
   SR: TSearchRec;
   FilePath: string;
 begin
+  // Cleanup lockfile written to current project directory (default behavior)
+  if FileExists('fpdev-lock.json') then
+    DeleteFile('fpdev-lock.json');
+
   if DirectoryExists(FTestDataDir) then
   begin
     if FindFirst(FTestDataDir + PathDelim + '*', faAnyFile, SR) = 0 then

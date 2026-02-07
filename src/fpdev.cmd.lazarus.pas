@@ -891,6 +891,8 @@ function TLazarusManager.ConfigureIDE(const Outp, Errp: IOutput; const AVersion:
 var
   InstallPath: string;
   ConfigDir: string;
+  ConfigRoot: string;
+  ConfigDirName: string;
   IDEConfig: TLazarusIDEConfig;
   FPCVersion: string;
   FPCPath: string;
@@ -919,10 +921,19 @@ begin
     Settings := FConfigManager.GetSettingsManager.GetSettings;
 
     // Determine config directory
+    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
     {$IFDEF MSWINDOWS}
-    ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-' + AVersion;
+    ConfigDirName := 'lazarus-' + AVersion;
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + ConfigDirName
+    else
+      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + ConfigDirName;
     {$ELSE}
-    ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-' + AVersion;
+    ConfigDirName := '.lazarus-' + AVersion;
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + ConfigDirName
+    else
+      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + ConfigDirName;
     {$ENDIF}
 
     LO.WriteLn(_Fmt(MSG_LAZARUS_CONFIGURING, [AVersion]));

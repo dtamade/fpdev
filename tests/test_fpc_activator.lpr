@@ -28,7 +28,7 @@ var
   Settings: TFPDevSettings;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_activator_root_' + IntToStr(GetTickCount64);
+  TestInstallRoot := GetTempDir + 'test_activator_root_' + IntToStr(GetTickCount64);
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
@@ -129,8 +129,11 @@ begin
     Rewrite(F);
     CloseFile(F);
 
-    Result := True;
-    WriteLn('[Setup] Created mock FPC installation for version ', AVersion, ' at ', InstallPath);
+    Result := FileExists(FPCExe);
+    if Result then
+      WriteLn('[Setup] Created mock FPC installation for version ', AVersion, ' at ', InstallPath)
+    else
+      WriteLn('[Setup] Mock FPC exe missing after creation: ', FPCExe);
   except
     on E: Exception do
     begin

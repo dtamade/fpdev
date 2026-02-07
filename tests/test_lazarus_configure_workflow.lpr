@@ -3,7 +3,8 @@ program test_lazarus_configure_workflow;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.lazarus;
+  SysUtils, Classes,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.lazarus;
 
 var
   TestRootDir: string;
@@ -201,6 +202,7 @@ var
   LazarusPath: string;
   LazarusExe: string;
   ConfigDir: string;
+  ConfigRoot: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -214,10 +216,18 @@ begin
 
     {$IFDEF MSWINDOWS}
     LazarusExe := LazarusPath + PathDelim + 'lazarus.exe';
-    ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.1';
+    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.1'
+    else
+      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.1';
     {$ELSE}
     LazarusExe := LazarusPath + PathDelim + 'lazarus';
-    ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.1';
+    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.1'
+    else
+      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.1';
     {$ENDIF}
 
     // Create mock lazarus executable
@@ -253,6 +263,7 @@ var
   ConfigDir: string;
   EnvOptionsFile: string;
   BackupDir: string;
+  ConfigRoot: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -266,10 +277,18 @@ begin
 
     {$IFDEF MSWINDOWS}
     LazarusExe := LazarusPath + PathDelim + 'lazarus.exe';
-    ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.2';
+    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.2'
+    else
+      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.2';
     {$ELSE}
     LazarusExe := LazarusPath + PathDelim + 'lazarus';
-    ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.2';
+    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
+    if ConfigRoot <> '' then
+      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.2'
+    else
+      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.2';
     {$ENDIF}
 
     ForceDirectories(ConfigDir);

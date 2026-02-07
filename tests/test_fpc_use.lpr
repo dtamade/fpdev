@@ -4,7 +4,7 @@ program test_fpc_use;
 
 uses
   SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.fpc.activation,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.types;
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, fpdev.types;
 
 var
   TestRootDir: string;
@@ -300,7 +300,8 @@ begin
     // Setup: Directory without .fpdev
     UserDir := TestRootDir + PathDelim + 'user_test';
     ForceDirectories(UserDir);
-    SetCurrentDir(UserDir);
+    AssertTrue(SetCurrentDir(UserDir), 'SetCurrentDir to user dir',
+      'Failed to chdir to: ' + UserDir);
 
     Settings := ConfigManager.GetSettingsManager.GetSettings;
     Settings.InstallRoot := TestRootDir;
@@ -310,9 +311,12 @@ begin
 
     // Create mock FPC installation in user scope location
     CreateMockFPCInstallation(
-      TestRootDir + PathDelim + 'fpc' + PathDelim + '3.2.2',
+      GetToolchainsDir + PathDelim + 'fpc' + PathDelim + '3.2.2',
       '3.2.2'
     );
+
+    // Add toolchain entry to config
+    ConfigManager.GetToolchainManager.AddToolchain('fpc-3.2.2', Default(TToolchainInfo));
 
     // Execute activation
     ActivResult := FPCManager.ActivateVersion('3.2.2');

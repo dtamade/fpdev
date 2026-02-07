@@ -402,14 +402,18 @@ begin
 end;
 
 function IsRepositoryWithLibgit2(const APath: string): Boolean;
+var
+  Mgr: IGitManager;
 begin
   Result := False;
 
-  if SharedGitManager = nil then
-    Exit;
-
   try
-    Result := SharedGitManager.IsRepository(APath);
+    // Create GitManager instance
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+      Exit;
+
+    Result := Mgr.IsRepository(APath);
   except
     on E: Exception do
     begin

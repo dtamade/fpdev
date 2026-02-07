@@ -150,16 +150,33 @@ end;
 function TFPCActivationManager.FindProjectRoot(const AStartDir: string): string;
 var
   Dir: string;
+  UserConfigDir: string;
+  Candidate: string;
 begin
   Result := '';
   Dir := ExpandFileName(AStartDir);
 
+  // Avoid mistaking user-level ~/.fpdev as a project marker when scanning upward.
+  {$IFDEF MSWINDOWS}
+  UserConfigDir := GetEnvironmentVariable('APPDATA');
+  if UserConfigDir <> '' then
+    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + FPDEV_CONFIG_DIR))
+  else
+    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR));
+  {$ELSE}
+  UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR));
+  {$ENDIF}
+
   while Dir <> '' do
   begin
-    if DirectoryExists(Dir + PathDelim + FPDEV_CONFIG_DIR) then
+    Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Dir + PathDelim + FPDEV_CONFIG_DIR));
+    if DirectoryExists(Candidate) then
     begin
-      Result := Dir;
-      Exit;
+      if (UserConfigDir = '') or (not SameText(Candidate, UserConfigDir)) then
+      begin
+        Result := Dir;
+        Exit;
+      end;
     end;
 
     // Move up to parent directory

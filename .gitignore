@@ -42,3 +42,11 @@ reference/
 .vscode/
 .ace-tool/
 src/fpdev
+
+# Local workspace artifacts (should not be committed)
+logs/
+.claude/
+test_current_root_*/
+test_fail_temp_*/
+test_run_temp_*/
+test_full_pipeline_*/

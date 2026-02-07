@@ -3,6 +3,32 @@
 
 set -e
 
+# Isolated environment (avoid touching real user config)
+TEST_TMP_ROOT="$(mktemp -d /tmp/fpdev-tests.XXXXXX 2>/dev/null || true)"
+if [ -z "${TEST_TMP_ROOT}" ] || [ ! -d "${TEST_TMP_ROOT}" ]; then
+  TEST_TMP_ROOT="/tmp/fpdev-tests.$$"
+  mkdir -p "${TEST_TMP_ROOT}"
+fi
+
+TEST_DATA_ROOT="${TEST_TMP_ROOT}/fpdev-data"
+TEST_LAZARUS_CONFIG_ROOT="${TEST_TMP_ROOT}/lazarus-config"
+mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}"
+
+export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
+export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
+
+# Default: keep test suite offline/deterministic
+export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
+
+cleanup() {
+  if [ "${FPDEV_TEST_KEEP_TEMP:-0}" = "1" ]; then
+    echo "[INFO] Keeping test temp dir: ${TEST_TMP_ROOT}"
+    return 0
+  fi
+  rm -rf "${TEST_TMP_ROOT}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,11 +53,29 @@ echo ""
 # Find all test files (excluding examples subdirectory and non-existent files)
 TEST_FILES=$(find tests -maxdepth 1 -name "test_*.lpr" | sort)
 
+run_test_binary() {
+  local bin_path="$1"
+  local log_path="$2"
+
+  # Many fpcunit console runners require --all to actually run tests.
+  if "${bin_path}" --all >"${log_path}" 2>&1; then
+    return 0
+  fi
+
+  # Legacy/simple tests often take no args.
+  if "${bin_path}" >"${log_path}" 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
 for TEST_FILE in $TEST_FILES; do
     TOTAL=$((TOTAL + 1))
     TEST_NAME=$(basename "$TEST_FILE" .lpr)
     TEST_BIN="bin/$TEST_NAME"
     TEST_LPI="${TEST_FILE%.lpr}.lpi"
+    TEST_LOG="${TEST_TMP_ROOT}/${TEST_NAME}.log"
 
     echo -n "[$TOTAL] Testing $TEST_NAME... "
 
@@ -58,7 +102,7 @@ for TEST_FILE in $TEST_FILES; do
     if [ "$BUILD_SUCCESS" = true ]; then
         # Run the test
         if [ -f "$TEST_BIN" ]; then
-            if ./"$TEST_BIN" > /dev/null 2>&1; then
+            if run_test_binary "./${TEST_BIN}" "${TEST_LOG}"; then
                 echo -e "${GREEN}PASSED${NC}"
                 PASSED=$((PASSED + 1))
                 PASSED_TESTS+=("$TEST_NAME")
@@ -66,6 +110,7 @@ for TEST_FILE in $TEST_FILES; do
                 echo -e "${RED}FAILED${NC}"
                 FAILED=$((FAILED + 1))
                 FAILED_TESTS+=("$TEST_NAME")
+                echo -e "${YELLOW}  log: ${TEST_LOG}${NC}"
             fi
         else
             echo -e "${YELLOW}SKIPPED (no binary)${NC}"

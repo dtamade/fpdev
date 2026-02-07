@@ -59,16 +59,33 @@ uses
 function FindProjectRoot(const AStartDir: string): string;
 var
   Dir, PrevDir: string;
+  UserConfigDir: string;
+  Candidate: string;
 begin
   Result := '';
   Dir := ExcludeTrailingPathDelimiter(ExpandFileName(AStartDir));
 
+  // Avoid mistaking user-level ~/.fpdev as a project marker when scanning upward.
+  {$IFDEF MSWINDOWS}
+  UserConfigDir := GetEnvironmentVariable('APPDATA');
+  if UserConfigDir <> '' then
+    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + '.fpdev'))
+  else
+    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev'));
+  {$ELSE}
+  UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + '.fpdev'));
+  {$ENDIF}
+
   while Dir <> '' do
   begin
-    if DirectoryExists(Dir + PathDelim + '.fpdev') then
+    Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Dir + PathDelim + '.fpdev'));
+    if DirectoryExists(Candidate) then
     begin
-      Result := ExcludeTrailingPathDelimiter(Dir);
-      Exit;
+      if (UserConfigDir = '') or (not SameText(Candidate, UserConfigDir)) then
+      begin
+        Result := ExcludeTrailingPathDelimiter(Dir);
+        Exit;
+      end;
     end;
 
     PrevDir := Dir;

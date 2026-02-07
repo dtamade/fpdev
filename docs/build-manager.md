@@ -450,11 +450,162 @@ require_subdir=false
 - 详见示例日志与 `TBuildManager` 日志（`logs/build_*.log`）
 - 严格模式：示例 `example_strict_validate.lpr` 会按 `plays/fpdev.build.manager.demo/build-manager.strict.ini` 校验产物（可自定义）
 
-可选高级设置：
-- make 命令覆盖：`SetMakeCmd('mingw32-make')` 或 `SetMakeCmd('gmake')`
-- 交叉目标：`SetTarget('x86_64','win32')` / `SetTarget('aarch64','linux')`
-- 安装前缀：`SetPrefix('<prefix>','<install_prefix>')`
+## API 参考与高级配置
+
+### 核心方法
+
+**SetMakeCmd(const ACmd: string)** - 自定义 make 命令
+- 参数: `ACmd` - make 命令名称(如 `mingw32-make`, `gmake`, `make`)
+- 用途: 覆盖默认的 make 命令检测
+- 示例:
+  ```pascal
+  BM.SetMakeCmd('mingw32-make');  // Windows MinGW
+  BM.SetMakeCmd('gmake');         // macOS GNU make
+  ```
+
+**SetTarget(const ACPU, AOS: string)** - 设置交叉编译目标
+- 参数:
+  - `ACPU` - 目标 CPU 架构(如 `x86_64`, `aarch64`, `i386`)
+  - `AOS` - 目标操作系统(如 `linux`, `win64`, `darwin`)
+- 用途: 配置交叉编译目标平台
+- 示例:
+  ```pascal
+  BM.SetTarget('x86_64', 'linux');   // Linux x86_64
+  BM.SetTarget('aarch64', 'linux');  // Linux ARM64
+  BM.SetTarget('x86_64', 'win64');   // Windows 64-bit
+  ```
+
+**SetPrefix(const APrefix, AInstallPrefix: string)** - 设置安装前缀
+- 参数:
+  - `APrefix` - 编译时前缀路径
+  - `AInstallPrefix` - 安装时前缀路径
+- 用途: 控制安装目录结构
+- 示例:
+  ```pascal
+  BM.SetPrefix('/usr/local', '/usr/local');
+  BM.SetPrefix('C:\FPC', 'C:\FPC');
+  ```
+
+### 交叉编译示例
+
+#### 示例 1: Windows → Linux (x86_64)
+
+```pascal
+program CrossCompileWinToLinux;
+
+uses
+  fpdev.build.manager;
+
+var
+  BM: TBuildManager;
+begin
+  BM := TBuildManager.Create('sources/fpc/fpc-main', 4, True);
+  try
+    BM.SetSandboxRoot('sandbox_linux');
+    BM.SetAllowInstall(True);
+    BM.SetLogVerbosity(1);
+    BM.SetMakeCmd('mingw32-make');
+    
+    // 设置交叉编译目标
+    BM.SetTarget('x86_64', 'linux');
+    BM.SetPrefix('/usr/local', '/usr/local');
+    
+    WriteLn('Building cross-compiler for Linux x86_64...');
+    if not BM.Preflight('main') then Exit;
+    if not BM.BuildCompiler('main') then Exit;
+    if not BM.BuildRTL('main') then Exit;
+    if not BM.Install('main') then Exit;
+    
+    WriteLn('Cross-compiler built successfully!');
+    WriteLn('Log: ', BM.LogFileName);
+  finally
+    BM.Free;
+  end;
+end.
+```
+
+#### 示例 2: Linux → ARM (aarch64)
+
+```pascal
+program CrossCompileLinuxToARM;
+
+uses
+  fpdev.build.manager;
+
+var
+  BM: TBuildManager;
+begin
+  BM := TBuildManager.Create('sources/fpc/fpc-main', 4, True);
+  try
+    BM.SetSandboxRoot('sandbox_arm');
+    BM.SetAllowInstall(True);
+    BM.SetLogVerbosity(1);
+    
+    // 设置交叉编译目标
+    BM.SetTarget('aarch64', 'linux');
+    BM.SetPrefix('/opt/fpc-arm', '/opt/fpc-arm');
+    
+    WriteLn('Building cross-compiler for ARM aarch64...');
+    if not BM.Preflight('main') then Exit;
+    if not BM.BuildCompiler('main') then Exit;
+    if not BM.BuildRTL('main') then Exit;
+    if not BM.Install('main') then Exit;
+    
+    WriteLn('Cross-compiler built successfully!');
+    WriteLn('Sandbox: sandbox_arm/fpc-main');
+  finally
+    BM.Free;
+  end;
+end.
+```
+
+#### 示例 3: macOS → Windows (x86_64)
+
+```pascal
+program CrossCompileMacToWin;
+
+uses
+  fpdev.build.manager;
+
+var
+  BM: TBuildManager;
+begin
+  BM := TBuildManager.Create('sources/fpc/fpc-main', 4, True);
+  try
+    BM.SetSandboxRoot('sandbox_win64');
+    BM.SetAllowInstall(True);
+    BM.SetLogVerbosity(1);
+    BM.SetMakeCmd('gmake');  // macOS 使用 GNU make
+    
+    // 设置交叉编译目标
+    BM.SetTarget('x86_64', 'win64');
+    BM.SetPrefix('C:\FPC', 'C:\FPC');
+    
+    WriteLn('Building cross-compiler for Windows x86_64...');
+    if not BM.Preflight('main') then Exit;
+    if not BM.BuildCompiler('main') then Exit;
+    if not BM.BuildRTL('main') then Exit;
+    if not BM.Install('main') then Exit;
+    
+    WriteLn('Cross-compiler built successfully!');
+  finally
+    BM.Free;
+  end;
+end.
+```
+
+### 常见配置组合
+
+| 场景 | SetMakeCmd | SetTarget | SetPrefix | 说明 |
+|------|-----------|-----------|-----------|------|
+| Windows 本地 | `mingw32-make` | - | - | MinGW 环境 |
+| Linux 本地 | `make` | - | - | 系统 make |
+| macOS 本地 | `gmake` | - | - | GNU make |
+| Win→Linux | `mingw32-make` | `x86_64, linux` | `/usr/local` | 交叉编译 |
+| Linux→ARM | `make` | `aarch64, linux` | `/opt/fpc-arm` | 交叉编译 |
+| macOS→Win | `gmake` | `x86_64, win64` | `C:\FPC` | 交叉编译 |
 
 注意：
 - Windows 日志时间戳可能含空格（小时 < 10）；如需可改为零填充格式（见 todos）
 - 上游 Makefile 对 DESTDIR/PREFIX 等变量的支持程度可能不同，必要时请查看上游文档或在日志中审阅完整 make 命令行
+- 交叉编译需要目标平台的工具链（如交叉编译器、链接器）已安装并在 PATH 中

@@ -26,6 +26,15 @@ type
     ecUnknownError
   );
 
+  { Error registry interface (future-facing).
+    Note: Current codebase primarily uses the concrete singleton `TErrorRegistry.Instance`. }
+  IErrorRegistry = interface
+    ['{4C0B38F7-9E20-4E9B-8C0D-FA5E58F9E2D1}']
+    procedure RegisterError(ACode: Integer; const AMessage: string);
+    function CreateError(ACode: Integer; const AMessage: string = ''): TObject;
+    function GetErrorMessage(ACode: Integer): string;
+  end;
+
   { Recovery suggestion for an error }
   TRecoverySuggestion = record
     Action: string;        // Human-readable action description
@@ -66,17 +75,26 @@ type
   end;
 
   { Error registry for managing error codes and default suggestions }
-  TErrorRegistry = class(TInterfacedObject, IErrorRegistry)
+  TErrorRegistry = class
   private
+    class var FInstance: TErrorRegistry;
     FErrorMessages: array[TErrorCode] of string;
     FDefaultSuggestions: array[TErrorCode] of TRecoverySuggestions;
   public
     constructor Create;
 
-    { IErrorRegistry implementation }
-    procedure RegisterError(ACode: Integer; const AMessage: string);
-    function CreateError(ACode: Integer; const AMessage: string = ''): TObject;
-    function GetErrorMessage(ACode: Integer): string;
+    { Singleton accessor }
+    class function Instance: TErrorRegistry; static;
+
+    { Primary API (used by tests and recovery helpers) }
+    procedure RegisterError(ACode: TErrorCode; const AMessage: string; const ASuggestions: TRecoverySuggestions); overload;
+    function CreateError(ACode: TErrorCode; const AMessage: string = ''): TEnhancedError; overload;
+    function GetErrorMessage(ACode: TErrorCode): string; overload;
+
+    { IErrorRegistry-compatible API }
+    procedure RegisterError(ACode: Integer; const AMessage: string); overload;
+    function CreateError(ACode: Integer; const AMessage: string = ''): TObject; overload;
+    function GetErrorMessage(ACode: Integer): string; overload;
 
     { Legacy methods for backward compatibility }
     procedure RegisterErrorWithSuggestions(ACode: TErrorCode; const AMessage: string;
@@ -204,9 +222,34 @@ begin
   FErrorMessages[ecInstallationFailed] := 'Installation failed';
   FErrorMessages[ecConfigurationError] := 'Configuration error';
   FErrorMessages[ecUnknownError] := 'Unknown error';
+  end;
+
+class function TErrorRegistry.Instance: TErrorRegistry;
+begin
+  if FInstance = nil then
+    FInstance := TErrorRegistry.Create;
+  Result := FInstance;
 end;
 
-{ IErrorRegistry implementation }
+{ Primary API }
+
+procedure TErrorRegistry.RegisterError(ACode: TErrorCode; const AMessage: string;
+  const ASuggestions: TRecoverySuggestions);
+begin
+  RegisterErrorWithSuggestions(ACode, AMessage, ASuggestions);
+end;
+
+function TErrorRegistry.CreateError(ACode: TErrorCode; const AMessage: string): TEnhancedError;
+begin
+  Result := CreateEnhancedError(ACode, AMessage);
+end;
+
+function TErrorRegistry.GetErrorMessage(ACode: TErrorCode): string;
+begin
+  Result := GetErrorMessageByCode(ACode);
+end;
+
+{ IErrorRegistry-compatible API }
 
 procedure TErrorRegistry.RegisterError(ACode: Integer; const AMessage: string);
 begin
@@ -269,15 +312,8 @@ end;
 { Helper functions }
 
 function NewError(ACode: TErrorCode; const AMessage: string): TEnhancedError;
-var
-  Registry: TErrorRegistry;
 begin
-  Registry := TErrorRegistry.Create;
-  try
-    Result := Registry.CreateEnhancedError(ACode, AMessage);
-  finally
-    Registry.Free;
-  end;
+  Result := TErrorRegistry.Instance.CreateError(ACode, AMessage);
 end;
 
 function ErrorCodeToString(ACode: TErrorCode): string;
@@ -303,3 +339,10 @@ begin
 end;
 
 end.
+
+finalization
+  if TErrorRegistry.FInstance <> nil then
+  begin
+    TErrorRegistry.FInstance.Free;
+    TErrorRegistry.FInstance := nil;
+  end;

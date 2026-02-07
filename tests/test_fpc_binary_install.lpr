@@ -12,6 +12,13 @@ var
   TestsPassed: Integer;
   TestsFailed: Integer;
 
+function NetworkTestsEnabled: Boolean;
+begin
+  Result := GetEnvironmentVariable('FPDEV_TEST_INTEGRATION') = '1';
+  if GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1' then
+    Result := False;
+end;
+
 procedure InitTestEnvironment;
 begin
   // Create test root directory in temp
@@ -183,6 +190,13 @@ begin
   WriteLn('Test 3: File Download to Temp');
   WriteLn('==================================================');
 
+  if not NetworkTestsEnabled then
+  begin
+    WriteLn('[SKIP] Network-dependent test (set FPDEV_TEST_INTEGRATION=1 to enable)');
+    Inc(TestsPassed);
+    Exit;
+  end;
+
   try
     SettingsMgr := ConfigManager.GetSettingsManager;
     Settings := SettingsMgr.GetSettings;
@@ -223,6 +237,13 @@ begin
   WriteLn('==================================================');
   WriteLn('Test 4: SHA256 Checksum Verification');
   WriteLn('==================================================');
+
+  if not NetworkTestsEnabled then
+  begin
+    WriteLn('[SKIP] Network-dependent test (set FPDEV_TEST_INTEGRATION=1 to enable)');
+    Inc(TestsPassed);
+    Exit;
+  end;
 
   try
     SettingsMgr := ConfigManager.GetSettingsManager;

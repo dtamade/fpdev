@@ -140,7 +140,7 @@ var
   Hash: string;
 begin
   // Create a temporary empty file
-  TestFile := GetTempRootDir + 'test_hash.tmp';
+  TestFile := IncludeTrailingPathDelimiter(GetTempRootDir) + 'test_hash.tmp';
   try
     AssignFile(F, TestFile);
     Rewrite(F);

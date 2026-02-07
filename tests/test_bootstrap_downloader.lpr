@@ -244,6 +244,7 @@ procedure TestBootstrapDownload;
 var
   Settings: TFPDevSettings;
   DownloadResult: Boolean;
+  IntegrationEnabled: Boolean;
   SkipNetworkTests: Boolean;
 begin
   WriteLn;
@@ -251,12 +252,13 @@ begin
   WriteLn('Test 5: Bootstrap Download (Network-Dependent)');
   WriteLn('==================================================');
 
-  // Check if network tests should be skipped
+  // Default: skip network-dependent tests unless explicitly enabled
+  IntegrationEnabled := GetEnvironmentVariable('FPDEV_TEST_INTEGRATION') = '1';
   SkipNetworkTests := GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1';
   
-  if SkipNetworkTests then
+  if (not IntegrationEnabled) or SkipNetworkTests then
   begin
-    WriteLn('[SKIP] Network-dependent test - skipped by FPDEV_SKIP_NETWORK_TESTS=1');
+    WriteLn('[SKIP] Network-dependent test (set FPDEV_TEST_INTEGRATION=1 to enable)');
     WriteLn('  Note: DownloadBootstrapCompiler is deprecated, use fpdev-repo instead');
     Exit;
   end;
