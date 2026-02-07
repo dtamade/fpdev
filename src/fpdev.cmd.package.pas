@@ -1744,6 +1744,10 @@ var
   Code: Integer;
   i, DotCount: Integer;
 begin
+  // Initialize managed type variables
+  Parts := nil;
+  PreReleaseParts := nil;
+
   // Initialize result
   Result.Valid := False;
   Result.Major := 0;
@@ -2045,6 +2049,9 @@ var
   DepParts: TStringArray;
 begin
   Result := nil;
+  InDegree := nil;
+  Queue := nil;
+  DepParts := nil;
 
   if Length(AGraph) = 0 then
     Exit;

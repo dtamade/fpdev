@@ -274,6 +274,7 @@ var
 begin
   Result := False;
   AErr := '';
+  URLs := nil;
 
   // Validate target has URLs
   if Length(ATarget.URLs) = 0 then

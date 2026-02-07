@@ -1261,6 +1261,7 @@ begin
     Exit;
 
   // Collect all cache entries
+  Entries := nil;
   Count := 0;
   SetLength(Entries, 100);  // Initial capacity
 

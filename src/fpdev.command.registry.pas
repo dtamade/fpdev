@@ -113,6 +113,7 @@ var
   I, J, Cost: Integer;
   Len1, Len2: Integer;
 begin
+  D := nil;
   Len1 := Length(S1);
   Len2 := Length(S2);
 

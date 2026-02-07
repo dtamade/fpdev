@@ -210,6 +210,9 @@ function CleanBuildArtifacts(const ADir: string;
     {$ENDIF}
   begin
     Result := 0;
+    {$IFDEF UNIX}
+    FillChar(StatBuf, SizeOf(StatBuf), 0);
+    {$ENDIF}
     if not DirectoryExists(APath) then
       Exit;
 

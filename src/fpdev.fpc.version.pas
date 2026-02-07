@@ -366,7 +366,13 @@ var
   i: Integer;
 begin
   Result := False;
-  FillChar(Info, SizeOf(Info), 0);
+  // Initialize managed type fields
+  Info.Version := '';
+  Info.ReleaseDate := '';
+  Info.GitTag := '';
+  Info.Branch := '';
+  Info.Available := False;
+  Info.Installed := False;
 
   // Query version registry for release information
   Releases := TVersionRegistry.Instance.GetFPCReleases;

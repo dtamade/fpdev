@@ -444,7 +444,10 @@ var
   i: Integer;
 begin
   Result := False;
-  FillChar(AManifestTarget, SizeOf(AManifestTarget), 0);
+  // Initialize managed type fields
+  AManifestTarget.Name := '';
+  SetLength(AManifestTarget.Libraries.URLs, 0);
+  AManifestTarget.Libraries.Sha256 := '';
 
   for i := 0 to High(FEntries) do
   begin
@@ -466,7 +469,9 @@ var
   i: Integer;
 begin
   Result := False;
-  FillChar(ABinutils, SizeOf(ABinutils), 0);
+  // Initialize managed type fields
+  SetLength(ABinutils.URLs, 0);
+  ABinutils.Sha256 := '';
 
   // Find the entry for this target
   for i := 0 to High(FEntries) do
