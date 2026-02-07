@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.tree;
+  fpdev.i18n, fpdev.i18n.strings;
 
 type
   TPackageInstallCommand = class(TInterfacedObject, ICommand)

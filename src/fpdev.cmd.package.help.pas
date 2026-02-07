@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TPackageHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TPackageHelpCommand.Aliases: TStringArray;

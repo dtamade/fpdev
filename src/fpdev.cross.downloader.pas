@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, Process, fpjson, jsonparser,
   fpdev.cross.manifest, fpdev.cross.cache, fpdev.toolchain.fetcher,
-  fpdev.toolchain.extract, fpdev.hash;
+  fpdev.toolchain.extract;
 
 const
   DEFAULT_MANIFEST_URL = 'https://raw.githubusercontent.com/dtamade/fpdev-repo/main/cross-toolchain-manifest.json';

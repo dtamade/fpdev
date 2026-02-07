@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TRepoHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TRepoHelpCommand.Aliases: TStringArray;

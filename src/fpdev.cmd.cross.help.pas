@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TCrossHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TCrossHelpCommand.Aliases: TStringArray;

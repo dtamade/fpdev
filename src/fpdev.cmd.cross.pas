@@ -33,7 +33,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
-  fpdev.cross.manifest, fpdev.cross.downloader, fpdev.toolchain.fetcher, fpdev.toolchain.extract,
+  fpdev.cross.downloader,
   fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester;
 

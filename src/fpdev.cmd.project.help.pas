@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TProjectHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TProjectHelpCommand.Aliases: TStringArray;

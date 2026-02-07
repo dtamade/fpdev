@@ -27,7 +27,7 @@ interface
 
 uses
   SysUtils, Classes, DateUtils, ctypes,
-  libgit2, git2.types, git2.api;
+  libgit2, git2.types;
 
 type
   EGitError = class(Exception)
@@ -231,9 +231,6 @@ function CreateGitTimeFromGitTime(const AGitTime: git_time): TGitTime;
 function GitTimeToString(const ATime: TGitTime): string;
 
 implementation
-
-uses
-  git2.impl;
 
 type
   PStatusListPayload = ^TStatusListPayload;

@@ -6,8 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.build.cache,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.command.intf,
+  fpdev.i18n.strings;
 
 type
   { TFPCCachePathCommand }

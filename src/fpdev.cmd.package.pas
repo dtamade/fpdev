@@ -34,7 +34,7 @@ uses
   SysUtils, Classes, fpjson, jsonparser,
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths, fpdev.hash,
-  fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils, fpdev.utils.process,
+  fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils,
   fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository,
   fpdev.package.archiver, fpdev.pkg.version;
 
