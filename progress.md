@@ -903,3 +903,18 @@
   - Hints: 4 -> 0 (src 范围)
   - Notes: 4 -> 0 (src 范围)
   - Tests: 95/95 passing
+
+### B064: Manifest 懒加载状态一致性修复
+- **Status:** complete
+- **Issues fixed:**
+  - LoadManifest: 使用 FreeAndNil 避免悬垂指针
+  - LoadManifest: 所有失败路径重置 FManifestLoaded=False
+  - Update: 检查 LoadManifest 返回值
+  - GetRequiredBootstrapVersion/ListBootstrapVersions: 检查 EnsureManifestLoaded 返回值
+- **Result:** Tests: 95/95 passing, Warnings: 0
+
+### B065: RebuildIndex 旧索引回灌修复
+- **Status:** complete
+- **Problem:** RebuildIndex 调用 UpdateIndexEntry 会触发 EnsureIndexLoaded，回灌旧索引
+- **Solution:** 在 RebuildIndex 中 Clear() 后设置 FIndexLoaded=True
+- **Result:** Tests: 95/95 passing

@@ -78,6 +78,8 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B059 README 测试数量更新
 - [x] B062 build.cache/resource.repo 懒加载优化
 - [x] B063 清理 package 命令未使用的单元和变量
+- [x] B064 修复 Manifest 懒加载状态机一致性
+- [x] B065 修复 RebuildIndex 旧索引回灌问题
 
 ## Batch Queue (Week 1)
 
@@ -132,7 +134,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B064 (next)
+B066 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)
