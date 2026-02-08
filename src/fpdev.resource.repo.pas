@@ -184,6 +184,7 @@ uses
   fpdev.resource.repo.package,
   fpdev.resource.repo.search,
   fpdev.resource.repo.binary,
+  fpdev.resource.repo.cross,
   fpdev.paths;  // 用于GetUserConfigDir等
 
 { 辅助函数实现 }
@@ -1241,10 +1242,6 @@ end;
 { Cross Toolchain Management }
 
 function TResourceRepository.HasCrossToolchain(const ATarget, AHostPlatform: string): Boolean;
-var
-  CrossToolchains: TJSONObject;
-  TargetData: TJSONObject;
-  HostPlatforms: TJSONObject;
 begin
   Result := False;
 
@@ -1252,19 +1249,8 @@ begin
     Exit;
 
   try
-    CrossToolchains := FManifestData.Objects['cross_toolchains'];
-    if not Assigned(CrossToolchains) then
-      Exit;
-
-    TargetData := CrossToolchains.Objects[ATarget];
-    if not Assigned(TargetData) then
-      Exit;
-
-    HostPlatforms := TargetData.Objects['host_platforms'];
-    if not Assigned(HostPlatforms) then
-      Exit;
-
-    Result := HostPlatforms.IndexOfName(AHostPlatform) >= 0;
+    // B069: 使用 helper 函数
+    Result := ResourceRepoHasCrossToolchain(FManifestData, ATarget, AHostPlatform);
   except
     on E: Exception do
     begin
@@ -1276,10 +1262,7 @@ end;
 
 function TResourceRepository.GetCrossToolchainInfo(const ATarget, AHostPlatform: string; out AInfo: TCrossToolchainInfo): Boolean;
 var
-  CrossToolchains: TJSONObject;
-  TargetData: TJSONObject;
-  HostPlatforms: TJSONObject;
-  PlatformData: TJSONObject;
+  CrossInfo: TResourceRepoCrossInfo;
 begin
   Result := False;
   System.Initialize(AInfo);
@@ -1288,36 +1271,22 @@ begin
     Exit;
 
   try
-    CrossToolchains := FManifestData.Objects['cross_toolchains'];
-    if not Assigned(CrossToolchains) then
+    // B069: 使用 helper 函数
+    if not ResourceRepoGetCrossToolchainInfo(FManifestData, ATarget, AHostPlatform, CrossInfo) then
       Exit;
 
-    TargetData := CrossToolchains.Objects[ATarget];
-    if not Assigned(TargetData) then
-      Exit;
+    // 转换 TResourceRepoCrossInfo -> TCrossToolchainInfo
+    AInfo.TargetName := CrossInfo.TargetName;
+    AInfo.DisplayName := CrossInfo.DisplayName;
+    AInfo.CPU := CrossInfo.CPU;
+    AInfo.OS := CrossInfo.OS;
+    AInfo.BinutilsPrefix := CrossInfo.BinutilsPrefix;
+    AInfo.BinutilsArchive := CrossInfo.BinutilsArchive;
+    AInfo.LibsArchive := CrossInfo.LibsArchive;
+    AInfo.BinutilsSHA256 := CrossInfo.BinutilsSHA256;
+    AInfo.LibsSHA256 := CrossInfo.LibsSHA256;
 
-    // Get target-level info
-    AInfo.TargetName := ATarget;
-    AInfo.DisplayName := TargetData.Get('display_name', ATarget);
-    AInfo.CPU := TargetData.Get('cpu', '');
-    AInfo.OS := TargetData.Get('os', '');
-    AInfo.BinutilsPrefix := TargetData.Get('binutils_prefix', '');
-
-    HostPlatforms := TargetData.Objects['host_platforms'];
-    if not Assigned(HostPlatforms) then
-      Exit;
-
-    PlatformData := HostPlatforms.Objects[AHostPlatform];
-    if not Assigned(PlatformData) then
-      Exit;
-
-    // Get host-platform specific info
-    AInfo.BinutilsArchive := PlatformData.Get('binutils', '');
-    AInfo.LibsArchive := PlatformData.Get('libs', '');
-    AInfo.BinutilsSHA256 := PlatformData.Get('binutils_sha256', '');
-    AInfo.LibsSHA256 := PlatformData.Get('libs_sha256', '');
-
-    Result := (AInfo.BinutilsArchive <> '') or (AInfo.LibsArchive <> '');
+    Result := True;
   except
     on E: Exception do
     begin
@@ -1328,9 +1297,6 @@ begin
 end;
 
 function TResourceRepository.ListCrossTargets: SysUtils.TStringArray;
-var
-  CrossToolchains: TJSONObject;
-  i: Integer;
 begin
   Result := nil;
 
@@ -1338,13 +1304,8 @@ begin
     Exit;
 
   try
-    CrossToolchains := FManifestData.Objects['cross_toolchains'];
-    if not Assigned(CrossToolchains) then
-      Exit;
-
-    SetLength(Result, CrossToolchains.Count);
-    for i := 0 to CrossToolchains.Count - 1 do
-      Result[i] := CrossToolchains.Names[i];
+    // B069: 使用 helper 函数
+    Result := ResourceRepoListCrossTargets(FManifestData);
   except
     on E: Exception do
     begin
