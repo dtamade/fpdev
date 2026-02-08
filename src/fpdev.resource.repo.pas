@@ -178,6 +178,7 @@ uses
   fpdev.resource.repo.mirror,
   fpdev.resource.repo.package,
   fpdev.resource.repo.search,
+  fpdev.resource.repo.binary,
   fpdev.paths;  // 用于GetUserConfigDir等
 
 { 辅助函数实现 }
@@ -849,10 +850,6 @@ begin
 end;
 
 function TResourceRepository.HasBinaryRelease(const AVersion, APlatform: string): Boolean;
-var
-  BinaryReleases: TJSONObject;
-  VersionData: TJSONObject;
-  Platforms: TJSONObject;
 begin
   Result := False;
 
@@ -860,19 +857,8 @@ begin
     Exit;
 
   try
-    BinaryReleases := FManifestData.Objects['binary_releases'];
-    if not Assigned(BinaryReleases) then
-      Exit;
-
-    VersionData := BinaryReleases.Objects[AVersion];
-    if not Assigned(VersionData) then
-      Exit;
-
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
-      Exit;
-
-    Result := Platforms.IndexOfName(APlatform) >= 0;
+    // B067: 使用 helper 函数
+    Result := ResourceRepoHasBinaryRelease(FManifestData, AVersion, APlatform);
   except
     on E: Exception do
     begin
@@ -884,11 +870,7 @@ end;
 
 function TResourceRepository.GetBinaryReleaseInfo(const AVersion, APlatform: string; out AInfo: TPlatformInfo): Boolean;
 var
-  BinaryReleases: TJSONObject;
-  VersionData: TJSONObject;
-  Platforms: TJSONObject;
-  PlatformData: TJSONObject;
-  MirrorsArray: TJSONArray;
+  BinaryInfo: TBinaryReleaseInfo;
   i: Integer;
 begin
   Result := False;
@@ -898,49 +880,21 @@ begin
     Exit;
 
   try
-    // Try fpc_releases first (v2.0 format), then binary_releases (v1.0 format)
-    BinaryReleases := FManifestData.Objects['fpc_releases'];
-    if not Assigned(BinaryReleases) then
-      BinaryReleases := FManifestData.Objects['binary_releases'];
-    if not Assigned(BinaryReleases) then
+    // B067: 使用 helper 函数
+    if not ResourceRepoGetBinaryReleaseInfo(FManifestData, AVersion, APlatform, BinaryInfo) then
       Exit;
 
-    VersionData := BinaryReleases.Objects[AVersion];
-    if not Assigned(VersionData) then
-      Exit;
+    // 转换 TBinaryReleaseInfo -> TPlatformInfo
+    AInfo.Path := BinaryInfo.Path;
+    AInfo.URL := BinaryInfo.URL;
+    AInfo.SHA256 := BinaryInfo.SHA256;
+    AInfo.Size := BinaryInfo.Size;
+    AInfo.Tested := BinaryInfo.Tested;
+    SetLength(AInfo.Mirrors, Length(BinaryInfo.Mirrors));
+    for i := 0 to High(BinaryInfo.Mirrors) do
+      AInfo.Mirrors[i] := BinaryInfo.Mirrors[i];
 
-    AInfo.Path := VersionData.Get('path', '');
-
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
-      Exit;
-
-    PlatformData := Platforms.Objects[APlatform];
-    if not Assigned(PlatformData) then
-      Exit;
-
-    // v2.0 fields: url and mirrors
-    AInfo.URL := PlatformData.Get('url', '');
-    MirrorsArray := PlatformData.Arrays['mirrors'];
-    if Assigned(MirrorsArray) then
-    begin
-      SetLength(AInfo.Mirrors, MirrorsArray.Count);
-      for i := 0 to MirrorsArray.Count - 1 do
-        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
-    end
-    else
-      SetLength(AInfo.Mirrors, 0);
-
-    // v1.0 backward compatibility: archive field
-    if AInfo.URL = '' then
-      AInfo.Path := PlatformData.Get('archive', AInfo.Path);
-
-    // Common fields
-    AInfo.SHA256 := PlatformData.Get('sha256', '');
-    AInfo.Size := PlatformData.Get('size', Int64(0));
-    AInfo.Tested := PlatformData.Get('tested', False);
-
-    Result := (AInfo.URL <> '') or (AInfo.Path <> '');
+    Result := True;
   except
     on E: Exception do
     begin
