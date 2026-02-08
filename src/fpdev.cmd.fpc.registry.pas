@@ -3,21 +3,17 @@ unit fpdev.cmd.fpc.registry;
 {$mode objfpc}{$H+}
 
 {
-  FPC command root node registration.
-  
-  This module registers the 'fpc' root command node in the global command registry,
-  enabling automatic help generation and subcommand discovery.
+  FPC command root node registration - backward compatibility wrapper.
+
+  Note: The actual registration is now done in fpdev.cmd.fpc.root.pas
+  This unit is kept for backward compatibility only.
 }
 
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.cmd.fpc.root; // actual registration happens here
 
 implementation
-
-initialization
-  // Register fpc root node for automatic help
-  GlobalCommandRegistry.RegisterPath(['fpc'], nil, []);
 
 end.
