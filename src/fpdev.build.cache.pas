@@ -212,6 +212,7 @@ uses
   fpdev.build.cache.metajson,
   fpdev.build.cache.rebuildscan,
   fpdev.build.cache.statsreport,
+  fpdev.build.cache.ttl,
   fpdev.build.cache.verify,
   StrUtils, DateUtils, fpjson, jsonparser;
 
@@ -1021,23 +1022,15 @@ begin
 end;
 
 function TBuildCache.IsExpired(const AInfo: TArtifactInfo): Boolean;
-var
-  ExpiryDate: TDateTime;
 begin
-  // TTL=0 means never expire
-  if FTTLDays = 0 then
-    Exit(False);
-
-  ExpiryDate := AInfo.CreatedAt + FTTLDays;
-  Result := Now >= ExpiryDate;  // Include boundary (exactly at TTL)
+  Result := BuildCacheIsExpired(AInfo.CreatedAt, FTTLDays);
 end;
 
 procedure TBuildCache.CleanExpired;
 var
   SR: TSearchRec;
-  FileName, Version: string;
+  Version: string;
   Info: TArtifactInfo;
-  DashPos: Integer;
 begin
   if not DirectoryExists(FCacheDir) then
     Exit;
@@ -1046,26 +1039,11 @@ begin
   if FindFirst(FCacheDirWithDelim + '*.meta', faAnyFile, SR) = 0 then
   begin
     repeat
-      FileName := SR.Name;
+      // Extract version from filename using helper
+      Version := BuildCacheExtractVersionFromFilename(SR.Name);
 
-      // Extract version from filename
-      // Format: fpc-3.2.0-x86_64-linux.meta or fpc-3.2.0-x86_64-linux-binary.meta
-      if Pos('fpc-', FileName) = 1 then
+      if Version <> '' then
       begin
-        // Remove 'fpc-' prefix and '.meta' suffix
-        Version := Copy(FileName, 5, Length(FileName) - 9);
-
-        // Remove platform suffix (-x86_64-linux or -x86_64-linux-binary)
-        if Pos('-binary', Version) > 0 then
-          Version := Copy(Version, 1, Pos('-', Version) - 1)
-        else
-        begin
-          // Find second dash (after version number)
-          DashPos := Pos('-', Version);
-          if DashPos > 0 then
-            Version := Copy(Version, 1, DashPos - 1);
-        end;
-
         // Get artifact info and check if expired
         if GetArtifactInfo(Version, Info) or GetBinaryArtifactInfo(Version, Info) then
         begin
@@ -1166,8 +1144,7 @@ var
   i, j: Integer;
   OldestEntry: TArtifactInfo;
   OldestIndex: Integer;
-  FileName, Version, MetaPath: string;
-  DashPos: Integer;
+  Version, MetaPath: string;
   TempInfo: TArtifactInfo;
 begin
   // If unlimited cache (0 = unlimited), do nothing
@@ -1192,19 +1169,10 @@ begin
       Entries[Count].ArchivePath := FCacheDirWithDelim + SR.Name;
       Entries[Count].ArchiveSize := SR.Size;
 
-      // Extract version from filename
-      FileName := SR.Name;
-      if Pos('fpc-', FileName) = 1 then
+      // Extract version from filename using helper
+      Version := BuildCacheExtractVersionFromFilename(SR.Name);
+      if Version <> '' then
       begin
-        // Remove "fpc-" prefix (4 chars) and ".tar.gz" suffix (7 chars)
-        // For "fpc-3.2.0-x86_64-linux.tar.gz", extract "3.2.0-x86_64-linux"
-        Version := Copy(FileName, 5, Length(FileName) - 11);
-
-        // Extract just the version number (before first dash)
-        // For "3.2.0-x86_64-linux", extract "3.2.0"
-        DashPos := Pos('-', Version);
-        if DashPos > 0 then
-          Version := Copy(Version, 1, DashPos - 1);
         Entries[Count].Version := Version;
 
         // Try to get CreatedAt from metadata, fallback to file time
