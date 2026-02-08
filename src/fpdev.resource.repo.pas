@@ -70,7 +70,12 @@ type
     FPCMinVersion: string;    // 最低 FPC 版本
   end;
 
-  { 资源仓库管理器 }
+  { 资源仓库管理器
+    B068: 线程安全说明
+    - 此类设计为单线程使用（命令行工具的正常场景）
+    - 懒加载标志 FManifestLoaded 和共享对象 FManifestData 无同步保护
+    - 并发访问可能导致重复加载或竞态读写
+    - 如需多线程支持，需添加临界区保护 }
   TResourceRepository = class
   private
     FConfig: TResourceRepoConfig;

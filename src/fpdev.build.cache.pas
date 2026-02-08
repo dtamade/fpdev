@@ -89,7 +89,12 @@ type
     LeastAccessedCount: Integer; // Access count of least accessed version
   end;
 
-  { TBuildCache - Build cache management }
+  { TBuildCache - Build cache management
+    B068: 线程安全说明
+    - 此类设计为单线程使用（命令行工具的正常场景）
+    - 懒加载标志 FIndexLoaded 和共享对象 FIndexEntries 无同步保护
+    - 并发访问可能导致重复加载或竞态读写
+    - 如需多线程支持，需添加临界区保护 }
   TBuildCache = class
   private
     FCacheDir: string;
