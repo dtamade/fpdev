@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCListCommand }
@@ -59,14 +59,14 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_ALL));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LShowAll := HasFlag(AParams, 'all') or HasFlag(AParams, 'remote');
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     if LMgr.ListVersions(Ctx.Out, LShowAll) then
-      Exit(0);
+      Exit(EXIT_OK);
     Result := 3;
   finally
     LMgr.Free;

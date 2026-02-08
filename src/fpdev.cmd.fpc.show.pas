@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCShowCommand }
@@ -51,20 +51,20 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_SHOW_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_SHOW_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   LVer := AParams[0];
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     if LMgr.ShowVersionInfo(Ctx.Out, LVer) then
-      Exit(0);
+      Exit(EXIT_OK);
     Result := 3;
   finally
     LMgr.Free;

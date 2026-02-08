@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCurrentCommand }
@@ -51,7 +51,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);

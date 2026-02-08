@@ -16,7 +16,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.fpc.activation,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.paths;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.paths, fpdev.exitcodes;
 
 type
   { TFPCUseCommand }
@@ -98,7 +98,7 @@ begin
     Ctx.Out.WriteLn('  stable    Latest stable version');
     Ctx.Out.WriteLn('  lts       Long-term support version');
     Ctx.Out.WriteLn('  trunk     Development version (main branch)');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // 获取全局默认值
@@ -127,7 +127,7 @@ begin
         Ctx.Err.WriteLn('');
         Ctx.Err.WriteLn('Or set a default: fpdev default fpc <version>');
         Ctx.Err.WriteLn('Or create a .fpdevrc file in your project.');
-        Exit(2);
+        Exit(EXIT_USAGE_ERROR);
       end;
 
       Ctx.Out.WriteLn('Using version from ' + ConfigSourceToString(LResolved.FPCSource) + ': ' + LVer);
@@ -163,7 +163,7 @@ begin
         if not LMgr.InstallVersion(LVer, True {from source}, '' {prefix}, True {ensure}) then
         begin
           Ctx.Err.WriteLn('Error: Failed to install FPC ' + LVer);
-          Exit(3);
+          Exit(EXIT_ERROR);
         end;
       finally
         LMgr.Free;
@@ -184,7 +184,7 @@ begin
       Ctx.Err.WriteLn('Or enable auto_install in your .fpdevrc:');
       Ctx.Err.WriteLn('  [settings]');
       Ctx.Err.WriteLn('  auto_install = true');
-      Exit(3);
+      Exit(EXIT_ERROR);
     end;
   end;
 
@@ -206,12 +206,12 @@ begin
       end;
       if LResult.VSCodeSettings <> '' then
         Ctx.Out.WriteLn(_Fmt(CMD_FPC_USE_VSCODE_UPDATED, [LResult.VSCodeSettings]));
-      Exit(0);
+      Exit(EXIT_OK);
     end
     else
     begin
       Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + LResult.ErrorMessage);
-      Result := 3;
+      Result := EXIT_ERROR;
     end;
   finally
     LMgr.Free;

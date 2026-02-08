@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.types,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes;
 
 type
   { TFPCInstallCommand }
@@ -69,14 +69,14 @@ begin
     Ctx.Out.WriteLn('  --offline         Force offline mode (use cache only)');
     Ctx.Out.WriteLn('  --no-cache        Ignore cache, force re-download');
     Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   LVer := AParams[0];
 
@@ -92,7 +92,7 @@ begin
     begin
       Ctx.Err.WriteLn(_Fmt(ERR_INVALID_INSTALL_MODE, [LFrom]));
       Ctx.Err.WriteLn(_(ERR_VALID_INSTALL_MODES));
-      Exit(2);
+      Exit(EXIT_USAGE_ERROR);
     end;
   end
   else if HasFlag(AParams, 'from-source') then
@@ -152,7 +152,7 @@ begin
           Ctx.Out.WriteLn('');
           Ctx.Out.WriteLn('Next steps:');
           Ctx.Out.WriteLn('  fpdev fpc use ' + LVer);
-          Exit(0);
+          Exit(EXIT_OK);
         end
         else
         begin
@@ -163,7 +163,7 @@ begin
             Ctx.Err.WriteLn('[HINT] The cached artifact may be corrupted. Try:');
             Ctx.Err.WriteLn('[HINT]   fpdev fpc cache clean ' + LVer);
             Ctx.Err.WriteLn('[HINT]   fpdev fpc install ' + LVer + '  (without --offline)');
-            Exit(4);
+            Exit(EXIT_IO_ERROR);
           end;
           Ctx.Out.WriteLn('[WARN] Cache restoration failed, proceeding with download...');
           // Continue with normal installation
@@ -178,7 +178,7 @@ begin
       Ctx.Err.WriteLn('[FAIL] Cache miss for FPC ' + LVer);
       Ctx.Err.WriteLn('[HINT] Network disabled by --offline flag');
       Ctx.Err.WriteLn('[HINT] Run without --offline to download, or use ''fpdev fpc cache list'' to see available versions');
-      Exit(4);
+      Exit(EXIT_IO_ERROR);
     end;
 
     // Show installation mode
@@ -214,7 +214,7 @@ begin
             Ctx.Err.WriteLn('  1. Check network connectivity');
             Ctx.Err.WriteLn('  2. Verify version exists: fpdev fpc list --all');
             Ctx.Err.WriteLn('  3. For source builds, ensure bootstrap compiler is available');
-            Exit(3);
+            Exit(EXIT_ERROR);
           end;
         end;
       end
@@ -230,12 +230,12 @@ begin
         // Note: Binary installations are now cached automatically by the installer
         // Source installations are cached by TFPCManager.InstallVersion
         // No need to call SaveArtifacts here anymore
-        Exit(0);
+        Exit(EXIT_OK);
       end
       else
       begin
         Ctx.Err.WriteLn(_Fmt(CMD_FPC_INSTALL_FAILED, [LVer]));
-        Exit(3);
+        Exit(EXIT_ERROR);
       end;
     finally
       LMgr.Free;

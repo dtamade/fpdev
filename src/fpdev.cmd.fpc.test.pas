@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCTestCommand }
@@ -51,7 +51,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_TEST_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_TEST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
@@ -63,7 +63,7 @@ begin
     if LVer = '' then
     begin
       Ctx.Err.WriteLn(_(CMD_FPC_CURRENT_NONE));
-      Exit(2);
+      Exit(EXIT_USAGE_ERROR);
     end;
   end
   else
@@ -71,7 +71,7 @@ begin
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     if LMgr.TestInstallation(Ctx.Out, Ctx.Err, LVer) then
-      Exit(0);
+      Exit(EXIT_OK);
     Result := 3;
   finally
     LMgr.Free;
