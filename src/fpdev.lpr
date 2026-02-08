@@ -96,6 +96,8 @@ uses
   fpdev.cmd.package.clean,
   fpdev.cmd.package.install_local,
   fpdev.cmd.package.publish,
+  fpdev.cmd.package.deps,
+  fpdev.cmd.package.why,
   fpdev.cmd.package.repo.root,
   fpdev.cmd.package.repo.add,
   fpdev.cmd.package.repo.remove,

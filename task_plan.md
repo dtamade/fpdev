@@ -219,3 +219,18 @@ bash scripts/run_all_tests.sh
 - 当前工作区有未提交的改动 (16 files changed)
 - 这些改动是之前测试稳定化任务的结果
 - 建议先提交这些改动，再开始新的修复工作
+
+### M5: 后端探索开发任务（B053-B062）
+- [ ] B053 命令契约测试矩阵 - 新增 command-registry 级别测试
+- [ ] B054 测试发现器升级 - 支持嵌套测试目录
+- [ ] B055 退出码残余清理 - 检查遗漏的魔法数字
+- [ ] B056 错误语义统一 - 帮助文档与实际行为对齐
+- [ ] B057 package deps 命令 - 依赖树展示
+- [ ] B058 package why 命令 - 依赖路径解释
+- [ ] B059 文档基线对齐 - README 命令集更新
+- [ ] B060 文档测试规模更新 - 测试数量与覆盖率
+- [ ] B061 resource.repo 懒加载 - 延迟初始化优化
+- [ ] B062 build.cache 分层 - 子服务拆分
+
+## Current Batch
+B053 (in_progress)

@@ -72,7 +72,7 @@ begin
   try
     if LMgr.TestInstallation(Ctx.Out, Ctx.Err, LVer) then
       Exit(EXIT_OK);
-    Result := 3;
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

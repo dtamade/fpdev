@@ -65,7 +65,7 @@ begin
   try
     if LMgr.ShowVersionInfo(Ctx.Out, LVer) then
       Exit(EXIT_OK);
-    Result := 3;
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

@@ -30,7 +30,7 @@ uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
   fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.output.intf, fpdev.paths;
+  fpdev.output.intf, fpdev.paths, fpdev.exitcodes;
 
 type
   { TConfigCommand - Main config command handler }
@@ -276,7 +276,7 @@ begin
     begin
       FErr.WriteLn('Error: Missing key argument');
       FErr.WriteLn('Usage: fpdev config get <key>');
-      Result := 1;
+      Result := EXIT_USAGE_ERROR;
       Exit;
     end;
     GetConfigValue(AParams[1]);
@@ -287,7 +287,7 @@ begin
     begin
       FErr.WriteLn('Error: Missing key or value argument');
       FErr.WriteLn('Usage: fpdev config set <key> <value>');
-      Result := 1;
+      Result := EXIT_USAGE_ERROR;
       Exit;
     end;
     SetConfigValue(AParams[1], AParams[2]);
@@ -296,7 +296,7 @@ begin
   begin
     FErr.WriteLn('Error: Unknown subcommand: ' + SubCommand);
     ShowHelp;
-    Result := 1;
+    Result := EXIT_USAGE_ERROR;
   end;
 end;
 
