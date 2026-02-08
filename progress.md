@@ -937,3 +937,11 @@
 - **Result:**
   - resource.repo.pas: 1730 -> 1684 行 (-46)
   - Tests: 95/95 passing
+
+### B068: 懒加载并发安全文档
+- **Status:** complete
+- **Actions:**
+  - 为 TBuildCache 添加线程安全说明注释
+  - 为 TResourceRepository 添加线程安全说明注释
+  - 明确声明单线程设计约束
+- **Result:** Tests: 95/95 passing
