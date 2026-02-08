@@ -51,14 +51,11 @@ begin
 end;
 
 procedure TRepoListCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
-var
-  Names: TStringArray;
-  i: Integer;
 begin
   // AParams not used in legacy interface
   if Length(AParams) >= 0 then; // Suppress unused parameter warning
-  Names := Ctx.Config.ListRepositories;
-  // Silent execution for legacy interface - no output
+  // Silent execution for legacy interface - delegated to ExecuteV2
+  if Ctx = nil then; // Suppress unused parameter warning
 end;
 
 function RepoListFactory: ICommand;

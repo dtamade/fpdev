@@ -269,8 +269,6 @@ var
   Opt: TFetchOptions;
   URLs: array of string;
   I: Integer;
-  Algorithm: string;
-  Digest: string;
 begin
   Result := False;
   AErr := '';

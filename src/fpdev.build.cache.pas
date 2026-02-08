@@ -1023,7 +1023,7 @@ end;
 procedure TBuildCache.CleanExpired;
 var
   SR: TSearchRec;
-  FileName, Version, MetaPath: string;
+  FileName, Version: string;
   Info: TArtifactInfo;
   DashPos: Integer;
 begin
@@ -1034,7 +1034,6 @@ begin
   if FindFirst(FCacheDirWithDelim + '*.meta', faAnyFile, SR) = 0 then
   begin
     repeat
-      MetaPath := FCacheDirWithDelim + SR.Name;
       FileName := SR.Name;
 
       // Extract version from filename
@@ -1371,7 +1370,6 @@ var
   JSONData: TJSONData;
   JSONObj: TJSONObject;
   DateStr: string;
-  LastAccessedStr: string;
 begin
   Result := False;
   Initialize(AInfo);

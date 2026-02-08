@@ -307,7 +307,7 @@ var
   bits: array[0..15] of byte;
   idx, padLen: SizeInt;
   pad: array of byte;
-  i, j: Integer;
+  i: Integer;
   beLen: QWord;
 begin
   // length in bits big-endian (128-bit)

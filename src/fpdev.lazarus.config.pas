@@ -648,7 +648,7 @@ end;
 
 function TLazarusIDEConfig.BackupConfig: string;
 var
-  BackupDir, BackupPath: string;
+  BackupDir: string;
   Timestamp: string;
 begin
   Result := '';
@@ -666,7 +666,6 @@ begin
 
     // Generate timestamp-based backup name
     Timestamp := FormatDateTime('yyyymmdd_hhnnss', Now);
-    BackupPath := BackupDir + PathDelim + 'environmentoptions_' + Timestamp + '.xml';
 
     // Copy config file to backup
     if ExportConfig(BackupDir + PathDelim + Timestamp) then
