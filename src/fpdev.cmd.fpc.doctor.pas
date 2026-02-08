@@ -94,7 +94,6 @@ var
   LOut, LErr: string;
   LOk: Boolean;
   LRoot: string;
-  LSettings: TFPDevSettings;
   LToolchains: TStringArray;
   LInfo: TToolchainInfo;
   LActivateScript: string;
@@ -122,7 +121,6 @@ begin
 
   // 1) Write permission check (install root)
   Ctx.Out.WriteLn('[1/7] Checking write permissions...');
-  LSettings := Ctx.Config.GetSettingsManager.GetSettings;
   LRoot := GetToolchainsDir;
   LOk := CheckWriteableDir(LRoot, LErr);
   if LOk then
