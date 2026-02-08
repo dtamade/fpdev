@@ -883,7 +883,12 @@
   - B059: README.md 测试数量更新 (44+ -> 95+)
 - **Result:** 95/95 tests passing
 
-### B060-B062: 架构优化（延期）
-- **Status:** deferred
-- **Reason:** resource.repo 和 build.cache 的懒加载优化需要更详细的设计
-- **Next Steps:** 在后续迭代中作为独立任务处理
+### B060-B062: 架构优化
+- **Status:** complete
+- **Actions:**
+  - B062: build.cache 懒加载 - FIndexEntries 延迟加载
+  - B062: resource.repo 懒加载 - FManifestData 延迟加载
+- **Code Changes:**
+  - `src/fpdev.build.cache.pas`: 添加 FIndexLoaded 标志和 EnsureIndexLoaded 方法
+  - `src/fpdev.resource.repo.pas`: 添加 FManifestLoaded 标志和 EnsureManifestLoaded 方法
+- **Result:** 编译通过，19 个 build cache 测试全部通过
