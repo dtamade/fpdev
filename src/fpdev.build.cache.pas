@@ -211,6 +211,7 @@ uses
   fpdev.build.cache.indexstats,
   fpdev.build.cache.key,
   fpdev.build.cache.metajson,
+  fpdev.build.cache.oldmeta,
   fpdev.build.cache.rebuildscan,
   fpdev.build.cache.statsreport,
   fpdev.build.cache.ttl,
@@ -477,8 +478,8 @@ end;
 function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
 var
   ArchivePath, MetaPath: string;
-  MetaFile: TStringList;
   SR: TSearchRec;
+  ArchiveSize: Int64;
 begin
   Result := False;
 
@@ -513,30 +514,21 @@ begin
   if not Result then
     Exit;
 
-  // Write metadata file
-  MetaFile := TStringList.Create;
-  try
-    MetaFile.Add('version=' + AVersion);
-    MetaFile.Add('cpu=' + GetCurrentCPU);
-    MetaFile.Add('os=' + GetCurrentOS);
-    MetaFile.Add('source_path=' + AInstallPath);
-    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
-
-    // Get archive size
-    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-    begin
-      try
-        MetaFile.Add('archive_size=' + IntToStr(SR.Size));
-      finally
-        FindClose(SR);
-      end;
+  // Get archive size
+  ArchiveSize := 0;
+  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+  begin
+    try
+      ArchiveSize := SR.Size;
+    finally
+      FindClose(SR);
     end;
-
-    MetaFile.SaveToFile(MetaPath);
-    Result := True;
-  finally
-    MetaFile.Free;
   end;
+
+  // Write metadata file using helper
+  BuildCacheSaveOldMeta(MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
+    AInstallPath, ArchiveSize);
+  Result := True;
 end;
 
 function TBuildCache.RestoreArtifacts(const AVersion, ADestPath: string): Boolean;
@@ -590,53 +582,28 @@ end;
 
 function TBuildCache.GetArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
-  MetaPath: string;
-  MetaFile: TStringList;
-  i: Integer;
-  Line, Key, Value: string;
-  EqPos: Integer;
+  MetaPath, ArchivePath: string;
+  OldInfo: TOldMetaArtifactInfo;
 begin
   Result := False;
   Initialize(AInfo);
 
   MetaPath := GetArtifactMetaPath(AVersion);
-  if not FileExists(MetaPath) then
+  ArchivePath := GetArtifactArchivePath(AVersion);
+
+  if not BuildCacheLoadOldMeta(MetaPath, OldInfo) then
     Exit;
 
-  MetaFile := TStringList.Create;
-  try
-    MetaFile.LoadFromFile(MetaPath);
+  // Copy from old format to TArtifactInfo
+  AInfo.Version := OldInfo.Version;
+  AInfo.CPU := OldInfo.CPU;
+  AInfo.OS := OldInfo.OS;
+  AInfo.SourcePath := OldInfo.SourcePath;
+  AInfo.ArchiveSize := OldInfo.ArchiveSize;
+  AInfo.CreatedAt := OldInfo.CreatedAt;
+  AInfo.ArchivePath := ArchivePath;
 
-    AInfo.ArchivePath := GetArtifactArchivePath(AVersion);
-
-    for i := 0 to MetaFile.Count - 1 do
-    begin
-      Line := MetaFile[i];
-      EqPos := Pos('=', Line);
-      if EqPos > 0 then
-      begin
-        Key := Copy(Line, 1, EqPos - 1);
-        Value := Copy(Line, EqPos + 1, Length(Line));
-
-        if Key = 'version' then
-          AInfo.Version := Value
-        else if Key = 'cpu' then
-          AInfo.CPU := Value
-        else if Key = 'os' then
-          AInfo.OS := Value
-        else if Key = 'source_path' then
-          AInfo.SourcePath := Value
-        else if Key = 'archive_size' then
-          AInfo.ArchiveSize := StrToInt64Def(Value, 0)
-        else if Key = 'created_at' then
-          AInfo.CreatedAt := BuildCacheParseDateTimeString(Value);
-      end;
-    end;
-
-    Result := AInfo.Version <> '';
-  finally
-    MetaFile.Free;
-  end;
+  Result := AInfo.Version <> '';
 end;
 
 function TBuildCache.DeleteArtifacts(const AVersion: string): Boolean;
