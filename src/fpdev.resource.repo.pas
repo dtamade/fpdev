@@ -77,6 +77,7 @@ type
     FLocalPath: string;
     FLastUpdateCheck: TDateTime;
     FManifestData: TJSONObject;
+    FManifestLoaded: Boolean;         // 懒加载标志
     FUserRegion: string;
     FGitOps: TGitOperations;
     FCachedBestMirror: string;      // 缓存最佳镜像
@@ -97,6 +98,7 @@ type
     function DetectUserRegion: string;
     function SelectBestMirror: string;
     function TestMirrorLatency(const AURL: string; ATimeoutMS: Integer = 5000): Integer;
+    function EnsureManifestLoaded: Boolean;  // 懒加载辅助
 
   public
     constructor Create(const AConfig: TResourceRepoConfig);
@@ -297,6 +299,7 @@ begin
   FLocalPath := AConfig.LocalPath;
   FLastUpdateCheck := 0;
   FManifestData := nil;
+  FManifestLoaded := False;
   FGitOps := TGitOperations.Create;
   FCachedBestMirror := '';
   FMirrorCacheTime := 0;
@@ -524,6 +527,7 @@ begin
     try
       FManifestData := Parser.Parse as TJSONObject;
       Result := Assigned(FManifestData);
+      FManifestLoaded := Result;
 
       if Result then
         LogFmt('Manifest loaded (version: %s)', [GetManifestVersion]);
@@ -540,11 +544,19 @@ begin
   end;
 end;
 
+function TResourceRepository.EnsureManifestLoaded: Boolean;
+begin
+  if FManifestLoaded and Assigned(FManifestData) then
+    Exit(True);
+  Result := LoadManifest;
+end;
+
 function TResourceRepository.GetManifestVersion: string;
 begin
   Result := 'unknown';
-  if Assigned(FManifestData) then
-    Result := FManifestData.Get('version', 'unknown');
+  if not EnsureManifestLoaded then
+    Exit;
+  Result := FManifestData.Get('version', 'unknown');
 end;
 
 function TResourceRepository.HasBootstrapCompiler(const AVersion, APlatform: string): Boolean;
@@ -555,7 +567,7 @@ var
 begin
   Result := False;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -593,7 +605,7 @@ begin
   Result := False;
   System.Initialize(AInfo);
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -658,6 +670,7 @@ end;
 
 function TResourceRepository.GetRequiredBootstrapVersion(const AFPCVersion: string): string;
 begin
+  EnsureManifestLoaded;
   try
     Result := ResourceRepoGetRequiredBootstrapVersion(FManifestData, AFPCVersion);
   except
@@ -684,6 +697,7 @@ end;
 
 function TResourceRepository.ListBootstrapVersions: SysUtils.TStringArray;
 begin
+  EnsureManifestLoaded;
   try
     Result := ResourceRepoListBootstrapVersions(FManifestData);
   except
@@ -819,7 +833,7 @@ var
 begin
   Result := False;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -857,7 +871,7 @@ begin
   Result := False;
   System.Initialize(AInfo);
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -1160,7 +1174,7 @@ begin
     CACHE_TTL_HOURS, Now, Result) then
     Exit;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   // Detect or use configured region
@@ -1214,7 +1228,7 @@ var
 begin
   Result := nil;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -1252,7 +1266,7 @@ var
 begin
   Result := False;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -1288,7 +1302,7 @@ begin
   Result := False;
   System.Initialize(AInfo);
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -1338,7 +1352,7 @@ var
 begin
   Result := nil;
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try
@@ -1446,7 +1460,7 @@ begin
   if AName = '' then; // Suppress unused parameter hint
   if AVersion = '' then; // Suppress unused parameter hint
 
-  if not Assigned(FManifestData) then
+  if not EnsureManifestLoaded then
     Exit;
 
   try

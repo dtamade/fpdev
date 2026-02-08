@@ -101,10 +101,12 @@ type
     FVerifyOnRestore: Boolean;  // Verify SHA256 on restore (default: True)
     FMaxCacheSizeBytes: Int64;  // Max cache size in bytes (0 = unlimited)
     FIndexEntries: TStringList; // Cache index: version -> JSON entry
+    FIndexLoaded: Boolean;      // 懒加载标志
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
     procedure SaveEntries;
+    procedure EnsureIndexLoaded;  // 懒加载辅助
     function FindEntry(const AVersion: string): Integer;
     function GetCurrentCPU: string;
     function GetCurrentOS: string;
@@ -251,10 +253,11 @@ begin
   FTTLDays := 30;  // Default: 30 days
   FVerifyOnRestore := True;  // Default: verify on restore
   FMaxCacheSizeBytes := Int64(10) * 1024 * 1024 * 1024;  // Default: 10 GB in bytes
+  FIndexLoaded := False;  // 懒加载：不在构造时加载
   if DirectoryExists(FCacheDir) then
   begin
     LoadEntries;
-    LoadIndex;
+    // LoadIndex deferred to EnsureIndexLoaded
   end;
 end;
 
@@ -1485,6 +1488,13 @@ begin
 
   IndexPath := GetIndexPath;
   BuildCacheLoadIndexEntries(IndexPath, FIndexEntries);
+  FIndexLoaded := True;
+end;
+
+procedure TBuildCache.EnsureIndexLoaded;
+begin
+  if not FIndexLoaded then
+    LoadIndex;
 end;
 
 procedure TBuildCache.SaveIndex;
@@ -1516,6 +1526,7 @@ end;
 
 function TBuildCache.GetIndexEntryCount: Integer;
 begin
+  EnsureIndexLoaded;
   Result := FIndexEntries.Count;
 end;
 
@@ -1528,6 +1539,7 @@ var
 begin
   Result := False;
   Initialize(AInfo);
+  EnsureIndexLoaded;
 
   EntryJSON := BuildCacheGetIndexEntryJSON(FIndexEntries, AVersion);
   if EntryJSON = '' then
@@ -1573,6 +1585,7 @@ var
   Idx: Integer;
   EntryStr: string;
 begin
+  EnsureIndexLoaded;
   EntryStr := BuildCacheBuildIndexEntryJSON(
     AInfo.Version,
     AInfo.CPU,
@@ -1598,6 +1611,7 @@ procedure TBuildCache.RemoveIndexEntry(const AVersion: string);
 var
   Idx: Integer;
 begin
+  EnsureIndexLoaded;
   Idx := FIndexEntries.IndexOfName(AVersion);
   if Idx >= 0 then
     FIndexEntries.Delete(Idx);
@@ -1608,6 +1622,7 @@ var
   i: Integer;
   Info: TArtifactInfo;
 begin
+  EnsureIndexLoaded;
   Initialize(Result);
   Result.TotalEntries := FIndexEntries.Count;
 
@@ -1653,6 +1668,7 @@ var
   i: Integer;
   Info: TArtifactInfo;
 begin
+  EnsureIndexLoaded;
   Initialize(Result);
   Result.TotalEntries := FIndexEntries.Count;
   Result.TotalSize := 0;
@@ -1703,6 +1719,7 @@ var
   LRUVersion: string;
   HasNeverAccessed: Boolean;
 begin
+  EnsureIndexLoaded;
   Result := '';
   OldestTime := MaxDateTime;
   LRUVersion := '';
