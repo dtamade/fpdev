@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCUpdateCommand }
@@ -51,7 +51,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_UPDATE_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_UPDATE_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
@@ -66,7 +66,7 @@ begin
       else
       begin
         Ctx.Err.WriteLn(_Fmt(CMD_FPC_UPDATE_FAILED, [LVer]));
-        Exit(3);
+        Exit(EXIT_ERROR);
       end;
     end
     else

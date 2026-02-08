@@ -38,7 +38,7 @@ uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.utils.git, fpdev.resource.repo, fpdev.constants,
-  fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version, fpdev.config;
+  fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version, fpdev.config, fpdev.exitcodes;
 
 type
   { Bootstrap compiler requirements }
@@ -291,7 +291,7 @@ var
       if N1 < N2 then
         Exit(-1)
       else if N1 > N2 then
-        Exit(1);
+        Exit(EXIT_ERROR);
     end;
   end;
 

@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCachePathCommand }
@@ -56,7 +56,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Options:');
     Ctx.Out.WriteLn('  -h, --help    Show this help message');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // Get cache directory

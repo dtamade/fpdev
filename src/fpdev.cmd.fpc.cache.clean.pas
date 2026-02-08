@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.build.cache,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCacheCleanCommand }
@@ -65,7 +65,7 @@ begin
     Ctx.Out.WriteLn('Options:');
     Ctx.Out.WriteLn('  --all         Clean all cached versions');
     Ctx.Out.WriteLn('  -h, --help    Show this help message');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // Initialize cache
@@ -81,7 +81,7 @@ begin
       if Length(LVersions) = 0 then
       begin
         Ctx.Out.WriteLn('No cached versions to clean.');
-        Exit(0);
+        Exit(EXIT_OK);
       end;
 
       Ctx.Out.WriteLn(Format('Found %d cached version(s). Cleaning...', [Length(LVersions)]));
@@ -109,25 +109,25 @@ begin
       if not LCache.HasArtifacts(LVersion) then
       begin
         Ctx.Err.WriteLn('Version ' + LVersion + ' is not cached.');
-        Exit(1);
+        Exit(EXIT_ERROR);
       end;
 
       if LCache.DeleteArtifacts(LVersion) then
       begin
         Ctx.Out.WriteLn('Cleaned cache for FPC ' + LVersion);
-        Exit(0);
+        Exit(EXIT_OK);
       end
       else
       begin
         Ctx.Err.WriteLn('Failed to clean cache for FPC ' + LVersion);
-        Exit(3);
+        Exit(EXIT_ERROR);
       end;
     end
     else
     begin
       Ctx.Err.WriteLn('Error: Please specify a version or use --all');
       Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [--all]');
-      Exit(2);
+      Exit(EXIT_USAGE_ERROR);
     end;
   finally
     LCache.Free;

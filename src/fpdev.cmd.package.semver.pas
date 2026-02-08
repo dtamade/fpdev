@@ -6,7 +6,7 @@ unit fpdev.cmd.package.semver;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.exitcodes;
 
 type
   TPackageSemanticVersion = record
@@ -110,36 +110,36 @@ begin
   V2 := ParsePackageSemanticVersion(AVersion2);
 
   if not V1.Valid and not V2.Valid then
-    Exit(0);
+    Exit(EXIT_OK);
   if not V1.Valid then
     Exit(-1);
   if not V2.Valid then
-    Exit(1);
+    Exit(EXIT_ERROR);
 
   if V1.Major < V2.Major then
     Exit(-1);
   if V1.Major > V2.Major then
-    Exit(1);
+    Exit(EXIT_ERROR);
 
   if V1.Minor < V2.Minor then
     Exit(-1);
   if V1.Minor > V2.Minor then
-    Exit(1);
+    Exit(EXIT_ERROR);
 
   if V1.Patch < V2.Patch then
     Exit(-1);
   if V1.Patch > V2.Patch then
-    Exit(1);
+    Exit(EXIT_ERROR);
 
   if (V1.PreRelease = '') and (V2.PreRelease <> '') then
-    Exit(1);
+    Exit(EXIT_ERROR);
   if (V1.PreRelease <> '') and (V2.PreRelease = '') then
     Exit(-1);
 
   if V1.PreRelease < V2.PreRelease then
     Exit(-1);
   if V1.PreRelease > V2.PreRelease then
-    Exit(1);
+    Exit(EXIT_ERROR);
 
   Result := 0;
 end;

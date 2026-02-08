@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TProjectListCommand = class(TInterfacedObject, ICommand)
@@ -45,14 +45,14 @@ begin
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LMgr := TProjectManager.Create(Ctx.Config);
   try
     if LMgr.ListTemplates(Ctx.Out) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.build.cache,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCacheStatsCommand }
@@ -60,7 +60,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Options:');
     Ctx.Out.WriteLn('  -h, --help    Show this help message');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // Initialize cache

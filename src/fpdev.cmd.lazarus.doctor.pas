@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces,
   fpdev.utils.fs, fpdev.utils.process,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TLazarusDoctorCommand }
@@ -106,7 +106,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_DOCTOR_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_DOCTOR_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   Ctx.Out.WriteLn(_(MSG_CHECKING_LAZARUS_ENV));

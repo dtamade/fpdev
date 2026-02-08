@@ -8,7 +8,7 @@ uses
   SysUtils, Classes, DateUtils, fpjson, jsonparser, fphttpclient, openssl,
   fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces,
   fpdev.toolchain.manifest, fpdev.utils.fs,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TRepoVersionsCommand = class(TInterfacedObject, ICommand)
@@ -103,7 +103,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_OFFLINE));
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_REFRESH));
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   GetFlagValue(AParams, 'repo', RepoArg);
@@ -132,7 +132,7 @@ begin
       if URL='' then
       begin
         Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoArg]));
-        Exit(2);
+        Exit(EXIT_USAGE_ERROR);
       end;
       // 计算缓存文件
       CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
@@ -155,7 +155,7 @@ begin
           if not ReadManifestFromPathOrHttp(URL, S) then
           begin
             Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_FAILED, [URL]));
-            Exit(10);
+            Exit(EXIT_NOT_FOUND);
           end;
           // 写缓存
           with TStringList.Create do
@@ -168,7 +168,7 @@ begin
         else
         begin
           Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_OFFLINE_NO_CACHE, [URL]));
-          Exit(10);
+          Exit(EXIT_NOT_FOUND);
         end;
       end;
 
@@ -185,7 +185,7 @@ begin
         else
         begin
           Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_PARSE_FAILED, [URL]));
-          Exit(11);
+          Exit(EXIT_ALREADY_EXISTS);
         end;
       end;
     end

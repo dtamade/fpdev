@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TLazCurrentCommand }
@@ -42,7 +42,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LMgr := TLazarusManager.Create(Ctx.Config);

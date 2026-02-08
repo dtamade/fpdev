@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TRepoAddCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
@@ -41,28 +41,28 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_ADD_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_ADD_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 2 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
   URL := AParams[1];
   if (Trim(RepoName)='') or (Trim(URL)='') then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   if Ctx.Config.GetRepositoryManager.AddRepository(RepoName, URL) then
   begin
     Ctx.Out.WriteLn(_Fmt(MSG_REPO_ADDED, [RepoName]));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_ADD_FAILED, [RepoName]));
-  Result := 3;
+  Result := EXIT_ERROR;
 end;
 
 { @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }

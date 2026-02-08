@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TRepoDefaultCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
@@ -42,26 +42,26 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_DEFAULT_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_DEFAULT_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_DEFAULT_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
   if Ctx.Config.GetRepositoryManager.GetRepository(RepoName) = '' then
   begin
     Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoName]));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   S := Ctx.Config.GetSettingsManager.GetSettings;
   S.DefaultRepo := RepoName;
   if Ctx.Config.GetSettingsManager.SetSettings(S) then
-    Exit(0);
+    Exit(EXIT_OK);
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_DEFAULT_FAILED, [RepoName]));
-  Result := 3;
+  Result := EXIT_ERROR;
 end;
 
 { @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }

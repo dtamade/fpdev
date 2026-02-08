@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TProjectTestCommand = class(TInterfacedObject, ICommand)
@@ -46,7 +46,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_PROJECT_TEST_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_TEST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) > 0 then
@@ -57,8 +57,8 @@ begin
   LMgr := TProjectManager.Create(Ctx.Config);
   try
     if LMgr.TestProject(Ctx.Out, Ctx.Err, LDir) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

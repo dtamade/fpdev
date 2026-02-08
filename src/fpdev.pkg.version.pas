@@ -24,7 +24,7 @@ unit fpdev.pkg.version;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.exitcodes;
 
 type
   { TVersionConstraintOperator - Version constraint operators }
@@ -188,19 +188,19 @@ begin
 
   // Compare major version
   if V1.Major > V2.Major then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if V1.Major < V2.Major then
     Exit(-1);
 
   // Compare minor version
   if V1.Minor > V2.Minor then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if V1.Minor < V2.Minor then
     Exit(-1);
 
   // Compare patch version
   if V1.Patch > V2.Patch then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if V1.Patch < V2.Patch then
     Exit(-1);
 

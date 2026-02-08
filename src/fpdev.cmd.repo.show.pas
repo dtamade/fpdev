@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TRepoShowCommand = class(TInterfacedObject, ICommand)
@@ -40,20 +40,20 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_SHOW_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_SHOW_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_SHOW_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
   URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
   if URL='' then
   begin
     Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoName]));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   Ctx.Out.WriteLn(RepoName + ' = ' + URL);

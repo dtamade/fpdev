@@ -19,7 +19,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry, fpdev.exitcodes;
 
 type
   { TDefaultCommand - 设置全局默认版本 }
@@ -102,7 +102,7 @@ begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
     begin
       Ctx.Out.WriteLn(HELP_DEFAULT);
-      Exit(0);
+      Exit(EXIT_OK);
     end;
   end;
 
@@ -142,7 +142,7 @@ begin
 
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Use "fpdev default <tool> <version>" to set a default.');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // --unset 模式
@@ -162,7 +162,7 @@ begin
     if LTool = '' then
     begin
       Ctx.Err.WriteLn('Error: --unset requires a tool name (fpc or lazarus)');
-      Exit(1);
+      Exit(EXIT_ERROR);
     end;
 
     case LTool of
@@ -180,17 +180,17 @@ begin
         end;
     else
       Ctx.Err.WriteLn('Error: Unknown tool "' + LTool + '". Use "fpc" or "lazarus".');
-      Exit(1);
+      Exit(EXIT_ERROR);
     end;
 
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // 设置默认值: fpdev default <tool> <version>
   if Length(AParams) < 2 then
   begin
     Ctx.Err.WriteLn('Error: Missing version. Usage: fpdev default <tool> <version>');
-    Exit(1);
+    Exit(EXIT_ERROR);
   end;
 
   LTool := LowerCase(AParams[0]);
@@ -219,7 +219,7 @@ begin
         else
         begin
           Ctx.Err.WriteLn('Error: Failed to save configuration.');
-          Exit(1);
+          Exit(EXIT_ERROR);
         end;
       end;
     'lazarus':
@@ -235,12 +235,12 @@ begin
         else
         begin
           Ctx.Err.WriteLn('Error: Failed to save configuration.');
-          Exit(1);
+          Exit(EXIT_ERROR);
         end;
       end;
   else
     Ctx.Err.WriteLn('Error: Unknown tool "' + LTool + '". Use "fpc" or "lazarus".');
-    Exit(1);
+    Exit(EXIT_ERROR);
   end;
 end;
 

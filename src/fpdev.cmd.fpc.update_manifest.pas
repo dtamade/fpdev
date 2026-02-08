@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCUpdateManifestCommand }
@@ -61,7 +61,7 @@ begin
     Ctx.Out.WriteLn('Options:');
     Ctx.Out.WriteLn('  --force       Force refresh even if cache is valid');
     Ctx.Out.WriteLn('  -h, --help    Show this help message');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   ForceRefresh := HasFlag(AParams, 'force');
@@ -77,7 +77,7 @@ begin
       if not Cache.DownloadManifest('fpc', Err) then
       begin
         Ctx.Err.WriteLn('Error: Failed to download manifest: ' + Err);
-        Exit(1);
+        Exit(EXIT_ERROR);
       end;
     end;
 
@@ -85,7 +85,7 @@ begin
     if not Cache.LoadCachedManifest('fpc', Manifest, ForceRefresh) then
     begin
       Ctx.Err.WriteLn('Error: Failed to load manifest');
-      Exit(1);
+      Exit(EXIT_ERROR);
     end;
 
     try

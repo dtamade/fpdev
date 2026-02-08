@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils,
-  fpdev.command.intf, fpdev.project.config, fpdev.output.intf;
+  fpdev.command.intf, fpdev.project.config, fpdev.output.intf, fpdev.exitcodes;
 
 type
   TFPCAutoInstallCommand = class(TInterfacedObject, ICommand)
@@ -109,7 +109,7 @@ var
   Config: TProjectConfig;
   ConfigPath: string;
 begin
-  Result := 1;
+  Result := EXIT_ERROR;
   if (Ctx <> nil) and (Ctx.Out <> nil) then
     FOutput := Ctx.Out
   else
@@ -119,7 +119,7 @@ begin
   begin
     FOutput.WriteLn('Usage: fpdev fpc auto-install');
     FOutput.WriteLn('Read .fpdev.toml and install configured FPC/toolchain dependencies.');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
   
   ConfigPath := FindConfigFile;

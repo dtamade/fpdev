@@ -37,7 +37,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
-  fpdev.manifest;
+  fpdev.manifest, fpdev.exitcodes;
 
 type
   { TFPCVersionInfo - Information about an FPC version }
@@ -451,19 +451,19 @@ begin
 
   // Compare major version
   if Major1 > Major2 then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if Major1 < Major2 then
     Exit(-1);
 
   // Compare minor version
   if Minor1 > Minor2 then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if Minor1 < Minor2 then
     Exit(-1);
 
   // Compare patch version
   if Patch1 > Patch2 then
-    Exit(1)
+    Exit(EXIT_ERROR)
   else if Patch1 < Patch2 then
     Exit(-1);
 

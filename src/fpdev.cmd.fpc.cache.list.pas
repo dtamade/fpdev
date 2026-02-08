@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.build.cache,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCCacheListCommand }
@@ -61,7 +61,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Options:');
     Ctx.Out.WriteLn('  -h, --help    Show this help message');
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   // Initialize cache
@@ -75,7 +75,7 @@ begin
       Ctx.Out.WriteLn('No cached FPC versions found.');
       Ctx.Out.WriteLn('');
       Ctx.Out.WriteLn('Cache directory: ' + LCacheDir);
-      Exit(0);
+      Exit(EXIT_OK);
     end;
 
     Ctx.Out.WriteLn('Cached FPC versions:');

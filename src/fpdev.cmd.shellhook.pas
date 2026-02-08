@@ -28,7 +28,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry, fpdev.exitcodes;
 
 type
   { TShellHookCommand - 生成 shell 集成脚本 }
@@ -238,7 +238,7 @@ begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
     begin
       Ctx.Out.WriteLn(HELP_SHELL_HOOK);
-      Exit(0);
+      Exit(EXIT_OK);
     end;
   end;
 
@@ -248,7 +248,7 @@ begin
     Ctx.Err.WriteLn('Error: Missing shell type. Usage: fpdev shell-hook <bash|zsh|fish>');
     Ctx.Err.WriteLn('');
     Ctx.Err.WriteLn('Run "fpdev shell-hook --help" for more information.');
-    Exit(1);
+    Exit(EXIT_ERROR);
   end;
 
   LShell := LowerCase(AParams[0]);
@@ -262,7 +262,7 @@ begin
       Ctx.Out.WriteLn(GenerateFishHook);
   else
     Ctx.Err.WriteLn('Error: Unknown shell "' + LShell + '". Supported: bash, zsh, fish');
-    Exit(1);
+    Exit(EXIT_ERROR);
   end;
 end;
 

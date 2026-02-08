@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageInstallCommand = class(TInterfacedObject, ICommand)
@@ -53,14 +53,14 @@ begin
     Ctx.Out.WriteLn('  --no-deps              Skip dependency resolution');
     Ctx.Out.WriteLn('  --dry-run              Show what would be installed without installing');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
     Ctx.Err.WriteLn(_(HELP_PACKAGE_INSTALL_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   Pkg := AParams[0];
@@ -104,7 +104,7 @@ begin
 
       Ctx.Out.WriteLn('');
       Ctx.Out.WriteLn('No packages will be installed (dry-run mode)');
-      Exit(0);
+      Exit(EXIT_OK);
     end;
 
     // Handle --no-deps: show warning
@@ -121,8 +121,8 @@ begin
 
     // Normal installation
     if LMgr.InstallPackage(Pkg, Ver, Ctx.Out, Ctx.Err) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

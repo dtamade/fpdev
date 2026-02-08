@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces,
   fpdev.utils.fs, fpdev.utils.process, fpdev.paths,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCDoctorCommand }
@@ -113,7 +113,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_DOCTOR_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_DOCTOR_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   Ctx.Out.WriteLn('FPC Doctor - Checking your FPC environment...');
@@ -239,7 +239,7 @@ begin
     Ctx.Out.WriteLn('Suggested fixes:');
     Ctx.Out.WriteLn('  - Reinstall broken toolchains: fpdev fpc install <version>');
     Ctx.Out.WriteLn('  - Set default toolchain: fpdev fpc use <version>');
-    Result := 1;
+    Result := EXIT_ERROR;
   end;
   Ctx.Out.WriteLn('===========================================');
 end;

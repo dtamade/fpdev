@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TRepoRemoveCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
@@ -41,24 +41,24 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_REMOVE_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_REMOVE_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_REMOVE_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
   if (Trim(RepoName)='') then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_REMOVE_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   if Ctx.Config.GetRepositoryManager.RemoveRepository(RepoName) then
-    Exit(0);
+    Exit(EXIT_OK);
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_REMOVE_FAILED, [RepoName]));
-  Result := 3;
+  Result := EXIT_ERROR;
 end;
 
 { @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }

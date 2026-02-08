@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageRepoUpdateCommand = class(TInterfacedObject, ICommand)
@@ -45,14 +45,14 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_REPO_UPDATE_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_REPO_UPDATE_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
     if LMgr.UpdateRepositories(Ctx.Out, Ctx.Err) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

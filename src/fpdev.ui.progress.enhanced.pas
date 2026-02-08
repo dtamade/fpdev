@@ -5,7 +5,7 @@ unit fpdev.ui.progress.enhanced;
 interface
 
 uses
-  Classes, SysUtils, DateUtils;
+  Classes, SysUtils, DateUtils, fpdev.exitcodes;
 
 type
   { Progress stage status }
@@ -172,7 +172,7 @@ var
   AccumulatedProgress: Integer;
 begin
   if Length(FStages) = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
 
   AccumulatedProgress := 0;
   for I := 0 to High(FStages) do
@@ -195,7 +195,7 @@ var
 begin
   ProgressPercent := GetOverallProgress;
   if ProgressPercent = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
 
   ElapsedTime := Now - FTotalStartTime;
   EstimatedTotal := ElapsedTime * (100 / ProgressPercent);
@@ -414,7 +414,7 @@ end;
 function TDownloadProgress.GetProgress: Integer;
 begin
   if FTotalBytes = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
   Result := Round((FDownloadedBytes / FTotalBytes) * 100);
 end;
 
@@ -424,7 +424,7 @@ var
   ETASeconds: Double;
 begin
   if FCurrentSpeed = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
 
   RemainingBytes := FTotalBytes - FDownloadedBytes;
   ETASeconds := RemainingBytes / FCurrentSpeed;
@@ -551,7 +551,7 @@ end;
 function TBuildProgress.GetProgress: Integer;
 begin
   if FTotalUnits = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
   Result := Round((FCompiledUnits / FTotalUnits) * 100);
 end;
 
@@ -563,7 +563,7 @@ var
   ETATime: TDateTime;
 begin
   if FCompiledUnits = 0 then
-    Exit(0);
+    Exit(EXIT_OK);
 
   ElapsedTime := Now - FStartTime;
   TimePerUnit := ElapsedTime / FCompiledUnits;

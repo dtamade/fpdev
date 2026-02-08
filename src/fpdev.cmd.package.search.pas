@@ -24,7 +24,7 @@ interface
 uses
   SysUtils, Classes, fpjson, jsonparser,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.exitcodes;
 
 type
   { TPackageSearchCommand - Functional class for package search }
@@ -268,22 +268,22 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_EXAMPLE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['query']));
     Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   Q := AParams[0];
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
     if LMgr.SearchPackages(Q, Ctx.Out) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TLazListCommand }
@@ -44,15 +44,15 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_ALL));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   LAll := HasFlag(AParams, 'all');
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
     if LMgr.ListVersions(Ctx.Out, LAll) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

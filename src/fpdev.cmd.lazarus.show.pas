@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TLazShowCommand }
@@ -42,24 +42,24 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_SHOW_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_SHOW_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_LAZARUS_SHOW_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LVer := AParams[0];
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
     if LMgr.ShowVersionInfo(Ctx.Out, LVer) then
-      Exit(0);
+      Exit(EXIT_OK);
     // ShowVersionInfo returns False for unknown or uninstalled versions
     Ctx.Err.WriteLn(_Fmt(CMD_LAZARUS_UNSUPPORTED_VERSION, [LVer]));
-    Result := 3;
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

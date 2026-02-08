@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TProjectNewCommand = class(TInterfacedObject, ICommand)
@@ -48,14 +48,14 @@ begin
     Ctx.Out.WriteLn(_(HELP_PROJECT_NEW_EXAMPLE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_NEW_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 2 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['template, name']));
     Ctx.Err.WriteLn(_(HELP_PROJECT_NEW_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LTemplate := AParams[0];
@@ -70,11 +70,11 @@ begin
     if LMgr.CreateProject(LTemplate, LName, LTargetDir) then
     begin
       Ctx.Out.WriteLn(_Fmt(CMD_PROJECT_NEW_DONE, [LName]));
-      Exit(0);
+      Exit(EXIT_OK);
     end;
 
     Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PROJECT_NEW_FAILED));
-    Result := 3;
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

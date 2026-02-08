@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageRepoRemoveCommand = class(TInterfacedObject, ICommand)
@@ -46,22 +46,22 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_REPO_REMOVE_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_REPO_REMOVE_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['name']));
     Ctx.Err.WriteLn(_(HELP_PACKAGE_REPO_REMOVE_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
     if LMgr.RemoveRepository(RepoName, Ctx.Out, Ctx.Err) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

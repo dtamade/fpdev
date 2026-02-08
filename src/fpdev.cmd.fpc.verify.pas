@@ -5,7 +5,7 @@ unit fpdev.cmd.fpc.verify;
 interface
 
 uses
-  Classes, SysUtils, fpdev.command.intf, fpdev.fpc.verify;
+  Classes, SysUtils, fpdev.command.intf, fpdev.fpc.verify, fpdev.exitcodes;
 
 type
   { TFPCVerifyCommand - Verify FPC installation }
@@ -52,7 +52,7 @@ var
   Verifier: TFPCVerifier;
   FPCPath, Version: string;
 begin
-  Result := 1;
+  Result := EXIT_ERROR;
 
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
@@ -66,7 +66,7 @@ begin
       WriteLn('Usage: fpdev fpc verify <version>');
       WriteLn('Example: fpdev fpc verify 3.2.2');
     end;
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then

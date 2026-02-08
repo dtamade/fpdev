@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TLazRunCommand }
@@ -42,15 +42,15 @@ begin
     Ctx.Out.WriteLn(_(HELP_LAZARUS_RUN_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_RUN_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) >= 1 then LVer := AParams[0] else LVer := '';
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
     if LMgr.LaunchIDE(Ctx.Out, LVer) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

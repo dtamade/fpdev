@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageListCommand = class(TInterfacedObject, ICommand)
@@ -48,7 +48,7 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_ALL));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   ShowAll := (Length(AParams) > 0) and (SameText(AParams[0], '--all') or SameText(AParams[0], '-a'));
@@ -56,8 +56,8 @@ begin
   LMgr := TPackageManager.Create(Ctx.Config);
   try
     if LMgr.ListPackages(ShowAll, Ctx.Out) then
-      Exit(0);
-    Result := 3;
+      Exit(EXIT_OK);
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

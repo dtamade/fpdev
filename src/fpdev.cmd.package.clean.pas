@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.paths, fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageCleanCommand = class(TInterfacedObject, ICommand)
@@ -51,21 +51,21 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_DRYRUN));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_YES));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_HELP));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['scope']));
     Ctx.Err.WriteLn(_(HELP_PACKAGE_CLEAN_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   Scope := LowerCase(Trim(AParams[0]));
   if (Scope <> 'sandbox') and (Scope <> 'cache') and (Scope <> 'all') then
   begin
     Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   DryRun := HasFlag(AParams, 'dry-run');
@@ -77,13 +77,13 @@ begin
       Ctx.Out.WriteLn(_Fmt(CMD_PKG_CLEAN_DRY_RUN, [GetSandboxDir]));
     if (Scope = 'cache') or (Scope = 'all') then
       Ctx.Out.WriteLn(_Fmt(CMD_PKG_CLEAN_DRY_RUN, [IncludeTrailingPathDelimiter(GetCacheDir) + 'packages']));
-    Exit(0);
+    Exit(EXIT_OK);
   end;
 
   if not Yes then
   begin
     Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_REFUSE_ROOT));
-    Exit(2);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LMgr := TPackageManager.Create(Ctx.Config);
@@ -92,10 +92,10 @@ begin
     if Ok then
     begin
       Ctx.Out.WriteLn(_(CMD_PKG_CLEAN_COMPLETE));
-      Exit(0);
+      Exit(EXIT_OK);
     end;
     Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_ERRORS));
-    Result := 3;
+    Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

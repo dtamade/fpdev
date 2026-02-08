@@ -18,7 +18,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry, fpdev.exitcodes;
 
 type
   { TDoctorCommand - 诊断工具链环境 }
@@ -423,7 +423,7 @@ begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
     begin
       Ctx.Out.WriteLn(HELP_DOCTOR);
-      Exit(0);
+      Exit(EXIT_OK);
     end;
   end;
 
@@ -467,7 +467,7 @@ begin
   if FErrorCount > 0 then
   begin
     Ctx.Out.WriteError('Some checks failed. Please fix the issues above.');
-    Result := 1;
+    Result := EXIT_ERROR;
   end
   else if FWarningCount > 0 then
   begin

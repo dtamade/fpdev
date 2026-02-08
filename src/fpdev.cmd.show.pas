@@ -18,7 +18,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry, fpdev.exitcodes;
 
 type
   { TShowCommand - 显示当前配置概览 }
@@ -291,7 +291,7 @@ begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
     begin
       Ctx.Out.WriteLn(HELP_SHOW);
-      Exit(0);
+      Exit(EXIT_OK);
     end
     else if AParams[I] = '--active' then
       LShowActive := True
