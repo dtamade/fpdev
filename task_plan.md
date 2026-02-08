@@ -77,6 +77,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B058 package why 命令
 - [x] B059 README 测试数量更新
 - [x] B062 build.cache/resource.repo 懒加载优化
+- [x] B063 清理 package 命令未使用的单元和变量
 
 ## Batch Queue (Week 1)
 
@@ -131,12 +132,12 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B063 (next)
+B064 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
-- 编译提示: 4 hints, 6 notes（`/src/` 范围）
+- 编译提示: 2 hints, 4 notes（`/src/` 范围）
 
 ## Phases
 

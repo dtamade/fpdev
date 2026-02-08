@@ -101,11 +101,11 @@ type
     function DetectSystemLanguage: TLanguage;
 
     { Translation registration }
-    procedure Reg(const ALang: TLanguage; const AID, AText: string); inline;
+    procedure Reg(const ALang: TLanguage; const AID, AText: string);
     procedure RegMulti(const AID: string; const ATranslations: array of string);
 
     { Translation retrieval - O(log n) }
-    function Get(const AID: string): string; inline;
+    function Get(const AID: string): string;
     function GetFmt(const AID: string; const AArgs: array of const): string;
 
     { Language management }
@@ -127,23 +127,23 @@ type
   end;
 
 { Global singleton - lazy initialization }
-function I18n: TI18nManager; inline;
+function I18n: TI18nManager;
 
 { ============================================================================
   Shortcut Functions - Use these in your code
   ============================================================================ }
 
 { Get translated string }
-function _(const AID: string): string; inline;
+function _(const AID: string): string;
 
 { Get translated string with Format() parameters }
 function _Fmt(const AID: string; const AArgs: array of const): string;
 
 { Register English + Chinese translation in one line }
-procedure T(const AID, AEnglish, AChinese: string); inline;
+procedure T(const AID, AEnglish, AChinese: string);
 
 { Register translation for specific language }
-procedure TL(const ALang: TLanguage; const AID, AText: string); inline;
+procedure TL(const ALang: TLanguage; const AID, AText: string);
 
 { Register translations for multiple languages at once
   Usage: TM('msg.hello', ['Hello', '你好', 'こんにちは', ...]);
