@@ -205,6 +205,7 @@ implementation
 
 uses
   fpdev.build.cache.entries,
+  fpdev.build.cache.fileops,
   fpdev.build.cache.indexio,
   fpdev.build.cache.indexjson,
   fpdev.build.cache.indexstats,
@@ -215,35 +216,6 @@ uses
   fpdev.build.cache.ttl,
   fpdev.build.cache.verify,
   StrUtils, DateUtils, fpjson, jsonparser;
-
-{ Helper function to parse date string manually }
-function ParseDateTimeString(const ADateStr: string): TDateTime;
-var
-  Year, Month, Day, Hour, Minute, Second: Word;
-begin
-  // Parse format: 'yyyy-mm-dd hh:nn:ss'
-  // Example: '2026-01-16 05:40:00'
-  try
-    if Length(ADateStr) >= 19 then
-    begin
-      Year := StrToInt(Copy(ADateStr, 1, 4));
-      Month := StrToInt(Copy(ADateStr, 6, 2));
-      Day := StrToInt(Copy(ADateStr, 9, 2));
-      Hour := StrToInt(Copy(ADateStr, 12, 2));
-      Minute := StrToInt(Copy(ADateStr, 15, 2));
-      Second := StrToInt(Copy(ADateStr, 18, 2));
-      Result := EncodeDateTime(Year, Month, Day, Hour, Minute, Second, 0);
-    end
-    else
-      Result := 0;  // Invalid format
-  except
-    on E: Exception do
-    begin
-      // Silent failure - parsing error
-      Result := 0;  // Fallback to epoch if parsing fails
-    end;
-  end;
-end;
 
 { TBuildCache }
 
@@ -294,30 +266,8 @@ begin
 end;
 
 function TBuildCache.FileCopy(const ASource, ADest: string): Boolean;
-var
-  SourceStream, DestStream: TFileStream;
 begin
-  Result := False;
-  try
-    SourceStream := TFileStream.Create(ASource, fmOpenRead or fmShareDenyWrite);
-    try
-      DestStream := TFileStream.Create(ADest, fmCreate);
-      try
-        DestStream.CopyFrom(SourceStream, SourceStream.Size);
-        Result := True;
-      finally
-        DestStream.Free;
-      end;
-    finally
-      SourceStream.Free;
-    end;
-  except
-    on E: Exception do
-    begin
-      // Silent failure - extraction error
-      Result := False;
-    end;
-  end;
+  Result := BuildCacheFileCopy(ASource, ADest);
 end;
 
 function TBuildCache.GetArtifactArchivePath(const AVersion: string): string;
@@ -331,32 +281,8 @@ begin
 end;
 
 function TBuildCache.RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
-var
-  P: TProcess;
-  i: Integer;
 begin
-  Result := False;
-  P := TProcess.Create(nil);
-  try
-    P.Executable := ACmd;
-    for i := Low(AArgs) to High(AArgs) do
-      P.Parameters.Add(AArgs[i]);
-    if AWorkDir <> '' then
-      P.CurrentDirectory := AWorkDir;
-    P.Options := [poWaitOnExit, poUsePipes];
-    try
-      P.Execute;
-      Result := (P.ExitStatus = 0);
-    except
-      on E: Exception do
-      begin
-        // Silent failure - command execution error
-        Result := False;
-      end;
-    end;
-  finally
-    P.Free;
-  end;
+  Result := BuildCacheRunCommand(ACmd, AArgs, AWorkDir);
 end;
 
 function TBuildCache.GetCacheFilePath: string;
@@ -703,7 +629,7 @@ begin
         else if Key = 'archive_size' then
           AInfo.ArchiveSize := StrToInt64Def(Value, 0)
         else if Key = 'created_at' then
-          AInfo.CreatedAt := ParseDateTimeString(Value);
+          AInfo.CreatedAt := BuildCacheParseDateTimeString(Value);
       end;
     end;
 
@@ -1403,10 +1329,10 @@ begin
       BuildCacheGetNormalizedIndexDates(JSONObj, DateStr, LastAccessedStr);
 
       if DateStr <> '' then
-        AInfo.CreatedAt := ParseDateTimeString(DateStr);
+        AInfo.CreatedAt := BuildCacheParseDateTimeString(DateStr);
 
       if LastAccessedStr <> '' then
-        AInfo.LastAccessed := ParseDateTimeString(LastAccessedStr)
+        AInfo.LastAccessed := BuildCacheParseDateTimeString(LastAccessedStr)
       else
         AInfo.LastAccessed := 0;
 
