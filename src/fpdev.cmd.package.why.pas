@@ -27,7 +27,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpdev.i18n, fpdev.i18n.strings;
+uses fpdev.cmd.utils, fpdev.i18n.strings;
 
 function TPackageWhyCommand.Name: string;
 begin

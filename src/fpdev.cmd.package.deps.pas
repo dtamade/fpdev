@@ -29,7 +29,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpdev.i18n, fpdev.i18n.strings;
+uses fpdev.cmd.utils, fpdev.i18n.strings;
 
 function TPackageDepsCommand.Name: string;
 begin
@@ -71,7 +71,7 @@ procedure PrintDepTree(const Ctx: IContext; const ADeps: TStringArray;
   const APrefix: string; ADepth, AMaxDepth: Integer);
 var
   i: Integer;
-  Connector, NewPrefix: string;
+  Connector: string;
 begin
   if (AMaxDepth > 0) and (ADepth > AMaxDepth) then
     Exit;
@@ -79,26 +79,20 @@ begin
   for i := 0 to High(ADeps) do
   begin
     if i = High(ADeps) then
-    begin
-      Connector := '└── ';
-      NewPrefix := APrefix + '    ';
-    end
+      Connector := '└── '
     else
-    begin
       Connector := '├── ';
-      NewPrefix := APrefix + '│   ';
-    end;
 
     Ctx.Out.WriteLn(APrefix + Connector + ADeps[i]);
     // In a real implementation, we would recursively show sub-dependencies
-    // For now, we show a placeholder
+    // using: PrintDepTree(Ctx, SubDeps, NewPrefix, ADepth + 1, AMaxDepth);
   end;
 end;
 
 function TPackageDepsCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   PackageName: string;
-  ShowTree, ShowFlat: Boolean;
+  ShowFlat: Boolean;
   MaxDepthStr: string;
   MaxDepth, i: Integer;
   SampleDeps: TStringArray;
@@ -113,7 +107,6 @@ begin
   end;
 
   // Parse options
-  ShowTree := HasFlag(AParams, 'tree') or (not HasFlag(AParams, 'flat'));
   ShowFlat := HasFlag(AParams, 'flat');
   MaxDepth := 0;
   if GetFlagValue(AParams, 'depth', MaxDepthStr) then

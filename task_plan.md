@@ -67,6 +67,16 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B043 build.cache 第七切片执行（index lookup helper）
 - [x] B044 周期复盘（B042-B043 收口）
 - [x] B045 resource.repo 第八切片执行（package query helper）
+- [x] B046 build.cache 第八切片执行（stats report helper）
+- [x] B047 周期复盘（B045-B046 收口）
+- [x] B048 resource.repo 第九切片执行（search packages helper）
+- [x] B049-B051 周期复盘与低风险 Note 清理
+- [x] B053 命令注册表测试 (test_command_registry.lpr)
+- [x] B055 退出码常量收口
+- [x] B057 package deps 命令
+- [x] B058 package why 命令
+- [x] B059 README 测试数量更新
+- [x] B062 build.cache/resource.repo 懒加载优化
 
 ## Batch Queue (Week 1)
 
@@ -121,13 +131,12 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B046 (in_progress)
+B063 (next)
 
-## Baseline (2026-02-08)
-- 测试状态: 94/94 通过 (100%)
+## Baseline (2026-02-09)
+- 测试状态: 95/95 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
-- 编译提示: 0（`/src/` 范围）
-- 说明: 全量日志 Hint 行数 12（仅工具链配置提示，见 `/tmp/fpdev_b013b_build.log`）
+- 编译提示: 4 hints, 6 notes（`/src/` 范围）
 
 ## Phases
 
