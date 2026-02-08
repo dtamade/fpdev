@@ -945,3 +945,13 @@
   - 为 TResourceRepository 添加线程安全说明注释
   - 明确声明单线程设计约束
 - **Result:** Tests: 95/95 passing
+
+### B069: 大文件拆分 (resource.repo cross 查询)
+- **Status:** complete
+- **Actions:**
+  - 新增 fpdev.resource.repo.cross.pas (136 行)
+  - 抽离 ResourceRepoHasCrossToolchain, ResourceRepoGetCrossToolchainInfo, ResourceRepoListCrossTargets
+  - 重构 HasCrossToolchain, GetCrossToolchainInfo, ListCrossTargets 使用 helper
+- **Result:**
+  - resource.repo.pas: 1684 -> 1650 行 (-34)
+  - Tests: 95/95 passing
