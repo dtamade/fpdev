@@ -17,6 +17,7 @@ uses
 
 type
   { TFPCErrorCode - Error codes for FPC operations }
+  {$PUSH}{$NOTES OFF} // ecNone and ecSuccess are intentional aliases
   TFPCErrorCode = (
     ecNone = 0,           // Alias for ecSuccess
     ecSuccess = 0,
@@ -41,6 +42,7 @@ type
     ecPermissionDenied = 100,
     ecTimeout = 110
   );
+  {$POP}
 
   { TOperationWarning - Warning information }
   TOperationWarning = record

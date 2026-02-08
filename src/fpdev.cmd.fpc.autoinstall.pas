@@ -11,7 +11,6 @@ uses
 type
   TFPCAutoInstallCommand = class(TInterfacedObject, ICommand)
   private
-    FConfigPath: string;
     FOutput: IOutput;
     
     function FindConfigFile: string;

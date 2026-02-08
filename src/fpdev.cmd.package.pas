@@ -1772,6 +1772,7 @@ var
   PackageDescriptors: TPackageDepDescriptorArray;
   i, j: Integer;
 begin
+  PackageDescriptors := nil;
   SetLength(PackageDescriptors, Length(APackages));
   for i := 0 to High(APackages) do
   begin

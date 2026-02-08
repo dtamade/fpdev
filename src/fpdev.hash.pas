@@ -263,6 +263,7 @@ begin
   end;
 end;
 
+{$PUSH}{$NOTES OFF} // bits is used via sha256_update
 procedure sha256_final(var ctx: TSHA256Ctx; out digest: array of byte);
 var
   bits: array[0..7] of byte;
@@ -301,7 +302,9 @@ begin
     digest[i*4+3] := (ctx.state[i] and $FF);
   end;
 end;
+{$POP}
 
+{$PUSH}{$NOTES OFF} // bits is used via sha512_update
 procedure sha512_final(var ctx: TSHA512Ctx; out digest: array of byte);
 var
   bits: array[0..15] of byte;
@@ -348,6 +351,7 @@ begin
     digest[i*8+7] := (ctx.state[i] and $FF);
   end;
 end;
+{$POP}
 
 function BytesToHex(const buf: array of byte): string;
 const HEX: PChar = '0123456789abcdef';
