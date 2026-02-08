@@ -918,3 +918,12 @@
 - **Problem:** RebuildIndex 调用 UpdateIndexEntry 会触发 EnsureIndexLoaded，回灌旧索引
 - **Solution:** 在 RebuildIndex 中 Clear() 后设置 FIndexLoaded=True
 - **Result:** Tests: 95/95 passing
+
+### B066: 统一 Ensure* 契约文档
+- **Status:** complete
+- **Actions:**
+  - 添加文档注释说明两种 Ensure* 方法的设计差异
+  - TBuildCache.EnsureIndexLoaded: void (空索引是有效状态)
+  - TResourceRepository.EnsureManifestLoaded: Boolean (必需资源)
+  - 验证所有访问点都有正确的 Ensure* 调用
+- **Result:** Tests: 95/95 passing
