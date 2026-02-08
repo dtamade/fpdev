@@ -205,6 +205,7 @@ implementation
 
 uses
   fpdev.build.cache.entries,
+  fpdev.build.cache.entryio,
   fpdev.build.cache.fileops,
   fpdev.build.cache.indexio,
   fpdev.build.cache.indexjson,
@@ -217,7 +218,7 @@ uses
   fpdev.build.cache.statsreport,
   fpdev.build.cache.ttl,
   fpdev.build.cache.verify,
-  StrUtils, DateUtils, fpjson, jsonparser;
+  DateUtils, fpjson, jsonparser;
 
 { TBuildCache }
 
@@ -298,47 +299,13 @@ begin
 end;
 
 procedure TBuildCache.LoadEntries;
-var
-  F: TextFile;
-  Line: string;
-  FileOpened: Boolean;
 begin
-  if not FileExists(GetCacheFilePath) then Exit;
-  AssignFile(F, GetCacheFilePath);
-  FileOpened := False;
-  try
-    Reset(F);
-    FileOpened := True;
-    while not Eof(F) do
-    begin
-      ReadLn(F, Line);
-      if Line <> '' then
-        FEntries.Add(Line);
-    end;
-  finally
-    if FileOpened then
-      CloseFile(F);
-  end;
+  BuildCacheLoadEntriesFile(GetCacheFilePath, FEntries);
 end;
 
 procedure TBuildCache.SaveEntries;
-var
-  F: TextFile;
-  i: Integer;
-  FileOpened: Boolean;
 begin
-  ForceDirectories(FCacheDir);
-  AssignFile(F, GetCacheFilePath);
-  FileOpened := False;
-  try
-    Rewrite(F);
-    FileOpened := True;
-    for i := 0 to FEntries.Count - 1 do
-      WriteLn(F, FEntries[i]);
-  finally
-    if FileOpened then
-      CloseFile(F);
-  end;
+  BuildCacheSaveEntriesFile(GetCacheFilePath, FCacheDir, FEntries);
 end;
 
 function TBuildCache.FindEntry(const AVersion: string): Integer;
@@ -382,9 +349,8 @@ var
   Line: string;
   Idx: Integer;
 begin
-  Line := Format('version=%s;revision=%s;time=%s;cpu=%s;os=%s;status=%d',
-    [AEntry.Version, AEntry.Revision, FormatDateTime('yyyy-mm-dd_hh:nn:ss', AEntry.BuildTime),
-     AEntry.CPU, AEntry.OS, Ord(AEntry.Status)]);
+  Line := BuildCacheFormatEntryLine(AEntry.Version, AEntry.Revision,
+    AEntry.BuildTime, AEntry.CPU, AEntry.OS, Ord(AEntry.Status));
   Idx := FindEntry(AVersion);
   if Idx >= 0 then
     FEntries[Idx] := Line
@@ -396,47 +362,25 @@ end;
 function TBuildCache.NeedsRebuild(const AVersion: string; AStep: TBuildStep): Boolean;
 var
   Idx: Integer;
-  Line: string;
-  StatusPos: Integer;
-  StatusStr: string;
   CachedStatus: Integer;
 begin
   Result := True;
   Idx := FindEntry(AVersion);
   if Idx < 0 then Exit;
 
-  Line := FEntries[Idx];
-  StatusPos := Pos('status=', Line);
-  if StatusPos > 0 then
-  begin
-    StatusStr := Copy(Line, StatusPos + 7, 1);
-    CachedStatus := StrToIntDef(StatusStr, 0);
-    // If cached status >= requested step, no rebuild needed
+  CachedStatus := BuildCacheParseStatus(FEntries[Idx]);
+  if CachedStatus >= 0 then
     Result := CachedStatus < Ord(AStep);
-  end;
 end;
 
 function TBuildCache.GetRevision(const AVersion: string): string;
 var
   Idx: Integer;
-  Line: string;
-  RevPos, EndPos: Integer;
 begin
   Result := '';
   Idx := FindEntry(AVersion);
-  if Idx < 0 then Exit;
-
-  Line := FEntries[Idx];
-  RevPos := Pos('revision=', Line);
-  if RevPos > 0 then
-  begin
-    RevPos := RevPos + 9;
-    EndPos := PosEx(';', Line, RevPos);
-    if EndPos > RevPos then
-      Result := Copy(Line, RevPos, EndPos - RevPos)
-    else
-      Result := Copy(Line, RevPos, Length(Line));
-  end;
+  if Idx >= 0 then
+    Result := BuildCacheParseRevision(FEntries[Idx]);
 end;
 
 function TBuildCache.GetCacheStats: string;
