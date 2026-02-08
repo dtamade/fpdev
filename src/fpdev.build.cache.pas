@@ -693,10 +693,10 @@ end;
 function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string; const ASHA256: string = ''): Boolean;
 var
   ArchivePath, MetaPath: string;
-  MetaFile: TStringList;
   SR: TSearchRec;
   SHA256Hash: string;
   FileExt: string;
+  ArchiveSize: Int64;
 begin
   Result := False;
 
@@ -730,50 +730,27 @@ begin
     end;
   end;
 
+  // Get archive size
+  ArchiveSize := 0;
+  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
+  begin
+    try
+      ArchiveSize := SR.Size;
+    finally
+      FindClose(SR);
+    end;
+  end;
+
   // Use provided SHA256 hash or calculate placeholder
   if ASHA256 <> '' then
     SHA256Hash := ASHA256
   else
-  begin
-    // Fallback: use file size as placeholder if no hash provided
-    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-    begin
-      try
-        SHA256Hash := IntToHex(SR.Size, 16);
-      finally
-        FindClose(SR);
-      end;
-    end
-    else
-      SHA256Hash := '';
-  end;
+    SHA256Hash := IntToHex(ArchiveSize, 16);  // Fallback: use file size as placeholder
 
-  // Write metadata file
-  MetaFile := TStringList.Create;
-  try
-    MetaFile.Add('version=' + AVersion);
-    MetaFile.Add('cpu=' + GetCurrentCPU);
-    MetaFile.Add('os=' + GetCurrentOS);
-    MetaFile.Add('source_type=binary');
-    MetaFile.Add('sha256=' + SHA256Hash);
-    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
-    MetaFile.Add('file_ext=' + FileExt);  // Store original extension
-
-    // Get archive size
-    if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-    begin
-      try
-        MetaFile.Add('archive_size=' + IntToStr(SR.Size));
-      finally
-        FindClose(SR);
-      end;
-    end;
-
-    MetaFile.SaveToFile(MetaPath);
-    Result := True;
-  finally
-    MetaFile.Free;
-  end;
+  // Write metadata file using helper
+  BuildCacheSaveBinaryMeta(MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
+    SHA256Hash, FileExt, ArchiveSize);
+  Result := True;
 end;
 
 function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
@@ -848,10 +825,7 @@ end;
 function TBuildCache.GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
   MetaPath: string;
-  MetaFile: TStringList;
-  i: Integer;
-  Line, Key, Value: string;
-  EqPos: Integer;
+  BinaryInfo: TBinaryMetaArtifactInfo;
 begin
   Result := False;
   Initialize(AInfo);
@@ -859,47 +833,22 @@ begin
   MetaPath := FCacheDirWithDelim +
     GetArtifactKey(AVersion) + '-binary.meta';
 
-  if not FileExists(MetaPath) then
+  if not BuildCacheLoadBinaryMeta(MetaPath, BinaryInfo) then
     Exit;
 
-  MetaFile := TStringList.Create;
-  try
-    MetaFile.LoadFromFile(MetaPath);
+  // Copy from binary format to TArtifactInfo
+  AInfo.Version := BinaryInfo.Version;
+  AInfo.CPU := BinaryInfo.CPU;
+  AInfo.OS := BinaryInfo.OS;
+  AInfo.SourceType := BinaryInfo.SourceType;
+  AInfo.SHA256 := BinaryInfo.SHA256;
+  AInfo.FileExt := BinaryInfo.FileExt;
+  AInfo.ArchiveSize := BinaryInfo.ArchiveSize;
+  AInfo.CreatedAt := BinaryInfo.CreatedAt;
+  AInfo.ArchivePath := FCacheDirWithDelim +
+    GetArtifactKey(AVersion) + '-binary' + BinaryInfo.FileExt;
 
-    AInfo.ArchivePath := FCacheDirWithDelim +
-      GetArtifactKey(AVersion) + '-binary.tar.gz';
-
-    for i := 0 to MetaFile.Count - 1 do
-    begin
-      Line := MetaFile[i];
-      EqPos := Pos('=', Line);
-      if EqPos > 0 then
-      begin
-        Key := Copy(Line, 1, EqPos - 1);
-        Value := Copy(Line, EqPos + 1, Length(Line));
-
-        if Key = 'version' then
-          AInfo.Version := Value
-        else if Key = 'cpu' then
-          AInfo.CPU := Value
-        else if Key = 'os' then
-          AInfo.OS := Value
-        else if Key = 'source_type' then
-          AInfo.SourceType := Value
-        else if Key = 'sha256' then
-          AInfo.SHA256 := Value
-        else if Key = 'file_ext' then
-          AInfo.FileExt := Value
-        else if Key = 'archive_size' then
-          AInfo.ArchiveSize := StrToInt64Def(Value, 0);
-        // Note: CreatedAt parsing omitted for simplicity
-      end;
-    end;
-
-    Result := AInfo.Version <> '';
-  finally
-    MetaFile.Free;
-  end;
+  Result := AInfo.Version <> '';
 end;
 
 { Cache Invalidation Methods }
