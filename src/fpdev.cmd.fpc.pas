@@ -124,6 +124,8 @@ type
     // 二进制安装
     function GetBinaryDownloadURL(const AVersion: string): string;
     function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+    function GetBinaryDownloadURLLegacy(const AVersion: string): string;
+    function DownloadBinaryLegacy(const AVersion: string; out ATempFile: string): Boolean;
     function VerifyChecksum(const AFilePath, AVersion: string): Boolean;
     function ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
     function InstallFromBinary(const AVersion: string; const APrefix: string = ''): Boolean;
@@ -1252,12 +1254,22 @@ end;
 
 function TFPCManager.GetBinaryDownloadURL(const AVersion: string): string;
 begin
-  Result := FInstallerMgr.GetBinaryDownloadURL(AVersion);
+  Result := FInstallerMgr.GetBinaryDownloadURLLegacy(AVersion);
 end;
 
 function TFPCManager.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
 begin
-  Result := FInstallerMgr.DownloadBinary(AVersion, ATempFile);
+  Result := FInstallerMgr.DownloadBinaryLegacy(AVersion, ATempFile);
+end;
+
+function TFPCManager.GetBinaryDownloadURLLegacy(const AVersion: string): string;
+begin
+  Result := FInstallerMgr.GetBinaryDownloadURLLegacy(AVersion);
+end;
+
+function TFPCManager.DownloadBinaryLegacy(const AVersion: string; out ATempFile: string): Boolean;
+begin
+  Result := FInstallerMgr.DownloadBinaryLegacy(AVersion, ATempFile);
 end;
 
 function TFPCManager.VerifyChecksum(const AFilePath, AVersion: string): Boolean;

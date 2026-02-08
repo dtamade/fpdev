@@ -51,8 +51,8 @@ type
     // ICommand interface
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function FindSub(const {%H-} AName: string): ICommand;
+    function Execute(const AParams: array of string; const {%H-} Ctx: IContext): Integer;
     function GetHelp: string;
   end;
 
@@ -94,8 +94,9 @@ begin
   Result := nil;  // No aliases
 end;
 
-function TConfigCommand.FindSub(const AName: string): ICommand;
+function TConfigCommand.FindSub(const {%H-} AName: string): ICommand;
 begin
+  if AName <> '' then;
   Result := nil;  // No subcommands - handled internally
 end;
 
@@ -246,11 +247,12 @@ begin
   FOut.WriteLn('Configuration updated: ' + AKey + ' = ' + AValue);
 end;
 
-function TConfigCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+function TConfigCommand.Execute(const AParams: array of string; const {%H-} Ctx: IContext): Integer;
 var
   SubCommand: string;
 begin
   Result := 0;
+  if Ctx = nil then;
 
   if Length(AParams) = 0 then
   begin

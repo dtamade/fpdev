@@ -6,7 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.git2, fpdev.utils.fs, fpdev.constants;
+  git2.api, git2.impl,
+  fpdev.utils.fs, fpdev.constants;
 
 type
   { TSourceRepoManager }
@@ -68,7 +69,8 @@ end;
 function TSourceRepoManager.CloneFPCSource(const AVersion: string): Boolean;
 var
   LVersion, LSourcePath: string;
-  LRepo: TGitRepository;
+  LRepo: IGitRepository;
+  LGitManager: IGitManager;
 begin
   Result := False;
   LVersion := AVersion;
@@ -87,20 +89,21 @@ begin
     {$ENDIF}
   end;
 
-  LRepo := nil;
   try
-    if not GitManager.Initialize then Exit(False);
-    LRepo := GitManager.CloneRepository(FPC_GIT_URL, LSourcePath);
+    LGitManager := NewGitManager();
+    if not LGitManager.Initialize then Exit(False);
+    LRepo := LGitManager.CloneRepository(FPC_GIT_URL, LSourcePath);
     Result := Assigned(LRepo);
-  finally
-    if Assigned(LRepo) then LRepo.Free;
+  except
+    Result := False;
   end;
 end;
 
 function TSourceRepoManager.UpdateFPCSource(const AVersion: string): Boolean;
 var
   LVersion, LSourcePath: string;
-  LRepo: TGitRepository;
+  LRepo: IGitRepository;
+  LGitManager: IGitManager;
 begin
   Result := False;
   LVersion := AVersion; if LVersion = '' then LVersion := 'main';
@@ -108,13 +111,11 @@ begin
   if not DirectoryExists(LSourcePath) then Exit(False);
 
   try
-    if not GitManager.Initialize then Exit(False);
-    LRepo := GitManager.OpenRepository(LSourcePath);
-    try
-      Result := LRepo.Fetch('origin');
-    finally
-      LRepo.Free;
-    end;
+    LGitManager := NewGitManager();
+    if not LGitManager.Initialize then Exit(False);
+    LRepo := LGitManager.OpenRepository(LSourcePath);
+    if not Assigned(LRepo) then Exit(False);
+    Result := LRepo.Fetch('origin');
   except
     Result := False;
   end;
@@ -123,19 +124,18 @@ end;
 function TSourceRepoManager.SwitchFPCVersion(const AVersion: string): Boolean;
 var
   LSourcePath: string;
-  LRepo: TGitRepository;
+  LRepo: IGitRepository;
+  LGitManager: IGitManager;
 begin
   Result := False;
   LSourcePath := GetSourcePath(AVersion);
   if not DirectoryExists(LSourcePath) then Exit(False);
   try
-    if not GitManager.Initialize then Exit(False);
-    LRepo := GitManager.OpenRepository(LSourcePath);
-    try
-      Result := LRepo.CheckoutBranch(AVersion);
-    finally
-      LRepo.Free;
-    end;
+    LGitManager := NewGitManager();
+    if not LGitManager.Initialize then Exit(False);
+    LRepo := LGitManager.OpenRepository(LSourcePath);
+    if not Assigned(LRepo) then Exit(False);
+    Result := LRepo.CheckoutBranch(AVersion);
   except
     Result := False;
   end;
@@ -147,4 +147,3 @@ begin
 end;
 
 end.
-

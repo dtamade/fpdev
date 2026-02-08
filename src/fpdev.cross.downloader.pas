@@ -702,7 +702,7 @@ begin
   Result := nil;
   F := TFileStream.Create(APath, fmOpenRead or fmShareDenyWrite);
   try
-    Parser := TJSONParser.Create(F);
+    Parser := TJSONParser.Create(F, []);
     try
       Data := Parser.Parse;
       if Data is TJSONObject then

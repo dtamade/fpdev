@@ -14,7 +14,7 @@ type
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): ICommand;
+    function FindSub(const {%H-} AName: string): ICommand;
     function Execute(const AParams: array of string; const AContext: IContext): Integer;
   end;
 
@@ -34,9 +34,10 @@ begin
   Result := nil; // Aliases registered via GlobalCommandRegistry
 end;
 
-function THelpCommand.FindSub(const AName: string): ICommand;
+function THelpCommand.FindSub(const {%H-} AName: string): ICommand;
 begin
   // AName parameter not used - help command has no subcommands
+  if AName <> '' then;
   Result := nil; // help命令没有子命令
 end;
 

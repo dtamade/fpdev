@@ -169,6 +169,10 @@ type
 implementation
 
 uses
+  fpdev.resource.repo.bootstrap,
+  fpdev.resource.repo.mirror,
+  fpdev.resource.repo.package,
+  fpdev.resource.repo.search,
   fpdev.paths;  // 用于GetUserConfigDir等
 
 { 辅助函数实现 }
@@ -653,148 +657,22 @@ begin
 end;
 
 function TResourceRepository.GetRequiredBootstrapVersion(const AFPCVersion: string): string;
-var
-  VersionMap: TJSONObject;
-  NormalizedVersion: string;
-
-  function GetHardcodedMapping(const AVersion: string): string;
-  var
-    NormVer: string;
-  begin
-    Result := '';
-    NormVer := LowerCase(Trim(AVersion));
-
-    if (NormVer = 'main') or (NormVer = '3.3.1') or (NormVer = 'trunk') then
-      Result := '3.2.2'
-    else if (NormVer = '3.2.4') or (NormVer = '3.2.3') then
-      Result := '3.2.2'
-    else if NormVer = '3.2.2' then
-      Result := '3.2.0'
-    else if NormVer = '3.2.0' then
-      Result := '3.0.4'
-    else if (NormVer = '3.0.5') or (NormVer = '3.0.4') then
-      Result := '3.0.2'
-    else if (NormVer = '3.0.3') or (NormVer = '3.0.2') or (NormVer = '3.0.1') then
-      Result := '3.0.0'
-    else if NormVer = '3.0.0' then
-      Result := '2.6.4'
-    else if (NormVer = '2.6.5') or (NormVer = '2.6.4') then
-      Result := '2.6.2'
-    else if NormVer = '2.6.2' then
-      Result := '2.6.0';
-  end;
-
 begin
-  Result := '';
-
-  // If no manifest loaded, use hardcoded mapping
-  if not Assigned(FManifestData) then
-  begin
-    Result := GetHardcodedMapping(AFPCVersion);
-    Exit;
-  end;
-
   try
-    VersionMap := FManifestData.Objects['bootstrap_version_map'];
-    if not Assigned(VersionMap) then
-    begin
-      // Fallback to hardcoded mapping (based on fpcupdeluxe)
-      Result := GetHardcodedMapping(AFPCVersion);
-      Exit;
-    end;
-
-    // Look up in manifest version map
-    Result := VersionMap.Get(AFPCVersion, '');
-
-    // If not found, try normalized version
-    if Result = '' then
-    begin
-      NormalizedVersion := LowerCase(Trim(AFPCVersion));
-      if NormalizedVersion = 'trunk' then
-        Result := VersionMap.Get('main', '');
-    end;
-
-    // If still not found, fallback to hardcoded
-    if Result = '' then
-      Result := GetHardcodedMapping(AFPCVersion);
+    Result := ResourceRepoGetRequiredBootstrapVersion(FManifestData, AFPCVersion);
   except
     on E: Exception do
     begin
       LogFmt('Error getting bootstrap version from manifest: %s', [E.Message]);
-      Result := GetHardcodedMapping(AFPCVersion);
+      Result := ResourceRepoGetRequiredBootstrapVersion(nil, AFPCVersion);
     end;
   end;
 end;
 
 function TResourceRepository.GetBootstrapVersionFromMakefile(const ASourcePath: string): string;
-var
-  MakefilePath: string;
-  F: TextFile;
-  Line: string;
-  RequiredVersion, RequiredVersion2: Integer;
-  VersionStr: string;
-  Major, Minor, Patch: Integer;
 begin
-  Result := '';
-
-  MakefilePath := ASourcePath + PathDelim + 'Makefile';
-  if not FileExists(MakefilePath) then
-  begin
-    MakefilePath := ASourcePath + PathDelim + 'Makefile.fpc';
-    if not FileExists(MakefilePath) then
-      Exit;
-  end;
-
-  RequiredVersion := 0;
-  RequiredVersion2 := 0;
-
   try
-    AssignFile(F, MakefilePath);
-    Reset(F);
-    try
-      while not Eof(F) do
-      begin
-        ReadLn(F, Line);
-        Line := Trim(Line);
-
-        // Parse REQUIREDVERSION=XXXXX (e.g., 30200 = 3.2.0)
-        if Pos('REQUIREDVERSION=', Line) = 1 then
-        begin
-          VersionStr := Trim(Copy(Line, 17, Length(Line)));
-          // Remove any trailing comments
-          if Pos('#', VersionStr) > 0 then
-            VersionStr := Trim(Copy(VersionStr, 1, Pos('#', VersionStr) - 1));
-          Val(VersionStr, RequiredVersion);
-        end
-        else if Pos('REQUIREDVERSION2=', Line) = 1 then
-        begin
-          VersionStr := Trim(Copy(Line, 18, Length(Line)));
-          if Pos('#', VersionStr) > 0 then
-            VersionStr := Trim(Copy(VersionStr, 1, Pos('#', VersionStr) - 1));
-          Val(VersionStr, RequiredVersion2);
-        end;
-      end;
-    finally
-      CloseFile(F);
-    end;
-
-    // Convert numerical version to string (e.g., 30200 -> 3.2.0)
-    if RequiredVersion > 0 then
-    begin
-      Major := RequiredVersion div 10000;
-      Minor := (RequiredVersion mod 10000) div 100;
-      Patch := RequiredVersion mod 100;
-      Result := Format('%d.%d.%d', [Major, Minor, Patch]);
-
-      // Normalize: 3.2.0 -> 3.2.0, but we might use RequiredVersion2 if lower
-      if (RequiredVersion2 > 0) and (RequiredVersion2 < RequiredVersion) then
-      begin
-        Major := RequiredVersion2 div 10000;
-        Minor := (RequiredVersion2 mod 10000) div 100;
-        Patch := RequiredVersion2 mod 100;
-        Result := Format('%d.%d.%d', [Major, Minor, Patch]);
-      end;
-    end;
+    Result := ResourceRepoGetBootstrapVersionFromMakefile(ASourcePath);
   except
     on E: Exception do
     begin
@@ -805,23 +683,9 @@ begin
 end;
 
 function TResourceRepository.ListBootstrapVersions: SysUtils.TStringArray;
-var
-  BootstrapCompilers: TJSONObject;
-  i: Integer;
 begin
-  Result := nil;
-
-  if not Assigned(FManifestData) then
-    Exit;
-
   try
-    BootstrapCompilers := FManifestData.Objects['bootstrap_compilers'];
-    if not Assigned(BootstrapCompilers) then
-      Exit;
-
-    SetLength(Result, BootstrapCompilers.Count);
-    for i := 0 to BootstrapCompilers.Count - 1 do
-      Result[i] := BootstrapCompilers.Names[i];
+    Result := ResourceRepoListBootstrapVersions(FManifestData);
   except
     on E: Exception do
     begin
@@ -1269,121 +1133,32 @@ end;
 { Mirror Management }
 
 function TResourceRepository.DetectUserRegion: string;
-var
-  TZ: string;
 begin
-  // Simple region detection based on timezone or locale
-  // Default to 'us' for international users
-  Result := 'us';
-
-  {$IFDEF MSWINDOWS}
-  TZ := GetEnvironmentVariable('TZ');
-  if TZ = '' then
-    TZ := GetEnvironmentVariable('LANG');
-  {$ELSE}
-  TZ := GetEnvironmentVariable('TZ');
-  if TZ = '' then
-  begin
-    // Try to read timezone from /etc/timezone on Linux
-    if FileExists('/etc/timezone') then
-    begin
-      try
-        with TStringList.Create do
-        try
-          LoadFromFile('/etc/timezone');
-          if Count > 0 then
-            TZ := Strings[0];
-        finally
-          Free;
-        end;
-      except
-      on E: Exception do
-      begin
-        LogFmt('Error detecting timezone: %s', [E.Message]);
-        TZ := '';
-      end;
-    end;
-  end;
-  end;
-  {$ENDIF}
-
-  // Detect China region
-  if (Pos('Asia/Shanghai', TZ) > 0) or
-     (Pos('Asia/Beijing', TZ) > 0) or
-     (Pos('Asia/Chongqing', TZ) > 0) or
-     (Pos('Asia/Hong_Kong', TZ) > 0) or
-     (Pos('zh_CN', GetEnvironmentVariable('LANG')) > 0) or
-     (Pos('zh_TW', GetEnvironmentVariable('LANG')) > 0) then
-  begin
-    Result := 'china';
-    Exit;
-  end;
-
-  // Detect Europe region
-  if (Pos('Europe/', TZ) > 0) then
-  begin
-    Result := 'europe';
-    Exit;
-  end;
+  Result := ResourceRepoDetectUserRegion(@Log);
 end;
 
 function TResourceRepository.TestMirrorLatency(const AURL: string; ATimeoutMS: Integer): Integer;
-var
-  LResult: TProcessResult;
-  TestURL: string;
 begin
-  Result := -1;  // -1 表示不可达
-
-  // 构造测试 URL（只测试 HEAD 请求）
-  TestURL := AURL;
-  // 移除 .git 后缀以测试 web 可达性
-  if Pos('.git', TestURL) > 0 then
-    TestURL := Copy(TestURL, 1, Pos('.git', TestURL) - 1);
-
-  try
-    // 使用 curl 测试延迟（超时设置为秒）
-    LResult := TProcessExecutor.Execute('curl',
-      ['-s', '-o', '/dev/null', '-w', '%{time_total}',
-       '--connect-timeout', IntToStr(ATimeoutMS div 1000),
-       '--max-time', IntToStr(ATimeoutMS div 1000),
-       '-I', TestURL], '');
-
-    if LResult.Success then
-    begin
-      // curl 返回的是秒数，转换为毫秒
-      Result := Round(StrToFloatDef(Trim(LResult.StdOut), 999) * 1000);
-    end;
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error testing mirror latency: %s', [E.Message]);
-      Result := -1;
-    end;
-  end;
+  Result := ResourceRepoTestMirrorLatency(AURL, ATimeoutMS, @Log);
 end;
 
 function TResourceRepository.SelectBestMirror: string;
 const
   CACHE_TTL_HOURS = 1;  // 镜像缓存 1 小时
 var
-  Mirrors: TJSONArray;
-  Mirror: TJSONObject;
-  Region, MirrorRegion, MirrorURL: string;
-  i, Latency, BestLatency: Integer;
+  Region: string;
+  i: Integer;
   CandidateMirrors: array of string;
+  CandidateLatencies: TResourceRepoMirrorLatencyArray;
   CandidateCount: Integer;
+  BestMirror: string;
 begin
   Result := FConfig.URL;  // Default to primary URL
 
   // 检查缓存
-  if (FCachedBestMirror <> '') and (FMirrorCacheTime > 0) then
-  begin
-    if HoursBetween(Now, FMirrorCacheTime) < CACHE_TTL_HOURS then
-    begin
-      Result := FCachedBestMirror;
-      Exit;
-    end;
-  end;
+  if ResourceRepoTryGetCachedMirror(FCachedBestMirror, FMirrorCacheTime,
+    CACHE_TTL_HOURS, Now, Result) then
+    Exit;
 
   if not Assigned(FManifestData) then
     Exit;
@@ -1395,78 +1170,32 @@ begin
     Region := DetectUserRegion;
 
   CandidateMirrors := nil;
-  CandidateCount := 0;
+  CandidateLatencies := nil;
 
   try
-    // 第一步：收集同区域的候选镜像
-    if FManifestData.Find('repository') <> nil then
-    begin
-      if TJSONObject(FManifestData.Find('repository')).Find('mirrors') <> nil then
-      begin
-        Mirrors := TJSONObject(FManifestData.Find('repository')).Arrays['mirrors'];
+    CandidateMirrors := ResourceRepoBuildCandidateMirrors(
+      FManifestData, Region, FConfig.URL, FConfig.Mirrors);
 
-        for i := 0 to Mirrors.Count - 1 do
-        begin
-          Mirror := Mirrors.Objects[i];
-          MirrorRegion := Mirror.Get('region', '');
-          MirrorURL := Mirror.Get('url', '');
+    BestMirror := ResourceRepoSelectBestMirrorFromCandidates(
+      CandidateMirrors, @TestMirrorLatency, 3000, CandidateLatencies);
 
-          // 优先选择同区域镜像
-          if (MirrorRegion = Region) or (Region = '') then
-          begin
-            SetLength(CandidateMirrors, CandidateCount + 1);
-            CandidateMirrors[CandidateCount] := MirrorURL;
-            Inc(CandidateCount);
-          end;
-        end;
-
-        // 如果没有同区域镜像，添加所有镜像
-        if CandidateCount = 0 then
-        begin
-          for i := 0 to Mirrors.Count - 1 do
-          begin
-            Mirror := Mirrors.Objects[i];
-            MirrorURL := Mirror.Get('url', '');
-            SetLength(CandidateMirrors, CandidateCount + 1);
-            CandidateMirrors[CandidateCount] := MirrorURL;
-            Inc(CandidateCount);
-          end;
-        end;
-      end;
-    end;
-
-    // 添加主 URL 和配置中的简单镜像列表
-    SetLength(CandidateMirrors, CandidateCount + 1);
-    CandidateMirrors[CandidateCount] := FConfig.URL;
-    Inc(CandidateCount);
-
-    for i := 0 to High(FConfig.Mirrors) do
-    begin
-      SetLength(CandidateMirrors, CandidateCount + 1);
-      CandidateMirrors[CandidateCount] := FConfig.Mirrors[i];
-      Inc(CandidateCount);
-    end;
-
-    // 第二步：测试延迟并选择最快的
-    BestLatency := MaxInt;
+    CandidateCount := Length(CandidateMirrors);
     SetLength(FMirrorLatencies, CandidateCount);
 
     for i := 0 to CandidateCount - 1 do
     begin
-      Latency := TestMirrorLatency(CandidateMirrors[i], 3000);  // 3秒超时
       FMirrorLatencies[i].URL := CandidateMirrors[i];
-      FMirrorLatencies[i].Latency := Latency;
-
-      if (Latency > 0) and (Latency < BestLatency) then
-      begin
-        BestLatency := Latency;
-        Result := CandidateMirrors[i];
-      end;
+      if i <= High(CandidateLatencies) then
+        FMirrorLatencies[i].Latency := CandidateLatencies[i]
+      else
+        FMirrorLatencies[i].Latency := -1;
     end;
 
+    if BestMirror <> '' then
+      Result := BestMirror;
+
     // 缓存结果
-    FCachedBestMirror := Result;
-    FMirrorCacheTime := Now;
+    ResourceRepoSetCachedMirror(Result, Now, FCachedBestMirror, FMirrorCacheTime);
 
   except
     on E: Exception do
@@ -1480,8 +1209,7 @@ end;
 
 function TResourceRepository.GetMirrors: TMirrorArray;
 var
-  Mirrors: TJSONArray;
-  Mirror: TJSONObject;
+  ParsedMirrors: TResourceRepoMirrorInfoArray;
   i: Integer;
 begin
   Result := nil;
@@ -1490,22 +1218,15 @@ begin
     Exit;
 
   try
-    if FManifestData.Find('repository') <> nil then
-    begin
-      if TJSONObject(FManifestData.Find('repository')).Find('mirrors') <> nil then
-      begin
-        Mirrors := TJSONObject(FManifestData.Find('repository')).Arrays['mirrors'];
-        SetLength(Result, Mirrors.Count);
+    ParsedMirrors := ResourceRepoGetMirrorsFromManifest(FManifestData);
+    SetLength(Result, Length(ParsedMirrors));
 
-        for i := 0 to Mirrors.Count - 1 do
-        begin
-          Mirror := Mirrors.Objects[i];
-          Result[i].Name := Mirror.Get('name', '');
-          Result[i].URL := Mirror.Get('url', '');
-          Result[i].Region := Mirror.Get('region', '');
-          Result[i].Priority := Mirror.Get('priority', 100);
-        end;
-      end;
+    for i := 0 to High(ParsedMirrors) do
+    begin
+      Result[i].Name := ParsedMirrors[i].Name;
+      Result[i].URL := ParsedMirrors[i].URL;
+      Result[i].Region := ParsedMirrors[i].Region;
+      Result[i].Priority := ParsedMirrors[i].Priority;
     end;
   except
     on E: Exception do
@@ -1772,24 +1493,9 @@ begin
   if AVersion = '' then; // Suppress hint
 
   // Try to find package metadata file
-  // Expected location: packages/<category>/<name>/<name>.json
-  PackageMetaPath := FLocalPath + PathDelim + 'packages' + PathDelim + AName + PathDelim + AName + '.json';
-
-  if not FileExists(PackageMetaPath) then
-  begin
-    // Try alternative locations
-    PackageMetaPath := FLocalPath + PathDelim + 'packages' + PathDelim + 'core' + PathDelim + AName + PathDelim + AName + '.json';
-    if not FileExists(PackageMetaPath) then
-    begin
-      PackageMetaPath := FLocalPath + PathDelim + 'packages' + PathDelim + 'ui' + PathDelim + AName + PathDelim + AName + '.json';
-      if not FileExists(PackageMetaPath) then
-      begin
-        PackageMetaPath := FLocalPath + PathDelim + 'packages' + PathDelim + 'utils' + PathDelim + AName + PathDelim + AName + '.json';
-        if not FileExists(PackageMetaPath) then
-          Exit;
-      end;
-    end;
-  end;
+  PackageMetaPath := ResourceRepoResolvePackageMetaPath(FLocalPath, AName);
+  if PackageMetaPath = '' then
+    Exit;
 
   try
     // Read package metadata
@@ -1915,25 +1621,16 @@ begin
 
   for i := 0 to High(AllPackages) do
   begin
-    // Check if package name contains keyword
-    if Pos(Keyword, LowerCase(AllPackages[i])) > 0 then
+    // Get description for matching
+    Info.Description := '';
+    GetPackageInfo(AllPackages[i], '', Info);
+
+    // Use helper for matching
+    if ResourceRepoPackageMatchesKeyword(AllPackages[i], Info.Description, Keyword) then
     begin
       SetLength(Result, Count + 1);
       Result[Count] := AllPackages[i];
       Inc(Count);
-    end
-    else
-    begin
-      // Check description if we can get package info
-      if GetPackageInfo(AllPackages[i], '', Info) then
-      begin
-        if Pos(Keyword, LowerCase(Info.Description)) > 0 then
-        begin
-          SetLength(Result, Count + 1);
-          Result[Count] := AllPackages[i];
-          Inc(Count);
-        end;
-      end;
     end;
   end;
 end;

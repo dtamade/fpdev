@@ -44,24 +44,74 @@ def analyze_temp_files_and_debug_code():
             except:
                 continue
         
-        # 查找调试相关代码
-        debug_patterns = [
-            r'writeln\s*\(',  # 调试输出
-            r'write\s*\(',    # 调试输出
-            r'//\s*debug',    # 调试注释
-            r'//\s*todo',     # TODO注释
-            r'//\s*fixme',    # FIXME注释
-            r'//\s*hack',     # HACK注释
+        # 查找调试相关代码（忽略注释与注释块中的示例）
+        debug_write_patterns = [
+            r'(?<![\w\.])writeln\s*\(',  # 调试输出
+            r'(?<![\w\.])write\s*\(',    # 调试输出
         ]
-        
+        comment_keywords = ('debug', 'todo', 'fixme', 'hack')
+
         debug_lines = []
         lines = content.split('\n')
+        in_brace_comment = False
+        in_paren_comment = False
+
         for i, line in enumerate(lines, 1):
-            line_lower = line.lower()
-            for pattern in debug_patterns:
-                if re.search(pattern, line_lower, re.IGNORECASE):
-                    debug_lines.append((i, line.strip()))
-        
+            code_part = ''
+            inline_comment = ''
+            pos = 0
+
+            while pos < len(line):
+                if in_brace_comment:
+                    end_pos = line.find('}', pos)
+                    if end_pos == -1:
+                        pos = len(line)
+                        break
+                    in_brace_comment = False
+                    pos = end_pos + 1
+                    continue
+
+                if in_paren_comment:
+                    end_pos = line.find('*)', pos)
+                    if end_pos == -1:
+                        pos = len(line)
+                        break
+                    in_paren_comment = False
+                    pos = end_pos + 2
+                    continue
+
+                if line.startswith('//', pos):
+                    inline_comment = line[pos + 2:]
+                    break
+
+                if line.startswith('{', pos):
+                    in_brace_comment = True
+                    pos += 1
+                    continue
+
+                if line.startswith('(*', pos):
+                    in_paren_comment = True
+                    pos += 2
+                    continue
+
+                code_part += line[pos]
+                pos += 1
+
+            code_sans_strings = re.sub(r"'([^']|'')*'", "''", code_part)
+            code_lower = code_sans_strings.lower()
+            is_declaration = re.match(r'\s*(procedure|function)\b', code_lower) is not None
+            has_debug_write = (not is_declaration) and any(
+                re.search(pattern, code_lower, re.IGNORECASE)
+                for pattern in debug_write_patterns
+            )
+
+            comment_lower = inline_comment.strip().lower()
+            has_comment_tag = any(comment_lower.startswith(keyword)
+                                  for keyword in comment_keywords)
+
+            if has_debug_write or has_comment_tag:
+                debug_lines.append((i, line.strip()))
+
         if debug_lines:
             debug_code_files.append({
                 'file': pas_file,

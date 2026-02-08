@@ -159,6 +159,31 @@ begin
   AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
 end;
 
+{ Test: InstallVersion in binary mode falls back to supported flow }
+procedure Test_InstallVersion_BinaryMode_Fallback_Success;
+var
+  Result: TOperationResult;
+  SourceDir: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: InstallVersion - Binary Mode Fallback');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
+
+  // Setup mock: allow fallback path to succeed
+  MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
+  MockProcessRunner.SetResult('make', 0, 'Build complete', '');
+  MockFileSystem.AddDirectory(SourceDir);
+
+  Result := Installer.InstallVersion('3.2.2', False);
+
+  AssertTrue(Result.Success, 'InstallVersion in binary mode should be supported via fallback');
+  AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone in binary fallback mode');
+end;
+
 { Test: InstallVersion fails when already installed }
 procedure Test_InstallVersion_AlreadyInstalled;
 var
@@ -386,6 +411,7 @@ begin
           try
             // Run tests
             Test_InstallVersion_FromSource_Success;
+            Test_InstallVersion_BinaryMode_Fallback_Success;
             Test_InstallVersion_AlreadyInstalled;
             Test_InstallVersion_InvalidVersion;
             Test_UninstallVersion_Success;

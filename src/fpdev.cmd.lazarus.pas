@@ -179,7 +179,7 @@ begin
     if Length(Releases[i].FPCCompatible) > 0 then
       Result[i].FPCVersion := Releases[i].FPCCompatible[0]
     else
-      Result[i].FPCVersion := '3.2.2';
+      Result[i].FPCVersion := DEFAULT_FPC_VERSION;
     Result[i].Available := True;
     Result[i].Installed := IsVersionInstalled(Result[i].Version);
   end;
@@ -405,10 +405,30 @@ begin
 
     end else
     begin
-      // 从预编译包安装 (暂未实现)
-      if Errp <> nil then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_BINARY_NOT_IMPL));
-      Result := False;
+      // Binary path fallback: use source build flow for now.
+      // This removes hard-stop behavior while keeping installation functional.
+      if Outp <> nil then
+        Outp.WriteLn(_(MSG_WARNING) + ': binary package path unavailable, fallback to source build');
+
+      SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
+
+      if not DownloadSource(AVersion, SourceDir) then
+      begin
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED));
+        Exit;
+      end;
+
+      if not BuildFromSource(SourceDir, InstallPath, FPCVer) then
+      begin
+        if Errp <> nil then
+          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_BUILD_FAILED));
+        Exit;
+      end;
+
+      Result := SetupEnvironment(AVersion);
+      if (not Result) and (Errp <> nil) then
+        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_ENV_SETUP_FAILED));
     end;
 
     // Auto-configure IDE after successful installation
@@ -982,8 +1002,8 @@ begin
       if IDEConfig.SetMakePath('make.exe') then
         LO.WriteLn(_Fmt(MSG_LAZARUS_MAKE_SET, ['make.exe']));
       {$ELSE}
-      if IDEConfig.SetMakePath('/usr/bin/make') then
-        LO.WriteLn(_Fmt(MSG_LAZARUS_MAKE_SET, ['/usr/bin/make']));
+      if IDEConfig.SetMakePath(UNIX_MAKE_PATH) then
+        LO.WriteLn(_Fmt(MSG_LAZARUS_MAKE_SET, [UNIX_MAKE_PATH]));
       {$ENDIF}
 
       // Validate configuration

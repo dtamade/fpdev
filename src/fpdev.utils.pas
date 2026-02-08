@@ -7,7 +7,7 @@ unit fpdev.utils;
 interface
 
 uses
-  SysUtils, Classes
+  SysUtils, Classes, fpdev.constants
   {$IFDEF UNIX}
   , BaseUnix
   , ctypes
@@ -272,10 +272,10 @@ begin
   {$IFDEF UNIX}
   // Read from /proc/uptime on Linux
   Result := 0;
-  if FileExists('/proc/uptime') then
+  if FileExists(PROC_UPTIME_FILE) then
   begin
     try
-      AssignFile(F, '/proc/uptime');
+      AssignFile(F, PROC_UPTIME_FILE);
       Reset(F);
       ReadLn(F, Line);
       CloseFile(F);
@@ -306,10 +306,10 @@ begin
   Result := 0;
   {$IFDEF UNIX}
   // Read from /proc/meminfo on Linux
-  if FileExists('/proc/meminfo') then
+  if FileExists(PROC_MEMINFO_FILE) then
   begin
     try
-      AssignFile(F, '/proc/meminfo');
+      AssignFile(F, PROC_MEMINFO_FILE);
       Reset(F);
       Parts := TStringList.Create;
       try
@@ -371,10 +371,10 @@ begin
   Result := 0;
   {$IFDEF UNIX}
   // Read from /proc/meminfo on Linux
-  if FileExists('/proc/meminfo') then
+  if FileExists(PROC_MEMINFO_FILE) then
   begin
     try
-      AssignFile(F, '/proc/meminfo');
+      AssignFile(F, PROC_MEMINFO_FILE);
       Reset(F);
       while not Eof(F) do
       begin

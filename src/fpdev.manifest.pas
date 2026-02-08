@@ -43,7 +43,7 @@ type
     function ParseJSON(const AContent: string): Boolean;
     function ValidateManifest: Boolean;
     function ParseTarget(ATargetObj: TJSONObject): TManifestTarget;
-    function ParsePackage(const AName: string; APkgObj: TJSONObject): TManifestPackage;
+    function ParsePackage(const {%H-} AName: string; APkgObj: TJSONObject): TManifestPackage;
   public
     constructor Create;
     destructor Destroy; override;
@@ -54,9 +54,9 @@ type
     function LoadFromString(const AContent: string): Boolean;
 
     { 查询包信息 }
-    function GetPackage(const AName, AVersion, APlatform: string; out APkg: TManifestPackage): Boolean;
+    function GetPackage(const AName, AVersion, {%H-} APlatform: string; out APkg: TManifestPackage): Boolean;
     function GetTarget(const AName, AVersion, APlatform: string; out ATarget: TManifestTarget): Boolean;
-    function ListVersions(const AName: string): TStringArray;
+    function ListVersions(const {%H-} AName: string): TStringArray;
     function ListPlatforms(const AName, AVersion: string): TStringArray;
 
     { 验证 }
@@ -289,13 +289,15 @@ begin
   Result.Signature := ATargetObj.Get('signature', '');
 end;
 
-function TManifestParser.ParsePackage(const AName: string; APkgObj: TJSONObject): TManifestPackage;
+function TManifestParser.ParsePackage(const {%H-} AName: string; APkgObj: TJSONObject): TManifestPackage;
 var
   TargetsObj: TJSONObject;
   I: Integer;
   TargetName: string;
   TargetObj: TJSONObject;
 begin
+  if AName <> '' then;
+
   // 初始化
   Result.Version := '';
   SetLength(Result.Targets, 0);
@@ -427,11 +429,12 @@ begin
   Result := True;
 end;
 
-function TManifestParser.GetPackage(const AName, AVersion, APlatform: string; out APkg: TManifestPackage): Boolean;
+function TManifestParser.GetPackage(const AName, AVersion, {%H-} APlatform: string; out APkg: TManifestPackage): Boolean;
 var
   I: Integer;
 begin
   Result := False;
+  if APlatform <> '' then;
 
   for I := 0 to High(FPackages) do
   begin
@@ -469,11 +472,12 @@ begin
   FLastError := Format('Platform not found: %s for version %s', [APlatform, AVersion]);
 end;
 
-function TManifestParser.ListVersions(const AName: string): TStringArray;
+function TManifestParser.ListVersions(const {%H-} AName: string): TStringArray;
 var
   I: Integer;
 begin
   Result := nil;
+  if AName <> '' then;
   SetLength(Result, Length(FPackages));
   for I := 0 to High(FPackages) do
     Result[I] := FPackages[I].Version;

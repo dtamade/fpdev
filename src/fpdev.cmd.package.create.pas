@@ -1,74 +1,152 @@
 unit fpdev.cmd.package.create;
 
+{$I fpdev.settings.inc}
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings;
+  SysUtils, Classes, fpdev.utils.fs, fpdev.package.archiver;
 
 type
-  TPackageCreateCommand = class(TInterfacedObject, ICommand)
-  public
-    function Name: string;
-    function Aliases: TStringArray;
-    function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+  TPackageCreateOptions = record
+    Name: string;
+    Version: string;
+    SourcePath: string;
+    ExcludePatterns: TStringArray;
   end;
+
+function IsBuildArtifactCore(const FileName: string): Boolean;
+function CollectPackageSourceFilesCore(const SourceDir: string;
+  const ExcludePatterns: TStringArray): TStringArray;
+function GeneratePackageMetadataJsonCore(
+  const Options: TPackageCreateOptions): string;
+function CreatePackageZipArchiveCore(const SourceDir: string;
+  const Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
 
 implementation
 
-uses fpdev.cmd.utils;
-
-function TPackageCreateCommand.Name: string; begin Result := 'create'; end;
-function TPackageCreateCommand.Aliases: TStringArray; begin Result := nil; end;
-function TPackageCreateCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
-
-function PackageCreateFactory: ICommand;
-begin
-  Result := TPackageCreateCommand.Create;
-end;
-
-function TPackageCreateCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+function IsBuildArtifactCore(const FileName: string): Boolean;
 var
-  LMgr: TPackageManager;
-  PkgName, Path: string;
+  Ext: string;
 begin
-  Result := 0;
+  Ext := LowerCase(ExtractFileExt(FileName));
+  Result := (Ext = '.o') or (Ext = '.ppu') or (Ext = '.a') or
+            (Ext = '.exe') or (Ext = '.dll') or (Ext = '.so') or
+            (Ext = '.dylib') or (Ext = '.compiled') or (Ext = '.res') or
+            (Ext = '.or') or (Ext = '.dcu') or (Ext = '.bpl') or (Ext = '.dcp');
+end;
 
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+function CollectPackageSourceFilesCore(const SourceDir: string;
+  const ExcludePatterns: TStringArray): TStringArray;
+var
+  Files: TStringList;
+  i: Integer;
+  Excluded: Boolean;
+  j: Integer;
+  RelPath: string;
+
+  procedure ScanDirectory(const Dir: string);
+  var
+    SearchRec: TSearchRec;
+    FullPath: string;
+    Ext: string;
   begin
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CREATE_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CREATE_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CREATE_OPT_HELP));
-    Exit(0);
+    if FindFirst(Dir + PathDelim + '*', faAnyFile, SearchRec) = 0 then
+    begin
+      repeat
+        if (SearchRec.Name = '.') or (SearchRec.Name = '..') then
+          Continue;
+
+        FullPath := Dir + PathDelim + SearchRec.Name;
+
+        if (SearchRec.Attr and faDirectory) <> 0 then
+        begin
+          ScanDirectory(FullPath);
+        end
+        else
+        begin
+          Ext := LowerCase(ExtractFileExt(SearchRec.Name));
+          if (Ext = '.pas') or (Ext = '.pp') or (Ext = '.inc') or (Ext = '.lpr') or (Ext = '.lpi') or (Ext = '.lpk') or
+             (Ext = '.md') or (Ext = '.txt') or (Ext = '.rst') or (Ext = '.json') then
+          begin
+            if not IsBuildArtifactCore(SearchRec.Name) then
+              Files.Add(FullPath);
+          end;
+        end;
+      until FindNext(SearchRec) <> 0;
+      FindClose(SearchRec);
+    end;
   end;
 
-  if Length(AParams) < 2 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['name, path']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_CREATE_USAGE));
-    Exit(2);
-  end;
-  PkgName := AParams[0];
-  Path := AParams[1];
-
-  LMgr := TPackageManager.Create(Ctx.Config);
+begin
+  Result := nil;
+  Files := TStringList.Create;
   try
-    if LMgr.CreatePackage(PkgName, Path, Ctx.Out, Ctx.Err) then
-      Exit(0);
-    Result := 3;
+    ScanDirectory(SourceDir);
+
+    SetLength(Result, 0);
+    for i := 0 to Files.Count - 1 do
+    begin
+      RelPath := ExtractRelativePath(IncludeTrailingPathDelimiter(SourceDir), Files[i]);
+      Excluded := False;
+
+      for j := 0 to High(ExcludePatterns) do
+      begin
+        if Pos(ExcludePatterns[j], RelPath) > 0 then
+        begin
+          Excluded := True;
+          Break;
+        end;
+      end;
+
+      if not Excluded then
+      begin
+        SetLength(Result, Length(Result) + 1);
+        Result[High(Result)] := Files[i];
+      end;
+    end;
   finally
-    LMgr.Free;
+    Files.Free;
   end;
 end;
 
-initialization
-  GlobalCommandRegistry.RegisterPath(['package','create'], @PackageCreateFactory, []);
+function GeneratePackageMetadataJsonCore(
+  const Options: TPackageCreateOptions): string;
+begin
+  Result := '{"name":"' + Options.Name + '",' +
+            '"version":"' + Options.Version + '",' +
+            '"description":"A FreePascal package",' +
+            '"author":"",' +
+            '"license":"MIT",' +
+            '"dependencies":[]}';
+end;
+
+function CreatePackageZipArchiveCore(const SourceDir: string;
+  const Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
+var
+  Archiver: TPackageArchiver;
+begin
+  Result := False;
+  Err := '';
+
+  if not DirectoryExists(ExtractFileDir(OutputPath)) then
+    EnsureDir(ExtractFileDir(OutputPath));
+
+  if Length(Files) = -1 then
+    Err := '';
+
+  Archiver := TPackageArchiver.Create(SourceDir);
+  try
+    if not Archiver.CreateArchive(OutputPath) then
+    begin
+      Err := Archiver.GetLastError;
+      Exit;
+    end;
+    Result := True;
+  finally
+    Archiver.Free;
+  end;
+end;
 
 end.

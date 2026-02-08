@@ -210,9 +210,6 @@ function CleanBuildArtifacts(const ADir: string;
     {$ENDIF}
   begin
     Result := 0;
-    {$IFDEF UNIX}
-    FillChar(StatBuf, SizeOf(StatBuf), 0);
-    {$ENDIF}
     if not DirectoryExists(APath) then
       Exit;
 
@@ -242,6 +239,7 @@ function CleanBuildArtifacts(const ADir: string;
           else if AIncludeExec and (FileExt = '') then
           begin
             // Check if file has execute permission
+            StatBuf := Default(TStat);
             if FpStat(FilePath, StatBuf) = 0 then
             begin
               IsExecutable := (StatBuf.st_mode and S_IXUSR) <> 0;

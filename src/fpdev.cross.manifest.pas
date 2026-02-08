@@ -86,7 +86,7 @@ type
 
     { Legacy compatibility methods }
     function GetTarget(const ATarget: string; out AManifestTarget: TCrossManifestTarget): Boolean;
-    function GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+    function GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const {%H-} AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
 
     { Properties }
     property Version: string read FVersion;
@@ -464,14 +464,14 @@ begin
   end;
 end;
 
-function TCrossToolchainManifest.GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+function TCrossToolchainManifest.GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const {%H-} AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
 var
   i: Integer;
 begin
   Result := False;
+  if AHostPlatform <> '' then;
   // Initialize managed type fields
-  SetLength(ABinutils.URLs, 0);
-  ABinutils.Sha256 := '';
+  ABinutils := Default(TCrossBinutils);
 
   // Find the entry for this target
   for i := 0 to High(FEntries) do

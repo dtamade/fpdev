@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TLazarusHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TLazarusHelpCommand.Aliases: TStringArray;

@@ -19,8 +19,9 @@ type
     function InstallComponents(const APackages: TStringList): Boolean;
     function InstallCrossTargets(const ATargets: TStringList): Boolean;
   public
-    function GetName: string;
-    function GetDescription: string;
+    function Name: string;
+    function Aliases: TStringArray;
+    function FindSub(const AName: string): ICommand;
     function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
@@ -29,7 +30,7 @@ function CreateFPCAutoInstallCommand: ICommand;
 implementation
 
 uses
-  fpdev.output.console, fpdev.utils.fs;
+  fpdev.command.registry, fpdev.output.console, fpdev.utils.fs, fpdev.cmd.utils;
 
 function CreateFPCAutoInstallCommand: ICommand;
 begin
@@ -38,14 +39,20 @@ end;
 
 { TFPCAutoInstallCommand }
 
-function TFPCAutoInstallCommand.GetName: string;
+function TFPCAutoInstallCommand.Name: string;
 begin
   Result := 'auto-install';
 end;
 
-function TFPCAutoInstallCommand.GetDescription: string;
+function TFPCAutoInstallCommand.Aliases: TStringArray;
 begin
-  Result := 'Automatically install FPC toolchain from .fpdev.toml';
+  Result := nil;
+end;
+
+function TFPCAutoInstallCommand.FindSub(const AName: string): ICommand;
+begin
+  Result := nil;
+  if AName <> '' then;
 end;
 
 function TFPCAutoInstallCommand.FindConfigFile: string;
@@ -103,7 +110,17 @@ var
   ConfigPath: string;
 begin
   Result := 1;
-  FOutput := TConsoleOutput.Create(False);
+  if (Ctx <> nil) and (Ctx.Out <> nil) then
+    FOutput := Ctx.Out
+  else
+    FOutput := TConsoleOutput.Create(False);
+
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    FOutput.WriteLn('Usage: fpdev fpc auto-install');
+    FOutput.WriteLn('Read .fpdev.toml and install configured FPC/toolchain dependencies.');
+    Exit(0);
+  end;
   
   ConfigPath := FindConfigFile;
   if ConfigPath = '' then

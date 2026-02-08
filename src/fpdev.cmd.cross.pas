@@ -72,9 +72,9 @@ type
 
     function GetAvailableTargets: TCrossTargetArray;
     function GetInstalledTargets: TCrossTargetArray;
-    function DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
-    function DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
-    function SetupCrossEnvironment(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
+    function DownloadBinutils(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
+    function DownloadLibraries(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
+    function SetupCrossEnvironment(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo): Boolean;
     function ValidateTarget(const ATarget: string): Boolean;
     function GetTargetInstallPath(const ATarget: string): string;
     function IsTargetInstalled(const ATarget: string): Boolean;
@@ -467,11 +467,12 @@ begin
   end;
 end;
 
-function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
+function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
 var
   LO: IOutput;
 begin
   Result := False;
+  if Pointer(@ATargetInfo) = nil then;
   if ATarget = '' then Exit;
 
   LO := Outp;
@@ -499,11 +500,12 @@ begin
   end;
 end;
 
-function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
+function TCrossCompilerManager.DownloadLibraries(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
 var
   LO: IOutput;
 begin
   Result := False;
+  if Pointer(@ATargetInfo) = nil then;
   if ATarget = '' then Exit;
 
   LO := Outp;
@@ -533,12 +535,13 @@ begin
   end;
 end;
 
-function TCrossCompilerManager.SetupCrossEnvironment(const ATarget: string; const ATargetInfo: TCrossTargetInfo): Boolean;
+function TCrossCompilerManager.SetupCrossEnvironment(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo): Boolean;
 var
   CrossTarget: TCrossTarget;
   InstallPath: string;
 begin
   Result := False;
+  if Pointer(@ATargetInfo) = nil then;
   // ATargetInfo parameter reserved for future use
 
   try

@@ -50,10 +50,12 @@ type
     // Bootstrap compiler management - private helpers
     function FindSystemFPC: string;
     function IsCompatibleBootstrap(const ACompilerPath, ARequiredVersion: string): Boolean;
+    function BootstrapDownloadURL(const AVersion: string): string;
+    function DownloadBootstrapCompilerInternal(const AVersion: string): Boolean;
     function EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 
     // Step-by-step build process (FPCUpDeluxe-inspired)
-    function InitializeInstall(const AVersion: string): Boolean;
+    function InitializeInstall(const {%H-} AVersion: string): Boolean;
     function BuildFPCCompiler(const AVersion: string): Boolean;
     function BuildFPCRTL(const AVersion: string): Boolean;
     function BuildFPCPackages(const AVersion: string): Boolean;
@@ -67,7 +69,7 @@ type
     function IsCacheAvailable(const AVersion: string): Boolean;
     function UseCachedBuild(const AVersion: string): Boolean;
     function OptimizeBuildCommand(const ABaseCommand: string): string;
-    function CheckBuildPrerequisites(const AVersion: string): Boolean;
+    function CheckBuildPrerequisites(const {%H-} AVersion: string): Boolean;
 
   protected
     function ProtectedIsCacheAvailable(const AVersion: string): Boolean;
@@ -635,7 +637,7 @@ begin
   {$ENDIF}
 end;
 
-function TFPCSourceManager.GetBootstrapDownloadURL(const AVersion: string): string;
+function TFPCSourceManager.BootstrapDownloadURL(const AVersion: string): string;
 var
   PlatformInfo: TPlatformInfo;
 begin
@@ -652,7 +654,12 @@ begin
     [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);
 end;
 
-function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
+function TFPCSourceManager.GetBootstrapDownloadURL(const AVersion: string): string;
+begin
+  Result := BootstrapDownloadURL(AVersion);
+end;
+
+function TFPCSourceManager.DownloadBootstrapCompilerInternal(const AVersion: string): Boolean;
 var
   URL, TempFile, TempDir, BootstrapRoot, BootstrapPath: string;
   HTTPClient: TFPHTTPClient;
@@ -663,7 +670,7 @@ begin
 
   try
     // Get download URL
-    URL := GetBootstrapDownloadURL(AVersion);
+    URL := BootstrapDownloadURL(AVersion);
     if URL = '' then
     begin
       WriteLn('Error: Failed to construct download URL for version ', AVersion);
@@ -751,6 +758,11 @@ begin
   end;
 end;
 
+function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
+begin
+  Result := DownloadBootstrapCompilerInternal(AVersion);
+end;
+
 function TFPCSourceManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 var
   RequiredVersion, SystemFPC, BootstrapPath: string;
@@ -774,7 +786,7 @@ begin
   end;
 
   // Download bootstrap compiler
-  Result := DownloadBootstrapCompiler(RequiredVersion);
+  Result := DownloadBootstrapCompilerInternal(RequiredVersion);
   if Result then
   begin
     FBootstrapCompiler := GetBootstrapPath(RequiredVersion);
@@ -782,9 +794,10 @@ begin
 end;
 
 // Step-by-step build process (FPCUpDeluxe-inspired)
-function TFPCSourceManager.InitializeInstall(const AVersion: string): Boolean;
+function TFPCSourceManager.InitializeInstall(const {%H-} AVersion: string): Boolean;
 begin
   // AVersion parameter reserved for future use
+  if AVersion <> '' then;
   // Create necessary directories
   EnsureDir(FSourceRoot);
   EnsureDir(FSourceRoot + PathDelim + 'bootstrap');
@@ -997,9 +1010,10 @@ begin
 
 end;
 
-function TFPCSourceManager.CheckBuildPrerequisites(const AVersion: string): Boolean;
+function TFPCSourceManager.CheckBuildPrerequisites(const {%H-} AVersion: string): Boolean;
 begin
   // AVersion parameter reserved for future use
+  if AVersion <> '' then;
 
   // Check if make is available
   if not ExecuteCommand('make', ['--version'], '') then

@@ -34,8 +34,8 @@ type
   public
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function FindSub(const {%H-} AName: string): ICommand;
+    function Execute(const {%H-} AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
@@ -50,15 +50,17 @@ begin
   Result := nil; // Aliases registered via GlobalCommandRegistry
 end;
 
-function TVersionCommand.FindSub(const AName: string): ICommand;
+function TVersionCommand.FindSub(const {%H-} AName: string): ICommand;
 begin
   // AName parameter not used - no subcommands
+  if AName <> '' then;
   Result := nil; // No subcommands
 end;
 
-function TVersionCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+function TVersionCommand.Execute(const {%H-} AParams: array of string; const Ctx: IContext): Integer;
 begin
   Result := 0;
+  if Length(AParams) > 0 then;
   // AParams parameter not used - version command ignores arguments
 
   Ctx.Out.WriteLn;

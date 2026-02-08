@@ -8,6 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
+  fpjson, jsonparser,
   fpdev.package.metadata,
   fpdev.package.resolver;
 
@@ -39,6 +40,7 @@ type
     procedure TestDetectCircularDependency;
     procedure TestMissingPackageError;
     procedure TestEmptyPackage;
+    procedure TestLockFileContainsRealSHA256;
 
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
@@ -326,6 +328,62 @@ begin
   end;
 end;
 
+procedure TPackageResolverIntegrationTest.TestLockFileContainsRealSHA256;
+var
+  Resolver: TPackageResolver;
+  ResolveResult: TPackageResolveResult;
+  LockJsonStr: string;
+  JSONData: TJSONData;
+  RootObj: TJSONObject;
+  PackagesObj: TJSONObject;
+  PkgObj: TJSONObject;
+  Integrity: string;
+begin
+  WriteLn;
+  WriteLn('=== Test: Lock File Contains Real SHA256 ===');
+
+  CreateTestPackageJSON('mylib', '1.0.0', ['libfoo', '>=1.2.0']);
+  CreateTestPackageJSON('libfoo', '1.2.3', []);
+
+  Resolver := TPackageResolver.Create(FTestDataDir);
+  try
+    ResolveResult := Resolver.Resolve('mylib');
+    AssertTrue(ResolveResult.Success, 'Resolution should succeed before lock integrity verification');
+  finally
+    Resolver.Free;
+  end;
+
+  AssertTrue(FileExists('fpdev-lock.json'), 'Lock file should be generated');
+
+  with TStringList.Create do
+  try
+    LoadFromFile('fpdev-lock.json');
+    LockJsonStr := Text;
+  finally
+    Free;
+  end;
+
+  JSONData := GetJSON(LockJsonStr);
+  try
+    AssertTrue(JSONData is TJSONObject, 'Lock file root should be JSON object');
+    if not (JSONData is TJSONObject) then Exit;
+
+    RootObj := TJSONObject(JSONData);
+    AssertTrue(RootObj.Find('packages', PackagesObj), 'Lock file should contain packages field');
+    if not RootObj.Find('packages', PackagesObj) then Exit;
+
+    AssertTrue(PackagesObj.Find('mylib', PkgObj), 'Lock file should contain mylib package');
+    if not PackagesObj.Find('mylib', PkgObj) then Exit;
+
+    Integrity := PkgObj.Get('integrity', '');
+    AssertTrue(Integrity <> '', 'Integrity should not be empty');
+    AssertTrue(Pos('placeholder', LowerCase(Integrity)) = 0, 'Integrity should not use placeholder value');
+    AssertEqualsInt(64, Length(Integrity), 'Integrity should be SHA256 hex length (64)');
+  finally
+    JSONData.Free;
+  end;
+end;
+
 procedure TPackageResolverIntegrationTest.RunAllTests;
 begin
   WriteLn('========================================');
@@ -342,6 +400,7 @@ begin
   TestDetectCircularDependency;
   TestMissingPackageError;
   TestEmptyPackage;
+  TestLockFileContainsRealSHA256;
 
   WriteLn;
   WriteLn('========================================');

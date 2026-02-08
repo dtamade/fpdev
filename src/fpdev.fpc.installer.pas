@@ -99,6 +99,11 @@ type
       Returns: True if download succeeded }
     function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean; deprecated 'Use InstallFromBinary instead';
 
+    { Non-deprecated legacy helpers (SourceForge fallback internals).
+      Use these inside implementation to avoid deprecated self-calls. }
+    function GetBinaryDownloadURLLegacy(const AVersion: string): string;
+    function DownloadBinaryLegacy(const AVersion: string; out ATempFile: string): Boolean;
+
     { Verifies checksum of downloaded file.
       AFilePath: Path to file to verify
       AVersion: FPC version (for hash lookup)
@@ -282,7 +287,7 @@ begin
   try
     // Download binary from SourceForge
     FOut.WriteLn('  Downloading from SourceForge...');
-    if not DownloadBinary(AVersion, TempFile) then
+    if not DownloadBinaryLegacy(AVersion, TempFile) then
     begin
       FErr.WriteLn(_(MSG_ERROR) + ': Failed to download FPC binary');
       Exit;
@@ -493,7 +498,7 @@ begin
   end;
 end;
 
-function TFPCBinaryInstaller.GetBinaryDownloadURL(const AVersion: string): string;
+function TFPCBinaryInstaller.GetBinaryDownloadURLLegacy(const AVersion: string): string;
 begin
   Result := '';
 
@@ -523,7 +528,12 @@ begin
   {$ENDIF}
 end;
 
-function TFPCBinaryInstaller.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+function TFPCBinaryInstaller.GetBinaryDownloadURL(const AVersion: string): string;
+begin
+  Result := GetBinaryDownloadURLLegacy(AVersion);
+end;
+
+function TFPCBinaryInstaller.DownloadBinaryLegacy(const AVersion: string; out ATempFile: string): Boolean;
 var
   URL: string;
   HTTPClient: TFPHTTPClient;
@@ -535,7 +545,7 @@ begin
   ATempFile := '';
 
   try
-    URL := GetBinaryDownloadURL(AVersion);
+    URL := GetBinaryDownloadURLLegacy(AVersion);
     if URL = '' then
     begin
       FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_DOWNLOAD_URL_FAILED, [AVersion]));
@@ -591,6 +601,11 @@ begin
       ATempFile := '';
     end;
   end;
+end;
+
+function TFPCBinaryInstaller.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+begin
+  Result := DownloadBinaryLegacy(AVersion, ATempFile);
 end;
 
 function TFPCBinaryInstaller.VerifyChecksum(const AFilePath, AVersion: string): Boolean;
@@ -1209,34 +1224,32 @@ begin
     end;
   end;
 
-  if AFromSource then
+  if not AFromSource then
   begin
-    // Install from source
-    SourceDir := FConfigManager.GetSettings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
+    // Binary installation path is unified to source flow in DI installer.
+    // Real binary installation is handled by TFPCBinaryInstaller in command runtime.
+    AFromSource := True;
+  end;
 
-    // Download source if not exists
-    if not FFileSystem.DirectoryExists(SourceDir) then
-    begin
-      BuildResult := FBuilder.DownloadSource(AVersion, SourceDir);
-      if not BuildResult.Success then
-      begin
-        Result := BuildResult;
-        Exit;
-      end;
-    end;
+  // Install from source (explicit source mode or binary-mode fallback)
+  SourceDir := FConfigManager.GetSettings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
 
-    // Build from source
-    BuildResult := FBuilder.BuildFromSource(SourceDir, InstallDir);
+  // Download source if not exists
+  if not FFileSystem.DirectoryExists(SourceDir) then
+  begin
+    BuildResult := FBuilder.DownloadSource(AVersion, SourceDir);
     if not BuildResult.Success then
     begin
       Result := BuildResult;
       Exit;
     end;
-  end
-  else
+  end;
+
+  // Build from source
+  BuildResult := FBuilder.BuildFromSource(SourceDir, InstallDir);
+  if not BuildResult.Success then
   begin
-    // Binary installation not implemented in test version
-    Result := OperationError(ecDownloadFailed, 'Binary installation not implemented');
+    Result := BuildResult;
     Exit;
   end;
 

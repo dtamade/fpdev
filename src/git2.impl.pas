@@ -32,8 +32,8 @@ type
     function Version: string;
 
     procedure SetVerifySSL(AEnabled: Boolean);
-    procedure SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
-    procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
+    procedure SetCredentialAcquireHandler({%H-} AHandler: TCredentialAcquireEvent);
+    procedure SetCertificateCheckHandler({%H-} AHandler: TCertificateCheckEvent);
 
     function Initialized: Boolean;
     function VerifySSL: Boolean;
@@ -206,14 +206,16 @@ begin
   FMgr.SetVerifySSL(AEnabled);
 end;
 
-procedure TGitManagerImpl.SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
+procedure TGitManagerImpl.SetCredentialAcquireHandler({%H-} AHandler: TCredentialAcquireEvent);
 begin
+  if Assigned(AHandler) then;
   // AHandler parameter reserved for future callback adapter implementation
   // Currently no direct mapping in fpdev.git2
 end;
 
-procedure TGitManagerImpl.SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
+procedure TGitManagerImpl.SetCertificateCheckHandler({%H-} AHandler: TCertificateCheckEvent);
 begin
+  if Assigned(AHandler) then;
   // AHandler parameter reserved for future callback adapter implementation
   // Currently no direct mapping in fpdev.git2
 end;

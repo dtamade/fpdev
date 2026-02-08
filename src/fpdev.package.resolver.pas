@@ -30,6 +30,7 @@ interface
 
 uses
   SysUtils, Classes,
+  fpdev.hash,
   fpdev.package.metadata,
   fpdev.pkg.deps,
   fpdev.package.lockfile;
@@ -226,6 +227,8 @@ var
   Meta: TPackageMetadata;
   Deps: TStringList;
   j: Integer;
+  IntegrityHash: string;
+  HashStream: TStringStream;
 begin
   FLockFile.Clear;
 
@@ -244,11 +247,22 @@ begin
             Deps.Add(Meta.Dependencies.Keys[j] + '=' + Meta.Dependencies.Data[j]);
 
           // Add package to lock file
+          IntegrityHash := SHA256FileHex(GetPackageMetadataPath(PkgName));
+          if IntegrityHash = '' then
+          begin
+            HashStream := TStringStream.Create(Meta.Name + ':' + Meta.Version);
+            try
+              IntegrityHash := SHA256StreamHex(HashStream);
+            finally
+              HashStream.Free;
+            end;
+          end;
+
           FLockFile.AddPackage(
             Meta.Name,
             Meta.Version,
             GetPackageMetadataPath(PkgName),  // Resolved path
-            'sha256-placeholder',  // TODO: Calculate actual checksum
+            IntegrityHash,
             Deps
           );
         finally

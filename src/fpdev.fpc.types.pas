@@ -13,7 +13,7 @@ unit fpdev.fpc.types;
 interface
 
 uses
-  SysUtils, Classes, fpdev.constants;
+  SysUtils, Classes;
 
 type
   { TFPCErrorCode - Error codes for FPC operations }

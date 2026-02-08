@@ -50,6 +50,11 @@ const
   FPDEV_REPO_GITHUB = FPDEV_INDEX_GITHUB;
   FPDEV_REPO_GITEE = FPDEV_INDEX_GITEE;
 
+  // FPC Binary Release Mirrors
+  FPC_MIRROR_SOURCEFORGE = 'https://sourceforge.net/projects/freepascal/files';
+  FPC_MIRROR_GITHUB_RELEASES = 'https://github.com/fpc/FPCBuild/releases';
+  FPC_MIRROR_GITEE_RELEASES = 'https://gitee.com/freepascal/fpc/releases';
+
   // ============================================================
   // Version Constants
   // ============================================================
@@ -62,6 +67,9 @@ const
   // ============================================================
   FPDEV_CONFIG_DIR = '.fpdev';
   PATH_SEPARATOR = PathDelim;
+  UNIX_MAKE_PATH = '/usr/bin/make';
+  PROC_UPTIME_FILE = '/proc/uptime';
+  PROC_MEMINFO_FILE = '/proc/meminfo';
 
   // ============================================================
   // Command Line Switches

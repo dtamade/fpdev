@@ -83,7 +83,7 @@ type
     function BuildPackages(const AVersion: string): Boolean;
     function InstallPackages(const AVersion: string): Boolean;
     function Install(const AVersion: string): Boolean;
-    function Configure(const AVersion: string): Boolean;
+    function Configure(const {%H-} AVersion: string): Boolean;
     function TestResults(const AVersion: string): Boolean;
     function Preflight(const AVersion: string): Boolean; overload;  // Legacy method
     function FullBuild(const AVersion: string): Boolean;
@@ -861,9 +861,10 @@ begin
   if Result then Log('== Install END OK elapsed_ms=' + IntToStr(LMs)) else Log('== Install END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
 
-function TBuildManager.Configure(const AVersion: string): Boolean;
+function TBuildManager.Configure(const {%H-} AVersion: string): Boolean;
 begin
   // AVersion parameter reserved for future use
+  if AVersion <> '' then;
   // Configuration typically writes fpc.cfg, not touching system directories at this stage
   Result := True;
 end;

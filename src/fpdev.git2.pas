@@ -205,6 +205,7 @@ type
   TGit2Manager = class
   private
     FInitialized: Boolean;
+    FManager: TGitManager;
   public
     constructor Create; destructor Destroy; override;
     function Initialize: Boolean; procedure Finalize;
@@ -958,25 +959,51 @@ begin
     Result := '0.0.0';
 end;
 
-constructor TGit2Manager.Create; begin inherited Create; FInitialized := False; end;
-destructor TGit2Manager.Destroy; begin if FInitialized then Finalize; inherited Destroy; end;
-function TGit2Manager.Initialize: Boolean; begin FInitialized := GitManager.Initialize; Result := FInitialized; end;
-procedure TGit2Manager.Finalize; begin if FInitialized then begin GitManager.Finalize; FInitialized := False; end; end;
+constructor TGit2Manager.Create;
+begin
+  inherited Create;
+  FInitialized := False;
+  FManager := TGitManager.Create;
+end;
+
+destructor TGit2Manager.Destroy;
+begin
+  if FInitialized then
+    Finalize;
+  if Assigned(FManager) then
+    FManager.Free;
+  inherited Destroy;
+end;
+
+function TGit2Manager.Initialize: Boolean;
+begin
+  FInitialized := FManager.Initialize;
+  Result := FInitialized;
+end;
+
+procedure TGit2Manager.Finalize;
+begin
+  if FInitialized then
+  begin
+    FManager.Finalize;
+    FInitialized := False;
+  end;
+end;
 function TGit2Manager.OpenRepository(const APath: string): git_repository;
 var
   rc: cint;
 begin
   // Open repository directly, don't use TGitRepository wrapper to avoid double-free
   if not FInitialized then
-    GitManager.Initialize;
+    FManager.Initialize;
   Result := nil;
   rc := git_repository_open(Result, PChar(APath));
   if rc <> GIT_OK then
     Result := nil;
 end;
-function TGit2Manager.IsRepository(const APath: string): Boolean; begin Result := GitManager.IsRepository(APath); end;
-function TGit2Manager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean; var R: TGitRepository; begin Result := False; R := GitManager.CloneRepository(AURL, ATargetDir); try Result := Assigned(R); if Result and (ABranch <> '') then Result := R.CheckoutBranch(ABranch) and Result; finally if Assigned(R) then R.Free; end; end;
-function TGit2Manager.UpdateRepository(const ARepoPath: string): Boolean; var R: TGitRepository; begin Result := False; if not IsRepository(ARepoPath) then Exit; R := GitManager.OpenRepository(ARepoPath); if not Assigned(R) then Exit; try Result := R.Fetch('origin'); finally R.Free; end; end;
+function TGit2Manager.IsRepository(const APath: string): Boolean; begin Result := FManager.IsRepository(APath); end;
+function TGit2Manager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean; var R: TGitRepository; begin Result := False; R := FManager.CloneRepository(AURL, ATargetDir); try Result := Assigned(R); if Result and (ABranch <> '') then Result := R.CheckoutBranch(ABranch) and Result; finally if Assigned(R) then R.Free; end; end;
+function TGit2Manager.UpdateRepository(const ARepoPath: string): Boolean; var R: TGitRepository; begin Result := False; if not IsRepository(ARepoPath) then Exit; R := FManager.OpenRepository(ARepoPath); if not Assigned(R) then Exit; try Result := R.Fetch('origin'); finally R.Free; end; end;
 function TGit2Manager.GetCurrentBranch(ARepo: git_repository): string; var Ref: git_reference; Target: PChar; FullName: string; begin Result := ''; if not Assigned(ARepo) then Exit; if git_repository_head(Ref, ARepo) = GIT_OK then begin try Target := git_reference_symbolic_target(Ref); if Assigned(Target) then FullName := string(Target) else FullName := string(git_reference_name(Ref)); if Pos('refs/heads/', FullName) = 1 then Result := Copy(FullName, 12, Length(FullName)) else Result := FullName; finally git_reference_free(Ref); end; end; end;
 function TGit2Manager.CheckoutBranch(ARepo: git_repository; const ABranch: string): Boolean; var RepoObj: TGitRepository; begin Result := False; if not FInitialized then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Result := RepoObj.CheckoutBranch(ABranch); finally RepoObj.Free; end; end;
 function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray; var RepoObj: TGitRepository; Branches: TStringArray; i: Integer; begin Result := nil; if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Branches := RepoObj.ListBranches(GIT_BRANCH_ALL); SetLength(Result, Length(Branches)); for i := 0 to High(Branches) do Result[i] := Branches[i]; finally RepoObj.Free; end; end;

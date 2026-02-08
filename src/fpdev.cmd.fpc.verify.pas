@@ -22,7 +22,7 @@ function CreateFPCVerifyCommand: ICommand;
 implementation
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry, fpdev.cmd.utils;
 
 function CreateFPCVerifyCommand: ICommand;
 begin
@@ -54,10 +54,33 @@ var
 begin
   Result := 1;
 
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    if (Ctx <> nil) and (Ctx.Out <> nil) then
+    begin
+      Ctx.Out.WriteLn('Usage: fpdev fpc verify <version>');
+      Ctx.Out.WriteLn('Example: fpdev fpc verify 3.2.2');
+    end
+    else
+    begin
+      WriteLn('Usage: fpdev fpc verify <version>');
+      WriteLn('Example: fpdev fpc verify 3.2.2');
+    end;
+    Exit(0);
+  end;
+
   if Length(AParams) < 1 then
   begin
-    WriteLn('Usage: fpdev fpc verify <version>');
-    WriteLn('Example: fpdev fpc verify 3.2.2');
+    if (Ctx <> nil) and (Ctx.Err <> nil) then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc verify <version>');
+      Ctx.Err.WriteLn('Example: fpdev fpc verify 3.2.2');
+    end
+    else
+    begin
+      WriteLn('Usage: fpdev fpc verify <version>');
+      WriteLn('Example: fpdev fpc verify 3.2.2');
+    end;
     Exit;
   end;
 

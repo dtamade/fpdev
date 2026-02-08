@@ -37,7 +37,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
-  fpdev.manifest.cache, fpdev.manifest;
+  fpdev.manifest;
 
 type
   { TFPCVersionInfo - Information about an FPC version }

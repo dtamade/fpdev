@@ -24,8 +24,6 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
-
 function TFPCHelpCommand.Name: string; begin Result := 'help'; end;
 
 function TFPCHelpCommand.Aliases: TStringArray;

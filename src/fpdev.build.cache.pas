@@ -195,6 +195,13 @@ type
 implementation
 
 uses
+  fpdev.build.cache.entries,
+  fpdev.build.cache.indexio,
+  fpdev.build.cache.indexjson,
+  fpdev.build.cache.indexstats,
+  fpdev.build.cache.key,
+  fpdev.build.cache.rebuildscan,
+  fpdev.build.cache.statsreport,
   StrUtils, DateUtils, fpjson, jsonparser;
 
 { Helper function to parse date string manually }
@@ -260,50 +267,17 @@ end;
 
 function TBuildCache.GetCurrentCPU: string;
 begin
-  {$IFDEF CPUX86_64}
-  Result := 'x86_64';
-  {$ELSE}
-  {$IFDEF CPUI386}
-  Result := 'i386';
-  {$ELSE}
-  {$IFDEF CPUARM}
-  Result := 'arm';
-  {$ELSE}
-  {$IFDEF CPUAARCH64}
-  Result := 'aarch64';
-  {$ELSE}
-  Result := 'unknown';
-  {$ENDIF}
-  {$ENDIF}
-  {$ENDIF}
-  {$ENDIF}
+  Result := BuildCacheGetCurrentCPU;
 end;
 
 function TBuildCache.GetCurrentOS: string;
 begin
-  {$IFDEF LINUX}
-  Result := 'linux';
-  {$ELSE}
-  {$IFDEF MSWINDOWS}
-  Result := 'win64';
-  {$ELSE}
-  {$IFDEF DARWIN}
-  Result := 'darwin';
-  {$ELSE}
-  Result := 'unknown';
-  {$ENDIF}
-  {$ENDIF}
-  {$ENDIF}
+  Result := BuildCacheGetCurrentOS;
 end;
 
 function TBuildCache.GetArtifactKey(const AVersion: string): string;
 begin
-  // Sanitize version string to prevent path traversal attacks
-  if (Pos('..', AVersion) > 0) or (Pos(PathDelim, AVersion) > 0) or
-     (Pos('/', AVersion) > 0) or (Pos('\', AVersion) > 0) then
-    raise Exception.Create('Invalid version string: contains path traversal characters');
-
-  Result := 'fpc-' + AVersion + '-' + GetCurrentCPU + '-' + GetCurrentOS;
+  Result := BuildCacheGetArtifactKey(AVersion);
 end;
 
 function TBuildCache.FileCopy(const ASource, ADest: string): Boolean;
@@ -374,12 +348,12 @@ end;
 
 function TBuildCache.GetCacheFilePath: string;
 begin
-  Result := FCacheDirWithDelim + 'build-cache.txt';
+  Result := BuildCacheGetCacheFilePath(FCacheDirWithDelim);
 end;
 
 function TBuildCache.GetEntryCount: Integer;
 begin
-  Result := FEntries.Count;
+  Result := BuildCacheGetEntryCount(FEntries);
 end;
 
 procedure TBuildCache.LoadEntries;
@@ -427,13 +401,8 @@ begin
 end;
 
 function TBuildCache.FindEntry(const AVersion: string): Integer;
-var
-  i: Integer;
 begin
-  Result := -1;
-  for i := 0 to FEntries.Count - 1 do
-    if Pos('version=' + AVersion + ';', FEntries[i]) = 1 then
-      Exit(i);
+  Result := BuildCacheFindEntry(FEntries, AVersion);
 end;
 
 function TBuildCache.IsCacheValid(const AVersion: string): Boolean;
@@ -1402,6 +1371,7 @@ var
   JSONData: TJSONData;
   JSONObj: TJSONObject;
   DateStr: string;
+  LastAccessedStr: string;
 begin
   Result := False;
   Initialize(AInfo);
@@ -1512,139 +1482,35 @@ end;
 procedure TBuildCache.LoadIndex;
 var
   IndexPath: string;
-  JSONStr: TStringList;
-  JSONData: TJSONData;
-  JSONObj, EntryObj: TJSONObject;
-  JSONArr: TJSONArray;
-  i: Integer;
-  Version, EntryJSON: string;
 begin
   FIndexEntries.Clear;
 
   IndexPath := GetIndexPath;
-  if not FileExists(IndexPath) then
-    Exit;
-
-  JSONStr := TStringList.Create;
-  try
-    JSONStr.LoadFromFile(IndexPath);
-
-    try
-      JSONData := GetJSON(JSONStr.Text);
-      if not (JSONData is TJSONObject) then
-      begin
-        JSONData.Free;
-        Exit;
-      end;
-
-      JSONObj := TJSONObject(JSONData);
-      try
-        if JSONObj.Find('entries') is TJSONArray then
-        begin
-          JSONArr := TJSONArray(JSONObj.Find('entries'));
-          for i := 0 to JSONArr.Count - 1 do
-          begin
-            if JSONArr.Items[i] is TJSONObject then
-            begin
-              EntryObj := TJSONObject(JSONArr.Items[i]);
-              Version := EntryObj.Get('version', '');
-              if Version <> '' then
-              begin
-                EntryJSON := EntryObj.AsJSON;
-                // Use Add instead of Values[] for sorted list
-                FIndexEntries.Add(Version + '=' + EntryJSON);
-              end;
-            end;
-          end;
-        end;
-      finally
-        JSONObj.Free;
-      end;
-    except
-      // Invalid JSON, index will be empty
-    end;
-  finally
-    JSONStr.Free;
-  end;
+  BuildCacheLoadIndexEntries(IndexPath, FIndexEntries);
 end;
 
 procedure TBuildCache.SaveIndex;
-var
-  JSONObj: TJSONObject;
-  JSONArr: TJSONArray;
-  EntryData: TJSONData;
-  JSONStr: TStringList;
-  i: Integer;
 begin
   ForceDirectories(FCacheDir);
-
-  JSONObj := TJSONObject.Create;
-  try
-    JSONArr := TJSONArray.Create;
-
-    for i := 0 to FIndexEntries.Count - 1 do
-    begin
-      try
-        EntryData := GetJSON(FIndexEntries.ValueFromIndex[i]);
-        if EntryData is TJSONObject then
-          JSONArr.Add(EntryData)
-        else
-          EntryData.Free;
-      except
-        // Skip invalid entries
-      end;
-    end;
-
-    JSONObj.Add('entries', JSONArr);
-    JSONObj.Add('updated_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', Now));
-
-    JSONStr := TStringList.Create;
-    try
-      JSONStr.Text := JSONObj.FormatJSON;
-      JSONStr.SaveToFile(GetIndexPath);
-    finally
-      JSONStr.Free;
-    end;
-  finally
-    JSONObj.Free;
-  end;
+  BuildCacheSaveIndexEntries(GetIndexPath, FIndexEntries);
 end;
 
 procedure TBuildCache.RebuildIndex;
 var
-  SR: TSearchRec;
-  FileName, Version: string;
+  Versions: SysUtils.TStringArray;
   Info: TArtifactInfo;
-  DashPos: Integer;
+  i: Integer;
 begin
   FIndexEntries.Clear;
 
   if not DirectoryExists(FCacheDir) then
     Exit;
 
-  // Scan all .json metadata files
-  if FindFirst(FCacheDirWithDelim + 'fpc-*.json', faAnyFile, SR) = 0 then
+  Versions := BuildCacheListMetadataVersions(FCacheDirWithDelim);
+  for i := 0 to High(Versions) do
   begin
-    repeat
-      FileName := SR.Name;
-
-      // Extract version from filename: fpc-3.2.2-x86_64-linux.json
-      if Pos('fpc-', FileName) = 1 then
-      begin
-        // Remove "fpc-" prefix (4 chars) and ".json" suffix (5 chars)
-        Version := Copy(FileName, 5, Length(FileName) - 9);
-
-        // Extract just the version number (before first dash after version)
-        DashPos := Pos('-', Version);
-        if DashPos > 0 then
-          Version := Copy(Version, 1, DashPos - 1);
-
-        // Load metadata and add to index
-        if LoadMetadataJSON(Version, Info) then
-          UpdateIndexEntry(Info);
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
+    if LoadMetadataJSON(Versions[i], Info) then
+      UpdateIndexEntry(Info);
   end;
 
   SaveIndex;
@@ -1658,26 +1524,21 @@ end;
 function TBuildCache.LookupIndexEntry(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
   EntryJSON: string;
-  JSONData: TJSONData;
   JSONObj: TJSONObject;
   DateStr: string;
+  LastAccessedStr: string;
 begin
   Result := False;
   Initialize(AInfo);
 
-  EntryJSON := FIndexEntries.Values[AVersion];
+  EntryJSON := BuildCacheGetIndexEntryJSON(FIndexEntries, AVersion);
   if EntryJSON = '' then
     Exit;
 
   try
-    JSONData := GetJSON(EntryJSON);
-    if not (JSONData is TJSONObject) then
-    begin
-      JSONData.Free;
+    if not BuildCacheParseIndexEntryJSON(EntryJSON, JSONObj) then
       Exit;
-    end;
 
-    JSONObj := TJSONObject(JSONData);
     try
       AInfo.Version := JSONObj.Get('version', '');
       AInfo.CPU := JSONObj.Get('cpu', '');
@@ -1690,19 +1551,13 @@ begin
       AInfo.SourcePath := JSONObj.Get('source_path', '');
       AInfo.AccessCount := JSONObj.Get('access_count', 0);
 
-      DateStr := JSONObj.Get('created_at', '');
-      if DateStr <> '' then
-      begin
-        DateStr := StringReplace(DateStr, 'T', ' ', []);
-        AInfo.CreatedAt := ParseDateTimeString(DateStr);
-      end;
+      BuildCacheGetNormalizedIndexDates(JSONObj, DateStr, LastAccessedStr);
 
-      DateStr := JSONObj.Get('last_accessed', '');
       if DateStr <> '' then
-      begin
-        DateStr := StringReplace(DateStr, 'T', ' ', []);
-        AInfo.LastAccessed := ParseDateTimeString(DateStr);
-      end
+        AInfo.CreatedAt := ParseDateTimeString(DateStr);
+
+      if LastAccessedStr <> '' then
+        AInfo.LastAccessed := ParseDateTimeString(LastAccessedStr)
       else
         AInfo.LastAccessed := 0;
 
@@ -1717,38 +1572,28 @@ end;
 
 procedure TBuildCache.UpdateIndexEntry(const AInfo: TArtifactInfo);
 var
-  JSONObj: TJSONObject;
   Idx: Integer;
   EntryStr: string;
 begin
-  JSONObj := TJSONObject.Create;
-  try
-    JSONObj.Add('version', AInfo.Version);
-    JSONObj.Add('cpu', AInfo.CPU);
-    JSONObj.Add('os', AInfo.OS);
-    JSONObj.Add('archive_path', AInfo.ArchivePath);
-    JSONObj.Add('archive_size', AInfo.ArchiveSize);
-    JSONObj.Add('created_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.CreatedAt));
-    JSONObj.Add('source_type', AInfo.SourceType);
-    JSONObj.Add('sha256', AInfo.SHA256);
-    JSONObj.Add('download_url', AInfo.DownloadURL);
-    JSONObj.Add('source_path', AInfo.SourcePath);
-    JSONObj.Add('access_count', AInfo.AccessCount);
-    if AInfo.LastAccessed > 0 then
-      JSONObj.Add('last_accessed', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.LastAccessed))
-    else
-      JSONObj.Add('last_accessed', '');
+  EntryStr := BuildCacheBuildIndexEntryJSON(
+    AInfo.Version,
+    AInfo.CPU,
+    AInfo.OS,
+    AInfo.ArchivePath,
+    AInfo.ArchiveSize,
+    AInfo.SourceType,
+    AInfo.SHA256,
+    AInfo.DownloadURL,
+    AInfo.SourcePath,
+    AInfo.AccessCount,
+    AInfo.CreatedAt,
+    AInfo.LastAccessed);
 
-    EntryStr := AInfo.Version + '=' + JSONObj.AsJSON;
-
-    // For sorted list, we need to delete and re-add
-    Idx := FIndexEntries.IndexOfName(AInfo.Version);
-    if Idx >= 0 then
-      FIndexEntries.Delete(Idx);
-    FIndexEntries.Add(EntryStr);
-  finally
-    JSONObj.Free;
-  end;
+  // For sorted list, we need to delete and re-add
+  Idx := FIndexEntries.IndexOfName(AInfo.Version);
+  if Idx >= 0 then
+    FIndexEntries.Delete(Idx);
+  FIndexEntries.Add(EntryStr);
 end;
 
 procedure TBuildCache.RemoveIndexEntry(const AVersion: string);
@@ -1767,36 +1612,19 @@ var
 begin
   Initialize(Result);
   Result.TotalEntries := FIndexEntries.Count;
-  Result.TotalSize := 0;
-  Result.OldestDate := MaxDateTime;
-  Result.NewestDate := 0;
+
+  BuildCacheIndexStatsInit(Result.TotalSize, Result.OldestDate, Result.NewestDate,
+    Result.OldestVersion, Result.NewestVersion);
 
   for i := 0 to FIndexEntries.Count - 1 do
   begin
     if LookupIndexEntry(FIndexEntries.Names[i], Info) then
-    begin
-      Result.TotalSize := Result.TotalSize + Info.ArchiveSize;
-
-      if Info.CreatedAt < Result.OldestDate then
-      begin
-        Result.OldestDate := Info.CreatedAt;
-        Result.OldestVersion := Info.Version;
-      end;
-
-      if Info.CreatedAt > Result.NewestDate then
-      begin
-        Result.NewestDate := Info.CreatedAt;
-        Result.NewestVersion := Info.Version;
-      end;
-    end;
+      BuildCacheIndexStatsAccumulate(Info.Version, Info.ArchiveSize, Info.CreatedAt,
+        Result.TotalSize, Result.OldestDate, Result.NewestDate,
+        Result.OldestVersion, Result.NewestVersion);
   end;
 
-  // Reset dates if no entries found
-  if Result.TotalEntries = 0 then
-  begin
-    Result.OldestDate := 0;
-    Result.NewestDate := 0;
-  end;
+  BuildCacheIndexStatsFinalize(Result.TotalEntries, Result.OldestDate, Result.NewestDate);
 end;
 
 { Phase 3: Statistics Enhancement Methods }
@@ -1927,29 +1755,16 @@ end;
 function TBuildCache.GetStatsReport: string;
 var
   Stats: TCacheDetailedStats;
-  SizeStr: string;
 begin
   Stats := GetDetailedStats;
-
-  // Format size
-  if Stats.TotalSize >= 1024 * 1024 * 1024 then
-    SizeStr := Format('%.2f GB', [Stats.TotalSize / (1024 * 1024 * 1024)])
-  else if Stats.TotalSize >= 1024 * 1024 then
-    SizeStr := Format('%.2f MB', [Stats.TotalSize / (1024 * 1024)])
-  else
-    SizeStr := Format('%d bytes', [Stats.TotalSize]);
-
-  Result := Format(
-    'Cache Statistics Report' + LineEnding +
-    '=======================' + LineEnding +
-    'Total entries: %d' + LineEnding +
-    'Total size: %s' + LineEnding +
-    'Total accesses: %d' + LineEnding +
-    'Most accessed: %s (%d accesses)' + LineEnding +
-    'Least accessed: %s (%d accesses)',
-    [Stats.TotalEntries, SizeStr, Stats.TotalAccesses,
-     Stats.MostAccessedVersion, Stats.MostAccessedCount,
-     Stats.LeastAccessedVersion, Stats.LeastAccessedCount]);
+  Result := BuildCacheFormatStatsReport(
+    Stats.TotalEntries,
+    Stats.TotalSize,
+    Stats.TotalAccesses,
+    Stats.MostAccessedVersion,
+    Stats.MostAccessedCount,
+    Stats.LeastAccessedVersion,
+    Stats.LeastAccessedCount);
 end;
 
 end.

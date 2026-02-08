@@ -5,7 +5,7 @@ unit fpdev.fpc.mirrors;
 interface
 
 uses
-  Classes, SysUtils, fpdev.platform;
+  Classes, SysUtils, fpdev.platform, fpdev.constants;
 
 type
   TStringArray = array of string;
@@ -63,13 +63,13 @@ begin
   FMirrors.Clear;
 
   // Official FPC SourceForge mirror
-  FMirrors.Add('https://sourceforge.net/projects/freepascal/files');
+  FMirrors.Add(FPC_MIRROR_SOURCEFORGE);
 
   // GitHub releases (backup)
-  FMirrors.Add('https://github.com/fpc/FPCBuild/releases');
+  FMirrors.Add(FPC_MIRROR_GITHUB_RELEASES);
 
   // Gitee mirror (for users in China)
-  FMirrors.Add('https://gitee.com/freepascal/fpc/releases');
+  FMirrors.Add(FPC_MIRROR_GITEE_RELEASES);
 end;
 
 function TMirrorManager.GetMirrors: TStringArray;
