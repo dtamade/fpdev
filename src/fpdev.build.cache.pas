@@ -212,6 +212,7 @@ uses
   fpdev.build.cache.metajson,
   fpdev.build.cache.rebuildscan,
   fpdev.build.cache.statsreport,
+  fpdev.build.cache.verify,
   StrUtils, DateUtils, fpjson, jsonparser;
 
 { Helper function to parse date string manually }
@@ -1093,80 +1094,17 @@ begin
 end;
 
 function TBuildCache.CalculateSHA256(const AFilePath: string): string;
-var
-  P: TProcess;
-  Output: TStringList;
-  Line: string;
-  SpacePos: Integer;
 begin
-  Result := '';
-
-  if not FileExists(AFilePath) then
-    Exit;
-
-  // Use sha256sum command (available on Linux/macOS/Windows Git Bash)
-  P := TProcess.Create(nil);
-  try
-    {$IFDEF MSWINDOWS}
-    // On Windows, try certutil as fallback if sha256sum not available
-    P.Executable := 'sha256sum';
-    {$ELSE}
-    P.Executable := 'sha256sum';
-    {$ENDIF}
-    P.Parameters.Add(AFilePath);
-    P.Options := [poWaitOnExit, poUsePipes];
-
-    try
-      P.Execute;
-
-      if P.ExitStatus = 0 then
-      begin
-        Output := TStringList.Create;
-        try
-          Output.LoadFromStream(P.Output);
-          if Output.Count > 0 then
-          begin
-            Line := Output[0];
-            // sha256sum output format: "hash  filename"
-            SpacePos := Pos(' ', Line);
-            if SpacePos > 0 then
-              Result := LowerCase(Trim(Copy(Line, 1, SpacePos - 1)))
-            else
-              Result := LowerCase(Trim(Line));
-          end;
-        finally
-          Output.Free;
-        end;
-      end;
-    except
-      on E: Exception do
-      begin
-        // Silent failure - SHA256 calculation error
-        Result := '';
-      end;
-    end;
-  finally
-    P.Free;
-  end;
+  Result := BuildCacheCalculateSHA256(AFilePath);
 end;
 
 function TBuildCache.VerifyArtifact(const AArchivePath, AExpectedHash: string): Boolean;
-var
-  ActualHash: string;
 begin
   // If verification is disabled, always return True
   if not FVerifyOnRestore then
     Exit(True);
 
-  // If no expected hash provided, skip verification
-  if AExpectedHash = '' then
-    Exit(True);
-
-  // Calculate actual hash
-  ActualHash := CalculateSHA256(AArchivePath);
-
-  // Compare hashes (case-insensitive)
-  Result := SameText(ActualHash, AExpectedHash);
+  Result := BuildCacheVerifyFileHash(AArchivePath, AExpectedHash);
 
   if not Result then
     WriteLn('Warning: Cache verification failed for ', AArchivePath);
