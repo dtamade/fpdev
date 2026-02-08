@@ -466,8 +466,9 @@ begin
     if Result then
     begin
       FLastUpdateCheck := Now;
-      // 重新加载清单
-      LoadManifest;
+      // B064: 重新加载清单并检查返回值
+      if not LoadManifest then
+        Log('Warning: Git pull succeeded but manifest reload failed');
     end;
   end
   else
@@ -501,6 +502,9 @@ begin
   if not FileExists(ManifestPath) then
   begin
     Log('Warning: manifest.json not found in resource repository');
+    // B064: 确保状态一致
+    FManifestLoaded := False;
+    FreeAndNil(FManifestData);
     Exit;
   end;
 
@@ -519,9 +523,8 @@ begin
       CloseFile(F);
     end;
 
-    // 解析JSON
-    if Assigned(FManifestData) then
-      FManifestData.Free;
+    // 解析JSON - B064: 使用 FreeAndNil 避免悬垂指针
+    FreeAndNil(FManifestData);
 
     Parser := TJSONParser.Create(ManifestContent, []);
     try
@@ -530,7 +533,13 @@ begin
       FManifestLoaded := Result;
 
       if Result then
-        LogFmt('Manifest loaded (version: %s)', [GetManifestVersion]);
+        LogFmt('Manifest loaded (version: %s)', [GetManifestVersion])
+      else
+      begin
+        // B064: 解析返回 nil 时确保状态一致
+        FManifestLoaded := False;
+        Log('Warning: Failed to parse manifest.json');
+      end;
     finally
       Parser.Free;
     end;
@@ -539,6 +548,9 @@ begin
     on E: Exception do
     begin
       LogFmt('Error loading manifest: %s', [E.Message]);
+      // B064: 异常时确保状态一致
+      FManifestLoaded := False;
+      FreeAndNil(FManifestData);
       Result := False;
     end;
   end;
@@ -670,7 +682,12 @@ end;
 
 function TResourceRepository.GetRequiredBootstrapVersion(const AFPCVersion: string): string;
 begin
-  EnsureManifestLoaded;
+  // B064: 检查返回值，失败时使用 fallback
+  if not EnsureManifestLoaded then
+  begin
+    Result := ResourceRepoGetRequiredBootstrapVersion(nil, AFPCVersion);
+    Exit;
+  end;
   try
     Result := ResourceRepoGetRequiredBootstrapVersion(FManifestData, AFPCVersion);
   except
@@ -697,7 +714,10 @@ end;
 
 function TResourceRepository.ListBootstrapVersions: SysUtils.TStringArray;
 begin
-  EnsureManifestLoaded;
+  Result := nil;  // B064: 初始化 managed type
+  // B064: 检查返回值，失败时返回空数组
+  if not EnsureManifestLoaded then
+    Exit;
   try
     Result := ResourceRepoListBootstrapVersions(FManifestData);
   except
