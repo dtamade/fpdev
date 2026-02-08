@@ -81,6 +81,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B064 修复 Manifest 懒加载状态机一致性
 - [x] B065 修复 RebuildIndex 旧索引回灌问题
 - [x] B066 统一 Ensure* 契约文档
+- [x] B067 大文件拆分 (resource.repo binary 查询)
 
 ## Batch Queue (Week 1)
 
@@ -135,7 +136,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B067 (next)
+B068 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)

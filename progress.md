@@ -927,3 +927,13 @@
   - TResourceRepository.EnsureManifestLoaded: Boolean (必需资源)
   - 验证所有访问点都有正确的 Ensure* 调用
 - **Result:** Tests: 95/95 passing
+
+### B067: 大文件拆分 (resource.repo binary 查询)
+- **Status:** complete
+- **Actions:**
+  - 新增 fpdev.resource.repo.binary.pas (129 行)
+  - 抽离 ResourceRepoHasBinaryRelease, ResourceRepoGetBinaryReleaseInfo
+  - 重构 HasBinaryRelease, GetBinaryReleaseInfo 使用 helper
+- **Result:**
+  - resource.repo.pas: 1730 -> 1684 行 (-46)
+  - Tests: 95/95 passing
