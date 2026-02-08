@@ -106,7 +106,9 @@ type
     function GetEntryCount: Integer;
     procedure LoadEntries;
     procedure SaveEntries;
-    procedure EnsureIndexLoaded;  // 懒加载辅助
+    { B066: 懒加载辅助 - 无返回值因为空索引是有效状态
+      与 TResourceRepository.EnsureManifestLoaded 不同，索引是可选缓存而非必需资源 }
+    procedure EnsureIndexLoaded;
     function FindEntry(const AVersion: string): Integer;
     function GetCurrentCPU: string;
     function GetCurrentOS: string;

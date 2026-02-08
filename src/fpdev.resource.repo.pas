@@ -98,7 +98,10 @@ type
     function DetectUserRegion: string;
     function SelectBestMirror: string;
     function TestMirrorLatency(const AURL: string; ATimeoutMS: Integer = 5000): Integer;
-    function EnsureManifestLoaded: Boolean;  // 懒加载辅助
+    { B066: 懒加载辅助 - 返回 Boolean 因为 manifest 是必需资源
+      调用方必须检查返回值：if not EnsureManifestLoaded then Exit;
+      与 TBuildCache.EnsureIndexLoaded 不同，manifest 加载失败需要显式处理 }
+    function EnsureManifestLoaded: Boolean;
 
   public
     constructor Create(const AConfig: TResourceRepoConfig);
