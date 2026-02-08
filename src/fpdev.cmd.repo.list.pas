@@ -50,6 +50,7 @@ begin
     Ctx.Out.WriteLn(Names[i] + ' = ' + Ctx.Config.GetRepositoryManager.GetRepository(Names[i]));
 end;
 
+{ @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }
 procedure TRepoListCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
 begin
   // AParams not used in legacy interface

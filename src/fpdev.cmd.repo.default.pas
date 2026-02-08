@@ -64,6 +64,7 @@ begin
   Result := 3;
 end;
 
+{ @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }
 procedure TRepoDefaultCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
 var
   RepoName: string;
