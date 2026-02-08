@@ -84,6 +84,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B067 大文件拆分 (resource.repo binary 查询)
 - [x] B068 懒加载并发安全文档
 - [x] B069 大文件拆分 (resource.repo cross 查询)
+- [x] B070 大文件拆分 (build.cache metajson 处理)
 
 ## Batch Queue (Week 1)
 
@@ -138,7 +139,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B070 (next)
+B071 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)

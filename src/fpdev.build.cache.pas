@@ -209,6 +209,7 @@ uses
   fpdev.build.cache.indexjson,
   fpdev.build.cache.indexstats,
   fpdev.build.cache.key,
+  fpdev.build.cache.metajson,
   fpdev.build.cache.rebuildscan,
   fpdev.build.cache.statsreport,
   StrUtils, DateUtils, fpjson, jsonparser;
@@ -1333,119 +1334,42 @@ end;
 
 function TBuildCache.HasMetadataJSON(const AVersion: string): Boolean;
 begin
-  Result := FileExists(GetJSONMetaPath(AVersion));
+  Result := BuildCacheHasMetadataJSON(GetJSONMetaPath(AVersion));
 end;
 
 procedure TBuildCache.SaveMetadataJSON(const AInfo: TArtifactInfo);
-var
-  JSONObj: TJSONObject;
-  JSONStr: TStringList;
 begin
-  ForceDirectories(FCacheDir);
-
-  JSONObj := TJSONObject.Create;
-  try
-    JSONObj.Add('version', AInfo.Version);
-    JSONObj.Add('cpu', AInfo.CPU);
-    JSONObj.Add('os', AInfo.OS);
-    JSONObj.Add('archive_path', AInfo.ArchivePath);
-    JSONObj.Add('archive_size', AInfo.ArchiveSize);
-    JSONObj.Add('created_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.CreatedAt));
-    JSONObj.Add('source_type', AInfo.SourceType);
-    JSONObj.Add('sha256', AInfo.SHA256);
-    JSONObj.Add('download_url', AInfo.DownloadURL);
-    JSONObj.Add('source_path', AInfo.SourcePath);
-    JSONObj.Add('access_count', AInfo.AccessCount);
-    if AInfo.LastAccessed > 0 then
-      JSONObj.Add('last_accessed', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss', AInfo.LastAccessed))
-    else
-      JSONObj.Add('last_accessed', '');
-
-    JSONStr := TStringList.Create;
-    try
-      JSONStr.Text := JSONObj.FormatJSON;
-      JSONStr.SaveToFile(GetJSONMetaPath(AInfo.Version));
-    finally
-      JSONStr.Free;
-    end;
-  finally
-    JSONObj.Free;
-  end;
+  BuildCacheSaveMetadataJSON(
+    GetJSONMetaPath(AInfo.Version),
+    AInfo.Version, AInfo.CPU, AInfo.OS, AInfo.ArchivePath,
+    AInfo.ArchiveSize, AInfo.CreatedAt,
+    AInfo.SourceType, AInfo.SHA256, AInfo.DownloadURL, AInfo.SourcePath,
+    AInfo.AccessCount, AInfo.LastAccessed
+  );
 end;
 
 function TBuildCache.LoadMetadataJSON(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
-  JSONPath: string;
-  JSONStr: TStringList;
-  JSONData: TJSONData;
-  JSONObj: TJSONObject;
-  DateStr: string;
+  HelperInfo: TMetaJSONArtifactInfo;
 begin
-  Result := False;
-  Initialize(AInfo);
-
-  JSONPath := GetJSONMetaPath(AVersion);
-  if not FileExists(JSONPath) then
-    Exit;
-
-  JSONStr := TStringList.Create;
-  try
-    JSONStr.LoadFromFile(JSONPath);
-
-    try
-      JSONData := GetJSON(JSONStr.Text);
-      if not (JSONData is TJSONObject) then
-      begin
-        JSONData.Free;
-        Exit;
-      end;
-
-      JSONObj := TJSONObject(JSONData);
-      try
-        AInfo.Version := JSONObj.Get('version', '');
-        AInfo.CPU := JSONObj.Get('cpu', '');
-        AInfo.OS := JSONObj.Get('os', '');
-        AInfo.ArchivePath := JSONObj.Get('archive_path', '');
-        AInfo.ArchiveSize := JSONObj.Get('archive_size', Int64(0));
-        AInfo.SourceType := JSONObj.Get('source_type', '');
-        AInfo.SHA256 := JSONObj.Get('sha256', '');
-        AInfo.DownloadURL := JSONObj.Get('download_url', '');
-        AInfo.SourcePath := JSONObj.Get('source_path', '');
-        AInfo.AccessCount := JSONObj.Get('access_count', 0);
-
-        // Parse ISO 8601 date format: 'yyyy-mm-ddThh:nn:ss'
-        DateStr := JSONObj.Get('created_at', '');
-        if DateStr <> '' then
-        begin
-          // Replace 'T' with space for ParseDateTimeString compatibility
-          DateStr := StringReplace(DateStr, 'T', ' ', []);
-          AInfo.CreatedAt := ParseDateTimeString(DateStr);
-        end;
-
-        // Parse last_accessed date
-        DateStr := JSONObj.Get('last_accessed', '');
-        if DateStr <> '' then
-        begin
-          DateStr := StringReplace(DateStr, 'T', ' ', []);
-          AInfo.LastAccessed := ParseDateTimeString(DateStr);
-        end
-        else
-          AInfo.LastAccessed := 0;
-
-        Result := AInfo.Version <> '';
-      finally
-        JSONObj.Free;
-      end;
-    except
-      on E: Exception do
-      begin
-        // Silent failure - JSON parsing error
-        Result := False;
-      end;
-    end;
-  finally
-    JSONStr.Free;
-  end;
+  Result := BuildCacheLoadMetadataJSON(GetJSONMetaPath(AVersion), HelperInfo);
+  if Result then
+  begin
+    AInfo.Version := HelperInfo.Version;
+    AInfo.CPU := HelperInfo.CPU;
+    AInfo.OS := HelperInfo.OS;
+    AInfo.ArchivePath := HelperInfo.ArchivePath;
+    AInfo.ArchiveSize := HelperInfo.ArchiveSize;
+    AInfo.CreatedAt := HelperInfo.CreatedAt;
+    AInfo.SourceType := HelperInfo.SourceType;
+    AInfo.SHA256 := HelperInfo.SHA256;
+    AInfo.DownloadURL := HelperInfo.DownloadURL;
+    AInfo.SourcePath := HelperInfo.SourcePath;
+    AInfo.AccessCount := HelperInfo.AccessCount;
+    AInfo.LastAccessed := HelperInfo.LastAccessed;
+  end
+  else
+    Initialize(AInfo);
 end;
 
 function TBuildCache.MigrateMetadataToJSON(const AVersion: string): Boolean;
