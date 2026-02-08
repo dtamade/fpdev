@@ -92,6 +92,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B075 大文件拆分 (build.cache binary meta 格式)
 - [x] B076 大文件拆分 (build.cache 目录扫描)
 - [x] B077 大文件拆分 (build.cache 条目文件 I/O)
+- [x] B078 大文件拆分收口评估
 
 ## Batch Queue (Week 1)
 
@@ -146,7 +147,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B078 (next)
+B079 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)
