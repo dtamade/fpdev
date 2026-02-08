@@ -213,6 +213,7 @@ uses
   fpdev.build.cache.metajson,
   fpdev.build.cache.oldmeta,
   fpdev.build.cache.rebuildscan,
+  fpdev.build.cache.scan,
   fpdev.build.cache.statsreport,
   fpdev.build.cache.ttl,
   fpdev.build.cache.verify,
@@ -623,69 +624,13 @@ begin
 end;
 
 function TBuildCache.GetTotalCacheSize: Int64;
-var
-  SR: TSearchRec;
 begin
-  Result := 0;
-
-  if not DirectoryExists(FCacheDir) then
-    Exit;
-
-  if FindFirst(FCacheDirWithDelim + '*.tar.gz', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      Result := Result + SR.Size;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
+  Result := BuildCacheGetTotalSize(FCacheDir);
 end;
 
 function TBuildCache.ListCachedVersions: TStringArray;
-var
-  SR: TSearchRec;
-  FileName, Version: string;
-  List: TStringList;
-  i, DashPos, LastDashPos: Integer;
 begin
-  Result := nil;
-
-  if not DirectoryExists(FCacheDir) then
-    Exit;
-
-  List := TStringList.Create;
-  try
-    if FindFirst(FCacheDirWithDelim + 'fpc-*.tar.gz', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        FileName := SR.Name;
-        // Extract version from filename: fpc-3.2.2-x86_64-linux.tar.gz
-        // Find second dash (after version)
-        DashPos := Pos('-', FileName);
-        if DashPos > 0 then
-        begin
-          LastDashPos := DashPos;
-          for i := DashPos + 1 to Length(FileName) do
-          begin
-            if FileName[i] = '-' then
-            begin
-              LastDashPos := i;
-              Break;
-            end;
-          end;
-          Version := Copy(FileName, DashPos + 1, LastDashPos - DashPos - 1);
-          if (Version <> '') and (List.IndexOf(Version) < 0) then
-            List.Add(Version);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-
-    SetLength(Result, List.Count);
-    for i := 0 to List.Count - 1 do
-      Result[i] := List[i];
-  finally
-    List.Free;
-  end;
+  Result := BuildCacheListVersions(FCacheDir);
 end;
 
 { Binary Artifact Cache Methods }
