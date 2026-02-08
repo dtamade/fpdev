@@ -892,3 +892,14 @@
   - `src/fpdev.build.cache.pas`: 添加 FIndexLoaded 标志和 EnsureIndexLoaded 方法
   - `src/fpdev.resource.repo.pas`: 添加 FManifestLoaded 标志和 EnsureManifestLoaded 方法
 - **Result:** 编译通过，19 个 build cache 测试全部通过
+
+### B063: 代码清理
+- **Status:** complete
+- **Actions:**
+  - 清理 package 命令未使用的单元引用 (fpdev.i18n)
+  - 清理 package deps 命令未使用的变量 (ShowTree, NewPrefix)
+  - 移除 fpc.i18n.pas 中不被内联的 inline 标记
+- **Result:**
+  - Hints: 4 -> 0 (src 范围)
+  - Notes: 4 -> 0 (src 范围)
+  - Tests: 95/95 passing

@@ -137,7 +137,7 @@ B064 (next)
 ## Baseline (2026-02-09)
 - 测试状态: 95/95 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
-- 编译提示: 2 hints, 4 notes（`/src/` 范围）
+- 编译提示: 0 hints, 0 notes（`/src/` 范围）
 
 ## Phases
 
