@@ -1509,7 +1509,9 @@ var
   Info: TArtifactInfo;
   i: Integer;
 begin
+  // B065: 清空并标记为已加载，防止 UpdateIndexEntry 回灌旧索引
   FIndexEntries.Clear;
+  FIndexLoaded := True;
 
   if not DirectoryExists(FCacheDir) then
     Exit;
