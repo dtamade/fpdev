@@ -70,8 +70,6 @@ type
     FBuildTester: TCrossBuildTester;     // Cross-build testing service
     FDownloader: TCrossToolchainDownloader;  // Modern toolchain downloader
 
-    function GetAvailableTargets: TCrossTargetArray;
-    function GetInstalledTargets: TCrossTargetArray;
     function DownloadBinutils(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
     function DownloadLibraries(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
     function SetupCrossEnvironment(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo): Boolean;
@@ -90,6 +88,10 @@ type
     constructor Create(AConfigManager: TFPDevConfigManager); overload;
     constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
+
+    // 目标查询
+    function GetAvailableTargets: TCrossTargetArray;
+    function GetInstalledTargets: TCrossTargetArray;
 
     // 交叉编译目标管理
     function InstallTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
