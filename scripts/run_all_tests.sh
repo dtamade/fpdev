@@ -50,8 +50,16 @@ echo "Running All FPDev Tests"
 echo "========================================"
 echo ""
 
-# Find all test files (excluding examples subdirectory and non-existent files)
-TEST_FILES=$(find tests -maxdepth 1 -name "test_*.lpr" | sort)
+# Find all test files (including nested directories, excluding experimental/dev tests)
+# Excluded directories: fpdev.git2.adapter, fpdev.libgit2.base, fpdev.core.misc, migrated
+# These require special environments (libgit2, git CLI, etc.)
+TEST_FILES=$(find tests -name "test_*.lpr" \
+    ! -path "*/examples/*" \
+    ! -path "*/fpdev.git2.adapter/*" \
+    ! -path "*/fpdev.libgit2.base/*" \
+    ! -path "*/fpdev.core.misc/*" \
+    ! -path "*/migrated/*" \
+    | sort)
 
 run_test_binary() {
   local bin_path="$1"
@@ -73,9 +81,21 @@ run_test_binary() {
 for TEST_FILE in $TEST_FILES; do
     TOTAL=$((TOTAL + 1))
     TEST_NAME=$(basename "$TEST_FILE" .lpr)
-    TEST_BIN="bin/$TEST_NAME"
+    TEST_DIR=$(dirname "$TEST_FILE")
     TEST_LPI="${TEST_FILE%.lpr}.lpi"
     TEST_LOG="${TEST_TMP_ROOT}/${TEST_NAME}.log"
+
+    # Determine binary path: check nested bin/ first, then top-level bin/
+    if [ "$TEST_DIR" != "tests" ]; then
+        TEST_BIN="${TEST_DIR}/bin/${TEST_NAME}"
+        TEST_BIN_DIR="${TEST_DIR}/bin"
+    else
+        TEST_BIN="bin/${TEST_NAME}"
+        TEST_BIN_DIR="bin"
+    fi
+
+    # Ensure output directory exists
+    mkdir -p "$TEST_BIN_DIR"
 
     echo -n "[$TOTAL] Testing $TEST_NAME... "
 
@@ -88,13 +108,13 @@ for TEST_FILE in $TEST_FILES; do
             BUILD_SUCCESS=true
         else
             # If lazbuild fails, try fpc as fallback
-            if fpc -Fusrc -Fisrc -FEbin -FUlib "$TEST_FILE" > /dev/null 2>&1; then
+            if fpc -Fusrc -Fisrc -FE"$TEST_BIN_DIR" -FUlib "$TEST_FILE" > /dev/null 2>&1; then
                 BUILD_SUCCESS=true
             fi
         fi
     else
         # Fall back to direct fpc compilation
-        if fpc -Fusrc -Fisrc -FEbin -FUlib "$TEST_FILE" > /dev/null 2>&1; then
+        if fpc -Fusrc -Fisrc -FE"$TEST_BIN_DIR" -FUlib "$TEST_FILE" > /dev/null 2>&1; then
             BUILD_SUCCESS=true
         fi
     fi
