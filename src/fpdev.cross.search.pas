@@ -88,7 +88,7 @@ uses
 
 const
   TOOL_AS = 'as';
-  TOOL_LD = 'ld';
+  {%H-}TOOL_LD = 'ld';  // Reserved for future ld path search
 
 { TCrossToolchainSearch }
 

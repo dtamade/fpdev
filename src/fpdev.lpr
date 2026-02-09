@@ -21,7 +21,6 @@ uses
   fpdev.cmd.help.root,
   fpdev.cmd.version,
   fpdev.cmd.fpc,
-  fpdev.cmd.cross,
   fpdev.cmd.project,
 
   // Force reference: FPC/Lazarus subcommand objects (ensure initialization registration)
