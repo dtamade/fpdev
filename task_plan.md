@@ -151,10 +151,10 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B130 (done)
+B131 (done)
 
 ## Baseline (2026-02-10)
-- 测试状态: 138/138 通过 (100%)
+- 测试状态: 139/139 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
 - 源码文件: 244 个 (.pas/.lpr)
@@ -592,16 +592,22 @@ bash scripts/run_all_tests.sh
 
 | 维度 | 状态 |
 |------|------|
-| 测试数 | 138/138 通过 (100%) |
+| 测试数 | 139/139 通过 (100%) |
 | 编译警告 | 0 (src/ 范围) |
 | 编译提示 | 0 hints, 0 notes |
 | @deprecated | 5 处 (向后兼容保留) |
 
 ### 剩余技术债务
 
-1. **大文件** (>1000 行): 12 个文件待拆分
+1. **大文件** (>1000 行): 11 个文件待拆分 (fpdev.cmd.fpc.pas 1253→1119)
 2. **@deprecated 残余**: 5 处向后兼容层
 3. **其他类型重复**: 暂未发现其他重复定义
+
+## Batch Queue (Week 8 - Large File Refactoring)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B131 | cmd.fpc Metadata helper 抽离 | ✓ fpdev.fpc.metadata.pas 新建，cmd.fpc 1253→1119 行，+33 测试 |
 
 ### 下一步建议
 

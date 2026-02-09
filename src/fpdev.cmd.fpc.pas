@@ -33,7 +33,7 @@ interface
 uses
   SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
   fpdev.output.intf, fpdev.config, fpdev.config.interfaces, fpdev.fpc.source,
-  fpdev.types, fpdev.fpc.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.types, fpdev.fpc.types, fpdev.fpc.metadata, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
   fpdev.fpc.builder, fpdev.fpc.verify, fpdev.constants, fpdev.build.cache, fpdev.paths;
@@ -355,151 +355,17 @@ begin
 end;
 
 function TFPCManager.WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
-var
-  MetaPath: string;
-  JSON, VerifyObj, OriginObj: TJSONObject;
-  ScopeStr, SourceModeStr: string;
 begin
-  Result := False;
-
-  try
-    MetaPath := AInstallPath + PathDelim + '.fpdev-meta.json';
-
-    // Convert enum to string
-    case AMeta.Scope of
-      isUser: ScopeStr := 'user';
-      isProject: ScopeStr := 'project';
-      isSystem: ScopeStr := 'system';
-    end;
-
-    case AMeta.SourceMode of
-      smAuto: SourceModeStr := 'auto';
-      smBinary: SourceModeStr := 'binary';
-      smSource: SourceModeStr := 'source';
-    end;
-
-    // Build JSON object
-    JSON := TJSONObject.Create;
-    try
-      JSON.Add('version', AMeta.Version);
-      JSON.Add('scope', ScopeStr);
-      JSON.Add('source_mode', SourceModeStr);
-      JSON.Add('channel', AMeta.Channel);
-      JSON.Add('prefix', AMeta.Prefix);
-
-      // Verify object
-      VerifyObj := TJSONObject.Create;
-      VerifyObj.Add('timestamp', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', AMeta.Verify.Timestamp));
-      VerifyObj.Add('ok', AMeta.Verify.OK);
-      VerifyObj.Add('detected_version', AMeta.Verify.DetectedVersion);
-      VerifyObj.Add('smoke_test_passed', AMeta.Verify.SmokeTestPassed);
-      JSON.Add('verify', VerifyObj);
-
-      // Origin object
-      OriginObj := TJSONObject.Create;
-      OriginObj.Add('repo_url', AMeta.Origin.RepoURL);
-      OriginObj.Add('commit', AMeta.Origin.Commit);
-      OriginObj.Add('built_from_source', AMeta.Origin.BuiltFromSource);
-      JSON.Add('origin', OriginObj);
-
-      JSON.Add('installed_at', FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', AMeta.InstalledAt));
-
-      // Write to file
-      SafeWriteAllText(MetaPath, JSON.FormatJSON);
-      Result := True;
-    finally
-      JSON.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': WriteMetadata failed - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := WriteFPCMetadata(AInstallPath, AMeta);
+  if not Result then
+    FErr.WriteLn(_(MSG_ERROR) + ': WriteMetadata failed');
 end;
 
 function TFPCManager.ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
-var
-  MetaPath, JSONText, ScopeStr, SourceModeStr: string;
-  JSON, VerifyObj, OriginObj: TJSONObject;
-  Parser: TJSONParser;
 begin
-  Result := False;
-  Initialize(AMeta);
-
-  try
-    MetaPath := AInstallPath + PathDelim + '.fpdev-meta.json';
-
-    if not FileExists(MetaPath) then
-      Exit;
-
-    JSONText := ReadAllTextIfExists(MetaPath);
-    if JSONText = '' then
-      Exit;
-
-    Parser := TJSONParser.Create(JSONText, []);
-    try
-      JSON := TJSONObject(Parser.Parse);
-      try
-        // Read basic fields
-        AMeta.Version := JSON.Get('version', '');
-        ScopeStr := JSON.Get('scope', 'user');
-        SourceModeStr := JSON.Get('source_mode', 'auto');
-        AMeta.Channel := JSON.Get('channel', '');
-        AMeta.Prefix := JSON.Get('prefix', '');
-
-        // Parse scope
-        if ScopeStr = 'project' then
-          AMeta.Scope := isProject
-        else if ScopeStr = 'system' then
-          AMeta.Scope := isSystem
-        else
-          AMeta.Scope := isUser;
-
-        // Parse source mode
-        if SourceModeStr = 'binary' then
-          AMeta.SourceMode := smBinary
-        else if SourceModeStr = 'source' then
-          AMeta.SourceMode := smSource
-        else
-          AMeta.SourceMode := smAuto;
-
-        // Read verify object
-        if JSON.Find('verify', VerifyObj) then
-        begin
-          AMeta.Verify.OK := VerifyObj.Get('ok', False);
-          AMeta.Verify.DetectedVersion := VerifyObj.Get('detected_version', '');
-          AMeta.Verify.SmokeTestPassed := VerifyObj.Get('smoke_test_passed', False);
-          // Note: Timestamp parsing omitted for simplicity in v1
-        end;
-
-        // Read origin object
-        if JSON.Find('origin', OriginObj) then
-        begin
-          AMeta.Origin.RepoURL := OriginObj.Get('repo_url', '');
-          AMeta.Origin.Commit := OriginObj.Get('commit', '');
-          AMeta.Origin.BuiltFromSource := OriginObj.Get('built_from_source', False);
-        end;
-
-        // Note: InstalledAt parsing omitted for simplicity in v1
-
-        Result := True;
-      finally
-        JSON.Free;
-      end;
-    finally
-      Parser.Free;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': ReadMetadata failed - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ReadFPCMetadata(AInstallPath, AMeta);
+  if not Result then
+    FErr.WriteLn(_(MSG_ERROR) + ': ReadMetadata failed');
 end;
 
 function TFPCManager.GetVersionInstallPath(const AVersion: string): string;
