@@ -151,12 +151,18 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B100 (next)
+B100 (done)
 
 ## Baseline (2026-02-09)
 - 测试状态: 124/124 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
+- 源码文件: 235 个 (.pas/.lpr)
+- 源码行数: 62,931 行
+- 测试文件: 121 个 (.lpr)
+- 测试代码: 39,659 行
+- 命令单元: 99 个 (fpc:20, lazarus:13, package:25, project:9, repo:8, cross:11, 其他:13)
+- @deprecated 标记: 5 处 (repo 命令 4 处 + utils.git 1 处)
 
 ## Phases
 
@@ -288,4 +294,59 @@ bash scripts/run_all_tests.sh
 | B097 | package 命令组测试补充 | ✓ 21 个测试覆盖 package 子命令注册 |
 | B098 | project 命令组测试补充 | ✓ 11 个测试覆盖 project 子命令注册 |
 | B099 | repo 命令组测试补充 | ✓ 11 个测试覆盖 repo 子命令注册 |
-| B100 | 周期复盘 | B095-B099 收口，基线更新 |
+| B100 | 周期复盘 | ✓ B095-B099 收口，基线 124 测试，规划 Week 4 |
+
+## B100 周期复盘报告
+
+### 三周总成果 (B001-B099)
+
+| 维度 | 起始状态 | 当前状态 | 变化 |
+|------|---------|---------|------|
+| 测试数 | ~80 (Week 0) | 124 | +44 (+55%) |
+| 编译 Warning | 8+ (src) | 0 | 清零 |
+| 编译 Hint | 14+ (src) | 0 | 清零 |
+| @deprecated | 17+ | 5 | -12 (保留向后兼容层) |
+| 大文件拆分 | 0 helper | 25+ helper | 大幅解耦 |
+
+### Week 3 成果 (B095-B099)
+
+- **新增 80 个命令组注册测试**: fpc(22) + lazarus(15) + package(21) + project(11) + repo(11)
+- **基线提升**: 120 → 124 测试
+- **编译健康**: 0 warning, 0 hint, 0 note (src/ 范围)
+- **零回归**: 所有历史测试保持通过
+
+### 当前技术债务清单
+
+1. **大文件 (>1000 行)**: 13 个文件
+   - fpdev.cmd.package.pas (1875 行) - 已部分拆分
+   - fpdev.resource.repo.pas (1669 行) - 已拆分多个 helper
+   - fpdev.i18n.strings.pas (1529 行) - 纯数据，无需拆分
+   - fpdev.build.cache.pas (1355 行) - 已拆分多个 helper
+   - fpdev.config.managers.pas (1345 行) - 接口实现，合理复杂度
+   - fpdev.fpc.installer.pas (1320 行) - 待拆分候选
+   - fpdev.cmd.fpc.pas (1291 行) - 待拆分候选
+   - fpdev.cmd.cross.pas (1250 行) - 待拆分候选
+   - fpdev.build.manager.pas (1235 行) - 已接口化
+   - fpdev.git2.pas (1074 行) - 已接口化
+   - fpdev.fpc.source.pas (1063 行) - 待拆分候选
+   - fpdev.cmd.lazarus.pas (1040 行) - 待拆分候选
+   - fpdev.cmd.project.pas (1017 行) - 待拆分候选
+
+2. **@deprecated 残余**: 5 处
+   - repo 命令 (4 处): 旧接口兼容层，已审计 B089 决定保留
+   - fpdev.utils.git.pas (1 处): SharedGitManager 全局单例
+
+3. **命令单元测试空白**: 99 个命令子单元无独立单元测试
+   - 已通过 B095-B099 注册测试覆盖了命令注册层
+   - 具体命令逻辑测试通过功能级测试间接覆盖
+
+### 可执行的 Week 4 任务池
+
+| 优先级 | 类别 | 候选任务 | 风险 |
+|-------|------|---------|------|
+| P1 | 测试强化 | 核心模块功能测试补充 (config/fpc/lazarus) | 低 |
+| P1 | 代码质量 | 大文件继续拆分 (fpc.installer, cmd.fpc) | 中 |
+| P2 | 功能完善 | B056 错误语义统一 (唯一未完成的 M5 项) | 低 |
+| P2 | 代码质量 | 长函数重构 (>100 行函数) | 中 |
+| P3 | 文档 | CLAUDE.md 精简与更新 | 低 |
+| P3 | 探索 | CI/CD 集成可行性调研 | 低 |
