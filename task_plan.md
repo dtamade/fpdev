@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B132 (done)
+B133 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 139/139 通过 (100%)
@@ -609,10 +609,12 @@ bash scripts/run_all_tests.sh
 |-------|-------|---------------|
 | B131 | cmd.fpc Metadata helper 抽离 | ✓ fpdev.fpc.metadata.pas 新建，cmd.fpc 1253→1119 行，+33 测试 |
 | B132 | Week 8 任务池扫描 | ✓ 基线 139 测试，规划后续批次 |
+| B133 | cmd.package 结构评估 | ✓ 已有 25 个 helper，3 个大方法待优化 |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
 - [x] B132 Week 8 任务池扫描
+- [x] B133 cmd.package 结构评估
 
 ## B132 Week 8 任务池扫描报告
 
@@ -657,14 +659,31 @@ bash scripts/run_all_tests.sh
 
 | 优先级 | 任务 | 风险 |
 |--------|------|------|
-| P1 | cmd.package 版本函数抽离 | 低 |
-| P2 | cmd.cross 拆分 | 中 |
-| P3 | fpc.source 拆分 | 低 |
+| P1 | cmd.cross 拆分 | 中 |
+| P2 | fpc.source 拆分 | 低 |
+| P3 | 测试覆盖增强 | 低 |
 
-### 下一步建议
+## B133 cmd.package 结构评估
 
-| 优先级 | 任务 | 风险 |
-|--------|------|------|
-| P1 | 继续大文件拆分 | 低 |
-| P2 | 测试覆盖增强 | 低 |
-| P3 | CI/CD 集成调研 | 低 |
+### 当前状态
+
+| 维度 | 数值 |
+|------|------|
+| 主文件行数 | 1884 行 |
+| 已拆分 helper 单元 | 25 个 |
+| 大方法 (>100行) | 3 个 |
+
+### 大方法清单
+
+| 方法 | 行数 | 拆分建议 |
+|------|------|----------|
+| InstallPackage | 173 | 核心逻辑，拆分风险高 |
+| ParseLocalPackageIndex | 124 | 可抽离为 index parser helper |
+| ResolveAndInstallDependencies | 114 | 可抽离为 dependency resolver |
+
+### 结论
+
+fpdev.cmd.package.pas 已经过充分拆分（25 个 helper 单元）。剩余 3 个大方法是核心业务逻辑，拆分收益有限但风险较高。建议：
+1. 保持当前结构
+2. 优先处理其他大文件（cmd.cross, fpc.source）
+3. 后续可考虑将 ParseLocalPackageIndex 抽离为独立 helper
