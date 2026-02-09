@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B131 (done)
+B132 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 139/139 通过 (100%)
@@ -608,6 +608,58 @@ bash scripts/run_all_tests.sh
 | Batch | Scope | Done Criteria |
 |-------|-------|---------------|
 | B131 | cmd.fpc Metadata helper 抽离 | ✓ fpdev.fpc.metadata.pas 新建，cmd.fpc 1253→1119 行，+33 测试 |
+| B132 | Week 8 任务池扫描 | ✓ 基线 139 测试，规划后续批次 |
+
+### M10: 大文件持续重构 (B131+)
+- [x] B131 cmd.fpc Metadata helper 抽离
+- [x] B132 Week 8 任务池扫描
+
+## B132 Week 8 任务池扫描报告
+
+### 当前基线
+
+| 维度 | 状态 |
+|------|------|
+| 测试文件 | 142 个 |
+| 测试用例 | 139/139 通过 (100%) |
+| 源码文件 | 244 个 |
+| 源码行数 | ~65,500 行 |
+| 编译警告 | 0 (src/ 范围) |
+| 编译提示 | 0 hints, 0 notes |
+
+### 大文件状态 (>1000行)
+
+| 文件 | 行数 | 变化 | 备注 |
+|------|------|------|------|
+| fpdev.cmd.package.pas | 1884 | - | 待拆分，已有多个 helper |
+| fpdev.resource.repo.pas | 1669 | - | 已拆分多个 helper |
+| fpdev.i18n.strings.pas | 1537 | - | 纯数据，无需拆分 |
+| fpdev.config.managers.pas | 1365 | - | 接口实现 |
+| fpdev.build.cache.pas | 1355 | - | 已拆分多个 helper |
+| fpdev.cmd.cross.pas | 1261 | - | 待拆分候选 |
+| fpdev.build.manager.pas | 1255 | - | 已接口化 |
+| fpdev.fpc.installer.pas | 1253 | - | 已部分拆分 |
+| fpdev.cmd.fpc.pas | 1119 | -134 | B131 拆分 Metadata |
+| fpdev.git2.pas | 1074 | - | 已接口化 |
+| fpdev.fpc.source.pas | 1063 | - | 待拆分候选 |
+| fpdev.cmd.lazarus.pas | 1040 | - | 待拆分候选 |
+| fpdev.cmd.project.pas | 1017 | - | 待拆分候选 |
+
+### Week 8 成果
+
+| 批次 | 成果 |
+|------|------|
+| M9 B126-B130 | 类型统一完成，消除 TInstallScope/TSourceMode 等重复定义 |
+| B131 | Metadata helper 抽离，cmd.fpc 减少 134 行 |
+| Hint 清理 | 3 个 Hint 修复，编译干净 |
+
+### 下一步建议
+
+| 优先级 | 任务 | 风险 |
+|--------|------|------|
+| P1 | cmd.package 版本函数抽离 | 低 |
+| P2 | cmd.cross 拆分 | 中 |
+| P3 | fpc.source 拆分 | 低 |
 
 ### 下一步建议
 
