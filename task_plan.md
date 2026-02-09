@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B100 (done)
+B106 (done)
 
 ## Baseline (2026-02-09)
 - 测试状态: 124/124 通过 (100%)
@@ -259,7 +259,7 @@ bash scripts/run_all_tests.sh
 - [x] B053 命令契约测试矩阵 - 新增 command-registry 级别测试
 - [x] B054 测试发现器升级 - 支持嵌套测试目录 (done in B084)
 - [x] B055 退出码残余清理 - 检查遗漏的魔法数字
-- [ ] B056 错误语义统一 - 帮助文档与实际行为对齐
+- [x] B056 错误语义统一 - 帮助文档与实际行为对齐 (done in B105)
 - [x] B057 package deps 命令 - 依赖树展示
 - [x] B058 package why 命令 - 依赖路径解释
 - [x] B059 文档基线对齐 - README 命令集更新
@@ -350,3 +350,14 @@ bash scripts/run_all_tests.sh
 | P2 | 代码质量 | 长函数重构 (>100 行函数) | 中 |
 | P3 | 文档 | CLAUDE.md 精简与更新 | 低 |
 | P3 | 探索 | CI/CD 集成可行性调研 | 低 |
+
+## Batch Queue (Week 4)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B101 | fpc.installer 辅助方法提取 | ✓ GetFPCArchSuffix + GenerateFpcConfig + CreateLinuxCompilerWrapper |
+| B102 | InstallFromManifest 嵌套解包抽离 | ✓ ExtractNestedFPCPackage, ~163→~100 行 |
+| B103 | InstallFromBinary repo 逻辑抽离 | ✓ TryInstallFromRepo, ~150→~100 行 |
+| B104 | cmd.package 索引解析抽离 | ✓ ParseLocalPackageIndex, GetAvailablePackages 163→42 行 |
+| B105 | B056 错误语义统一 | ✓ 分发器+8 个文件退出码常量迁移 |
+| B106 | 周期复盘 | ✓ B101-B105 收口，基线 124 测试 |
