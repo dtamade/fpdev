@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B144 (done)
+B145 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -626,6 +626,7 @@ bash scripts/run_all_tests.sh
 | B142 | lazarus --json | ✓ lazarus list/current 支持 --json |
 | B143 | cross --json | ✓ cross list 支持 --json |
 | B144 | package --json | ✓ package list/search 支持 --json |
+| B145 | 周期复盘 | ✓ Week 9 M11 完成报告 |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
@@ -637,13 +638,14 @@ bash scripts/run_all_tests.sh
 - [x] B137 CI/CD 集成
 - [x] B138 Week 8 周期复盘
 
-### M11: 用户体验增强 (B139+)
+### M11: 用户体验增强 (B139-B145)
 - [x] B139 UX 改进扫描
 - [x] B140 命令自动补全
 - [x] B141 --json 输出格式支持
 - [x] B142 lazarus list/current --json
 - [x] B143 cross list --json
 - [x] B144 package list/search --json
+- [x] B145 Week 9 周期复盘
 
 ## B132 Week 8 任务池扫描报告
 
@@ -792,17 +794,88 @@ fpdev.cmd.package.pas 已经过充分拆分（25 个 helper 单元）。剩余 3
 | M8 帮助完善 | B120-B125 | ✓ 完成 |
 | M9 类型统一 | B126-B130 | ✓ 完成 |
 | M10 大文件重构 | B131-B138 | ✓ 完成 |
+| M11 用户体验 | B139-B145 | ✓ 完成 |
 
 ### 下一步建议
 
 项目已达到高质量稳定状态:
-- 139测试全部通过
+- 140测试全部通过
 - 0编译警告
 - 充分的代码拆分
 - CI/CD就绪
+- 完整的 --json 输出支持
 
 后续可选方向:
 1. 功能增强 (新命令/新特性)
 2. 性能优化
-3. 用户体验改进
-4. 文档国际化
+3. 文档国际化
+4. project list --json 等剩余命令
+
+## B145 Week 9 M11 周期复盘报告
+
+### Week 9 成果 (B139-B145)
+
+| 批次 | 任务 | 成果 |
+|------|------|------|
+| B139 | UX 改进扫描 | 识别 5 项改进机会 |
+| B140 | 命令补全 | Bash/Zsh 补全脚本 |
+| B141 | fpc --json | fpc list/current 支持 JSON |
+| B142 | lazarus --json | lazarus list/current 支持 JSON |
+| B143 | cross --json | cross list 支持 JSON |
+| B144 | package --json | package list/search 支持 JSON |
+| B145 | 周期复盘 | 本报告 |
+
+### 新增功能
+
+**Shell 自动补全** (B140):
+```bash
+# Bash
+source scripts/completions/fpdev.bash
+
+# Zsh
+fpath=(~/.zsh/completions $fpath)
+cp scripts/completions/_fpdev ~/.zsh/completions/
+```
+
+**JSON 输出格式** (B141-B144):
+```bash
+fpdev fpc list --json       # FPC 版本列表
+fpdev fpc current --json    # 当前 FPC 版本
+fpdev lazarus list --json   # Lazarus 版本列表
+fpdev lazarus current --json # 当前 Lazarus 版本
+fpdev cross list --json     # 交叉编译目标
+fpdev package list --json   # 已安装包
+fpdev package search X --json # 搜索结果
+```
+
+### 代码变更统计
+
+| 指标 | Week 8 结束 | Week 9 结束 | 变化 |
+|------|------------|------------|------|
+| 源码文件 | 244 | 245 | +1 |
+| 测试文件 | 141 | 175 | +34 |
+| 测试用例 | 139 | 140 | +1 |
+| 源码行数 | ~66,000 | ~65,900 | ~ |
+
+### 新增文件
+
+- `src/fpdev.output.json.pas` - JSON 输出工具类
+- `scripts/completions/fpdev.bash` - Bash 补全脚本
+- `scripts/completions/_fpdev` - Zsh 补全脚本
+- `tests/test_output_json.lpr` - JSON 输出测试
+
+### 技术亮点
+
+1. **类方法设计**: `TJsonOutputHelper` 使用 class function，无需实例化
+2. **避免循环依赖**: Lazarus/Cross JSON 使用局部函数而非导入 output.json
+3. **统一 API 可见性**: 将 GetXxxVersions/GetXxxTargets 方法移到 public
+
+### 项目整体状态 (B001-B145)
+
+| 维度 | 状态 |
+|------|------|
+| 测试通过率 | 140/140 (100%) |
+| 编译警告 | 0 |
+| --json 覆盖率 | 7 个核心查询命令 |
+| Shell 补全 | Bash + Zsh |
+| CI/CD | GitHub Actions 就绪 |
