@@ -251,16 +251,17 @@ bash scripts/run_all_tests.sh
 - 建议先提交这些改动，再开始新的修复工作
 
 ### M5: 后端探索开发任务（B053-B062）
-- [ ] B053 命令契约测试矩阵 - 新增 command-registry 级别测试
+- [x] B053 命令契约测试矩阵 - 新增 command-registry 级别测试
 - [ ] B054 测试发现器升级 - 支持嵌套测试目录
-- [ ] B055 退出码残余清理 - 检查遗漏的魔法数字
+- [x] B055 退出码残余清理 - 检查遗漏的魔法数字
 - [ ] B056 错误语义统一 - 帮助文档与实际行为对齐
-- [ ] B057 package deps 命令 - 依赖树展示
-- [ ] B058 package why 命令 - 依赖路径解释
-- [ ] B059 文档基线对齐 - README 命令集更新
+- [x] B057 package deps 命令 - 依赖树展示
+- [x] B058 package why 命令 - 依赖路径解释
+- [x] B059 文档基线对齐 - README 命令集更新
 - [ ] B060 文档测试规模更新 - 测试数量与覆盖率
-- [ ] B061 resource.repo 懒加载 - 延迟初始化优化
-- [ ] B062 build.cache 分层 - 子服务拆分
+- [x] B061/B062 resource.repo/build.cache 懒加载优化
 
-## Current Batch
-B053 (in_progress)
+### M6: 代码健壮性（B083+）
+- [x] B083 剩余 Objects[]/Arrays[] 安全审计 (审计完成，内部API安全)
+- [ ] B084 测试发现器升级 - 支持嵌套测试目录
+- [ ] B085 文档测试规模更新 - 测试数量与覆盖率
