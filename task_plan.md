@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B134 (done)
+B135 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 139/139 通过 (100%)
@@ -611,12 +611,14 @@ bash scripts/run_all_tests.sh
 | B132 | Week 8 任务池扫描 | ✓ 基线 139 测试，规划后续批次 |
 | B133 | cmd.package 结构评估 | ✓ 已有 25 个 helper，3 个大方法待优化 |
 | B134 | cmd.cross/fpc.source 结构评估 | ✓ 已充分拆分，无高优先级拆分任务 |
+| B135 | 测试覆盖扫描 | ✓ 139/139 测试，覆盖充分 |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
 - [x] B132 Week 8 任务池扫描
 - [x] B133 cmd.package 结构评估
 - [x] B134 cmd.cross/fpc.source 结构评估
+- [x] B135 测试覆盖扫描
 
 ## B132 Week 8 任务池扫描报告
 
