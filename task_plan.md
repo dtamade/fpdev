@@ -151,7 +151,70 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B160 (done)
+B161
+
+## B161 任务池扫描报告 (2026-02-10)
+
+### 当前基线
+
+| 维度 | 状态 |
+|------|------|
+| 测试文件 | 143 个 |
+| 测试用例 | 140/140 通过 (100%) |
+| 源码文件 | 245 个 |
+| 源码行数 | ~66,000 行 |
+| 编译警告 | 0 (src/ 范围) |
+| 编译提示 | 2 hints (已用 {%H-} 抑制) |
+| 文档文件 | 72 个 |
+
+### 扫描发现
+
+#### 1. 编译健康 ✅
+- 0 warnings, 2 hints (已抑制)
+- 所有测试通过
+
+#### 2. @deprecated 标记 (5 处)
+- `src/fpdev.utils.git.pas` - SharedGitManager
+- `src/fpdev.git2.pas` - 旧 GitManager 接口
+- 其他 3 处在 repo 命令中
+
+#### 3. 大文件状态 (>1000行)
+
+| 文件 | 行数 | 备注 |
+|------|------|------|
+| fpdev.cmd.package.pas | 1890 | 有 helper 单元 |
+| fpdev.resource.repo.pas | 1669 | 有 helper 单元 |
+| fpdev.i18n.strings.pas | 1537 | 纯数据，无需拆分 |
+| fpdev.config.managers.pas | 1365 | 接口实现 |
+| fpdev.build.cache.pas | 1355 | 有 helper 单元 |
+| fpdev.cmd.cross.pas | 1263 | 待拆分候选 |
+| fpdev.build.manager.pas | 1255 | 已接口化 |
+
+#### 4. 文档国际化缺口
+- 70+ 个中文文档缺少英文版
+- 优先级高: API.md, ARCHITECTURE.md, FAQ.md
+
+#### 5. 测试覆盖
+- 143 测试文件
+- 所有命令组有测试 (fpc, lazarus, cross, package, project, repo)
+- 核心模块有专项测试
+
+### 改进建议
+
+| 优先级 | 任务 | 预估 | 风险 |
+|--------|------|------|------|
+| P1 | 剩余文档国际化 (API.en.md, FAQ.en.md) | 2 天 | 低 |
+| P2 | @deprecated 迁移 (SharedGitManager 移除) | 1 天 | 中 |
+| P3 | cmd.cross.pas 拆分 (1263行) | 1 天 | 低 |
+| P4 | 性能监控集成 | 2 天 | 低 |
+
+### 下一步建议
+
+1. **B162-B165**: 文档国际化 (API.en.md, FAQ.en.md, ARCHITECTURE.en.md)
+2. **B166**: @deprecated 清理准备
+3. **B167**: cmd.cross.pas 拆分预研
+
+---
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
