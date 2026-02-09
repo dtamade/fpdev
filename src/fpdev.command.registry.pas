@@ -220,9 +220,24 @@ var
   j: Integer;
   SubCmds: TStringArray;
   Suggestion, UnknownCmd: string;
+  LArgs: array of string;
+  CurrentArg: string;
 begin
   Result := 0;
   Rest := nil;
+  LArgs := nil;
+
+  // Normalize args: convert --help/-h to help subcommand
+  SetLength(LArgs, Length(AArgs));
+  for i := 0 to High(AArgs) do
+  begin
+    CurrentArg := AArgs[i];
+    if (CurrentArg = '--help') or (CurrentArg = '-h') then
+      LArgs[i] := 'help'
+    else
+      LArgs[i] := CurrentArg;
+  end;
+
   Node := FRoot;
   LastNode := nil;
   MatchedNode := nil;
@@ -230,15 +245,15 @@ begin
   ExecIndex := 0;
   // Longest executable prefix matching: match to the nearest node with Factory, rest as parameters
   i := 0;
-  while (i <= High(AArgs)) and (Node <> nil) do
+  while (i <= High(LArgs)) and (Node <> nil) do
   begin
-    if (i > High(AArgs)) or (AArgs[i] = '') then Break;
-    Child := Node.FindChild(LowerCase(AArgs[i]));
+    if (i > High(LArgs)) or (LArgs[i] = '') then Break;
+    Child := Node.FindChild(LowerCase(LArgs[i]));
     if Child = nil then
     begin
       // Command not found at this level - save context for suggestion
       ParentNode := Node;
-      UnknownCmd := AArgs[i];
+      UnknownCmd := LArgs[i];
       Break;
     end;
     // If it's an alias node, use its target node
@@ -258,9 +273,9 @@ begin
       Cmd := LastNode.Command
     else
       Cmd := LastNode.Factory();
-    SetLength(Rest, Length(AArgs) - ExecIndex);
+    SetLength(Rest, Length(LArgs) - ExecIndex);
     for j := 0 to High(Rest) do
-      Rest[j] := AArgs[ExecIndex + j];
+      Rest[j] := LArgs[ExecIndex + j];
     Result := Cmd.Execute(Rest, Ctx);
     if Result = 0 then
       Ctx.SaveIfModified;
