@@ -93,6 +93,15 @@ type
       AVersion: FPC version string }
     procedure CreateLinuxCompilerWrapper(const AInstallPath, AVersion: string);
 
+    { Extracts nested FPC binary package from an outer TAR directory.
+      Official FPC packages have a two/three-level nesting:
+        outer.tar → subdir/binary.ARCH.tar → base.ARCH.tar.gz → actual binaries
+      ATempDir: Directory containing the outer TAR extraction
+      AInstallPath: Final installation directory
+      ATempFile: Original downloaded archive path (used for fallback direct extraction)
+      Returns: True if extraction succeeded }
+    function ExtractNestedFPCPackage(const ATempDir, AInstallPath, ATempFile: string): Boolean;
+
   public
     constructor Create(AConfigManager: IConfigManager;
       AOut: IOutput = nil; AErr: IOutput = nil);
@@ -368,6 +377,72 @@ begin
     AInstallPath + PathDelim + 'bin' + PathDelim + 'fpc'], '');
   FOut.WriteLn('  fpc wrapper created');
   {$ENDIF}
+end;
+
+function TFPCBinaryInstaller.ExtractNestedFPCPackage(const ATempDir, AInstallPath, ATempFile: string): Boolean;
+var
+  SR: TSearchRec;
+  BinaryTar: string;
+  BaseArchive: string;
+begin
+  Result := False;
+
+  // Stage 2: Find and extract nested binary TAR to installation directory
+  // The outer TAR extracts to a subdirectory (e.g., fpc-3.2.0-x86_64-linux/)
+  // Inside that subdirectory is binary.x86_64-linux.tar with the actual FPC binaries
+
+  // Find the extracted subdirectory (should be the only directory in ATempDir)
+  BinaryTar := '';
+  if FindFirst(ATempDir + PathDelim + '*', faDirectory, SR) = 0 then
+  begin
+    repeat
+      if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
+      begin
+        BinaryTar := ATempDir + PathDelim + SR.Name + PathDelim + 'binary.' + GetFPCArchSuffix + '.tar';
+        Break;
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+
+  if (BinaryTar <> '') and FileExists(BinaryTar) then
+  begin
+    FOut.WriteLn('[Manifest] Extracting nested binary TAR...');
+    if not ExtractArchive(BinaryTar, AInstallPath) then
+    begin
+      FErr.WriteLn('[Manifest] Nested extraction failed');
+      Exit;
+    end;
+
+    // Stage 3: Extract base package which contains the actual FPC binaries
+    // The binary TAR contains many .tar.gz files, but base.ARCH.tar.gz has the core compiler
+    BaseArchive := AInstallPath + PathDelim + 'base.' + GetFPCArchSuffix + '.tar.gz';
+
+    if FileExists(BaseArchive) then
+    begin
+      FOut.WriteLn('[Manifest] Extracting base package...');
+      if not ExtractArchive(BaseArchive, AInstallPath) then
+      begin
+        FErr.WriteLn('[Manifest] Base package extraction failed');
+        Exit;
+      end;
+      // Clean up the .tar.gz files after extraction
+      DeleteFile(BaseArchive);
+    end;
+  end
+  else
+  begin
+    // Fallback: if nested TAR not found, assume outer TAR contains binaries directly
+    FOut.WriteLn('[Manifest] No nested TAR found, using direct extraction');
+    if not ExtractArchive(ATempFile, AInstallPath) then
+    begin
+      FErr.WriteLn('[Manifest] Extraction failed');
+      Exit;
+    end;
+  end;
+
+  FOut.WriteLn('[Manifest] Extraction completed');
+  Result := True;
 end;
 
 function TFPCBinaryInstaller.InstallFromSourceForge(const AVersion, AInstallPath: string): Boolean;
@@ -1017,7 +1092,6 @@ var
   TempDir: string;
   FileExt: string;
   Err: string;
-  SR: TSearchRec;
 begin
   Result := False;
 
@@ -1090,63 +1164,8 @@ begin
             Exit;
           end;
 
-        // Stage 2: Find and extract nested binary TAR to installation directory
-        // The outer TAR extracts to a subdirectory (e.g., fpc-3.2.0-x86_64-linux/)
-        // Inside that subdirectory is binary.x86_64-linux.tar with the actual FPC binaries
-
-        // Find the extracted subdirectory (should be the only directory in TempDir)
-        FileExt := '';
-        if FindFirst(TempDir + PathDelim + '*', faDirectory, SR) = 0 then
-        begin
-          repeat
-            if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
-            begin
-              // Found the extracted subdirectory, look for binary TAR inside it
-              FileExt := TempDir + PathDelim + SR.Name + PathDelim + 'binary.' + GetFPCArchSuffix + '.tar';
-              Break;
-            end;
-          until FindNext(SR) <> 0;
-          FindClose(SR);
-        end;
-
-        if (FileExt <> '') and FileExists(FileExt) then
-        begin
-          FOut.WriteLn('[Manifest] Extracting nested binary TAR...');
-          if not ExtractArchive(FileExt, AInstallPath) then
-          begin
-            FErr.WriteLn('[Manifest] Nested extraction failed');
-            Exit;
-          end;
-
-          // Stage 3: Extract base package which contains the actual FPC binaries
-          // The binary TAR contains many .tar.gz files, but base.x86_64-linux.tar.gz has the core compiler
-          FileExt := AInstallPath + PathDelim + 'base.' + GetFPCArchSuffix + '.tar.gz';
-
-          if FileExists(FileExt) then
-          begin
-            FOut.WriteLn('[Manifest] Extracting base package...');
-            if not ExtractArchive(FileExt, AInstallPath) then
-            begin
-              FErr.WriteLn('[Manifest] Base package extraction failed');
-              Exit;
-            end;
-            // Clean up the .tar.gz files after extraction
-            DeleteFile(FileExt);
-          end;
-        end
-        else
-        begin
-          // Fallback: if nested TAR not found, assume outer TAR contains binaries directly
-          FOut.WriteLn('[Manifest] No nested TAR found, using direct extraction');
-          if not ExtractArchive(TempFile, AInstallPath) then
-          begin
-            FErr.WriteLn('[Manifest] Extraction failed');
-            Exit;
-          end;
-        end;
-
-        FOut.WriteLn('[Manifest] Extraction completed');
-        Result := True;
+        // Stage 2-3: Extract nested binary TAR and base package
+        Result := ExtractNestedFPCPackage(TempDir, AInstallPath, TempFile);
 
         finally
           // Cleanup temporary files and directories
