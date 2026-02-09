@@ -102,6 +102,14 @@ type
       Returns: True if extraction succeeded }
     function ExtractNestedFPCPackage(const ATempDir, AInstallPath, ATempFile: string): Boolean;
 
+    { Attempts to install FPC via fpdev-repo (GitHub/Gitee mirrors).
+      Initializes FResourceRepo if needed, checks for binary release, and installs.
+      AVersion: FPC version to install
+      APlatform: Target platform string (e.g. 'linux-x86_64')
+      AInstallPath: Target installation directory
+      Returns: True if installation from fpdev-repo succeeded }
+    function TryInstallFromRepo(const AVersion, APlatform, AInstallPath: string): Boolean;
+
   public
     constructor Create(AConfigManager: IConfigManager;
       AOut: IOutput = nil; AErr: IOutput = nil);
@@ -377,6 +385,65 @@ begin
     AInstallPath + PathDelim + 'bin' + PathDelim + 'fpc'], '');
   FOut.WriteLn('  fpc wrapper created');
   {$ENDIF}
+end;
+
+function TFPCBinaryInstaller.TryInstallFromRepo(const AVersion, APlatform, AInstallPath: string): Boolean;
+begin
+  Result := False;
+
+  FOut.WriteLn('[2/4] Initializing fpdev-repo...');
+
+  if not Assigned(FResourceRepo) then
+  begin
+    // Use configured mirror settings from user config
+    FResourceRepo := TResourceRepository.Create(
+      CreateConfigWithMirror(
+        FConfigManager.GetSettingsManager.GetSettings.Mirror,
+        FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
+      )
+    );
+    if not FResourceRepo.Initialize then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
+      FErr.WriteLn('');
+      FErr.WriteLn('fpdev-repo is required for binary installation.');
+      FErr.WriteLn('Please check your network connection and try again.');
+      FErr.WriteLn('');
+      FErr.WriteLn('Mirror configuration:');
+      FErr.WriteLn('  China users: fpdev config set mirror gitee');
+      FErr.WriteLn('  Global users: fpdev config set mirror github');
+      FResourceRepo.Free;
+      FResourceRepo := nil;
+      Exit;
+    end;
+  end;
+  FOut.WriteLn('  fpdev-repo initialized');
+  FOut.WriteLn;
+
+  // Check if binary release exists in fpdev-repo
+  FOut.WriteLn('[3/4] Checking for FPC ' + AVersion + ' binary...');
+
+  if FResourceRepo.HasBinaryRelease(AVersion, APlatform) then
+  begin
+    FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
+    FOut.WriteLn;
+
+    // Install from fpdev-repo
+    FOut.WriteLn('[4/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
+
+    if FResourceRepo.InstallBinaryRelease(AVersion, APlatform, AInstallPath) then
+    begin
+      FOut.WriteLn('  Binary package installed from fpdev-repo');
+      FOut.WriteLn;
+      Result := True;
+    end
+    else
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
+      FErr.WriteLn('Trying fallback to SourceForge...');
+      FOut.WriteLn;
+    end;
+  end;
 end;
 
 function TFPCBinaryInstaller.ExtractNestedFPCPackage(const ATempDir, AInstallPath, ATempFile: string): Boolean;
@@ -965,75 +1032,24 @@ begin
       FOut.WriteLn('  Manifest-based installation not available, trying fpdev-repo...');
       FOut.WriteLn;
 
-      // Step 2: Initialize fpdev-repo (fallback)
-      FOut.WriteLn('[2/4] Initializing fpdev-repo...');
-
-      if not Assigned(FResourceRepo) then
+      // Step 2-4: Try fpdev-repo installation
+      if not TryInstallFromRepo(AVersion, Platform, InstallPath) then
       begin
-        // Use configured mirror settings from user config
-        FResourceRepo := TResourceRepository.Create(
-          CreateConfigWithMirror(
-            FConfigManager.GetSettingsManager.GetSettings.Mirror,
-            FConfigManager.GetSettingsManager.GetSettings.CustomRepoURL
-          )
-        );
-        if not FResourceRepo.Initialize then
-        begin
-          FErr.WriteLn(_(MSG_ERROR) + ': Failed to initialize fpdev-repo');
-          FErr.WriteLn('');
-          FErr.WriteLn('fpdev-repo is required for binary installation.');
-          FErr.WriteLn('Please check your network connection and try again.');
-          FErr.WriteLn('');
-          FErr.WriteLn('Mirror configuration:');
-          FErr.WriteLn('  China users: fpdev config set mirror gitee');
-          FErr.WriteLn('  Global users: fpdev config set mirror github');
-          FResourceRepo.Free;
-          FResourceRepo := nil;
-          Exit;
-        end;
-      end;
-      FOut.WriteLn('  fpdev-repo initialized');
-      FOut.WriteLn;
-
-      // Step 3: Check if binary release exists in fpdev-repo
-      FOut.WriteLn('[3/4] Checking for FPC ' + AVersion + ' binary...');
-
-      if FResourceRepo.HasBinaryRelease(AVersion, Platform) then
-      begin
-        FOut.WriteLn('  Found FPC ' + AVersion + ' in fpdev-repo');
-        FOut.WriteLn;
-
-        // Step 4: Install from fpdev-repo
-        FOut.WriteLn('[4/4] Installing FPC ' + AVersion + ' from fpdev-repo...');
-
-        if not FResourceRepo.InstallBinaryRelease(AVersion, Platform, InstallPath) then
-        begin
-          FErr.WriteLn(_(MSG_ERROR) + ': Installation from fpdev-repo failed');
-          FErr.WriteLn('Trying fallback to SourceForge...');
-          FOut.WriteLn;
-          // Fall through to SourceForge fallback
-        end
-        else
-        begin
-          FOut.WriteLn('  Binary package installed from fpdev-repo');
-          FOut.WriteLn;
-        end;
-      end;
-
-      // Fallback: Download from SourceForge if fpdev-repo doesn't have it or failed
-      FOut.WriteLn('');
-      FOut.WriteLn('');
-      FOut.WriteLn('[4/4] Attempting SourceForge download (with 30s timeout)...');
-      Result := InstallFromSourceForge(AVersion, InstallPath);
-
-      if Result then
-      begin
+        // Fallback: Download from SourceForge
         FOut.WriteLn('');
-        FOut.WriteLn('===========================================');
-        FOut.WriteLn('Installation Summary');
-        FOut.WriteLn('===========================================');
-        FOut.WriteLn('  Binary package installed from SourceForge');
-        FOut.WriteLn;
+        FOut.WriteLn('');
+        FOut.WriteLn('[4/4] Attempting SourceForge download (with 30s timeout)...');
+        Result := InstallFromSourceForge(AVersion, InstallPath);
+
+        if Result then
+        begin
+          FOut.WriteLn('');
+          FOut.WriteLn('===========================================');
+          FOut.WriteLn('Installation Summary');
+          FOut.WriteLn('===========================================');
+          FOut.WriteLn('  Binary package installed from SourceForge');
+          FOut.WriteLn;
+        end;
       end;
     end;  // Close the else block from manifest installation
 
