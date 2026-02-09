@@ -154,7 +154,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 B087 (next)
 
 ## Baseline (2026-02-09)
-- 测试状态: 119/119 通过 (100%)
+- 测试状态: 120/120 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
 
@@ -271,6 +271,6 @@ bash scripts/run_all_tests.sh
 | Batch | Scope | Done Criteria |
 |-------|-------|---------------|
 | B087 | cross 命令测试补充 | ✓ 10 个测试覆盖 cross 命令注册 |
-| B088 | config 命令测试 | config 命令有基础测试 |
-| B089 | @deprecated 代码清理 | 移除或迁移 deprecated 标记的代码 |
+| B088 | config 命令测试 | ✓ 4 个测试覆盖 config 命令 |
+| B089 | @deprecated 代码清理 | ✓ 审计完成，保留兼容层 |
 | B090 | 错误语义统一 (B056) | 帮助文档与实际行为对齐 |
