@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B153
+B154 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -692,8 +692,73 @@ bash scripts/run_all_tests.sh
 
 #### M12c: 文档国际化 (B152-B154)
 - [x] B152 README 英文版
-- [ ] B153 QUICKSTART 英文版
-- [ ] B154 Week 10 周期复盘
+- [x] B153 QUICKSTART 英文版
+- [x] B154 Week 10 周期复盘
+
+### B154 Week 10 M12 周期复盘报告
+
+**日期**: 2026-02-10
+**批次范围**: B139-B154 (M11 UX Enhancement + M12 Comprehensive Improvement)
+
+#### 里程碑成果总结
+
+| 里程碑 | 批次 | 状态 | 主要产出 |
+|--------|------|------|----------|
+| M11 UX Enhancement | B139-B145 | ✅ 完成 | JSON 输出支持 (fpc/lazarus/cross/package), 命令自动补全 |
+| M12a JSON 支持 | B146-B148 | ✅ 完成 | project/repo/doctor --json 全覆盖 |
+| M12b 性能优化 | B149-B151 | ✅ 完成 | 基准测试确认无需优化，B150/B151 跳过 |
+| M12c 文档国际化 | B152-B154 | ✅ 完成 | README.en.md, QUICKSTART.en.md |
+
+#### 代码变更统计
+
+| 指标 | Week 9 开始 | Week 10 结束 | 变化 |
+|------|-------------|--------------|------|
+| 测试用例 | 124 | 140 | +16 |
+| 测试通过率 | 100% | 100% | - |
+| 编译警告 | 0 | 0 | - |
+| 编译提示 | 0 | 0 | - |
+| 新增文件 | - | 6 | README.en.md, QUICKSTART.en.md, fpdev.output.json.pas, test_output_json.lpr, completion scripts |
+
+#### JSON 输出覆盖率
+
+| 命令组 | 支持的子命令 | 状态 |
+|--------|--------------|------|
+| fpc | list, current | ✅ |
+| lazarus | list, current | ✅ |
+| cross | list | ✅ |
+| package | list, search | ✅ |
+| project | list | ✅ |
+| repo | versions | ✅ |
+| doctor | - | ✅ |
+
+#### 性能基准
+
+所有命令执行时间 < 50ms，无需进一步优化。
+
+#### 文档国际化完成度
+
+| 文档 | 中文 | 英文 | 状态 |
+|------|------|------|------|
+| README | ✅ | ✅ | 完成 |
+| QUICKSTART | ✅ | ✅ | 完成 |
+| API | ✅ | - | 待做 |
+| ARCHITECTURE | ✅ | - | 待做 |
+
+#### 下周建议任务池
+
+| 优先级 | 任务 | 预估 |
+|--------|------|------|
+| P1 | M7 交叉编译构建引擎 (B107-B119) | 2-3 周 |
+| P2 | 剩余文档国际化 (API.en.md, ARCHITECTURE.en.md) | 1 天 |
+| P3 | 大文件拆分继续 (fpdev.cmd.cross.pas) | 2-3 天 |
+
+#### 经验教训
+
+1. **JSON 输出模式**: 使用局部函数避免循环依赖比引入公共 helper 更简洁
+2. **性能优化**: 先测量再优化，当前已足够快无需过度工程
+3. **文档国际化**: 保持文件结构一致便于维护
+
+---
 
 ## B132 Week 8 任务池扫描报告
 

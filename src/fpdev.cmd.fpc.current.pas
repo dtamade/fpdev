@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpjson, fpdev.output.json;
+uses fpdev.cmd.utils, fpjson;
 
 function TFPCCurrentCommand.Name: string; begin Result := 'current'; end;
 

@@ -52,8 +52,6 @@ begin
     isUser: Result := 'user';
     isProject: Result := 'project';
     isSystem: Result := 'system';
-  else
-    Result := 'user';
   end;
 end;
 
@@ -73,8 +71,6 @@ begin
     smAuto: Result := 'auto';
     smBinary: Result := 'binary';
     smSource: Result := 'source';
-  else
-    Result := 'auto';
   end;
 end;
 
