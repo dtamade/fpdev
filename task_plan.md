@@ -151,10 +151,10 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B095 (next)
+B100 (next)
 
 ## Baseline (2026-02-09)
-- 测试状态: 120/120 通过 (100%)
+- 测试状态: 124/124 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
 
@@ -283,9 +283,9 @@ bash scripts/run_all_tests.sh
 
 | Batch | Scope | Done Criteria |
 |-------|-------|---------------|
-| B095 | fpc 命令组测试补充 | 覆盖 fpc 子命令注册 |
-| B096 | lazarus 命令组测试补充 | 覆盖 lazarus 子命令注册 |
-| B097 | package 命令组测试补充 | 覆盖 package 子命令注册 |
-| B098 | project 命令组测试补充 | 覆盖 project 子命令注册 |
-| B099 | repo 命令组测试补充 | 覆盖 repo 子命令注册 |
+| B095 | fpc 命令组测试补充 | ✓ 22 个测试覆盖 fpc 子命令注册 |
+| B096 | lazarus 命令组测试补充 | ✓ 15 个测试覆盖 lazarus 子命令注册 |
+| B097 | package 命令组测试补充 | ✓ 21 个测试覆盖 package 子命令注册 |
+| B098 | project 命令组测试补充 | ✓ 11 个测试覆盖 project 子命令注册 |
+| B099 | repo 命令组测试补充 | ✓ 11 个测试覆盖 repo 子命令注册 |
 | B100 | 周期复盘 | B095-B099 收口，基线更新 |
