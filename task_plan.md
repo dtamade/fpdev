@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B094 (next)
+B095 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 120/120 通过 (100%)
@@ -277,3 +277,15 @@ bash scripts/run_all_tests.sh
 | B091 | 子命令 help 退出码统一 | ✓ 所有 cmd --help/-h 返回 0 |
 | B092 | 未知命令错误提示审计 | ✓ 退出码语义正确，无需修改 |
 | B093 | 命令别名文档对齐审计 | ✓ 别名功能正常，文档已包含别名显示 |
+| B094 | 任务池扫描 | ✓ 编译干净，测试 120/120，规划下轮任务 |
+
+## Batch Queue (Week 3)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B095 | fpc 命令组测试补充 | 覆盖 fpc 子命令注册 |
+| B096 | lazarus 命令组测试补充 | 覆盖 lazarus 子命令注册 |
+| B097 | package 命令组测试补充 | 覆盖 package 子命令注册 |
+| B098 | project 命令组测试补充 | 覆盖 project 子命令注册 |
+| B099 | repo 命令组测试补充 | 覆盖 repo 子命令注册 |
+| B100 | 周期复盘 | B095-B099 收口，基线更新 |
