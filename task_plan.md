@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B147 (done)
+B148 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -666,7 +666,7 @@ bash scripts/run_all_tests.sh
 #### M12a: 剩余 JSON 支持 (B146-B148)
 - [x] B146 project list --json
 - [x] B147 repo versions --json
-- [ ] B148 doctor/config --json
+- [x] B148 doctor --json
 
 #### M12b: 性能优化 (B149-B151)
 - [ ] B149 性能基准测试

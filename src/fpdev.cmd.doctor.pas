@@ -28,11 +28,14 @@ type
     FErrorCount: Integer;
     FWarningCount: Integer;
     FPassCount: Integer;
+    FJsonMode: Boolean;
+    FChecks: TStringList;  // JSON check results
 
     procedure CheckPass(const AMessage: string);
     procedure CheckWarn(const AMessage: string; const AHint: string = '');
     procedure CheckFail(const AMessage: string; const AHint: string = '');
     procedure CheckInfo(const AMessage: string);
+    procedure AddCheckResult(const AStatus, AMessage, AHint: string);
 
     // Individual checks
     function CheckFPCInstallation: Boolean;
@@ -55,7 +58,7 @@ function DoctorCommandFactory: ICommand;
 implementation
 
 uses
-  Process,
+  Process, StrUtils,
   fpdev.config.interfaces,
   fpdev.config.project,
   fpdev.output.intf;
@@ -67,6 +70,7 @@ const
                 '' + LineEnding +
                 'Options:' + LineEnding +
                 '  --quick       Run quick checks only (skip slow operations)' + LineEnding +
+                '  --json        Output results in JSON format' + LineEnding +
                 '  -h, --help    Show this help message' + LineEnding +
                 '' + LineEnding +
                 'Checks performed:' + LineEnding +
@@ -101,31 +105,55 @@ begin
   if AName <> '' then;  // Unused parameter
 end;
 
+procedure TDoctorCommand.AddCheckResult(const AStatus, AMessage, AHint: string);
+begin
+  if FJsonMode then
+  begin
+    if FChecks.Count > 0 then
+      FChecks.Add(',');
+    FChecks.Add('{"status":"' + AStatus + '","message":"' +
+      StringReplace(AMessage, '"', '\"', [rfReplaceAll]) + '"' +
+      IfThen(AHint <> '', ',"hint":"' + StringReplace(AHint, '"', '\"', [rfReplaceAll]) + '"', '') + '}');
+  end;
+end;
+
 procedure TDoctorCommand.CheckPass(const AMessage: string);
 begin
   Inc(FPassCount);
-  FCtx.Out.WriteSuccess(AMessage);
+  AddCheckResult('pass', AMessage, '');
+  if not FJsonMode then
+    FCtx.Out.WriteSuccess(AMessage);
 end;
 
 procedure TDoctorCommand.CheckWarn(const AMessage: string; const AHint: string);
 begin
   Inc(FWarningCount);
-  FCtx.Out.WriteWarning(AMessage);
-  if AHint <> '' then
-    FCtx.Out.WriteLn('    Hint: ' + AHint);
+  AddCheckResult('warning', AMessage, AHint);
+  if not FJsonMode then
+  begin
+    FCtx.Out.WriteWarning(AMessage);
+    if AHint <> '' then
+      FCtx.Out.WriteLn('    Hint: ' + AHint);
+  end;
 end;
 
 procedure TDoctorCommand.CheckFail(const AMessage: string; const AHint: string);
 begin
   Inc(FErrorCount);
-  FCtx.Out.WriteError(AMessage);
-  if AHint <> '' then
-    FCtx.Out.WriteLn('    Fix: ' + AHint);
+  AddCheckResult('error', AMessage, AHint);
+  if not FJsonMode then
+  begin
+    FCtx.Out.WriteError(AMessage);
+    if AHint <> '' then
+      FCtx.Out.WriteLn('    Fix: ' + AHint);
+  end;
 end;
 
 procedure TDoctorCommand.CheckInfo(const AMessage: string);
 begin
-  FCtx.Out.WriteInfo(AMessage);
+  AddCheckResult('info', AMessage, '');
+  if not FJsonMode then
+    FCtx.Out.WriteInfo(AMessage);
 end;
 
 function ExecuteCommand(const ACmd: string; out AOutput: string): Integer;
@@ -169,9 +197,12 @@ var
   I: Integer;
 begin
   Result := True;
-  FCtx.Out.WriteLn('');
-  FCtx.Out.WriteLn('FPC Installation');
-  FCtx.Out.WriteLn('----------------');
+  if not FJsonMode then
+  begin
+    FCtx.Out.WriteLn('');
+    FCtx.Out.WriteLn('FPC Installation');
+    FCtx.Out.WriteLn('----------------');
+  end;
 
   // Check installed toolchains
   LToolchains := FCtx.Config.GetToolchainManager.ListToolchains;
@@ -213,7 +244,7 @@ var
 begin
   Result := True;
   FCtx.Out.WriteLn('');
-  FCtx.Out.WriteLn('Lazarus Installation');
+  if not FJsonMode then FCtx.Out.WriteLn('Lazarus Installation');
   FCtx.Out.WriteLn('--------------------');
 
   // Check installed Lazarus versions
@@ -416,71 +447,92 @@ begin
   FErrorCount := 0;
   FWarningCount := 0;
   FPassCount := 0;
+  FJsonMode := False;
+  FChecks := TStringList.Create;
 
-  // Check help flag
-  for I := 0 to High(AParams) do
-  begin
-    if (AParams[I] = '-h') or (AParams[I] = '--help') then
+  try
+    // Check help flag
+    for I := 0 to High(AParams) do
     begin
-      Ctx.Out.WriteLn(HELP_DOCTOR);
-      Exit(EXIT_OK);
+      if (AParams[I] = '-h') or (AParams[I] = '--help') then
+      begin
+        Ctx.Out.WriteLn(HELP_DOCTOR);
+        Exit(EXIT_OK);
+      end;
     end;
-  end;
 
-  // Check quick flag
-  LQuick := False;
-  for I := 0 to High(AParams) do
-  begin
-    if AParams[I] = '--quick' then
+    // Check flags
+    LQuick := False;
+    for I := 0 to High(AParams) do
     begin
-      LQuick := True;
-      Break;
+      if AParams[I] = '--quick' then
+        LQuick := True
+      else if AParams[I] = '--json' then
+        FJsonMode := True;
     end;
+
+    if not FJsonMode then
+    begin
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn('fpdev doctor - Diagnosing your toolchain environment...');
+    end;
+
+    // Run checks
+    CheckFPCInstallation;
+    CheckLazarusInstallation;
+    CheckConfigFile;
+    CheckEnvironmentVariables;
+    CheckMakeAvailable;
+    CheckGitAvailable;
+
+    if not LQuick then
+    begin
+      CheckDebuggerAvailable;
+      CheckDiskSpace;
+    end;
+
+    // Output results
+    if FJsonMode then
+    begin
+      Ctx.Out.WriteLn('{"checks":[' + FChecks.Text + '],"summary":{"passed":' +
+        IntToStr(FPassCount) + ',"warnings":' + IntToStr(FWarningCount) +
+        ',"errors":' + IntToStr(FErrorCount) + '}}');
+    end
+    else
+    begin
+      // Summary
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn('Summary');
+      Ctx.Out.WriteLn('-------');
+      Ctx.Out.WriteLn('  Passed:   ' + IntToStr(FPassCount));
+      Ctx.Out.WriteLn('  Warnings: ' + IntToStr(FWarningCount));
+      Ctx.Out.WriteLn('  Errors:   ' + IntToStr(FErrorCount));
+      Ctx.Out.WriteLn('');
+
+      if FErrorCount > 0 then
+      begin
+        Ctx.Out.WriteError('Some checks failed. Please fix the issues above.');
+        Result := EXIT_ERROR;
+      end
+      else if FWarningCount > 0 then
+      begin
+        Ctx.Out.WriteWarning('Some warnings found. Consider addressing them.');
+        Result := 0;
+      end
+      else
+      begin
+        Ctx.Out.WriteSuccess('All checks passed! Your environment is ready.');
+        Result := 0;
+      end;
+
+      Ctx.Out.WriteLn('');
+    end;
+
+    if FErrorCount > 0 then
+      Result := EXIT_ERROR;
+  finally
+    FChecks.Free;
   end;
-
-  Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('fpdev doctor - Diagnosing your toolchain environment...');
-
-  // Run checks
-  CheckFPCInstallation;
-  CheckLazarusInstallation;
-  CheckConfigFile;
-  CheckEnvironmentVariables;
-  CheckMakeAvailable;
-  CheckGitAvailable;
-
-  if not LQuick then
-  begin
-    CheckDebuggerAvailable;
-    CheckDiskSpace;
-  end;
-
-  // Summary
-  Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('Summary');
-  Ctx.Out.WriteLn('-------');
-  Ctx.Out.WriteLn('  Passed:   ' + IntToStr(FPassCount));
-  Ctx.Out.WriteLn('  Warnings: ' + IntToStr(FWarningCount));
-  Ctx.Out.WriteLn('  Errors:   ' + IntToStr(FErrorCount));
-  Ctx.Out.WriteLn('');
-
-  if FErrorCount > 0 then
-  begin
-    Ctx.Out.WriteError('Some checks failed. Please fix the issues above.');
-    Result := EXIT_ERROR;
-  end
-  else if FWarningCount > 0 then
-  begin
-    Ctx.Out.WriteWarning('Some warnings found. Consider addressing them.');
-    Result := 0;
-  end
-  else
-  begin
-    Ctx.Out.WriteSuccess('All checks passed! Your environment is ready.');
-    Result := 0;
-  end;
-
-  Ctx.Out.WriteLn('');
 end;
 
 initialization
