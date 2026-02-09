@@ -151,20 +151,21 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B162-B167 (文档国际化 + 技术债务清理) ✅ 完成
+B168-B172 (测试补充 + 文档整理)
 
-## Batch Queue (Week 11 - Documentation & Cleanup)
+## Batch Queue (Week 11 - Phase 2)
 
-| Batch | Scope | Done Criteria | Status |
-|-------|-------|---------------|--------|
-| B162 | API.en.md | 英文 API 文档 | ✅ 完成 |
-| B163 | FAQ.en.md | 英文 FAQ 文档 | ✅ 完成 |
-| B164 | ARCHITECTURE.en.md | 英文架构文档 | ✅ 完成 |
-| B165 | 文档国际化周期复盘 | 汇总 B162-B164 | ✅ 完成 |
-| B166 | @deprecated 清理准备 | 标记迁移计划 | ✅ 完成 |
-| B167 | cmd.cross.pas 拆分预研 | 拆分方案设计 | ✅ 完成 |
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B168 | fpdev.cross.platform 测试 | 新单元专项测试 |
+| B169 | 文档整理 - 归档历史周报 | WEEK*.md 归档到 docs/archive/ |
+| B170 | 文档整理 - 清理重复文档 | 合并/删除冗余文档 |
+| B171 | 大文件监控报告 | 更新大文件拆分状态 |
+| B172 | Week 11 周期复盘 | 汇总 B162-B171 |
 
-### B162-B167 完成报告
+---
+
+## B162-B167 完成报告 (已归档)
 
 **完成日期**: 2026-02-10
 
