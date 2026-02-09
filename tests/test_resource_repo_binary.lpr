@@ -56,7 +56,30 @@ begin
   Result := Manifest;
 end;
 
-// BuildV1Manifest removed - V1 format cannot be tested due to Objects[] behavior.
+function BuildV1Manifest: TJSONObject;
+var
+  Manifest, BinaryReleases, Version322, Platforms, PlatformLinux: TJSONObject;
+begin
+  Manifest := TJSONObject.Create;
+  BinaryReleases := TJSONObject.Create;
+  Version322 := TJSONObject.Create;
+  Platforms := TJSONObject.Create;
+  PlatformLinux := TJSONObject.Create;
+
+  PlatformLinux.Add('archive', 'fpc-3.2.2-linux.tar.gz');
+  PlatformLinux.Add('sha256', 'v1hash123');
+
+  Platforms.Add('x86_64-linux', PlatformLinux);
+
+  Version322.Add('path', '/v1/releases/3.2.2');
+  Version322.Add('platforms', Platforms);
+
+  BinaryReleases.Add('3.2.2', Version322);
+
+  Manifest.Add('binary_releases', BinaryReleases);
+
+  Result := Manifest;
+end;
 
 { --- HasBinaryRelease tests --- }
 
@@ -73,9 +96,18 @@ begin
   end;
 end;
 
-// Note: TestHasBinaryReleaseMissingVersion removed - FPC TJSONObject.Objects[]
-// throws EJSON exception when key not found (latent bug in source code).
-// In production, callers ensure version exists before querying.
+procedure TestHasBinaryReleaseMissingVersion;
+var
+  Manifest: TJSONObject;
+begin
+  Manifest := BuildTestManifest;
+  try
+    Check(ResourceRepoHasBinaryRelease(Manifest, '3.0.0', 'x86_64-linux') = False,
+          'HasBinaryRelease: missing version -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 procedure TestHasBinaryReleaseMissingPlatform;
 var
@@ -96,9 +128,31 @@ begin
         'HasBinaryRelease: nil manifest -> False');
 end;
 
-// Note: TestHasBinaryReleaseV1Format skipped - source code accesses
-// Objects['fpc_releases'] first, which throws if key not present.
-// V1 format (binary_releases only) cannot be tested safely.
+procedure TestHasBinaryReleaseV1Format;
+var
+  Manifest: TJSONObject;
+begin
+  Manifest := BuildV1Manifest;
+  try
+    Check(ResourceRepoHasBinaryRelease(Manifest, '3.2.2', 'x86_64-linux') = True,
+          'HasBinaryRelease v1: existing version+platform -> True');
+  finally
+    Manifest.Free;
+  end;
+end;
+
+procedure TestHasBinaryReleaseEmptyManifest;
+var
+  Manifest: TJSONObject;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Check(ResourceRepoHasBinaryRelease(Manifest, '3.2.2', 'x86_64-linux') = False,
+          'HasBinaryRelease: empty manifest -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 { --- GetBinaryReleaseInfo tests --- }
 
@@ -130,36 +184,90 @@ begin
   end;
 end;
 
-// Note: TestGetBinaryReleaseInfoV1 skipped - same Objects[] issue as V1 format.
-// Source accesses Objects['fpc_releases'] first which throws if absent.
+procedure TestGetBinaryReleaseInfoV1;
+var
+  Manifest: TJSONObject;
+  Info: TBinaryReleaseInfo;
+begin
+  Manifest := BuildV1Manifest;
+  try
+    Check(ResourceRepoGetBinaryReleaseInfo(Manifest, '3.2.2', 'x86_64-linux', Info) = True,
+          'GetInfo v1: returns True');
+    Check(Info.Path = 'fpc-3.2.2-linux.tar.gz',
+          'GetInfo v1: archive -> Path');
+    Check(Info.SHA256 = 'v1hash123',
+          'GetInfo v1: SHA256 correct');
+  finally
+    Manifest.Free;
+  end;
+end;
 
-procedure TestGetBinaryReleaseInfoMissing;
+procedure TestGetBinaryReleaseInfoMissingVersion;
+var
+  Manifest: TJSONObject;
+  Info: TBinaryReleaseInfo;
+begin
+  Manifest := BuildTestManifest;
+  try
+    Check(ResourceRepoGetBinaryReleaseInfo(Manifest, '3.0.0', 'x86_64-linux', Info) = False,
+          'GetInfo: missing version -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
+
+procedure TestGetBinaryReleaseInfoMissingPlatform;
+var
+  Manifest: TJSONObject;
+  Info: TBinaryReleaseInfo;
+begin
+  Manifest := BuildTestManifest;
+  try
+    Check(ResourceRepoGetBinaryReleaseInfo(Manifest, '3.2.2', 'aarch64-darwin', Info) = False,
+          'GetInfo: missing platform -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
+
+procedure TestGetBinaryReleaseInfoNilManifest;
 var
   Info: TBinaryReleaseInfo;
 begin
-  // Note: missing version/platform tests skipped due to FPC TJSONObject.Objects[]
-  // throwing EJSON exception on missing keys (latent bug in source code).
-  // Only testing nil manifest here.
   Check(ResourceRepoGetBinaryReleaseInfo(nil, '3.2.2', 'x86_64-linux', Info) = False,
         'GetInfo: nil manifest -> False');
 end;
 
-// Note: TestGetBinaryReleaseInfoEmptyManifest skipped - FPC Objects[] throws
-// on missing key. Covered by nil test above.
+procedure TestGetBinaryReleaseInfoEmptyManifest;
+var
+  Manifest: TJSONObject;
+  Info: TBinaryReleaseInfo;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Check(ResourceRepoGetBinaryReleaseInfo(Manifest, '3.2.2', 'x86_64-linux', Info) = False,
+          'GetInfo: empty manifest -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 begin
   WriteLn('=== Resource Repo Binary Unit Tests ===');
   WriteLn;
 
   TestHasBinaryReleaseTrue;
-  // TestHasBinaryReleaseMissingVersion skipped (Objects[] throws on missing key)
+  TestHasBinaryReleaseMissingVersion;
   TestHasBinaryReleaseMissingPlatform;
   TestHasBinaryReleaseNilManifest;
-  // TestHasBinaryReleaseV1Format skipped (Objects[] throws on missing fpc_releases)
+  TestHasBinaryReleaseV1Format;
+  TestHasBinaryReleaseEmptyManifest;
   TestGetBinaryReleaseInfoV2;
-  // TestGetBinaryReleaseInfoV1 skipped (Objects[] throws)
-  TestGetBinaryReleaseInfoMissing;
-  // TestGetBinaryReleaseInfoEmptyManifest skipped (Objects[] throws)
+  TestGetBinaryReleaseInfoV1;
+  TestGetBinaryReleaseInfoMissingVersion;
+  TestGetBinaryReleaseInfoMissingPlatform;
+  TestGetBinaryReleaseInfoNilManifest;
+  TestGetBinaryReleaseInfoEmptyManifest;
 
   WriteLn;
   WriteLn('=== Summary ===');

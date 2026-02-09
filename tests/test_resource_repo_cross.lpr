@@ -87,8 +87,18 @@ begin
   end;
 end;
 
-// Note: TestHasCrossToolchainMissingTarget skipped - FPC TJSONObject.Objects[]
-// throws EJSON exception when key not found (latent bug in source code).
+procedure TestHasCrossToolchainMissingTarget;
+var
+  Manifest: TJSONObject;
+begin
+  Manifest := BuildCrossManifest;
+  try
+    Check(ResourceRepoHasCrossToolchain(Manifest, 'mips-linux', 'x86_64-linux') = False,
+          'HasCross: missing target -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 procedure TestHasCrossToolchainMissingHost;
 var
@@ -109,8 +119,18 @@ begin
         'HasCross: nil manifest -> False');
 end;
 
-// Note: TestHasCrossToolchainNoKey skipped - FPC TJSONObject.Objects[]
-// throws EJSON exception on empty manifest without cross_toolchains key.
+procedure TestHasCrossToolchainEmptyManifest;
+var
+  Manifest: TJSONObject;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Check(ResourceRepoHasCrossToolchain(Manifest, 'arm-linux', 'x86_64-linux') = False,
+          'HasCross: empty manifest -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 { --- GetCrossToolchainInfo tests --- }
 
@@ -154,8 +174,33 @@ begin
   end;
 end;
 
-// Note: TestGetCrossInfoMissing skipped - FPC TJSONObject.Objects[] throws
-// on missing keys. Only testing nil manifest.
+procedure TestGetCrossInfoMissingTarget;
+var
+  Manifest: TJSONObject;
+  Info: TResourceRepoCrossInfo;
+begin
+  Manifest := BuildCrossManifest;
+  try
+    Check(ResourceRepoGetCrossToolchainInfo(Manifest, 'mips-linux', 'x86_64-linux', Info) = False,
+          'GetCrossInfo: missing target -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
+
+procedure TestGetCrossInfoMissingHost;
+var
+  Manifest: TJSONObject;
+  Info: TResourceRepoCrossInfo;
+begin
+  Manifest := BuildCrossManifest;
+  try
+    Check(ResourceRepoGetCrossToolchainInfo(Manifest, 'arm-linux', 'aarch64-darwin', Info) = False,
+          'GetCrossInfo: missing host -> False');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 procedure TestGetCrossInfoNil;
 var
@@ -163,6 +208,20 @@ var
 begin
   Check(ResourceRepoGetCrossToolchainInfo(nil, 'arm-linux', 'x86_64-linux', Info) = False,
         'GetCrossInfo: nil manifest -> False');
+end;
+
+procedure TestGetCrossInfoEmptyManifest;
+var
+  Manifest: TJSONObject;
+  Info: TResourceRepoCrossInfo;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Check(ResourceRepoGetCrossToolchainInfo(Manifest, 'arm-linux', 'x86_64-linux', Info) = False,
+          'GetCrossInfo: empty manifest -> False');
+  finally
+    Manifest.Free;
+  end;
 end;
 
 { --- ListCrossTargets tests --- }
@@ -195,24 +254,38 @@ begin
   Check(Length(Targets) = 0, 'ListTargets: nil manifest -> empty');
 end;
 
-// Note: TestListCrossTargetsEmpty skipped - FPC Objects[] throws on missing key.
+procedure TestListCrossTargetsEmpty;
+var
+  Manifest: TJSONObject;
+  Targets: TStringArray;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Targets := ResourceRepoListCrossTargets(Manifest);
+    Check(Length(Targets) = 0, 'ListTargets: empty manifest -> empty');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 begin
   WriteLn('=== Resource Repo Cross Unit Tests ===');
   WriteLn;
 
   TestHasCrossToolchainTrue;
-  // TestHasCrossToolchainMissingTarget skipped (Objects[] throws)
+  TestHasCrossToolchainMissingTarget;
   TestHasCrossToolchainMissingHost;
   TestHasCrossToolchainNilManifest;
-  // TestHasCrossToolchainNoKey skipped (Objects[] throws)
+  TestHasCrossToolchainEmptyManifest;
   TestGetCrossInfoComplete;
   TestGetCrossInfoWin64;
-  // TestGetCrossInfoMissing skipped (Objects[] throws)
+  TestGetCrossInfoMissingTarget;
+  TestGetCrossInfoMissingHost;
   TestGetCrossInfoNil;
+  TestGetCrossInfoEmptyManifest;
   TestListCrossTargets;
   TestListCrossTargetsNil;
-  // TestListCrossTargetsEmpty skipped (Objects[] throws)
+  TestListCrossTargetsEmpty;
 
   WriteLn;
   WriteLn('=== Summary ===');

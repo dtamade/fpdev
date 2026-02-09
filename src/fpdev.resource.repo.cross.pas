@@ -47,23 +47,28 @@ var
   CrossToolchains: TJSONObject;
   TargetData: TJSONObject;
   HostPlatforms: TJSONObject;
+  Obj: TJSONData;
 begin
   Result := False;
 
   if not Assigned(AManifest) then
     Exit;
 
-  CrossToolchains := AManifest.Objects['cross_toolchains'];
-  if not Assigned(CrossToolchains) then
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifest.Find('cross_toolchains', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  CrossToolchains := TJSONObject(Obj);
 
-  TargetData := CrossToolchains.Objects[ATarget];
-  if not Assigned(TargetData) then
+  Obj := CrossToolchains.Find(ATarget, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  TargetData := TJSONObject(Obj);
 
-  HostPlatforms := TargetData.Objects['host_platforms'];
-  if not Assigned(HostPlatforms) then
+  Obj := TargetData.Find('host_platforms', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  HostPlatforms := TJSONObject(Obj);
 
   Result := HostPlatforms.IndexOfName(AHostPlatform) >= 0;
 end;
@@ -75,6 +80,7 @@ var
   TargetData: TJSONObject;
   HostPlatforms: TJSONObject;
   PlatformData: TJSONObject;
+  Obj: TJSONData;
 begin
   Result := False;
   Initialize(AInfo);
@@ -82,13 +88,16 @@ begin
   if not Assigned(AManifest) then
     Exit;
 
-  CrossToolchains := AManifest.Objects['cross_toolchains'];
-  if not Assigned(CrossToolchains) then
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifest.Find('cross_toolchains', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  CrossToolchains := TJSONObject(Obj);
 
-  TargetData := CrossToolchains.Objects[ATarget];
-  if not Assigned(TargetData) then
+  Obj := CrossToolchains.Find(ATarget, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  TargetData := TJSONObject(Obj);
 
   // Get target-level info
   AInfo.TargetName := ATarget;
@@ -97,13 +106,15 @@ begin
   AInfo.OS := TargetData.Get('os', '');
   AInfo.BinutilsPrefix := TargetData.Get('binutils_prefix', '');
 
-  HostPlatforms := TargetData.Objects['host_platforms'];
-  if not Assigned(HostPlatforms) then
+  Obj := TargetData.Find('host_platforms', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  HostPlatforms := TJSONObject(Obj);
 
-  PlatformData := HostPlatforms.Objects[AHostPlatform];
-  if not Assigned(PlatformData) then
+  Obj := HostPlatforms.Find(AHostPlatform, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  PlatformData := TJSONObject(Obj);
 
   // Get host-platform specific info
   AInfo.BinutilsArchive := PlatformData.Get('binutils', '');
@@ -117,6 +128,7 @@ end;
 function ResourceRepoListCrossTargets(const AManifest: TJSONObject): TStringArray;
 var
   CrossToolchains: TJSONObject;
+  Obj: TJSONData;
   i: Integer;
 begin
   Result := nil;
@@ -124,9 +136,11 @@ begin
   if not Assigned(AManifest) then
     Exit;
 
-  CrossToolchains := AManifest.Objects['cross_toolchains'];
-  if not Assigned(CrossToolchains) then
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifest.Find('cross_toolchains', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  CrossToolchains := TJSONObject(Obj);
 
   SetLength(Result, CrossToolchains.Count);
   for i := 0 to CrossToolchains.Count - 1 do

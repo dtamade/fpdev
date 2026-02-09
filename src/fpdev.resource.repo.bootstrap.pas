@@ -46,6 +46,7 @@ function ResourceRepoGetRequiredBootstrapVersion(const AManifestData: TJSONObjec
 var
   VersionMap: TJSONObject;
   NormalizedVersion: string;
+  Obj: TJSONData;
 begin
   Result := '';
 
@@ -55,12 +56,14 @@ begin
     Exit;
   end;
 
-  VersionMap := AManifestData.Objects['bootstrap_version_map'];
-  if not Assigned(VersionMap) then
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifestData.Find('bootstrap_version_map', jtObject);
+  if not Assigned(Obj) then
   begin
     Result := GetHardcodedBootstrapMapping(AFPCVersion);
     Exit;
   end;
+  VersionMap := TJSONObject(Obj);
 
   Result := VersionMap.Get(AFPCVersion, '');
   if Result = '' then
@@ -147,6 +150,7 @@ end;
 function ResourceRepoListBootstrapVersions(const AManifestData: TJSONObject): SysUtils.TStringArray;
 var
   BootstrapCompilers: TJSONObject;
+  Obj: TJSONData;
   i: Integer;
 begin
   Result := nil;
@@ -154,9 +158,11 @@ begin
   if not Assigned(AManifestData) then
     Exit;
 
-  BootstrapCompilers := AManifestData.Objects['bootstrap_compilers'];
-  if not Assigned(BootstrapCompilers) then
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifestData.Find('bootstrap_compilers', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  BootstrapCompilers := TJSONObject(Obj);
 
   SetLength(Result, BootstrapCompilers.Count);
   for i := 0 to BootstrapCompilers.Count - 1 do

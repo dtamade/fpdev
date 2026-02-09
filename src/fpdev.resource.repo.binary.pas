@@ -41,6 +41,7 @@ var
   BinaryReleases: TJSONObject;
   VersionData: TJSONObject;
   Platforms: TJSONObject;
+  Obj: TJSONData;
 begin
   Result := False;
 
@@ -48,19 +49,28 @@ begin
     Exit;
 
   // Try fpc_releases first (v2.0), then binary_releases (v1.0)
-  BinaryReleases := AManifest.Objects['fpc_releases'];
-  if not Assigned(BinaryReleases) then
-    BinaryReleases := AManifest.Objects['binary_releases'];
-  if not Assigned(BinaryReleases) then
-    Exit;
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifest.Find('fpc_releases', jtObject);
+  if Assigned(Obj) then
+    BinaryReleases := TJSONObject(Obj)
+  else
+  begin
+    Obj := AManifest.Find('binary_releases', jtObject);
+    if Assigned(Obj) then
+      BinaryReleases := TJSONObject(Obj)
+    else
+      Exit;
+  end;
 
-  VersionData := BinaryReleases.Objects[AVersion];
-  if not Assigned(VersionData) then
+  Obj := BinaryReleases.Find(AVersion, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  VersionData := TJSONObject(Obj);
 
-  Platforms := VersionData.Objects['platforms'];
-  if not Assigned(Platforms) then
+  Obj := VersionData.Find('platforms', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  Platforms := TJSONObject(Obj);
 
   Result := Platforms.IndexOfName(APlatform) >= 0;
 end;
@@ -73,6 +83,7 @@ var
   Platforms: TJSONObject;
   PlatformData: TJSONObject;
   MirrorsArray: TJSONArray;
+  Obj: TJSONData;
   i: Integer;
 begin
   Result := False;
@@ -82,31 +93,42 @@ begin
     Exit;
 
   // Try fpc_releases first (v2.0 format), then binary_releases (v1.0 format)
-  BinaryReleases := AManifest.Objects['fpc_releases'];
-  if not Assigned(BinaryReleases) then
-    BinaryReleases := AManifest.Objects['binary_releases'];
-  if not Assigned(BinaryReleases) then
-    Exit;
+  // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+  Obj := AManifest.Find('fpc_releases', jtObject);
+  if Assigned(Obj) then
+    BinaryReleases := TJSONObject(Obj)
+  else
+  begin
+    Obj := AManifest.Find('binary_releases', jtObject);
+    if Assigned(Obj) then
+      BinaryReleases := TJSONObject(Obj)
+    else
+      Exit;
+  end;
 
-  VersionData := BinaryReleases.Objects[AVersion];
-  if not Assigned(VersionData) then
+  Obj := BinaryReleases.Find(AVersion, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  VersionData := TJSONObject(Obj);
 
   AInfo.Path := VersionData.Get('path', '');
 
-  Platforms := VersionData.Objects['platforms'];
-  if not Assigned(Platforms) then
+  Obj := VersionData.Find('platforms', jtObject);
+  if not Assigned(Obj) then
     Exit;
+  Platforms := TJSONObject(Obj);
 
-  PlatformData := Platforms.Objects[APlatform];
-  if not Assigned(PlatformData) then
+  Obj := Platforms.Find(APlatform, jtObject);
+  if not Assigned(Obj) then
     Exit;
+  PlatformData := TJSONObject(Obj);
 
   // v2.0 fields: url and mirrors
   AInfo.URL := PlatformData.Get('url', '');
-  MirrorsArray := PlatformData.Arrays['mirrors'];
-  if Assigned(MirrorsArray) then
+  Obj := PlatformData.Find('mirrors', jtArray);
+  if Assigned(Obj) then
   begin
+    MirrorsArray := TJSONArray(Obj);
     SetLength(AInfo.Mirrors, MirrorsArray.Count);
     for i := 0 to MirrorsArray.Count - 1 do
       AInfo.Mirrors[i] := MirrorsArray.Strings[i];

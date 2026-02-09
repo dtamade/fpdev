@@ -161,7 +161,19 @@ begin
   Check(Length(Versions) = 0, 'ListBootstrapVersions: nil -> empty');
 end;
 
-// Note: TestListBootstrapVersionsNoKey skipped - FPC Objects[] throws on missing key.
+procedure TestListBootstrapVersionsNoKey;
+var
+  Manifest: TJSONObject;
+  Versions: TStringArray;
+begin
+  Manifest := TJSONObject.Create;
+  try
+    Versions := ResourceRepoListBootstrapVersions(Manifest);
+    Check(Length(Versions) = 0, 'ListBootstrapVersions: no key -> empty');
+  finally
+    Manifest.Free;
+  end;
+end;
 
 procedure TestListBootstrapVersionsWithData;
 var
@@ -283,7 +295,7 @@ begin
   TestManifestTrunkAlias;
   TestManifestEmptyVersionMap;
   TestListBootstrapVersionsNil;
-  // TestListBootstrapVersionsNoKey skipped (Objects[] throws)
+  TestListBootstrapVersionsNoKey;
   TestListBootstrapVersionsWithData;
   TestGetBootstrapVersionFromMakefile;
   TestGetBootstrapVersionFromMakefileNoVersion2;

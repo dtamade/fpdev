@@ -586,6 +586,7 @@ var
   BootstrapCompilers: TJSONObject;
   VersionData: TJSONObject;
   Platforms: TJSONObject;
+  Obj: TJSONData;
 begin
   Result := False;
 
@@ -593,17 +594,21 @@ begin
     Exit;
 
   try
-    BootstrapCompilers := FManifestData.Objects['bootstrap_compilers'];
-    if not Assigned(BootstrapCompilers) then
+    // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+    Obj := FManifestData.Find('bootstrap_compilers', jtObject);
+    if not Assigned(Obj) then
       Exit;
+    BootstrapCompilers := TJSONObject(Obj);
 
-    VersionData := BootstrapCompilers.Objects[AVersion];
-    if not Assigned(VersionData) then
+    Obj := BootstrapCompilers.Find(AVersion, jtObject);
+    if not Assigned(Obj) then
       Exit;
+    VersionData := TJSONObject(Obj);
 
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
+    Obj := VersionData.Find('platforms', jtObject);
+    if not Assigned(Obj) then
       Exit;
+    Platforms := TJSONObject(Obj);
 
     Result := Platforms.IndexOfName(APlatform) >= 0;
   except
@@ -622,6 +627,7 @@ var
   Platforms: TJSONObject;
   PlatformData: TJSONObject;
   MirrorsArray: TJSONArray;
+  Obj: TJSONData;
   i: Integer;
 begin
   Result := False;
@@ -631,29 +637,35 @@ begin
     Exit;
 
   try
-    BootstrapCompilers := FManifestData.Objects['bootstrap_compilers'];
-    if not Assigned(BootstrapCompilers) then
+    // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+    Obj := FManifestData.Find('bootstrap_compilers', jtObject);
+    if not Assigned(Obj) then
       Exit;
+    BootstrapCompilers := TJSONObject(Obj);
 
-    VersionData := BootstrapCompilers.Objects[AVersion];
-    if not Assigned(VersionData) then
+    Obj := BootstrapCompilers.Find(AVersion, jtObject);
+    if not Assigned(Obj) then
       Exit;
+    VersionData := TJSONObject(Obj);
 
     AInfo.Path := VersionData.Get('path', '');
 
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
+    Obj := VersionData.Find('platforms', jtObject);
+    if not Assigned(Obj) then
       Exit;
+    Platforms := TJSONObject(Obj);
 
-    PlatformData := Platforms.Objects[APlatform];
-    if not Assigned(PlatformData) then
+    Obj := Platforms.Find(APlatform, jtObject);
+    if not Assigned(Obj) then
       Exit;
+    PlatformData := TJSONObject(Obj);
 
     // v2.0 fields: url and mirrors
     AInfo.URL := PlatformData.Get('url', '');
-    MirrorsArray := PlatformData.Arrays['mirrors'];
-    if Assigned(MirrorsArray) then
+    Obj := PlatformData.Find('mirrors', jtArray);
+    if Assigned(Obj) then
     begin
+      MirrorsArray := TJSONArray(Obj);
       SetLength(AInfo.Mirrors, MirrorsArray.Count);
       for i := 0 to MirrorsArray.Count - 1 do
         AInfo.Mirrors[i] := MirrorsArray.Strings[i];
@@ -1397,6 +1409,7 @@ function TResourceRepository.HasPackage(const AName, AVersion: string): Boolean;
 var
   Packages: TJSONObject;
   Categories: TJSONArray;
+  Obj: TJSONData;
   i: Integer;
 begin
   Result := False;
@@ -1408,14 +1421,17 @@ begin
 
   try
     // Check packages section
-    Packages := FManifestData.Objects['packages'];
-    if not Assigned(Packages) then
+    // Use Find() instead of Objects[] to avoid EJSON exception on missing key
+    Obj := FManifestData.Find('packages', jtObject);
+    if not Assigned(Obj) then
       Exit;
+    Packages := TJSONObject(Obj);
 
     // Iterate through categories to find the package
-    Categories := Packages.Arrays['categories'];
-    if Assigned(Categories) then
+    Obj := Packages.Find('categories', jtArray);
+    if Assigned(Obj) then
     begin
+      Categories := TJSONArray(Obj);
       for i := 0 to Categories.Count - 1 do
       begin
         // Each category could have packages - simplified check via package index
@@ -1441,6 +1457,7 @@ var
   Parser: TJSONParser;
   PackageJSON: TJSONObject;
   DepsArray: TJSONArray;
+  Obj: TJSONData;
   i: Integer;
   F: TextFile;
   Line: string;
@@ -1483,9 +1500,11 @@ begin
         AInfo.FPCMinVersion := PackageJSON.Get('fpc_min', '');
 
         // Parse dependencies array
-        if PackageJSON.Find('dependencies') <> nil then
+        // Use Find() with type check instead of Arrays[] to avoid potential exceptions
+        Obj := PackageJSON.Find('dependencies', jtArray);
+        if Assigned(Obj) then
         begin
-          DepsArray := PackageJSON.Arrays['dependencies'];
+          DepsArray := TJSONArray(Obj);
           SetLength(AInfo.Dependencies, DepsArray.Count);
           for i := 0 to DepsArray.Count - 1 do
             AInfo.Dependencies[i] := DepsArray.Strings[i];
