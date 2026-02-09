@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B091 (next)
+B092 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 120/120 通过 (100%)
@@ -274,3 +274,4 @@ bash scripts/run_all_tests.sh
 | B088 | config 命令测试 | ✓ 4 个测试覆盖 config 命令 |
 | B089 | @deprecated 代码清理 | ✓ 审计完成，保留兼容层 |
 | B090 | 错误语义统一 (B056) | ✓ --help/-h 返回退出码 0 |
+| B091 | 子命令 help 退出码统一 | ✓ 所有 cmd --help/-h 返回 0 |
