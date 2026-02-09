@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B149 (done)
+B153
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -691,7 +691,7 @@ bash scripts/run_all_tests.sh
 - 如需优化，重点关注网络操作（repo 命令）而非本地命令
 
 #### M12c: 文档国际化 (B152-B154)
-- [ ] B152 README 英文版
+- [x] B152 README 英文版
 - [ ] B153 QUICKSTART 英文版
 - [ ] B154 Week 10 周期复盘
 
