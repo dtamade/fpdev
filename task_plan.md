@@ -151,7 +151,32 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B161
+B162-B167 (文档国际化 + 技术债务清理) ✅ 完成
+
+## Batch Queue (Week 11 - Documentation & Cleanup)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B162 | API.en.md | 英文 API 文档 | ✅ 完成 |
+| B163 | FAQ.en.md | 英文 FAQ 文档 | ✅ 完成 |
+| B164 | ARCHITECTURE.en.md | 英文架构文档 | ✅ 完成 |
+| B165 | 文档国际化周期复盘 | 汇总 B162-B164 | ✅ 完成 |
+| B166 | @deprecated 清理准备 | 标记迁移计划 | ✅ 完成 |
+| B167 | cmd.cross.pas 拆分预研 | 拆分方案设计 | ✅ 完成 |
+
+### B162-B167 完成报告
+
+**完成日期**: 2026-02-10
+
+**文档国际化 (B162-B165)**:
+- docs/API.en.md - 英文 API 文档 (~230 行)
+- docs/FAQ.en.md - 英文 FAQ 文档 (~200 行)
+- docs/ARCHITECTURE.en.md - 英文架构文档 (~200 行)
+- docs/B165-i18n-retrospective.md - 国际化复盘报告
+
+**技术债务分析 (B166-B167)**:
+- docs/B166-deprecated-cleanup.md - @deprecated 清理准备 (5 处标记分析)
+- docs/B167-cross-split-analysis.md - cmd.cross.pas 拆分方案 (1,263行 → 3单元)
 
 ## B161 任务池扫描报告 (2026-02-10)
 
