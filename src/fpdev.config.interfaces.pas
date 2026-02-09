@@ -57,6 +57,13 @@ type
     Enabled: Boolean;
     BinutilsPath: string;
     LibrariesPath: string;
+    // Extended fields for cross-compilation build engine (optional, backward-compatible)
+    CPU: string;               // arm, aarch64, i386, x86_64
+    OS: string;                // linux, win32, win64, darwin, android
+    SubArch: string;           // armv6, armv7, armv8
+    ABI: string;               // eabi, eabihf, musl
+    BinutilsPrefix: string;    // arm-linux-gnueabihf-
+    CrossOpt: string;          // -CfVFPV3 -CaEABIHF
   end;
 
   // FPDev设置

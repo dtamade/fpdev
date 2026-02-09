@@ -329,6 +329,10 @@ const
   HELP_CROSS_DOCTOR_USAGE = 'help.cross.doctor.usage';
   HELP_CROSS_DOCTOR_DESC = 'help.cross.doctor.desc';
   HELP_CROSS_DOCTOR_OPT_HELP = 'help.cross.doctor.opt.help';
+  HELP_CROSS_BUILD_USAGE = 'help.cross.build.usage';
+  HELP_CROSS_BUILD_DESC = 'help.cross.build.desc';
+  HELP_CROSS_BUILD_OPT_DRYRUN = 'help.cross.build.opt.dryrun';
+  HELP_CROSS_BUILD_OPT_HELP = 'help.cross.build.opt.help';
   HELP_CROSS_SUBCOMMANDS = 'help.cross.subcommands';
 
   // Help: Repo commands
@@ -1071,7 +1075,11 @@ begin
   T(HELP_CROSS_DOCTOR_USAGE,           'Usage: fpdev cross doctor',                                               '用法: fpdev cross doctor');
   T(HELP_CROSS_DOCTOR_DESC,            'Check cross-compilation environment and diagnose issues.',                '检查交叉编译环境并诊断问题。');
   T(HELP_CROSS_DOCTOR_OPT_HELP,        '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
-  T(HELP_CROSS_SUBCOMMANDS,            'Cross-compilation subcommands: list, install, uninstall, enable, disable, show, test, configure', '交叉编译子命令: list, install, uninstall, enable, disable, show, test, configure');
+  T(HELP_CROSS_BUILD_USAGE,            'Usage: fpdev cross build <target> [options]',                             '用法: fpdev cross build <目标> [选项]');
+  T(HELP_CROSS_BUILD_DESC,             'Build a cross-compiler for the specified target.',                        '为指定目标构建交叉编译器。');
+  T(HELP_CROSS_BUILD_OPT_DRYRUN,       '  --dry-run        Show commands without executing',                      '  --dry-run        显示命令但不执行');
+  T(HELP_CROSS_BUILD_OPT_HELP,         '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_SUBCOMMANDS,            'Cross-compilation subcommands: list, install, uninstall, enable, disable, show, test, configure, build, doctor', '交叉编译子命令: list, install, uninstall, enable, disable, show, test, configure, build, doctor');
 
   // Help: Repo commands
   T(HELP_REPO_USAGE,            'Usage: fpdev repo <command> [options]',                                       '用法: fpdev repo <命令> [选项]');

@@ -14,20 +14,10 @@ unit fpdev.build.cross;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes,
+  fpdev.config.interfaces;
 
 type
-  { TCrossTarget - Cross-compile target definition }
-  TCrossTarget = record
-    CPU: string;            // arm, aarch64, i386, x86_64
-    OS: string;             // linux, win32, win64, darwin, android
-    SubArch: string;        // armv6, armv7, armv8
-    ABI: string;            // eabi, eabihf, musl
-    BinUtilsPrefix: string; // arm-linux-gnueabihf-
-    LibPath: string;        // /usr/arm-linux-gnueabihf/lib
-    Options: string;        // -CfVFPV3 -CaEABIHF
-  end;
-
   { TCrossService - Cross-compilation service }
   TCrossService = class
   private
@@ -55,6 +45,9 @@ type
   end;
 
 implementation
+
+uses
+  fpdev.cross.search;
 
 { TCrossService }
 
@@ -124,32 +117,21 @@ end;
 
 function TCrossService.DetectSystemBinutils(const ATarget: TCrossTarget): Boolean;
 var
-  SearchPaths: array[0..3] of string;
-  Prefixes: TStringArray;
-  i, j: Integer;
-  ToolPath: string;
+  Search: TCrossToolchainSearch;
+  Res: TCrossSearchResult;
 begin
   Result := False;
-
-  SearchPaths[0] := '/usr/bin';
-  SearchPaths[1] := '/usr/local/bin';
-  SearchPaths[2] := '/opt/cross/bin';
-  SearchPaths[3] := GetUserDir + '.fpdev/cross/bin';
-
-  Prefixes := GetBinutilsPrefixes(ATarget.CPU, ATarget.OS);
-
-  for i := 0 to High(SearchPaths) do
-  begin
-    for j := 0 to High(Prefixes) do
+  Search := TCrossToolchainSearch.Create;
+  try
+    Res := Search.SearchBinutils(ATarget);
+    if Res.Found then
     begin
-      ToolPath := SearchPaths[i] + PathDelim + Prefixes[j] + 'as';
-      if FileExists(ToolPath) then
-      begin
-        FBinutilsPath := SearchPaths[i];
-        FBinutilsPrefix := Prefixes[j];
-        Exit(True);
-      end;
+      FBinutilsPath := Res.BinutilsPath;
+      FBinutilsPrefix := Res.BinutilsPrefix;
+      Result := True;
     end;
+  finally
+    Search.Free;
   end;
 end;
 
@@ -170,19 +152,19 @@ begin
     // Binutils path
     if FBinutilsPath <> '' then
       SL.Add('-FD' + FBinutilsPath);
-    if ATarget.BinUtilsPrefix <> '' then
-      SL.Add('-XP' + ATarget.BinUtilsPrefix);
+    if ATarget.BinutilsPrefix <> '' then
+      SL.Add('-XP' + ATarget.BinutilsPrefix);
 
     // Library path
-    if ATarget.LibPath <> '' then
+    if ATarget.LibrariesPath <> '' then
     begin
-      SL.Add('-Fl' + ATarget.LibPath);
+      SL.Add('-Fl' + ATarget.LibrariesPath);
       SL.Add('-Xd');  // Don't pass parent /lib
     end;
 
     // Target specific options
-    if ATarget.Options <> '' then
-      SL.Add(ATarget.Options);
+    if ATarget.CrossOpt <> '' then
+      SL.Add(ATarget.CrossOpt);
 
     // ARM specific
     if ATarget.CPU = 'arm' then

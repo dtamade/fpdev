@@ -21,7 +21,8 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.cmd.utils,
+  fpdev.cross.search;
 
 function TCrossDoctorCommand.Name: string; begin Result := 'doctor'; end;
 
@@ -95,6 +96,10 @@ var
   LOk: Boolean;
   LRoot: string;
   LSettings: TFPDevSettings;
+  Search: TCrossToolchainSearch;
+  DiagTarget: TCrossTarget;
+  DiagLines: TStringArray;
+  DiagI: Integer;
 begin
   Result := 0;
 
@@ -130,32 +135,40 @@ begin
   else
     Ctx.Out.WriteLn('[X] FPC compiler not found (cross-compilation requires FPC)');
 
-  // 3) Check for cross-compilation binutils on Linux
-  {$IFDEF LINUX}
-  // Check for common cross-compilation targets
-  LOk := RunToolVersion('x86_64-w64-mingw32-ld', '--version', LOut);
-  if LOk then
-    Ctx.Out.WriteLn('[OK] Windows x64 cross-linker: available')
-  else
-    Ctx.Out.WriteLn('[!] Windows x64 cross-linker not found (install mingw-w64 for Windows cross-compilation)');
+  // 3) Check for cross-compilation toolchains using search engine
+  Search := TCrossToolchainSearch.Create;
+  try
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Cross-compilation toolchain search:');
 
-  LOk := RunToolVersion('i686-w64-mingw32-ld', '--version', LOut);
-  if LOk then
-    Ctx.Out.WriteLn('[OK] Windows x86 cross-linker: available')
-  else
-    Ctx.Out.WriteLn('[!] Windows x86 cross-linker not found (install mingw-w64 for Windows cross-compilation)');
+    // Windows x64
+    DiagTarget := Default(TCrossTarget);
+    DiagTarget.CPU := 'x86_64';
+    DiagTarget.OS := 'win64';
+    DiagLines := Search.DiagnoseTarget(DiagTarget);
+    for DiagI := 0 to High(DiagLines) do
+      Ctx.Out.WriteLn('  ' + DiagLines[DiagI]);
+    Ctx.Out.WriteLn('');
 
-  LOk := RunToolVersion('aarch64-linux-gnu-ld', '--version', LOut);
-  if LOk then
-    Ctx.Out.WriteLn('[OK] Linux ARM64 cross-linker: available')
-  else
-    Ctx.Out.WriteLn('[!] Linux ARM64 cross-linker not found (install gcc-aarch64-linux-gnu)');
-  {$ENDIF}
+    // ARM Linux
+    DiagTarget := Default(TCrossTarget);
+    DiagTarget.CPU := 'arm';
+    DiagTarget.OS := 'linux';
+    DiagLines := Search.DiagnoseTarget(DiagTarget);
+    for DiagI := 0 to High(DiagLines) do
+      Ctx.Out.WriteLn('  ' + DiagLines[DiagI]);
+    Ctx.Out.WriteLn('');
 
-  {$IFDEF MSWINDOWS}
-  // On Windows, check for cross-compilation to Linux
-  Ctx.Out.WriteLn('[!] Cross-compilation from Windows requires manual setup of target libraries');
-  {$ENDIF}
+    // AArch64 Linux
+    DiagTarget := Default(TCrossTarget);
+    DiagTarget.CPU := 'aarch64';
+    DiagTarget.OS := 'linux';
+    DiagLines := Search.DiagnoseTarget(DiagTarget);
+    for DiagI := 0 to High(DiagLines) do
+      Ctx.Out.WriteLn('  ' + DiagLines[DiagI]);
+  finally
+    Search.Free;
+  end;
 
   // 4) Check cross directory
   LRoot := LSettings.InstallRoot;

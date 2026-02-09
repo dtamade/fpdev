@@ -151,17 +151,17 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B106 (done)
+B125 (done)
 
-## Baseline (2026-02-09)
-- 测试状态: 124/124 通过 (100%)
+## Baseline (2026-02-10)
+- 测试状态: 138/138 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
-- 源码文件: 235 个 (.pas/.lpr)
-- 源码行数: 62,931 行
-- 测试文件: 121 个 (.lpr)
-- 测试代码: 39,659 行
-- 命令单元: 99 个 (fpc:20, lazarus:13, package:25, project:9, repo:8, cross:11, 其他:13)
+- 源码文件: 244 个 (.pas/.lpr)
+- 源码行数: ~66,000 行
+- 测试文件: 141 个 (.lpr)
+- 测试代码: ~41,400 行
+- 命令单元: 100 个 (fpc:20, lazarus:13, package:25, project:9, repo:8, cross:12, 其他:13)
 - @deprecated 标记: 5 处 (repo 命令 4 处 + utils.git 1 处)
 
 ## Phases
@@ -361,3 +361,177 @@ bash scripts/run_all_tests.sh
 | B104 | cmd.package 索引解析抽离 | ✓ ParseLocalPackageIndex, GetAvailablePackages 163→42 行 |
 | B105 | B056 错误语义统一 | ✓ 分发器+8 个文件退出码常量迁移 |
 | B106 | 周期复盘 | ✓ B101-B105 收口，基线 124 测试 |
+
+### M7: 交叉编译能力增强 (B107-B119)
+- [x] B107 TCrossTarget 类型统一 + ICrossBuildEngine 接口
+- [x] B108 CROSSOPT 构造器 + 编译器路径解析
+- [x] B109 TCrossBuildEngine 8步构建编排
+- [x] B110 fpc.cfg 交叉编译段管理器
+- [x] B111 Linux->Win64 端到端 dry-run 验证
+- [x] B112 多层策略搜索框架
+- [x] B113 Libraries 搜索 + 自动发现
+- [x] B114 搜索引擎集成 install/configure
+- [x] B115 JSON 目标定义模板
+- [x] B116 配置接口序列化扩展
+- [x] B117 目标注册表集成 CLI
+- [x] B118 完整集成测试套件 (94+22 测试)
+- [x] B119 文档更新 + M7 周期复盘
+
+## Batch Queue (Week 5 - Cross-Compilation)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B107 | TCrossTarget 类型统一 + ICrossBuildEngine 接口 | ✓ 两处 TCrossTarget 统一，47 个新测试通过，基线 125 |
+| B108 | CROSSOPT 构造器 + 编译器路径解析 | ✓ TCrossOptBuilder + TCrossCompilerResolver, 53 个新测试通过, 基线 127 |
+| B109 | TCrossBuildEngine 8 步构建编排 | ✓ 7步编排 + dry-run 命令日志, 29 个新测试通过, 基线 128 |
+| B110 | fpc.cfg 交叉编译段管理器 | ✓ TFPCCfgManager CRUD, 55 个新测试通过, 基线 129 |
+| B111 | Linux->Win64 端到端 dry-run 验证 | ✓ fpdev cross build 子命令 + 28 个 E2E 测试通过, 基线 130 |
+| B112 | 多层策略搜索框架 | ✓ TCrossToolchainSearch 6 层策略, 44 个新测试通过, 基线 131 |
+| B113 | Libraries 搜索 + 自动发现 | ✓ SearchLibraries multiarch/multilib + DiagnoseTarget + doctor 集成, 19 个新测试, 基线 132 |
+| B114 | 搜索引擎集成 install/configure | ✓ cross configure --auto 自动填充, 12 个新测试通过, 基线 133 |
+| B115 | JSON 目标定义模板 | ✓ TCrossTargetRegistry 21 内置目标 + JSON 序列化, 80 个新测试通过, 基线 134 |
+| B116 | 配置接口序列化扩展 | ✓ B107 已完成序列化实现, 50 个验证测试通过, 基线 135 |
+| B117 | 目标注册表集成 CLI | ✓ CROSS_TARGETS 数组移除, GetAvailableTargets/ValidateTarget/GetTargetInfo 迁移至注册表, 27 个新测试, 基线 136 |
+| B118 | 完整集成测试套件 | ✓ 94 个集成测试 + 22 个回归测试, 全 M7 组件端到端验证, 基线 138 |
+| B119 | 文档更新 + 周期复盘 | ✓ CLAUDE.md 新增交叉编译引擎章节, task_plan.md M7 复盘报告 |
+
+## B119 M7 里程碑复盘报告
+
+### M7 总成果 (B107-B119, 13 个批次)
+
+| 维度 | M7 前 | M7 后 | 变化 |
+|------|-------|-------|------|
+| 测试数 | 124 | 138 | +14 测试文件, +491 测试用例 |
+| 源码文件 | 228 | 239 | +11 个新源码单元 |
+| M7 源码行数 | 0 | 3,143 | 新增交叉编译引擎 |
+| M7 测试行数 | 0 | 5,733 | 14 个测试文件 |
+| 交叉编译目标 | 12 (硬编码) | 21 (注册表驱动) | +9 目标, 可扩展 |
+| 构建能力 | 仅配置管理 | 完整 7 步编排 | 质的飞跃 |
+| Binutils 搜索 | 4 路径 | 6 层策略链 | +50% 策略覆盖 |
+| fpc.cfg 管理 | 片段生成 | 完整 CRUD | 段管理 |
+| TCrossTarget | 2 个同名不同定义 | 1 个统一记录 | 消除类型歧义 |
+| CLI 子命令 | 8 个 | 12 个 | +4 (build/doctor/configure/test) |
+| 编译健康 | 0 warning | 0 warning | 保持 |
+
+### M7 新增组件清单
+
+**源码单元 (11 个, 3,143 行)**:
+| 单元 | 行数 | 职责 |
+|------|------|------|
+| fpdev.cross.engine.pas | 484 | 7 步构建编排引擎 |
+| fpdev.cross.engine.intf.pas | 90 | ICrossBuildEngine 接口 |
+| fpdev.cross.opts.pas | 141 | CROSSOPT 字符串构造器 |
+| fpdev.cross.compiler.pas | 125 | 交叉编译器路径解析 |
+| fpdev.cross.fpccfg.pas | 368 | fpc.cfg 段管理器 |
+| fpdev.cross.search.pas | 847 | 6 层工具链搜索引擎 |
+| fpdev.cross.targets.pas | 482 | JSON 驱动目标注册表 |
+| fpdev.cmd.cross.build.pas | 176 | cross build 子命令 |
+| fpdev.cmd.cross.doctor.pas | 195 | cross doctor 子命令 |
+| fpdev.cmd.cross.configure.pas | 162 | cross configure 子命令 |
+| fpdev.cmd.cross.test.pas | 73 | cross test 子命令 |
+
+**测试文件 (14 个, 5,733 行, 491 测试)**:
+| 测试文件 | 测试数 | 覆盖范围 |
+|----------|--------|---------|
+| test_cross_engine_types | 10 | 类型兼容性 |
+| test_cross_opts | 15 | CROSSOPT 构造器 |
+| test_cross_compiler_resolve | 8 | 编译器路径解析 |
+| test_cross_engine | 29 | 引擎编排 |
+| test_cross_engine_e2e | 28 | 端到端 dry-run |
+| test_cross_fpccfg | 55 | fpc.cfg CRUD |
+| test_cross_search | 44 | 搜索引擎 |
+| test_cross_search_libs | 19 | 库搜索 |
+| test_cross_targets | 80 | 目标注册表 |
+| test_cross_config_extended | 50 | 配置序列化 |
+| test_cross_cli_integration | 27 | CLI 集成 |
+| test_cross_commands | 10 | 命令注册 |
+| test_cross_integration | 94 | 全组件集成 |
+| test_cross_regression | 22 | 回归验证 |
+
+### M7 四个子里程碑
+
+| 子里程碑 | 批次 | 核心产出 |
+|----------|------|---------|
+| M7a 构建引擎 | B107-B111 | TCrossTarget 统一, OptBuilder, CompilerResolver, 7步 Engine, fpc.cfg Manager |
+| M7b 搜索引擎 | B112-B114 | 6 层策略搜索, 库发现, configure --auto 集成 |
+| M7c 目标配置 | B115-B117 | 21 目标注册表, JSON 序列化, CLI 迁移 |
+| M7d 集成测试 | B118-B119 | 94+22 集成/回归测试, CLAUDE.md 文档更新 |
+
+### 已知限制与后续方向
+
+1. **dry-run 仅验证命令序列** — 没有真实交叉编译环境时，Engine 无法到达 cbsComplete 阶段。需要真实 FPC 源码目录验证
+2. **21 个内置目标** — 覆盖主流平台，但未包含 WebAssembly、Xtensa (ESP32) 等嵌入式目标，可通过 RegisterCustomTarget 扩展
+3. **搜索引擎 Layer 5/6** — linker 解析和 config hints 在非标准环境下可能需要调优
+4. **fpc.cfg 管理** — 假设标准 FPC 安装路径，自定义安装可能需要手动指定
+
+### 项目整体状态 (B001-B119, 6 个里程碑)
+
+| 里程碑 | 批次范围 | 状态 | 核心成果 |
+|--------|---------|------|---------|
+| M1 编译健康 | B001-B002 | ✓ | 基线冻结, warning 清零 |
+| M2 高风险债务 | B003-B005 | ✓ | deprecated 迁移, 占位实现清零 |
+| M3 质量闭环 | B006-B008 | ✓ | 测试补充, hint 清零, 文档同步 |
+| M4 结构治理 | B009-B082 | ✓ | 大文件拆分 25+ helper, 常量治理 |
+| M5 后端探索 | B053-B062 | ✓ | 命令测试矩阵, 退出码, 懒加载 |
+| M6 代码健壮性 | B083-B106 | ✓ | 安全审计, 长函数重构, 错误语义 |
+| M7 交叉编译 | B107-B119 | ✓ | 完整构建引擎 + 搜索 + 目标注册表 |
+
+## Batch Queue (Week 6 - Polish & Stability)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B120 | 任务池扫描 + Week 6 规划 | ✓ 识别帮助文本缺失、大文件候选 |
+| B121 | cross 子命令帮助文本补全 | ✓ i18n 添加 build 帮助，HELP_CROSS_SUBCOMMANDS 更新，cross help 添加 build 分支 |
+| B122 | cross build --help 参数解析修复 | ✓ 处理 dispatcher 的 --help->help 转换，支持 --help/-h 正确显示帮助 |
+| B123 | fpc.installer 大函数拆分 | ✓ TFPCArchiveExtractor helper 抽离，InstallFromSourceForge 1367→1253 行 |
+| B124 | cmd.fpc 元数据操作抽离 | ✓ 预研完成：发现 TInstallScope 双重定义 (fpdev.types vs fpdev.fpc.types)，需后续统一 |
+| B125 | 周期复盘 | ✓ Week 6 成果总结，类型重复债务识别，下一步建议 |
+
+### M8: 代码整理与帮助完善 (B120-B125)
+- [x] B120 任务池扫描 + Week 6 规划
+- [x] B121 cross 子命令帮助文本补全
+- [x] B122 cross build --help 参数解析修复
+- [x] B123 fpc.installer 大函数拆分
+- [x] B124 cmd.fpc 类型重复预研
+- [x] B125 周期复盘
+
+## B125 Week 6 周期复盘报告
+
+### Week 6 成果 (B120-B125)
+
+| 批次 | 任务 | 成果 |
+|------|------|------|
+| B120 | 任务池扫描 | 识别帮助文本缺失、大文件候选 |
+| B121 | cross 帮助文本补全 | HELP_CROSS_SUBCOMMANDS 添加 build/doctor |
+| B122 | cross build --help 修复 | 处理 dispatcher 的 --help->help 转换 |
+| B123 | fpc.installer 拆分 | TFPCArchiveExtractor helper, 1367→1253 行 |
+| B124 | 类型重复预研 | 发现 TInstallScope 双重定义 |
+| B125 | 周期复盘 | 本报告 |
+
+### 新增文件
+- `src/fpdev.fpc.installer.extract.pas` (261 行) — FPC 归档提取 helper
+
+### 修改文件
+- `src/fpdev.i18n.strings.pas` — 添加 HELP_CROSS_BUILD_* 常量
+- `src/fpdev.cmd.cross.help.pas` — 添加 build 子命令帮助
+- `src/fpdev.cmd.cross.build.pas` — 修复 --help 参数解析
+- `src/fpdev.fpc.installer.pas` — 使用提取 helper，减少 114 行
+
+### 已知技术债务更新
+
+1. **类型重复定义** — 新发现
+   - `TInstallScope`: fpdev.types.pas vs fpdev.fpc.types.pas
+   - `TSourceMode`, `TVerifyInfo`, `TOriginInfo`, `TFPDevMetadata`, `TBinaryDownloadInfo`: fpdev.cmd.fpc.pas vs fpdev.fpc.types.pas
+   - 统一需要修改多处引用，风险中等
+
+2. **大文件** (>1000 行): 仍有 12 个文件
+   - fpdev.cmd.fpc.pas (1253 行) — 已部分拆分
+   - fpdev.fpc.installer.pas (1253 行) — 已部分拆分
+
+### 下一步建议
+
+| 优先级 | 任务 | 风险 |
+|--------|------|------|
+| P1 | 类型统一 (TInstallScope 等) | 中 |
+| P2 | 继续大文件拆分 (resource.repo, build.cache) | 低 |
+| P3 | CI/CD 集成调研 | 低 |

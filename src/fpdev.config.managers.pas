@@ -967,6 +967,19 @@ begin
     Result.Add('enabled', ATarget.Enabled);
     Result.Add('binutils_path', ATarget.BinutilsPath);
     Result.Add('libraries_path', ATarget.LibrariesPath);
+    // Extended fields (only write if non-empty)
+    if ATarget.CPU <> '' then
+      Result.Add('cpu', ATarget.CPU);
+    if ATarget.OS <> '' then
+      Result.Add('os', ATarget.OS);
+    if ATarget.SubArch <> '' then
+      Result.Add('sub_arch', ATarget.SubArch);
+    if ATarget.ABI <> '' then
+      Result.Add('abi', ATarget.ABI);
+    if ATarget.BinutilsPrefix <> '' then
+      Result.Add('binutils_prefix', ATarget.BinutilsPrefix);
+    if ATarget.CrossOpt <> '' then
+      Result.Add('cross_opt', ATarget.CrossOpt);
   except
     Result.Free;
     raise;
@@ -976,10 +989,17 @@ end;
 function TCrossTargetManager.JSONToCrossTarget(AJSON: TJSONObject): TCrossTarget;
 begin
   Result := Default(TCrossTarget);
-  
+
   Result.Enabled := AJSON.Get('enabled', False);
   Result.BinutilsPath := AJSON.Get('binutils_path', '');
   Result.LibrariesPath := AJSON.Get('libraries_path', '');
+  // Extended fields (backward-compatible: missing keys default to '')
+  Result.CPU := AJSON.Get('cpu', '');
+  Result.OS := AJSON.Get('os', '');
+  Result.SubArch := AJSON.Get('sub_arch', '');
+  Result.ABI := AJSON.Get('abi', '');
+  Result.BinutilsPrefix := AJSON.Get('binutils_prefix', '');
+  Result.CrossOpt := AJSON.Get('cross_opt', '');
 end;
 
 function TCrossTargetManager.AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;

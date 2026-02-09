@@ -358,6 +358,139 @@ fpdev fpc install 3.2.2 --no-cache
 - `src/fpdev.cmd.fpc.cache.*.pas` - Cache management commands
 - `tests/test_build_cache_binary.lpr` - Cache system tests
 
+### Cross-Compilation Build Engine (M7)
+
+**M7 Complete** (2026-02-09): Full cross-compilation build engine with 8-step orchestration, intelligent toolchain search, and JSON-driven target definitions.
+
+**Architecture Overview**:
+```
+TCrossTargetRegistry (21 builtin targets, JSON-driven)
+         |
+    TCrossTarget record (unified, 9 fields)
+         |
+   +-----+-----+-----+
+   |             |             |
+TCrossOptBuilder  TCrossCompilerResolver  TCrossToolchainSearch
+(CROSSOPT string)  (ppcross* path)         (6-layer strategy)
+         |             |             |
+         +------+------+------+
+                |
+       TCrossBuildEngine (7-step orchestration)
+                |
+          TBuildManager.RunMake
+                |
+          TFPCCfgManager (fpc.cfg CRUD)
+```
+
+**Core Components**:
+
+1. **TCrossTarget** (`src/fpdev.config.interfaces.pas`) - Unified target record
+   - 9 fields: Enabled, BinutilsPath, LibrariesPath, CPU, OS, SubArch, ABI, BinutilsPrefix, CrossOpt
+   - Backward compatible: old config.json with 3 fields still readable
+
+2. **TCrossBuildEngine** (`src/fpdev.cross.engine.pas`) - 7-step build orchestration
+   - CompilerCycle -> CompilerInstall -> RTL -> RTLInstall -> Packages -> PackagesInstall -> Complete
+   - Dry-run mode with full command logging
+   - Delegates to TBuildManager.RunMake with PP= and CROSSOPT= parameters
+
+3. **TCrossOptBuilder** (`src/fpdev.cross.opts.pas`) - CROSSOPT string construction
+   - ABI options: `-CaEABIHF`, `-CaEABI`
+   - FPU options: `-CfVFPV3`, `-CfSOFT`
+   - SubArch options: `-CpARMV7A`
+   - Library path options: `-Fl<path>`
+
+4. **TCrossCompilerResolver** (`src/fpdev.cross.compiler.pas`) - Cross-compiler path resolution
+   - CPU to ppcross name mapping (x86_64->ppcrossx64, arm->ppcrossarm, etc.)
+   - Compiler existence validation
+
+5. **TFPCCfgManager** (`src/fpdev.cross.fpccfg.pas`) - fpc.cfg section management
+   - Insert/Update/Remove cross-compilation sections
+   - Uses `# BEGIN fpdev-cross:<cpu>-<os>` / `# END` markers
+   - Wraps in `#IFDEF CPU / #IFDEF OS` conditionals
+
+6. **TCrossToolchainSearch** (`src/fpdev.cross.search.pas`) - 6-layer toolchain search
+   - Layer 1: fpdev-managed paths
+   - Layer 2: System standard paths
+   - Layer 3: PATH environment
+   - Layer 4: Platform-specific (multiarch/multilib)
+   - Layer 5: Linker resolution
+   - Layer 6: Config hints
+
+7. **TCrossTargetRegistry** (`src/fpdev.cross.targets.pas`) - JSON-driven target definitions
+   - 21 builtin targets (Windows, Linux, macOS, Android, iOS, FreeBSD, MIPS, PowerPC, RISC-V, SPARC)
+   - Custom target registration
+   - JSON export/import for user extensibility
+
+**CLI Commands** (4 M7 sub-commands):
+```bash
+fpdev cross build <target> [--dry-run]     # Build cross-compiler for target
+fpdev cross doctor <target>                # Diagnose target toolchain
+fpdev cross configure <target> [--auto]    # Configure target with search engine
+fpdev cross test <target>                  # Test cross-compilation
+```
+
+**Usage Example**:
+```pascal
+uses fpdev.cross.targets, fpdev.cross.opts, fpdev.cross.compiler,
+     fpdev.cross.engine, fpdev.config.interfaces, fpdev.build.manager;
+
+var
+  Reg: TCrossTargetRegistry;
+  Def: TCrossTargetDef;
+  Target: TCrossTarget;
+  Opts: string;
+  BM: TBuildManager;
+  Engine: TCrossBuildEngine;
+begin
+  // 1. Get target definition from registry
+  Reg := TCrossTargetRegistry.Create;
+  try
+    Reg.LoadBuiltinTargets;
+    Reg.GetTarget('arm-linux', Def);
+  finally
+    Reg.Free;
+  end;
+
+  // 2. Build CROSSOPT and resolve compiler
+  Target := Default(TCrossTarget);
+  Target.CPU := Def.CPU;
+  Target.OS := Def.OS;
+  Target.SubArch := Def.SubArch;
+  Target.ABI := Def.ABI;
+  Opts := TCrossOptBuilder.Build(Target);
+  WriteLn('CROSSOPT: ', Opts);
+  WriteLn('Compiler: ', TCrossCompilerResolver.GetPPCrossName(Target.CPU));
+
+  // 3. Dry-run build
+  BM := TBuildManager.Create('/path/to/fpc/source', 4, False);
+  Engine := TCrossBuildEngine.Create(BM, True);
+  try
+    Engine.SetDryRun(True);
+    Engine.BuildCrossCompiler(Target, '/path/to/source', '/path/to/sandbox', 'main');
+    WriteLn('Commands logged: ', Engine.GetCommandLogCount);
+  finally
+    Engine.Free;
+  end;
+end;
+```
+
+**Test Coverage** (M7 total):
+- `tests/test_cross_engine_types.lpr` - 10 tests (type compatibility)
+- `tests/test_cross_opts.lpr` - 15 tests (CROSSOPT builder)
+- `tests/test_cross_compiler_resolve.lpr` - 8 tests (compiler resolver)
+- `tests/test_cross_engine.lpr` - 29 tests (engine orchestration)
+- `tests/test_cross_engine_e2e.lpr` - 28 tests (end-to-end dry-run)
+- `tests/test_cross_fpccfg.lpr` - 55 tests (fpc.cfg manager)
+- `tests/test_cross_search.lpr` - 44 tests (search engine)
+- `tests/test_cross_search_libs.lpr` - 19 tests (library search)
+- `tests/test_cross_targets.lpr` - 80 tests (target registry)
+- `tests/test_cross_config_extended.lpr` - 50 tests (config serialization)
+- `tests/test_cross_cli_integration.lpr` - 27 tests (CLI integration)
+- `tests/test_cross_commands.lpr` - 10 tests (command registration)
+- `tests/test_cross_integration.lpr` - 94 tests (full pipeline integration)
+- `tests/test_cross_regression.lpr` - 22 tests (sub-command regression)
+- Total: 491 M7-specific tests across 14 test files
+
 ## Development Principles
 
 ### Test-Driven Development (TDD)

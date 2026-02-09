@@ -52,6 +52,7 @@ begin
   Ctx.Out.WriteLn('  show             ' + _(HELP_CROSS_SHOW_DESC));
   Ctx.Out.WriteLn('  test             ' + _(HELP_CROSS_TEST_DESC));
   Ctx.Out.WriteLn('  configure        ' + _(HELP_CROSS_CONFIGURE_DESC));
+  Ctx.Out.WriteLn('  build            ' + _(HELP_CROSS_BUILD_DESC));
   Ctx.Out.WriteLn('  doctor           ' + _(HELP_CROSS_DOCTOR_DESC));
   Ctx.Out.WriteLn('  help             ' + _(HELP_SHOW_HELP));
   Ctx.Out.WriteLn('');
@@ -142,6 +143,15 @@ begin
     Ctx.Out.WriteLn(_(HELP_CROSS_DOCTOR_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_CROSS_DOCTOR_OPT_HELP));
+  end
+  else if LSubcmd = 'build' then
+  begin
+    Ctx.Out.WriteLn(_(HELP_CROSS_BUILD_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_CROSS_BUILD_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_CROSS_BUILD_OPT_DRYRUN));
+    Ctx.Out.WriteLn(_(HELP_CROSS_BUILD_OPT_HELP));
   end
   else
   begin

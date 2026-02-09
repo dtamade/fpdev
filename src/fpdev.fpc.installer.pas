@@ -46,7 +46,7 @@ uses
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
   fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher,
   fpdev.build.cache, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version,
-  fpdev.fpc.builder, fpdev.config;
+  fpdev.fpc.builder, fpdev.config, fpdev.fpc.installer.extract;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -516,12 +516,6 @@ function TFPCBinaryInstaller.InstallFromSourceForge(const AVersion, AInstallPath
 var
   TempFile: string;
   TempDir: string;
-  ExtractDir: string;
-  InstallerScript: string;
-  LResult: fpdev.utils.process.TProcessResult;
-  I: Integer;
-  InnerTempDir: string;
-  BaseArchive: string;
 begin
   Result := False;
 
@@ -541,123 +535,15 @@ begin
       EnsureDir(AInstallPath);
 
     {$IFDEF LINUX}
-    // Linux: Extract tar file and run install script
+    // Linux: Extract tar file using helper
     TempDir := GetTempDir + 'fpdev_fpc_' + IntToStr(GetTickCount64);
     EnsureDir(TempDir);
 
-    FOut.WriteLn('  Extracting archive...');
-    LResult := TProcessExecutor.Execute('tar', ['-xf', TempFile, '-C', TempDir], '');
-    if not LResult.Success then
+    // Use extraction helper for multi-layer tarball extraction
+    if not TFPCArchiveExtractor.ExtractLinuxFPCTarball(TempFile, TempDir, AInstallPath, FOut, FErr).Success then
     begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract archive');
-      Exit;
-    end;
-
-    // Find the extracted directory (usually fpc-<version>.x86_64-linux or similar)
-    ExtractDir := '';
-    with TStringList.Create do
-    try
-      LResult := TProcessExecutor.Execute('ls', [TempDir], '');
-      if LResult.Success then
-      begin
-        Text := LResult.StdOut;
-        if Count > 0 then
-          ExtractDir := TempDir + PathDelim + Trim(Strings[0]);
-      end;
-    finally
-      Free;
-    end;
-
-    if (ExtractDir = '') or not DirectoryExists(ExtractDir) then
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Could not find extracted FPC directory');
-      Exit;
-    end;
-
-    // Direct extraction: Skip interactive install.sh and extract binary archives directly
-    // The FPC install.sh is interactive and waits for user input, so we bypass it
-    FOut.WriteLn('  Extracting binary packages directly (skipping interactive installer)...');
-
-    // Find and extract binary.*.tar file
-    with TStringList.Create do
-    try
-      LResult := TProcessExecutor.Execute('ls', [ExtractDir], '');
-      if LResult.Success then
-      begin
-        Text := LResult.StdOut;
-        for I := 0 to Count - 1 do
-        begin
-          if Pos('binary.', Trim(Strings[I])) = 1 then
-          begin
-            InstallerScript := ExtractDir + PathDelim + Trim(Strings[I]);
-            Break;
-          end;
-        end;
-      end;
-    finally
-      Free;
-    end;
-
-    if (InstallerScript <> '') and FileExists(InstallerScript) then
-    begin
-      FOut.WriteLn('  Found binary archive: ' + ExtractFileName(InstallerScript));
-
-      // Create a temp dir for extracting inner archives
-      InnerTempDir := TempDir + PathDelim + 'inner';
-      EnsureDir(InnerTempDir);
-
-      // Extract binary.*.tar to get the inner tar.gz files
-      LResult := TProcessExecutor.Execute('tar', ['-xf', InstallerScript, '-C', InnerTempDir], '');
-      if not LResult.Success then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract binary archive');
-        Exit;
-      end;
-
-      // Extract base.*.tar.gz which contains bin/ and lib/
-      BaseArchive := '';
-      LResult := TProcessExecutor.Execute('ls', [InnerTempDir], '');
-      if LResult.Success then
-      begin
-        with TStringList.Create do
-        try
-          Text := LResult.StdOut;
-          for I := 0 to Count - 1 do
-          begin
-            if Pos('base.', Trim(Strings[I])) = 1 then
-            begin
-              BaseArchive := InnerTempDir + PathDelim + Trim(Strings[I]);
-              Break;
-            end;
-          end;
-        finally
-          Free;
-        end;
-      end;
-
-      if (BaseArchive <> '') and FileExists(BaseArchive) then
-      begin
-        FOut.WriteLn('  Extracting base package: ' + ExtractFileName(BaseArchive));
-        LResult := TProcessExecutor.Execute('tar', ['-xzf', BaseArchive, '-C', AInstallPath], '');
-        if not LResult.Success then
-        begin
-          FErr.WriteLn(_(MSG_ERROR) + ': Failed to extract base archive');
-          Exit;
-        end;
-        FOut.WriteLn('  Base package extracted successfully');
-      end
-      else
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': Could not find base archive in binary package');
-        Exit;
-      end;
-
-      // Cleanup inner temp dir
-      TProcessExecutor.Execute('rm', ['-rf', InnerTempDir], '');
-    end
-    else
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': Could not find binary archive in extracted directory');
+      // Error already printed by helper
+      TProcessExecutor.Execute('rm', ['-rf', TempDir], '');
       Exit;
     end;
 

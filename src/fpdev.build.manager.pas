@@ -32,6 +32,9 @@ type
     FOS_TARGET: string;            // Target OS (optional)
     FPREFIX: string;               // Install prefix (optional)
     FINSTALL_PREFIX: string;       // Install prefix (optional)
+    // Cross-compilation support (M7)
+    FPP: string;                       // PP= cross-compiler path (optional)
+    FCROSSOPT: string;                 // CROSSOPT= cross-compile options (optional)
     // Package selection (Phase 4.3)
     FSelectedPackages: TStringArray; // Selective build package list
     FSkippedPackages: TStringArray;  // Packages to skip
@@ -64,6 +67,8 @@ type
     procedure SetMakeCmd(const ACmd: string);
     procedure SetTarget(const ACpu, AOs: string);
     procedure SetPrefix(const APrefix, AInstallPrefix: string);
+    procedure SetPP(const APP: string);
+    procedure SetCrossOpt(const ACrossOpt: string);
     { Apply configuration from TBuildConfig record (consolidates all SetXxx methods) }
     procedure ApplyConfig(const AConfig: TBuildConfig);
     property LogFileName: string read GetLogFileName;
@@ -124,6 +129,8 @@ begin
   FOS_TARGET := '';
   FPREFIX := '';
   FINSTALL_PREFIX := '';
+  FPP := '';
+  FCROSSOPT := '';
   // Initialize package selection arrays
   FSelectedPackages := nil;
   FSkippedPackages := nil;
@@ -610,6 +617,16 @@ begin
   FINSTALL_PREFIX := Trim(AInstallPrefix);
 end;
 
+procedure TBuildManager.SetPP(const APP: string);
+begin
+  FPP := Trim(APP);
+end;
+
+procedure TBuildManager.SetCrossOpt(const ACrossOpt: string);
+begin
+  FCROSSOPT := Trim(ACrossOpt);
+end;
+
 procedure TBuildManager.ApplyConfig(const AConfig: TBuildConfig);
 var
   I: Integer;
@@ -724,8 +741,8 @@ begin
   if FParallelJobs <= 0 then FParallelJobs := 1;
   if FParallelJobs > 16 then FParallelJobs := 16;
   LJobs := IntToStr(FParallelJobs);
-  // 预留 额外变量位：CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX
-  SetLength(LArgs, 2 + 2 + 4 + Length(ATargets));
+  // 预留 额外变量位：CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX/PP/CROSSOPT
+  SetLength(LArgs, 2 + 2 + 6 + Length(ATargets));
   LArgs[0] := '-C'; LArgs[1] := ASourcePath;
   LArgs[2] := '-j' + LJobs;
   LIdx := 3;
@@ -734,6 +751,9 @@ begin
   // PREFIX/INSTALL_PREFIX 如设置则带入（Install 时仍会显式覆盖）
   if FPREFIX <> '' then begin LArgs[LIdx] := 'PREFIX=' + FPREFIX; Inc(LIdx); end;
   if FINSTALL_PREFIX <> '' then begin LArgs[LIdx] := 'INSTALL_PREFIX=' + FINSTALL_PREFIX; Inc(LIdx); end;
+  // Cross-compilation: PP (cross-compiler path) and CROSSOPT (cross-compile options)
+  if FPP <> '' then begin LArgs[LIdx] := 'PP=' + FPP; Inc(LIdx); end;
+  if FCROSSOPT <> '' then begin LArgs[LIdx] := 'CROSSOPT=' + FCROSSOPT; Inc(LIdx); end;
   for i := Low(ATargets) to High(ATargets) do
   begin
     LArgs[LIdx] := ATargets[i];

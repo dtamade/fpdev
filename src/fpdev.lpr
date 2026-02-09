@@ -84,6 +84,7 @@ uses
   fpdev.cmd.cross.configure,
   fpdev.cmd.cross.doctor,
   fpdev.cmd.cross.help,
+  fpdev.cmd.cross.build,
 
   // Package commands
   fpdev.cmd.package.root,

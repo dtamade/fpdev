@@ -111,22 +111,7 @@ type
 
 implementation
 
-const
-  // 支持的交叉编译目标
-  CROSS_TARGETS: array[0..11] of TCrossTargetInfo = (
-    (Platform: ctpWin32; Name: 'win32'; DisplayName: 'Windows 32-bit'; CPU: 'i386'; OS: 'win32'; BinutilsPrefix: 'i686-w64-mingw32-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpWin64; Name: 'win64'; DisplayName: 'Windows 64-bit'; CPU: 'x86_64'; OS: 'win64'; BinutilsPrefix: 'x86_64-w64-mingw32-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpLinux32; Name: 'linux32'; DisplayName: 'Linux 32-bit'; CPU: 'i386'; OS: 'linux'; BinutilsPrefix: 'i686-linux-gnu-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpLinux64; Name: 'linux64'; DisplayName: 'Linux 64-bit'; CPU: 'x86_64'; OS: 'linux'; BinutilsPrefix: 'x86_64-linux-gnu-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpLinuxARM; Name: 'linuxarm'; DisplayName: 'Linux ARM'; CPU: 'arm'; OS: 'linux'; BinutilsPrefix: 'arm-linux-gnueabihf-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpLinuxARM64; Name: 'linuxarm64'; DisplayName: 'Linux ARM64'; CPU: 'aarch64'; OS: 'linux'; BinutilsPrefix: 'aarch64-linux-gnu-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpDarwin32; Name: 'darwin32'; DisplayName: 'macOS 32-bit'; CPU: 'i386'; OS: 'darwin'; BinutilsPrefix: 'i686-apple-darwin-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpDarwin64; Name: 'darwin64'; DisplayName: 'macOS 64-bit'; CPU: 'x86_64'; OS: 'darwin'; BinutilsPrefix: 'x86_64-apple-darwin-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpDarwinARM64; Name: 'darwinarm64'; DisplayName: 'macOS ARM64'; CPU: 'aarch64'; OS: 'darwin'; BinutilsPrefix: 'aarch64-apple-darwin-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpAndroid; Name: 'android'; DisplayName: 'Android'; CPU: 'arm'; OS: 'android'; BinutilsPrefix: 'arm-linux-androideabi-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpiOS; Name: 'ios'; DisplayName: 'iOS'; CPU: 'aarch64'; OS: 'ios'; BinutilsPrefix: 'aarch64-apple-ios-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False),
-    (Platform: ctpFreeBSD64; Name: 'freebsd64'; DisplayName: 'FreeBSD 64-bit'; CPU: 'x86_64'; OS: 'freebsd'; BinutilsPrefix: 'x86_64-freebsd-'; LibrariesURL: ''; BinutilsURL: ''; Available: True; Installed: False)
-  );
+uses fpdev.cross.targets;
 
 { TCrossCompilerManager }
 
@@ -355,32 +340,39 @@ end;
 
 function TCrossCompilerManager.ValidateTarget(const ATarget: string): Boolean;
 var
-  i: Integer;
+  LRegistry: TCrossTargetRegistry;
 begin
-  Result := False;
-  for i := 0 to High(CROSS_TARGETS) do
-  begin
-    if SameText(CROSS_TARGETS[i].Name, ATarget) then
-    begin
-      Result := True;
-      Break;
-    end;
+  LRegistry := TCrossTargetRegistry.Create;
+  try
+    LRegistry.LoadBuiltinTargets;
+    Result := LRegistry.HasTarget(ATarget);
+  finally
+    LRegistry.Free;
   end;
 end;
 
 function TCrossCompilerManager.GetTargetInfo(const ATarget: string): TCrossTargetInfo;
 var
-  i: Integer;
+  LRegistry: TCrossTargetRegistry;
+  LDef: TCrossTargetDef;
 begin
   System.Initialize(Result);
-  for i := 0 to High(CROSS_TARGETS) do
-  begin
-    if SameText(CROSS_TARGETS[i].Name, ATarget) then
+  LRegistry := TCrossTargetRegistry.Create;
+  try
+    LRegistry.LoadBuiltinTargets;
+    if LRegistry.GetTarget(ATarget, LDef) then
     begin
-      Result := CROSS_TARGETS[i];
+      Result.Platform := StringToPlatform(LDef.Name);
+      Result.Name := LDef.Name;
+      Result.DisplayName := LDef.DisplayName;
+      Result.CPU := LDef.CPU;
+      Result.OS := LDef.OS;
+      Result.BinutilsPrefix := LDef.BinutilsPrefix;
+      Result.Available := True;
       Result.Installed := IsTargetInstalled(ATarget);
-      Break;
     end;
+  finally
+    LRegistry.Free;
   end;
 end;
 
@@ -390,6 +382,8 @@ var
   RepoTargets: SysUtils.TStringArray;
   RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
   HostPlatform: string;
+  LRegistry: TCrossTargetRegistry;
+  LRegDefs: TCrossTargetDefArray;
 begin
   Result := nil;
 
@@ -430,12 +424,29 @@ begin
     end;
   end;
 
-  // Fallback to built-in targets
-  SetLength(Result, Length(CROSS_TARGETS));
-  for i := 0 to High(CROSS_TARGETS) do
+  // Fallback to target registry (replaces hardcoded CROSS_TARGETS)
   begin
-    Result[i] := CROSS_TARGETS[i];
-    Result[i].Installed := IsTargetInstalled(Result[i].Name);
+    LRegistry := TCrossTargetRegistry.Create;
+    try
+      LRegistry.LoadBuiltinTargets;
+      LRegDefs := LRegistry.ListTargetDefs;
+      SetLength(Result, Length(LRegDefs));
+      for i := 0 to High(LRegDefs) do
+      begin
+        Result[i].Platform := StringToPlatform(LRegDefs[i].Name);
+        Result[i].Name := LRegDefs[i].Name;
+        Result[i].DisplayName := LRegDefs[i].DisplayName;
+        Result[i].CPU := LRegDefs[i].CPU;
+        Result[i].OS := LRegDefs[i].OS;
+        Result[i].BinutilsPrefix := LRegDefs[i].BinutilsPrefix;
+        Result[i].LibrariesURL := '';
+        Result[i].BinutilsURL := '';
+        Result[i].Available := True;
+        Result[i].Installed := IsTargetInstalled(LRegDefs[i].Name);
+      end;
+    finally
+      LRegistry.Free;
+    end;
   end;
 end;
 
