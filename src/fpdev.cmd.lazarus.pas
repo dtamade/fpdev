@@ -57,8 +57,6 @@ type
     FConfigManager: IConfigManager;
     FInstallRoot: string;
 
-    function GetAvailableVersions: TLazarusVersionArray;
-    function GetInstalledVersions: TLazarusVersionArray;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
     function BuildFromSource(const ASourceDir, AInstallDir, AFPCVersion: string): Boolean;
     function SetupEnvironment(const AVersion: string): Boolean;
@@ -70,6 +68,10 @@ type
   public
     constructor Create(AConfigManager: IConfigManager);
     destructor Destroy; override;
+
+    // 版本查询
+    function GetAvailableVersions: TLazarusVersionArray;
+    function GetInstalledVersions: TLazarusVersionArray;
 
     // 版本管理
     function InstallVersion(const AVersion: string; const AFPCVersion: string = ''; const AFromSource: Boolean = False; const AConfigure: Boolean = True): Boolean; overload;

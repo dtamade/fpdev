@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.cmd.utils, fpjson;
 
 function TLazCurrentCommand.Name: string; begin Result := 'current'; end;
 function TLazCurrentCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -31,6 +31,8 @@ function TLazCurrentCommand.Execute(const AParams: array of string; const Ctx: I
 var
   LVer: string;
   LMgr: TLazarusManager;
+  LJsonOutput: Boolean;
+  LJson: TJSONObject;
 begin
   Result := 0;
 
@@ -41,17 +43,45 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_DESC));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
+  LJsonOutput := HasFlag(AParams, 'json');
+
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
     LVer := LMgr.GetCurrentVersion;
-    if LVer <> '' then
-      Ctx.Out.WriteLn(_Fmt(CMD_LAZARUS_CURRENT_VERSION, [LVer]))
+
+    if LJsonOutput then
+    begin
+      // JSON output mode
+      LJson := TJSONObject.Create;
+      try
+        if LVer <> '' then
+        begin
+          LJson.Add('version', LVer);
+          LJson.Add('has_default', True);
+        end
+        else
+        begin
+          LJson.Add('version', TJSONNull.Create);
+          LJson.Add('has_default', False);
+        end;
+        Ctx.Out.WriteLn(LJson.FormatJSON);
+      finally
+        LJson.Free;
+      end;
+    end
     else
-      Ctx.Out.WriteLn(_(CMD_LAZARUS_CURRENT_NONE));
+    begin
+      // Normal text output
+      if LVer <> '' then
+        Ctx.Out.WriteLn(_Fmt(CMD_LAZARUS_CURRENT_VERSION, [LVer]))
+      else
+        Ctx.Out.WriteLn(_(CMD_LAZARUS_CURRENT_NONE));
+    end;
   finally
     LMgr.Free;
   end;
