@@ -94,6 +94,8 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 - [x] B077 大文件拆分 (build.cache 条目文件 I/O)
 - [x] B078 大文件拆分收口评估
 - [x] B079 helper 单元测试补充 (7 个测试文件 + scan bug 修复)
+- [x] B080 helper 单元测试补充 (剩余 7 个测试文件)
+- [x] B081 resource.repo helper 单元测试 (6 个测试文件)
 
 ## Batch Queue (Week 1)
 
@@ -148,10 +150,10 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B080 (next)
+B082 (next)
 
 ## Baseline (2026-02-09)
-- 测试状态: 102/102 通过 (100%)
+- 测试状态: 115/115 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
 
