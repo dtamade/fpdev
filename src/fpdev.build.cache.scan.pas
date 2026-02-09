@@ -67,24 +67,32 @@ begin
   if DashPos <= 0 then
     Exit;
 
-  LastDashPos := DashPos;
+  // Scan for the dash that separates version from platform
+  // Version part: digits and dots (e.g. 3.2.2)
+  // Platform part starts at first dash followed by non-digit
+  LastDashPos := 0;
   for i := DashPos + 1 to Length(AFileName) do
   begin
     if AFileName[i] = '-' then
     begin
       // Check if next char is digit (still in version) or not (platform)
       if (i < Length(AFileName)) and (AFileName[i + 1] in ['0'..'9']) then
-        LastDashPos := i
+        Continue  // Part of version (e.g. version segments)
       else
+      begin
+        LastDashPos := i;
         Break;
+      end;
     end;
   end;
 
   // Extract version: from after first dash to before platform dash
   if LastDashPos > DashPos then
     Result := Copy(AFileName, DashPos + 1, LastDashPos - DashPos - 1)
+  else if Pos('.tar', AFileName) > DashPos then
+    Result := Copy(AFileName, DashPos + 1, Pos('.tar', AFileName) - DashPos - 1)
   else
-    Result := Copy(AFileName, DashPos + 1, Pos('.tar', AFileName) - DashPos - 1);
+    Result := '';
 end;
 
 function BuildCacheListVersions(const ACacheDir: string): TStringArray;
