@@ -250,7 +250,7 @@ B162-B167 (文档国际化 + 技术债务清理) ✅ 完成
 - 测试文件: 141 个 (.lpr)
 - 测试代码: ~41,400 行
 - 命令单元: 100 个 (fpc:20, lazarus:13, package:25, project:9, repo:8, cross:12, 其他:13)
-- @deprecated 标记: 5 处 (repo 命令 4 处 + utils.git 1 处)
+- @deprecated 标记: 0 处 (B166 清理完成)
 
 ## Phases
 

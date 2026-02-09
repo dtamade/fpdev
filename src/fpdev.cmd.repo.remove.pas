@@ -10,13 +10,12 @@ uses
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
-  TRepoRemoveCommand = class(TInterfacedObject, ICommand, IFpdevCommand)
+  TRepoRemoveCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer; overload;
-    procedure Execute(const AParams: array of string; const Ctx: ICommandContext); overload;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 implementation
@@ -59,23 +58,6 @@ begin
     Exit(EXIT_OK);
   Ctx.Err.WriteLn(_Fmt(CMD_REPO_REMOVE_FAILED, [RepoName]));
   Result := EXIT_ERROR;
-end;
-
-{ @deprecated Use Execute(IContext) instead. Legacy interface for backward compatibility. }
-procedure TRepoRemoveCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
-var
-  RepoName: string;
-begin
-  if Length(AParams) < 1 then
-    Exit;
-
-  RepoName := AParams[0];
-
-  if Trim(RepoName) = '' then
-    Exit;
-
-  Ctx.Config.RemoveRepository(RepoName);
-  Ctx.SaveIfModified;
 end;
 
 function RepoRemoveFactory: ICommand;

@@ -63,17 +63,8 @@ uses
 var
   Libgit2Available: Boolean = False;
   Libgit2Checked: Boolean = False;
-  
-  { @deprecated Internal implementation detail. Use git2.api.pas + git2.impl.pas directly.
-    This global singleton will be removed in Phase 2 Wave 4.
-    
-    Migration example:
-      uses git2.api, git2.impl;
-      var Mgr: IGitManager;
-      Mgr := NewGitManager();
-      Mgr.Initialize;
-      // Use Mgr...
-  }
+
+  // Internal singleton for libgit2 backend (lazy-initialized)
   SharedGitManager: IGitManager = nil;
 
 // Forward declarations for libgit2 backend functions
