@@ -211,7 +211,12 @@ begin
       LParam  := ParamStr(1);
 
       // 内置体检/策略校验开关（零副作用）
-      if (LParam = '--version') or (LParam = '-v') or (LParam = '-V') then
+      if (LParam = '--help') or (LParam = '-h') then
+      begin
+        fpdev.cmd.help.execute([]);
+        Exit;
+      end
+      else if (LParam = '--version') or (LParam = '-v') or (LParam = '-V') then
       begin
         Outp.WriteLn('fpdev version 2.0.0-beta');
         Outp.WriteLn('FreePascal Development Environment Manager');
@@ -238,7 +243,12 @@ begin
               LParams[LI - 3] := ParamStr(LI);
           end;
           // 继续处理 LParam
-          if (LParam = '--version') or (LParam = '-v') or (LParam = '-V') then
+          if (LParam = '--help') or (LParam = '-h') then
+          begin
+            fpdev.cmd.help.execute([]);
+            Exit;
+          end
+          else if (LParam = '--version') or (LParam = '-v') or (LParam = '-V') then
           begin
             Outp.WriteLn('fpdev version 2.0.0-beta');
             Outp.WriteLn('FreePascal Development Environment Manager');
