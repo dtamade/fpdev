@@ -6,7 +6,7 @@
 
 [![Release](https://img.shields.io/badge/release-v2.0.6-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-94%2B%20passed-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-118%20passed-brightgreen.svg)](#testing)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
 [快速开始](QUICKSTART.md) • [安装指南](docs/INSTALLATION.md) • [常见问题](FAQ.md) • [完整文档](docs/QUICKSTART.md)
