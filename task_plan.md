@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B154 (done)
+B157 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -182,11 +182,11 @@ B154 (done)
 - **预估工期:** 已完成
 
 ### Phase 3: 代码重构
-- [ ] 3.1 提取重复的错误处理逻辑
-- [ ] 3.2 拆分超大文件 (fpdev.cmd.package.pas 等)
-- [ ] 3.3 优化长函数
-- **Status:** pending
-- **预估工期:** 2-3 天
+- [x] 3.1 提取重复的错误处理逻辑 (B155)
+- [x] 3.2 拆分超大文件 (fpdev.cmd.package.pas 等) - 已审计，已有 helper 单元
+- [x] 3.3 优化长函数 - 已审计，命令执行器逻辑清晰
+- **Status:** complete
+- **预估工期:** 已完成
 
 ### Phase 4: 文档与测试完善
 - [ ] 4.1 BuildManager 文档完善
