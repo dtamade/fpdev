@@ -137,6 +137,10 @@ type
 
     function WritePackageMetadata(const AInstallPath: string; const Info: TPackageInfo): Boolean;
 
+    { Parses local package index JSON file and returns deduplicated packages.
+      Selects highest version for each package name. }
+    function ParseLocalPackageIndex(const AIndexPath: string): TPackageArray;
+
   public
     constructor Create(AConfigManager: TFPDevConfigManager); overload;
     constructor Create(AConfigManager: IConfigManager); overload;
@@ -505,49 +509,137 @@ begin
   end;
 end;
 
-function TPackageManager.GetAvailablePackages: TPackageArray;
+function TPackageManager.ParseLocalPackageIndex(const AIndexPath: string): TPackageArray;
 var
-  IndexPath: string;
   JSONData: TJSONData = nil;
   Arr: TJSONArray;
+  Obj: TJSONObject;
   i, j, Count: Integer;
   Pkg: TPackageInfo;
   Names: TStringList;
-  RepoPackages: SysUtils.TStringArray;
-  RepoInfo: fpdev.resource.repo.TPackageInfo;
+  U: TJSONData;
+  K: Integer;
 
-// Internal helper functions
   function TryGetArray(AData: TJSONData): TJSONArray;
   begin
     Result := nil;
-    if AData=nil then Exit(nil);
-    if AData.JSONType=jtArray then Exit(TJSONArray(AData));
-    if (AData.JSONType=jtObject) and Assigned(TJSONObject(AData).Arrays['packages']) then
+    if AData = nil then Exit(nil);
+    if AData.JSONType = jtArray then Exit(TJSONArray(AData));
+    if (AData.JSONType = jtObject) and Assigned(TJSONObject(AData).Arrays['packages']) then
       Exit(TJSONObject(AData).Arrays['packages']);
   end;
 
-  procedure MaybeReadURLsAndSha(const O: TJSONObject; var P: TPackageInfo);
-  var U: TJSONData; K: Integer;
+  function HasValidURL(AObj: TJSONObject): Boolean;
+  var
+    UrlData: TJSONData;
   begin
-    P.Sha256 := O.Get('sha256','');
-    SetLength(P.URLs, 0);
-    U := O.Find('url');
-    if Assigned(U) then
-    begin
-      if U.JSONType=jtString then
-      begin
-        SetLength(P.URLs, 1);
-        P.URLs[0] := U.AsString;
-      end
-      else if U.JSONType=jtArray then
-      begin
-        SetLength(P.URLs, TJSONArray(U).Count);
-        for K := 0 to TJSONArray(U).Count-1 do
-          P.URLs[K] := TJSONArray(U).Items[K].AsString;
-      end;
-    end;
+    UrlData := AObj.Find('url');
+    if not Assigned(UrlData) then Exit(False);
+    if (UrlData.JSONType = jtString) and (AObj.Get('url', '') = '') then Exit(False);
+    if (UrlData.JSONType = jtArray) and (TJSONArray(UrlData).Count = 0) then Exit(False);
+    Result := True;
   end;
 
+begin
+  Initialize(Result);
+  SetLength(Result, 0);
+
+  if not FileExists(AIndexPath) then Exit;
+
+  try
+    with TStringList.Create do
+    try
+      LoadFromFile(AIndexPath);
+      JSONData := GetJSON(Text);
+    finally
+      Free;
+    end;
+
+    Arr := TryGetArray(JSONData);
+    if Arr = nil then Exit;
+
+    // Filter invalid entries and deduplicate by name (keep highest version)
+    Names := TStringList.Create;
+    try
+      Initialize(Pkg);
+      Names.Sorted := True;
+      Names.Duplicates := dupIgnore;
+      Names.CaseSensitive := False;
+
+      for i := 0 to Arr.Count - 1 do
+      begin
+        if (Arr.Items[i].JSONType <> jtObject) then Continue;
+        Obj := TJSONObject(Arr.Items[i]);
+        if Obj.Get('name', '') = '' then Continue;
+        if Obj.Get('version', '') = '' then Continue;
+        if not HasValidURL(Obj) then Continue;
+        Names.Add(Obj.Get('name', ''));
+      end;
+
+      Count := 0;
+      SetLength(Result, Names.Count);
+      for i := 0 to Names.Count - 1 do
+      begin
+        Finalize(Pkg);
+        Initialize(Pkg);
+        for j := 0 to Arr.Count - 1 do
+        begin
+          if Arr.Items[j].JSONType <> jtObject then Continue;
+          Obj := TJSONObject(Arr.Items[j]);
+          if not SameText(Obj.Get('name', ''), Names[i]) then Continue;
+          if Obj.Get('version', '') = '' then Continue;
+          if not HasValidURL(Obj) then Continue;
+
+          // Select highest version
+          if (Pkg.Name = '') or IsVersionHigher(Obj.Get('version', ''), Pkg.Version) then
+          begin
+            Pkg.Name := Obj.Get('name', '');
+            Pkg.Version := Obj.Get('version', '');
+            Pkg.Description := Obj.Get('description', '');
+            Pkg.Homepage := Obj.Get('homepage', '');
+            Pkg.License := Obj.Get('license', '');
+            Pkg.Repository := Obj.Get('repository', '');
+            Pkg.Sha256 := Obj.Get('sha256', '');
+            SetLength(Pkg.URLs, 0);
+            U := Obj.Find('url');
+            if Assigned(U) then
+            begin
+              if U.JSONType = jtString then
+              begin
+                SetLength(Pkg.URLs, 1);
+                Pkg.URLs[0] := U.AsString;
+              end
+              else if U.JSONType = jtArray then
+              begin
+                SetLength(Pkg.URLs, TJSONArray(U).Count);
+                for K := 0 to TJSONArray(U).Count - 1 do
+                  Pkg.URLs[K] := TJSONArray(U).Items[K].AsString;
+              end;
+            end;
+          end;
+        end;
+        if (Pkg.Name <> '') then
+        begin
+          Result[Count] := Pkg;
+          Inc(Count);
+        end;
+      end;
+      SetLength(Result, Count);
+    finally
+      Finalize(Pkg);
+      Names.Free;
+    end;
+  finally
+    if Assigned(JSONData) then JSONData.Free;
+  end;
+end;
+
+function TPackageManager.GetAvailablePackages: TPackageArray;
+var
+  i, Count: Integer;
+  Pkg: TPackageInfo;
+  RepoPackages: SysUtils.TStringArray;
+  RepoInfo: fpdev.resource.repo.TPackageInfo;
 begin
   Initialize(Result);
   SetLength(Result, 0);
@@ -584,90 +676,7 @@ begin
   end;
 
   // Fallback to local index.json
-  IndexPath := FPackageRegistry + PathDelim + 'index.json';
-  if not FileExists(IndexPath) then
-  begin
-    Exit;
-  end;
-  try
-    with TStringList.Create do
-    try
-      LoadFromFile(IndexPath);
-      JSONData := GetJSON(Text);
-    finally
-      Free;
-    end;
-
-    Arr := TryGetArray(JSONData);
-    if Arr=nil then Exit;
-
-    // 过滤无效条目：必须有 name、version、url（字符串或数组非空）
-    // 去重：按 name 选择最高版本
-    Names := TStringList.Create;
-    try
-      Initialize(Pkg);
-      Names.Sorted := True; Names.Duplicates := dupIgnore; Names.CaseSensitive := False;
-      for i := 0 to Arr.Count-1 do
-      begin
-        if (Arr.Items[i].JSONType<>jtObject) then Continue;
-        if TJSONObject(Arr.Items[i]).Get('name','')='' then Continue;
-        if TJSONObject(Arr.Items[i]).Get('version','')='' then Continue;
-        // url 校验：字符串非空或数组长度>0
-        if Assigned(TJSONObject(Arr.Items[i]).Find('url')) then
-        begin
-          if (TJSONObject(Arr.Items[i]).Find('url').JSONType=jtString) and (TJSONObject(Arr.Items[i]).Get('url','')='') then Continue;
-          if (TJSONObject(Arr.Items[i]).Find('url').JSONType=jtArray) and (TJSONArray(TJSONObject(Arr.Items[i]).Find('url')).Count=0) then Continue;
-        end
-        else
-          Continue;
-        Names.Add(TJSONObject(Arr.Items[i]).Get('name',''));
-      end;
-
-      Count := 0;
-      SetLength(Result, Names.Count);
-      for i := 0 to Names.Count-1 do
-      begin
-        Finalize(Pkg);
-        Initialize(Pkg);
-        for j := 0 to Arr.Count-1 do
-        begin
-          if Arr.Items[j].JSONType<>jtObject then Continue;
-          if not SameText(TJSONObject(Arr.Items[j]).Get('name',''), Names[i]) then Continue;
-          // 二次校验（防御）
-          if (TJSONObject(Arr.Items[j]).Get('version','')='') then Continue;
-          if Assigned(TJSONObject(Arr.Items[j]).Find('url')) then
-          begin
-            if (TJSONObject(Arr.Items[j]).Find('url').JSONType=jtString) and (TJSONObject(Arr.Items[j]).Get('url','')='') then Continue;
-            if (TJSONObject(Arr.Items[j]).Find('url').JSONType=jtArray) and (TJSONArray(TJSONObject(Arr.Items[j]).Find('url')).Count=0) then Continue;
-          end
-          else Continue;
-
-          // 选择最高版本
-          if (Pkg.Name='') or IsVersionHigher(TJSONObject(Arr.Items[j]).Get('version',''), Pkg.Version) then
-          begin
-            Pkg.Name := TJSONObject(Arr.Items[j]).Get('name','');
-            Pkg.Version := TJSONObject(Arr.Items[j]).Get('version','');
-            Pkg.Description := TJSONObject(Arr.Items[j]).Get('description','');
-            Pkg.Homepage := TJSONObject(Arr.Items[j]).Get('homepage','');
-            Pkg.License := TJSONObject(Arr.Items[j]).Get('license','');
-            Pkg.Repository := TJSONObject(Arr.Items[j]).Get('repository','');
-            MaybeReadURLsAndSha(TJSONObject(Arr.Items[j]), Pkg);
-          end;
-        end;
-        if (Pkg.Name<>'') then
-        begin
-          Result[Count] := Pkg;
-          Inc(Count);
-        end;
-      end;
-      SetLength(Result, Count);
-    finally
-      Finalize(Pkg);
-      Names.Free;
-    end;
-  finally
-    if Assigned(JSONData) then JSONData.Free;
-  end;
+  Result := ParseLocalPackageIndex(FPackageRegistry + PathDelim + 'index.json');
 end;
 
 function TPackageManager.GetInstalledPackages: TPackageArray;
