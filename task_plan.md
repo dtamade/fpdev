@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B157 (done)
+B160 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -189,11 +189,11 @@ B157 (done)
 - **预估工期:** 已完成
 
 ### Phase 4: 文档与测试完善
-- [ ] 4.1 BuildManager 文档完善
-- [ ] 4.2 日志系统优化 (Windows 时间戳)
-- [ ] 4.3 测试覆盖率提升
-- **Status:** pending
-- **预估工期:** 2-3 天
+- [x] 4.1 BuildManager 文档完善 (B158) - 已有 612 行详细文档
+- [x] 4.2 日志系统优化 (B159) - 时间戳已使用零填充格式
+- [x] 4.3 测试覆盖率提升 (B160) - 143 文件, 140/140 通过
+- **Status:** complete
+- **预估工期:** 已完成
 
 ## Key Files to Fix
 
