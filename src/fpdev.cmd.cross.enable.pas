@@ -50,11 +50,7 @@ begin
   end;
 
   if Length(AParams) < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['target']));
-    Ctx.Err.WriteLn(_(HELP_CROSS_ENABLE_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
+    Exit(MissingArgError(Ctx, 'target', _(HELP_CROSS_ENABLE_USAGE)));
 
   LTarget := AParams[0];
   LMgr := TCrossCompilerManager.Create(Ctx.Config);

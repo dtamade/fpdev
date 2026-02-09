@@ -26,6 +26,9 @@ unit fpdev.cmd.utils;
 
 interface
 
+uses
+  fpdev.command.intf;
+
 const
   { Command exit codes }
   EXIT_SUCCESS      = 0;  // Command executed successfully
@@ -44,10 +47,19 @@ function GetPositionalArg(const Params: array of string; Index: Integer): string
 { Count positional arguments (non-flags) }
 function CountPositionalArgs(const Params: array of string): Integer;
 
+{ Write missing argument error and return EXIT_USAGE_ERROR }
+function MissingArgError(const Ctx: IContext; const ArgName, UsageHelp: string): Integer;
+
+{ Write unknown command error and return EXIT_USAGE_ERROR }
+function UnknownCmdError(const Ctx: IContext; const CmdName: string): Integer;
+
+{ Write generic error and return specified exit code }
+function CmdError(const Ctx: IContext; const Msg: string; ExitCode: Integer = EXIT_FAILED): Integer;
+
 implementation
 
 uses
-  SysUtils;
+  SysUtils, fpdev.exitcodes, fpdev.i18n, fpdev.i18n.strings;
 
 function HasFlag(const Params: array of string; const Flag: string): Boolean;
 var
@@ -105,6 +117,26 @@ begin
   for i := Low(Params) to High(Params) do
     if (Length(Params[i]) > 0) and (Params[i][1] <> '-') then
       Inc(Result);
+end;
+
+function MissingArgError(const Ctx: IContext; const ArgName, UsageHelp: string): Integer;
+begin
+  Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, [ArgName]));
+  if UsageHelp <> '' then
+    Ctx.Err.WriteLn(UsageHelp);
+  Result := EXIT_USAGE_ERROR;
+end;
+
+function UnknownCmdError(const Ctx: IContext; const CmdName: string): Integer;
+begin
+  Ctx.Err.WriteLn(_Fmt(ERR_UNKNOWN_COMMAND, [CmdName]));
+  Result := EXIT_USAGE_ERROR;
+end;
+
+function CmdError(const Ctx: IContext; const Msg: string; ExitCode: Integer): Integer;
+begin
+  Ctx.Err.WriteLn('Error: ' + Msg);
+  Result := ExitCode;
 end;
 
 end.

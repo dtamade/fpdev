@@ -75,11 +75,7 @@ begin
   end;
 
   if Length(AParams) < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['target']));
-    Ctx.Err.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
+    Exit(MissingArgError(Ctx, 'target', _(HELP_CROSS_CONFIGURE_USAGE)));
 
   LTarget := AParams[0];
   LBinutils := '';
@@ -140,11 +136,7 @@ begin
   end;
 
   if (LBinutils = '') or (LLibraries = '') then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['--binutils, --libraries (or use --auto)']));
-    Ctx.Err.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
+    Exit(MissingArgError(Ctx, '--binutils, --libraries (or use --auto)', _(HELP_CROSS_CONFIGURE_USAGE)));
 
   LMgr := TCrossCompilerManager.Create(Ctx.Config);
   try
