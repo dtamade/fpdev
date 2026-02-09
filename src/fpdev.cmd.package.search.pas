@@ -255,6 +255,12 @@ function TPackageSearchCmd.Execute(const AParams: array of string; const Ctx: IC
 var
   LMgr: TPackageManager;
   Q: string;
+  LJsonOutput: Boolean;
+  LSearch: TPackageSearchCommand;
+  LResults: TStringList;
+  LJson: TJSONObject;
+  LArr: TJSONArray;
+  I: Integer;
 begin
   Result := 0;
 
@@ -267,25 +273,67 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_EXAMPLE));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  LJsonOutput := HasFlag(AParams, 'json');
+
+  // Get query (first non-flag argument)
+  Q := '';
+  for I := 0 to High(AParams) do
+    if (AParams[I] <> '') and (AParams[I][1] <> '-') then
+    begin
+      Q := AParams[I];
+      Break;
+    end;
+
+  if Q = '' then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['query']));
     Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
-  Q := AParams[0];
 
-  LMgr := TPackageManager.Create(Ctx.Config);
-  try
-    if LMgr.SearchPackages(Q, Ctx.Out) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
-  finally
-    LMgr.Free;
+  if LJsonOutput then
+  begin
+    // JSON output mode using TPackageSearchCommand
+    LSearch := TPackageSearchCommand.Create(ExpandFileName('~/.fpdev/registry'));
+    try
+      LResults := LSearch.Search(Q);
+      try
+        LJson := TJSONObject.Create;
+        try
+          LArr := TJSONArray.Create;
+          for I := 0 to LResults.Count - 1 do
+            LArr.Add(LResults[I]);
+          LJson.Add('query', Q);
+          LJson.Add('results', LArr);
+          LJson.Add('count', LResults.Count);
+          Ctx.Out.WriteLn(LJson.FormatJSON);
+        finally
+          LJson.Free;
+        end;
+      finally
+        LResults.Free;
+      end;
+    finally
+      LSearch.Free;
+    end;
+    Exit(EXIT_OK);
+  end
+  else
+  begin
+    // Normal text output
+    LMgr := TPackageManager.Create(Ctx.Config);
+    try
+      if LMgr.SearchPackages(Q, Ctx.Out) then
+        Exit(EXIT_OK);
+      Result := EXIT_ERROR;
+    finally
+      LMgr.Free;
+    end;
   end;
 end;
 

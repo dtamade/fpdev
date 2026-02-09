@@ -151,6 +151,7 @@ type
 
     // 查询（供测试和上层使用）
     function GetAvailablePackageList: TPackageArray;
+    function GetInstalledPackageList: TPackageArray;
 
     // 清理
     function Clean(const Scope: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean; // 'sandbox' | 'cache' | 'all'
@@ -1748,6 +1749,11 @@ end;
 function TPackageManager.GetAvailablePackageList: TPackageArray;
 begin
   Result := GetAvailablePackages;
+end;
+
+function TPackageManager.GetInstalledPackageList: TPackageArray;
+begin
+  Result := GetInstalledPackages;
 end;
 
 { Semantic Version Functions Implementation }

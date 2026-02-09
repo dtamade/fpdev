@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B143 (done)
+B144 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -625,6 +625,7 @@ bash scripts/run_all_tests.sh
 | B141 | --json 输出 | ✓ fpc list/current 支持 --json |
 | B142 | lazarus --json | ✓ lazarus list/current 支持 --json |
 | B143 | cross --json | ✓ cross list 支持 --json |
+| B144 | package --json | ✓ package list/search 支持 --json |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
@@ -642,6 +643,7 @@ bash scripts/run_all_tests.sh
 - [x] B141 --json 输出格式支持
 - [x] B142 lazarus list/current --json
 - [x] B143 cross list --json
+- [x] B144 package list/search --json
 
 ## B132 Week 8 任务池扫描报告
 
