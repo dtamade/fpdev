@@ -1,0 +1,158 @@
+#compdef fpdev
+# Zsh completion script for fpdev
+# Install: fpath=(~/.zsh/completions $fpath) && autoload -Uz compinit && compinit
+# Or copy to /usr/share/zsh/site-functions/_fpdev
+
+_fpdev() {
+    local -a commands fpc_commands lazarus_commands cross_commands package_commands project_commands
+
+    commands=(
+        'help:显示帮助'
+        'version:显示版本'
+        'fpc:FPC 版本管理'
+        'lazarus:Lazarus IDE 管理'
+        'cross:交叉编译管理'
+        'package:包管理'
+        'project:项目管理'
+        'config:配置管理'
+        'doctor:系统诊断'
+        'default:设置默认版本'
+        'show:显示信息'
+    )
+
+    fpc_commands=(
+        'install:安装 FPC 版本'
+        'uninstall:卸载 FPC 版本'
+        'list:列出 FPC 版本'
+        'use:切换 FPC 版本'
+        'current:显示当前版本'
+        'show:显示版本详情'
+        'doctor:诊断安装'
+        'test:测试安装'
+        'update:更新版本'
+        'clean:清理'
+        'cache:缓存管理'
+        'help:显示帮助'
+    )
+
+    lazarus_commands=(
+        'install:安装 Lazarus'
+        'uninstall:卸载 Lazarus'
+        'list:列出版本'
+        'use:切换版本'
+        'current:显示当前版本'
+        'show:显示详情'
+        'run:启动 IDE'
+        'test:测试安装'
+        'doctor:诊断'
+        'update:更新'
+        'configure:配置'
+        'help:显示帮助'
+    )
+
+    cross_commands=(
+        'list:列出目标'
+        'install:安装目标'
+        'uninstall:卸载目标'
+        'enable:启用目标'
+        'disable:禁用目标'
+        'show:显示详情'
+        'test:测试目标'
+        'configure:配置目标'
+        'build:构建交叉编译器'
+        'doctor:诊断环境'
+        'help:显示帮助'
+    )
+
+    package_commands=(
+        'install:安装包'
+        'uninstall:卸载包'
+        'update:更新包'
+        'list:列出包'
+        'search:搜索包'
+        'info:包信息'
+        'create:创建包'
+        'publish:发布包'
+        'clean:清理'
+        'install-local:本地安装'
+        'repo:仓库管理'
+        'deps:依赖树'
+        'why:依赖路径'
+        'help:显示帮助'
+    )
+
+    project_commands=(
+        'new:创建项目'
+        'list:列出模板'
+        'info:模板信息'
+        'build:构建项目'
+        'run:运行项目'
+        'test:测试项目'
+        'clean:清理项目'
+        'help:显示帮助'
+    )
+
+    local -a fpc_versions cross_targets project_templates
+
+    fpc_versions=('3.2.2' '3.2.0' '3.0.4' 'main' 'trunk')
+
+    cross_targets=(
+        'win64:Windows 64-bit'
+        'win32:Windows 32-bit'
+        'linux-arm:ARM Linux'
+        'linux-arm64:ARM64 Linux'
+        'darwin-x64:macOS Intel'
+        'darwin-arm64:macOS Apple Silicon'
+        'android-arm:Android ARM'
+        'android-arm64:Android ARM64'
+    )
+
+    project_templates=('console' 'gui' 'library' 'package' 'service' 'daemon')
+
+    case "${words[2]}" in
+        fpc)
+            case "${words[3]}" in
+                install|uninstall|use|show|test|update)
+                    _describe 'version' fpc_versions
+                    ;;
+                cache)
+                    _describe 'cache command' '(list stats clean path)'
+                    ;;
+                *)
+                    _describe 'fpc command' fpc_commands
+                    ;;
+            esac
+            ;;
+        lazarus)
+            _describe 'lazarus command' lazarus_commands
+            ;;
+        cross|x)
+            case "${words[3]}" in
+                install|uninstall|enable|disable|show|test|configure|build)
+                    _describe 'target' cross_targets
+                    ;;
+                *)
+                    _describe 'cross command' cross_commands
+                    ;;
+            esac
+            ;;
+        package|pkg)
+            _describe 'package command' package_commands
+            ;;
+        project|proj)
+            case "${words[3]}" in
+                new)
+                    _describe 'template' project_templates
+                    ;;
+                *)
+                    _describe 'project command' project_commands
+                    ;;
+            esac
+            ;;
+        *)
+            _describe 'command' commands
+            ;;
+    esac
+}
+
+_fpdev "$@"

@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B138 (done)
+B140 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 139/139 通过 (100%)
@@ -616,6 +616,13 @@ bash scripts/run_all_tests.sh
 | B137 | CI/CD 集成 | ✓ 创建 .github/workflows/ci.yml |
 | B138 | Week 8 周期复盘 | ✓ M10 收口，基线 139 测试 |
 
+## Batch Queue (Week 9 - UX Enhancement)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B139 | UX 改进扫描 | ✓ 识别改进机会，选择命令补全 |
+| B140 | 命令自动补全 | ✓ Bash/Zsh 补全脚本创建 |
+
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
 - [x] B132 Week 8 任务池扫描
@@ -625,6 +632,10 @@ bash scripts/run_all_tests.sh
 - [x] B136 文档完善
 - [x] B137 CI/CD 集成
 - [x] B138 Week 8 周期复盘
+
+### M11: 用户体验增强 (B139+)
+- [x] B139 UX 改进扫描
+- [x] B140 命令自动补全
 
 ## B132 Week 8 任务池扫描报告
 
