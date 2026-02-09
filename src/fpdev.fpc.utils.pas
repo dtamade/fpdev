@@ -15,7 +15,7 @@ unit fpdev.fpc.utils;
 interface
 
 uses
-  SysUtils, Classes, fpdev.fpc.types;
+  SysUtils, Classes, fpdev.types, fpdev.fpc.types;
 
 type
   { TArchiveFormat - 归档文件格式 }

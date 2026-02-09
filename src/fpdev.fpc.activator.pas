@@ -16,7 +16,7 @@ unit fpdev.fpc.activator;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, fpdev.config.interfaces, fpdev.fpc.types,
+  SysUtils, Classes, fpjson, jsonparser, fpdev.config.interfaces, fpdev.types, fpdev.fpc.types,
   fpdev.fpc.version, fpdev.fpc.interfaces, fpdev.fpc.utils;
 
 type
@@ -298,7 +298,7 @@ end;
 
 function TFPCActivator.ActivateVersion(const AVersion: string): TActivationResult;
 var
-  Scope: fpdev.fpc.types.TInstallScope;
+  Scope: fpdev.types.TInstallScope;
   InstallPath, BinPath: string;
 begin
   FillChar(Result, SizeOf(Result), 0);
@@ -316,7 +316,7 @@ begin
   Scope := DetectInstallScope(GetCurrentDir);
   Result.Scope := Scope;
 
-  if Scope = fpdev.fpc.types.isProject then
+  if Scope = fpdev.types.isProject then
   begin
     if not ActivateProjectScope(AVersion, BinPath, Result) then
       Exit;

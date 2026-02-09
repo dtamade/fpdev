@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B125 (done)
+B130 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 138/138 通过 (100%)
@@ -519,10 +519,9 @@ bash scripts/run_all_tests.sh
 
 ### 已知技术债务更新
 
-1. **类型重复定义** — 新发现
-   - `TInstallScope`: fpdev.types.pas vs fpdev.fpc.types.pas
-   - `TSourceMode`, `TVerifyInfo`, `TOriginInfo`, `TFPDevMetadata`, `TBinaryDownloadInfo`: fpdev.cmd.fpc.pas vs fpdev.fpc.types.pas
-   - 统一需要修改多处引用，风险中等
+1. **类型重复定义** — B126 已修复 TInstallScope
+   - ✓ `TInstallScope`: 统一使用 fpdev.types.pas 定义
+   - `TSourceMode`, `TVerifyInfo`, `TOriginInfo`, `TFPDevMetadata`, `TBinaryDownloadInfo`: fpdev.cmd.fpc.pas vs fpdev.fpc.types.pas (待统一)
 
 2. **大文件** (>1000 行): 仍有 12 个文件
    - fpdev.cmd.fpc.pas (1253 行) — 已部分拆分
@@ -534,4 +533,80 @@ bash scripts/run_all_tests.sh
 |--------|------|------|
 | P1 | 类型统一 (TInstallScope 等) | 中 |
 | P2 | 继续大文件拆分 (resource.repo, build.cache) | 低 |
+| P3 | CI/CD 集成调研 | 低 |
+
+## Batch Queue (Week 7 - Type Unification)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B126 | TInstallScope 类型统一 | ✓ fpdev.fpc.types 导入 fpdev.types，5 个文件更新 |
+| B127 | TSourceMode 类型统一 | ✓ fpdev.cmd.fpc.pas 移除重复定义，fpdev.fpc.types 作为权威定义，2 个测试文件更新 |
+| B128 | Metadata 类型统一 | ✓ TVerifyInfo/TOriginInfo/TFPDevMetadata/TBinaryDownloadInfo 已在 B127 一并统一 |
+| B129 | 类型统一测试验证 | ✓ 全量测试 138/138 通过，无回归 |
+| B130 | 周期复盘 | ✓ Week 7 M9 收口，类型统一完成 |
+
+### M9: 类型系统统一 (B126-B130)
+- [x] B126 TInstallScope 类型统一
+- [x] B127 TSourceMode 类型统一
+- [x] B128 Metadata 类型统一
+- [x] B129 类型统一测试验证
+- [x] B130 周期复盘
+
+## B130 Week 7 M9 周期复盘报告
+
+### M9 成果 (B126-B130)
+
+| 批次 | 任务 | 成果 |
+|------|------|------|
+| B126 | TInstallScope 类型统一 | fpdev.types.pas 作为权威定义，5 个文件更新 |
+| B127 | TSourceMode 类型统一 | fpdev.cmd.fpc.pas 移除 ~38 行重复定义，2 个测试更新 |
+| B128 | Metadata 类型统一 | TVerifyInfo/TOriginInfo/TFPDevMetadata/TBinaryDownloadInfo 统一 |
+| B129 | 测试验证 | 138/138 测试通过，零回归 |
+| B130 | 周期复盘 | 本报告 |
+
+### 类型统一详情
+
+**已统一的类型**:
+| 类型 | 权威定义位置 | 原重复位置 |
+|------|-------------|-----------|
+| TInstallScope | fpdev.types.pas | fpdev.fpc.types.pas (已移除) |
+| TSourceMode | fpdev.fpc.types.pas | fpdev.cmd.fpc.pas (已移除) |
+| TVerifyInfo | fpdev.fpc.types.pas | fpdev.cmd.fpc.pas (已移除) |
+| TOriginInfo | fpdev.fpc.types.pas | fpdev.cmd.fpc.pas (已移除) |
+| TFPDevMetadata | fpdev.fpc.types.pas | fpdev.cmd.fpc.pas (已移除) |
+| TBinaryDownloadInfo | fpdev.fpc.types.pas | fpdev.cmd.fpc.pas (已移除) |
+
+**修改文件**:
+| 文件 | 变更 |
+|------|------|
+| src/fpdev.fpc.types.pas | 导入 fpdev.types，移除 TInstallScope 定义 |
+| src/fpdev.fpc.utils.pas | 添加 fpdev.types 导入 |
+| src/fpdev.fpc.activator.pas | 添加 fpdev.types 导入，更新类型引用 |
+| src/fpdev.cmd.fpc.pas | 添加 fpdev.fpc.types 导入，移除 6 个重复类型 |
+| tests/test_fpc_utils.lpr | 添加 fpdev.types 导入 |
+| tests/test_fpc_activator.lpr | 添加 fpdev.types 导入 |
+| tests/test_fpc_scoped_install.lpr | 添加 fpdev.fpc.types 导入 |
+| tests/test_fpc_binary_install.lpr | 添加 fpdev.fpc.types 导入 |
+
+### 当前基线
+
+| 维度 | 状态 |
+|------|------|
+| 测试数 | 138/138 通过 (100%) |
+| 编译警告 | 0 (src/ 范围) |
+| 编译提示 | 0 hints, 0 notes |
+| @deprecated | 5 处 (向后兼容保留) |
+
+### 剩余技术债务
+
+1. **大文件** (>1000 行): 12 个文件待拆分
+2. **@deprecated 残余**: 5 处向后兼容层
+3. **其他类型重复**: 暂未发现其他重复定义
+
+### 下一步建议
+
+| 优先级 | 任务 | 风险 |
+|--------|------|------|
+| P1 | 继续大文件拆分 | 低 |
+| P2 | 测试覆盖增强 | 低 |
 | P3 | CI/CD 集成调研 | 低 |

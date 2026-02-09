@@ -3,7 +3,8 @@ program test_fpc_binary_install;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, opensslsockets, fpdev.cmd.fpc, fpdev.config.interfaces, fpdev.config.managers;
+  SysUtils, Classes, opensslsockets, fpdev.cmd.fpc, fpdev.fpc.types,
+  fpdev.config.interfaces, fpdev.config.managers;
 
 var
   TestRootDir: string;

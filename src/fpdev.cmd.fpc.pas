@@ -33,50 +33,12 @@ interface
 uses
   SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
   fpdev.output.intf, fpdev.config, fpdev.config.interfaces, fpdev.fpc.source,
-  fpdev.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.types, fpdev.fpc.types, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.utils.git, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
   fpdev.fpc.builder, fpdev.fpc.verify, fpdev.constants, fpdev.build.cache, fpdev.paths;
 
 type
-  { Source Mode for installation }
-  TSourceMode = (smAuto, smBinary, smSource);
-
-  { Verification Info for metadata }
-  TVerifyInfo = record
-    Timestamp: TDateTime;
-    OK: Boolean;
-    DetectedVersion: string;
-    SmokeTestPassed: Boolean;
-  end;
-
-  { Origin Info for metadata }
-  TOriginInfo = record
-    RepoURL: string;
-    Commit: string;
-    BuiltFromSource: Boolean;
-  end;
-
-  { FPDev Installation Metadata }
-  TFPDevMetadata = record
-    Version: string;
-    Scope: TInstallScope;
-    SourceMode: TSourceMode;
-    Channel: string;
-    Prefix: string;
-    Verify: TVerifyInfo;
-    Origin: TOriginInfo;
-    InstalledAt: TDateTime;
-  end;
-
-  { Binary Download Info }
-  TBinaryDownloadInfo = record
-    URL: string;
-    Checksum: string;
-    Platform: string;
-    Architecture: string;
-  end;
-
   { TFPCManager }
   TFPCManager = class
   private

@@ -12,7 +12,7 @@ program test_fpc_activator;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.fpc.types,
+  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.types, fpdev.fpc.types,
   fpdev.config.interfaces, fpdev.config.managers;
 
 var

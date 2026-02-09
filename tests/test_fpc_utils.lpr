@@ -19,7 +19,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
-  fpdev.fpc.types, fpdev.fpc.utils, fpdev.fpc.logger,
+  fpdev.types, fpdev.fpc.types, fpdev.fpc.utils, fpdev.fpc.logger,
   fpdev.config.interfaces, fpdev.config.managers, fpdev.fpc.version, fpdev.fpc.installer;
 
 type

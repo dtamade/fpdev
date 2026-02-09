@@ -3,7 +3,7 @@ program test_fpc_scoped_install;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.types,
+  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.types, fpdev.fpc.types,
   fpdev.config.interfaces, fpdev.config.managers, fpdev.utils;
 
 var

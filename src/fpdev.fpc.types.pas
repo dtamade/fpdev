@@ -13,7 +13,7 @@ unit fpdev.fpc.types;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, fpdev.types;
 
 type
   { TFPCErrorCode - Error codes for FPC operations }
@@ -80,8 +80,8 @@ type
     ErrorMessage: string;
   end;
 
-  { TInstallScope - Installation scope }
-  TInstallScope = (isUser, isProject, isSystem);
+  { TInstallScope - re-exported from fpdev.types for compatibility }
+  // Note: Use fpdev.types.TInstallScope directly in new code
 
   { TSourceMode - Source mode for installation }
   TSourceMode = (smAuto, smBinary, smSource);
