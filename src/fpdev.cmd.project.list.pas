@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.cmd.utils, fpjson, fpdev.project.generator;
 
 function TProjectListCommand.Name: string; begin Result := 'list'; end;
 function TProjectListCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -31,9 +31,38 @@ begin
   Result := TProjectListCommand.Create;
 end;
 
+function ProjectTypeToString(AType: TProjectType): string;
+begin
+  case AType of
+    ptConsole: Result := 'console';
+    ptGUI: Result := 'gui';
+    ptLibrary: Result := 'library';
+    ptPackage: Result := 'package';
+    ptWebApp: Result := 'webapp';
+    ptService: Result := 'service';
+    ptGame: Result := 'game';
+    ptCustom: Result := 'custom';
+  end;
+end;
+
+function TemplateToJson(const ATemplate: TProjectTemplate): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.Add('name', ATemplate.Name);
+  Result.Add('display_name', ATemplate.DisplayName);
+  Result.Add('description', ATemplate.Description);
+  Result.Add('type', ProjectTypeToString(ATemplate.ProjectType));
+  Result.Add('available', ATemplate.Available);
+end;
+
 function TProjectListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TProjectManager;
+  LJsonOutput: Boolean;
+  LTemplates: TProjectTemplateArray;
+  LJson: TJSONObject;
+  LArr: TJSONArray;
+  I: Integer;
 begin
   Result := 0;
 
@@ -44,15 +73,39 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_DESC));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
+  LJsonOutput := HasFlag(AParams, 'json');
+
   LMgr := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.ListTemplates(Ctx.Out) then
+    if LJsonOutput then
+    begin
+      // JSON output mode
+      LTemplates := LMgr.GetTemplateList;
+
+      LJson := TJSONObject.Create;
+      try
+        LArr := TJSONArray.Create;
+        for I := 0 to High(LTemplates) do
+          LArr.Add(TemplateToJson(LTemplates[I]));
+        LJson.Add('templates', LArr);
+        Ctx.Out.WriteLn(LJson.FormatJSON);
+      finally
+        LJson.Free;
+      end;
       Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    end
+    else
+    begin
+      // Normal text output
+      if LMgr.ListTemplates(Ctx.Out) then
+        Exit(EXIT_OK);
+      Result := EXIT_ERROR;
+    end;
   finally
     LMgr.Free;
   end;

@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B145 (done)
+B146 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 140/140 通过 (100%)
@@ -628,6 +628,20 @@ bash scripts/run_all_tests.sh
 | B144 | package --json | ✓ package list/search 支持 --json |
 | B145 | 周期复盘 | ✓ Week 9 M11 完成报告 |
 
+### M12 Batch Queue
+
+| Batch | 任务 | 预期产出 |
+|-------|------|----------|
+| B146 | project --json | project list 支持 --json |
+| B147 | repo --json | repo versions 支持 --json |
+| B148 | doctor/config --json | 诊断和配置命令 JSON 输出 |
+| B149 | 性能基准 | 启动时间/命令响应测量 |
+| B150 | 懒加载优化 | 减少启动时加载 |
+| B151 | 缓存改进 | 命令结果缓存 |
+| B152 | README.en.md | 英文 README |
+| B153 | QUICKSTART.en.md | 英文快速开始 |
+| B154 | 周期复盘 | Week 10 M12 完成报告 |
+
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
 - [x] B132 Week 8 任务池扫描
@@ -646,6 +660,23 @@ bash scripts/run_all_tests.sh
 - [x] B143 cross list --json
 - [x] B144 package list/search --json
 - [x] B145 Week 9 周期复盘
+
+### M12: 综合完善 (B146+)
+
+#### M12a: 剩余 JSON 支持 (B146-B148)
+- [x] B146 project list --json
+- [ ] B147 repo versions --json
+- [ ] B148 doctor/config --json
+
+#### M12b: 性能优化 (B149-B151)
+- [ ] B149 性能基准测试
+- [ ] B150 懒加载优化
+- [ ] B151 缓存改进
+
+#### M12c: 文档国际化 (B152-B154)
+- [ ] B152 README 英文版
+- [ ] B153 QUICKSTART 英文版
+- [ ] B154 Week 10 周期复盘
 
 ## B132 Week 8 任务池扫描报告
 

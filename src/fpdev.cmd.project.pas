@@ -61,6 +61,9 @@ type
     constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
+    // 模板查询
+    function GetTemplateList: TProjectTemplateArray;
+
     // 项目创建
     function CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
     function ListTemplates: Boolean; overload;
@@ -211,6 +214,11 @@ begin
   SetLength(Result, Length(BUILTIN_TEMPLATES));
   for i := 0 to High(BUILTIN_TEMPLATES) do
     Result[i] := BUILTIN_TEMPLATES[i];
+end;
+
+function TProjectManager.GetTemplateList: TProjectTemplateArray;
+begin
+  Result := GetAvailableTemplates;
 end;
 
 function TProjectManager.CreateFromTemplate(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
