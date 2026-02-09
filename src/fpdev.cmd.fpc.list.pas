@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.cmd.utils, fpjson, fpdev.output.json, fpdev.fpc.version;
 
 function TFPCListCommand.Name: string; begin Result := 'list'; end;
 
@@ -44,8 +44,13 @@ end;
 
 function TFPCListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LShowAll: Boolean;
+  LShowAll, LJsonOutput: Boolean;
   LMgr: TFPCManager;
+  LVersions: TFPCVersionArray;
+  LJson: TJSONObject;
+  LArr: TJSONArray;
+  LDefault: string;
+  I: Integer;
 begin
   Result := 0;
 
@@ -58,16 +63,53 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_ALL));
+    Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
   LShowAll := HasFlag(AParams, 'all') or HasFlag(AParams, 'remote');
+  LJsonOutput := HasFlag(AParams, 'json');
+
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
-    if LMgr.ListVersions(Ctx.Out, LShowAll) then
+    if LJsonOutput then
+    begin
+      // JSON output mode
+      if LShowAll then
+        LVersions := LMgr.GetAvailableVersions
+      else
+        LVersions := LMgr.GetInstalledVersions;
+
+      LDefault := '';
+      if Ctx.Config <> nil then
+      begin
+        LDefault := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
+        if Pos('fpc-', LDefault) = 1 then
+          LDefault := Copy(LDefault, 5, Length(LDefault));
+      end;
+
+      LJson := TJSONObject.Create;
+      try
+        LArr := TJSONArray.Create;
+        for I := 0 to High(LVersions) do
+          LArr.Add(TJsonOutputHelper.VersionInfoToJson(LVersions[I]));
+        LJson.Add('versions', LArr);
+        LJson.Add('default', LDefault);
+        LJson.Add('show_all', LShowAll);
+        Ctx.Out.WriteLn(LJson.FormatJSON);
+      finally
+        LJson.Free;
+      end;
       Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    end
+    else
+    begin
+      // Normal text output
+      if LMgr.ListVersions(Ctx.Out, LShowAll) then
+        Exit(EXIT_OK);
+      Result := EXIT_ERROR;
+    end;
   finally
     LMgr.Free;
   end;

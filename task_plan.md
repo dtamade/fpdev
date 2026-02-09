@@ -151,10 +151,10 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B140 (done)
+B141 (done)
 
 ## Baseline (2026-02-10)
-- 测试状态: 139/139 通过 (100%)
+- 测试状态: 140/140 通过 (100%)
 - 编译警告: 0（`/src/` 范围）
 - 编译提示: 0 hints, 0 notes（`/src/` 范围）
 - 源码文件: 244 个 (.pas/.lpr)
@@ -622,6 +622,7 @@ bash scripts/run_all_tests.sh
 |-------|-------|---------------|
 | B139 | UX 改进扫描 | ✓ 识别改进机会，选择命令补全 |
 | B140 | 命令自动补全 | ✓ Bash/Zsh 补全脚本创建 |
+| B141 | --json 输出 | ✓ fpc list/current 支持 --json |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
@@ -636,6 +637,7 @@ bash scripts/run_all_tests.sh
 ### M11: 用户体验增强 (B139+)
 - [x] B139 UX 改进扫描
 - [x] B140 命令自动补全
+- [x] B141 --json 输出格式支持
 
 ## B132 Week 8 任务池扫描报告
 

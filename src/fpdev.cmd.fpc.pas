@@ -55,8 +55,6 @@ type
     FOut: IOutput;
     FErr: IOutput;
 
-    function GetAvailableVersions: TFPCVersionArray;
-    function GetInstalledVersions: TFPCVersionArray;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
     function BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
     function ValidateVersion(const AVersion: string): Boolean;
@@ -74,6 +72,8 @@ type
     destructor Destroy; override;
 
     // 版本管理
+    function GetAvailableVersions: TFPCVersionArray;
+    function GetInstalledVersions: TFPCVersionArray;
     function InstallVersion(const AVersion: string; const AFromSource: Boolean = False; const APrefix: string = ''; const AEnsure: Boolean = False): Boolean;
     function UninstallVersion(const AVersion: string): Boolean;
     function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
