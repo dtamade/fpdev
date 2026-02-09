@@ -232,16 +232,16 @@ begin
     // 输出
     if AsJson then
     begin
-      Ctx.Out.Write('{"items":[');
+      Ctx.Out.Write('{"versions":[');
       Count := 0;
       for i := 0 to VersSet.Count-1 do
       begin
         if (Limit>0) and (Count>=Limit) then Break;
         if Count>0 then Ctx.Out.Write(',');
-        Ctx.Out.Write('{"version":"' + VersSet[i] + '"}');
+        Ctx.Out.Write('"' + VersSet[i] + '"');
         Inc(Count);
       end;
-      Ctx.Out.WriteLn(']}');
+      Ctx.Out.WriteLn('],"count":' + IntToStr(Count) + '}');
     end
     else
     begin
