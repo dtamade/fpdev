@@ -18,7 +18,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.exitcodes;
 
 type
   { TResolveVersionCommand - 解析当前有效版本 }
@@ -70,7 +71,7 @@ var
   LJson: TJSONObject;
   I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // 检查 --json 标志
   LJsonOutput := False;

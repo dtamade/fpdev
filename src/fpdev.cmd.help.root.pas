@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils,
-  fpdev.command.registry, fpdev.command.intf, fpdev.cmd.help;
+  fpdev.command.registry, fpdev.command.intf, fpdev.cmd.help, fpdev.exitcodes;
 
 type
   { THelpCommand }
@@ -44,7 +44,7 @@ end;
 function THelpCommand.Execute(const AParams: array of string; const AContext: IContext): Integer;
 begin
   fpdev.cmd.help.execute(AParams, AContext.Out);
-  Result := 0;
+  Result := EXIT_OK;
 end;
 
 function HelpFactory: ICommand;

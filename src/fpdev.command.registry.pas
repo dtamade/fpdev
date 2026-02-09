@@ -49,6 +49,9 @@ function GlobalCommandRegistry: TCommandRegistry;
 
 implementation
 
+uses
+  fpdev.exitcodes;
+
 { TCommandNode }
 
 constructor TCommandNode.Create(const AName: string);
@@ -223,7 +226,7 @@ var
   LArgs: array of string;
   CurrentArg: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
   Rest := nil;
   LArgs := nil;
 
@@ -306,7 +309,7 @@ begin
       for j := 0 to High(SubCmds) do
         Ctx.Err.WriteLn('  ' + SubCmds[j]);
     end;
-    Result := 1;
+    Result := EXIT_ERROR;
   end
   else if (MatchedNode <> nil) then
   begin
@@ -315,26 +318,27 @@ begin
     if EffNode.Children.Count > 0 then
     begin
       // Node matched but has no factory - show available subcommands
-      Ctx.Out.WriteLn('Usage: fpdev ' + EffNode.Name + ' <command>');
-      Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Available commands:');
+      // Output to stderr since user input was incomplete (no subcommand specified)
+      Ctx.Err.WriteLn('Usage: fpdev ' + EffNode.Name + ' <command>');
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Available commands:');
       SubCmds := nil;
       SetLength(SubCmds, EffNode.Children.Count);
       for j := 0 to EffNode.Children.Count - 1 do
         SubCmds[j] := EffNode.Children[j];
       for j := 0 to High(SubCmds) do
-        Ctx.Out.WriteLn('  ' + SubCmds[j]);
-      Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Use "fpdev ' + EffNode.Name + ' <command> --help" for more information.');
-      Result := 0;
+        Ctx.Err.WriteLn('  ' + SubCmds[j]);
+      Ctx.Err.WriteLn('');
+      Ctx.Err.WriteLn('Use "fpdev ' + EffNode.Name + ' <command> --help" for more information.');
+      Result := EXIT_USAGE_ERROR;
     end
     else
-      Result := 1;
+      Result := EXIT_ERROR;
   end
   else
   begin
     // No match found: return non-zero, let upper layer output help/error
-    Result := 1;
+    Result := EXIT_ERROR;
   end;
 end;
 

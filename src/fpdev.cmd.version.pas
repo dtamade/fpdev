@@ -18,7 +18,8 @@ uses
   fpdev.utils,
   fpdev.version,
   fpdev.command.intf,
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.exitcodes;
 
 resourcestring
   S_PLATFORM     = 'Platform:    ';
@@ -59,7 +60,7 @@ end;
 
 function TVersionCommand.Execute(const {%H-} AParams: array of string; const Ctx: IContext): Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
   if Length(AParams) > 0 then;
   // AParams parameter not used - version command ignores arguments
 

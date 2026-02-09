@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TProjectHelpCommand }
@@ -130,7 +130,7 @@ end;
 
 function TProjectHelpCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   if Length(AParams) = 0 then
     ShowProjectHelp(Ctx)
