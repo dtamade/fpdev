@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B133 (done)
+B134 (done)
 
 ## Baseline (2026-02-10)
 - 测试状态: 139/139 通过 (100%)
@@ -610,11 +610,13 @@ bash scripts/run_all_tests.sh
 | B131 | cmd.fpc Metadata helper 抽离 | ✓ fpdev.fpc.metadata.pas 新建，cmd.fpc 1253→1119 行，+33 测试 |
 | B132 | Week 8 任务池扫描 | ✓ 基线 139 测试，规划后续批次 |
 | B133 | cmd.package 结构评估 | ✓ 已有 25 个 helper，3 个大方法待优化 |
+| B134 | cmd.cross/fpc.source 结构评估 | ✓ 已充分拆分，无高优先级拆分任务 |
 
 ### M10: 大文件持续重构 (B131+)
 - [x] B131 cmd.fpc Metadata helper 抽离
 - [x] B132 Week 8 任务池扫描
 - [x] B133 cmd.package 结构评估
+- [x] B134 cmd.cross/fpc.source 结构评估
 
 ## B132 Week 8 任务池扫描报告
 
@@ -687,3 +689,32 @@ fpdev.cmd.package.pas 已经过充分拆分（25 个 helper 单元）。剩余 3
 1. 保持当前结构
 2. 优先处理其他大文件（cmd.cross, fpc.source）
 3. 后续可考虑将 ParseLocalPackageIndex 抽离为独立 helper
+
+## B134 cmd.cross/fpc.source 结构评估
+
+### fpdev.cmd.cross.pas
+
+| 维度 | 数值 |
+|------|------|
+| 主文件行数 | 1261 行 |
+| 已拆分 helper 单元 | 23 个 |
+| 最大方法 | InstallTarget (129 行) |
+
+### fpdev.fpc.source.pas
+
+| 维度 | 数值 |
+|------|------|
+| 主文件行数 | 1063 行 |
+| 方法数 | 44 个 |
+| 最大方法 | InstallFPCVersion (108 行) |
+
+### 结论
+
+两个文件都已经过充分拆分:
+- cmd.cross: 23 个 helper 单元，最大方法 129 行
+- fpc.source: 方法均在 110 行以内
+
+大文件拆分工作已基本完成。后续建议转向其他质量提升方向:
+1. 测试覆盖增强
+2. 文档完善
+3. CI/CD 集成
