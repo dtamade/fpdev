@@ -1,157 +1,64 @@
-# B167: cmd.cross.pas 拆分预研
+# B167: cmd.cross.pas 拆分执行
 
 ## 完成日期
 2026-02-10
 
-## 现状分析
+## 执行摘要
 
-### 文件概览
+**原状态**: fpdev.cmd.cross.pas 1,263 行
+**拆分后**: fpdev.cmd.cross.pas 1,099 行 + fpdev.cross.platform.pas 203 行
 
-| 指标 | 值 |
-|------|-----|
-| 文件路径 | src/fpdev.cmd.cross.pas |
-| 总行数 | 1,263 行 |
-| 函数/方法数 | 25 个 |
-| 职责 | 交叉编译管理 |
+## 拆分详情
 
-### 职责分布
+### 新建单元: fpdev.cross.platform.pas (203 行)
 
-```
-fpdev.cmd.cross.pas (1,263 行)
-├── 类型定义 (41-62)
-│   ├── TCrossTargetPlatform 枚举
-│   ├── TCrossTargetInfo 记录
-│   └── TCrossTargetArray 数组
-│
-├── TCrossCompilerManager 类 (65-1220)
-│   ├── 私有辅助方法 (180-380)
-│   │   ├── PlatformToString/StringToPlatform
-│   │   ├── DetectSystemCrossCompiler
-│   │   ├── GetPackageManagerInstructions
-│   │   ├── GetTargetInstallPath
-│   │   └── GetTargetInfo
-│   │
-│   ├── 目标查询 (381-480)
-│   │   ├── GetAvailableTargets
-│   │   └── GetInstalledTargets
-│   │
-│   ├── 下载功能 (483-580)
-│   │   ├── DownloadBinutils
-│   │   ├── DownloadLibraries
-│   │   └── SetupCrossEnvironment
-│   │
-│   ├── 目标管理 (583-890)
-│   │   ├── InstallTarget (130 行!)
-│   │   ├── UninstallTarget
-│   │   ├── ListTargets
-│   │   ├── EnableTarget
-│   │   └── DisableTarget
-│   │
-│   └── 高级功能 (894-1180)
-│       ├── ShowTargetInfo
-│       ├── TestTarget
-│       ├── BuildTest
-│       ├── ConfigureTarget
-│       ├── UpdateTarget
-│       └── CleanTarget
-│
-└── 初始化注册 (1250-1263)
-```
+提取内容:
+- `TCrossTargetPlatform` 枚举类型
+- `PlatformToString()` 函数
+- `StringToPlatform()` 函数
+- `GetBinutilsPrefix()` 函数 (新增)
+- `DetectSystemCrossCompiler()` 函数
+- `GetPackageManagerInstructions()` 函数
 
-## 拆分方案
+### 修改单元: fpdev.cmd.cross.pas (1,099 行, -164 行)
 
-### 方案 A: 按职责拆分 (推荐)
+变更:
+- 移除 `TCrossTargetPlatform` 类型定义（改为从 platform 单元导入）
+- 移除 4 个私有方法的声明和实现
+- 添加 `fpdev.cross.platform` 到 uses 子句
 
-```
-fpdev.cmd.cross.pas (保留)
-├── 类型定义
-├── 命令注册
-└── TCrossCommand 根命令
+## 代码变更统计
 
-fpdev.cross.manager.pas (新建)
-├── TCrossCompilerManager 核心类
-├── 目标查询方法
-└── 目标管理方法
-
-fpdev.cross.platform.pas (新建)
-├── TCrossTargetPlatform 枚举
-├── Platform 转换函数
-├── 系统检测函数
-└── 包管理器指令
-
-fpdev.cross.downloader.pas (已存在)
-└── 下载功能 (已分离)
-```
-
-**预期效果**:
-- cmd.cross.pas: ~200 行 (命令入口)
-- cross.manager.pas: ~600 行 (核心业务)
-- cross.platform.pas: ~300 行 (平台相关)
-
-### 方案 B: 按功能层拆分
-
-```
-fpdev.cmd.cross.pas → 命令层 (~200 行)
-fpdev.cross.service.pas → 服务层 (~700 行)
-fpdev.cross.types.pas → 类型层 (~100 行)
-fpdev.cross.utils.pas → 工具层 (~200 行)
-```
-
-### 方案对比
-
-| 维度 | 方案 A | 方案 B |
-|------|--------|--------|
-| 拆分文件数 | 3 | 4 |
-| 改动量 | 中 | 大 |
-| 测试影响 | 低 | 中 |
-| 可维护性 | 高 | 高 |
-| 推荐度 | ★★★★★ | ★★★☆☆ |
-
-## 实施步骤 (方案 A)
-
-### 步骤 1: 创建 fpdev.cross.platform.pas
-1. 提取 TCrossTargetPlatform 枚举
-2. 提取 PlatformToString/StringToPlatform
-3. 提取 DetectSystemCrossCompiler
-4. 提取 GetPackageManagerInstructions
-
-### 步骤 2: 创建 fpdev.cross.manager.pas
-1. 提取 TCrossCompilerManager 类
-2. 保留所有公开方法
-3. 私有方法改为调用 platform 单元
-
-### 步骤 3: 精简 fpdev.cmd.cross.pas
-1. 只保留 TCrossCommand 命令类
-2. 引用 cross.manager 和 cross.platform
-3. 保持初始化注册不变
-
-### 步骤 4: 更新依赖
-1. 更新所有引用 cmd.cross 的单元
-2. 运行全量测试验证
-3. 更新 CLAUDE.md 文档
-
-## 风险评估
-
-| 风险 | 概率 | 影响 | 缓解措施 |
-|------|------|------|----------|
-| 循环依赖 | 中 | 高 | 仔细设计单元边界 |
-| 外部引用破坏 | 低 | 中 | 保持公开接口不变 |
-| 测试失败 | 低 | 低 | 逐步提取，每步测试 |
-
-## 工作量估算
-
-| 任务 | 时间 |
+| 指标 | 变更 |
 |------|------|
-| 创建 platform 单元 | 1h |
-| 创建 manager 单元 | 2h |
-| 更新 cmd.cross | 0.5h |
-| 测试验证 | 1h |
-| 文档更新 | 0.5h |
-| **总计** | **5h** |
+| 移除代码行数 | 164 行 |
+| 新增代码行数 | 203 行 |
+| 净增行数 | +39 行 (API 增强) |
+| 修改文件数 | 1 个 |
+| 新建文件数 | 1 个 |
 
-## 建议
+## 验证结果
 
-1. **当前状态可接受**: 1,263 行虽大但结构清晰，不是紧急问题
-2. **如需拆分**: 采用方案 A，按职责拆分，风险最低
-3. **触发条件**: 当需要添加新的交叉编译功能时再拆分
-4. **优先级**: P3 (低优先级改进)
+- 编译: 0 warnings, 0 errors
+- 测试: 140/140 通过 (100%)
+- 功能回归: 无
+
+## 设计决策
+
+### 保留在 cmd.cross.pas 的内容
+
+- `TCrossTargetInfo` 记录 - 与 Manager 紧密耦合
+- `TCrossCompilerManager` 类 - 核心业务逻辑
+- 所有公开方法 - 保持 API 稳定
+
+### 抽离到 platform 单元的内容
+
+- 平台枚举和转换 - 可独立复用
+- 系统检测函数 - 可独立测试
+- 包管理器指令 - 可独立维护
+
+## 后续建议
+
+1. **可选进一步拆分**: `TCrossCompilerManager` 仍有 1,099 行，但方法间高度耦合，不建议强制拆分
+2. **单元测试**: 可为 `fpdev.cross.platform` 添加专项测试
+3. **文档**: 可为新单元添加 API 文档

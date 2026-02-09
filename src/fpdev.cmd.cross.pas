@@ -33,18 +33,11 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
-  fpdev.cross.downloader,
+  fpdev.cross.downloader, fpdev.cross.platform,
   fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester;
 
 type
-  { TCrossTargetPlatform }
-  TCrossTargetPlatform = (
-    ctpWin32, ctpWin64, ctpLinux32, ctpLinux64, ctpLinuxARM, ctpLinuxARM64,
-    ctpDarwin32, ctpDarwin64, ctpDarwinARM64, ctpAndroid, ctpiOS,
-    ctpFreeBSD32, ctpFreeBSD64, ctpCustom
-  );
-
   { TCrossTargetInfo }
   TCrossTargetInfo = record
     Platform: TCrossTargetPlatform;
@@ -77,12 +70,6 @@ type
     function GetTargetInstallPath(const ATarget: string): string;
     function IsTargetInstalled(const ATarget: string): Boolean;
     function GetTargetInfo(const ATarget: string): TCrossTargetInfo;
-    function PlatformToString(APlatform: TCrossTargetPlatform): string;
-    function StringToPlatform(const AStr: string): TCrossTargetPlatform;
-
-    // System cross compiler detection
-    function DetectSystemCrossCompiler(const ATarget: string; out ABinutilsPath: string): Boolean;
-    function GetPackageManagerInstructions(const ATarget: string): string;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager); overload;
@@ -175,157 +162,6 @@ begin
   if Assigned(FResourceRepo) then
     FResourceRepo.Free;
   inherited Destroy;
-end;
-
-function TCrossCompilerManager.PlatformToString(APlatform: TCrossTargetPlatform): string;
-begin
-  case APlatform of
-    ctpWin32: Result := 'win32';
-    ctpWin64: Result := 'win64';
-    ctpLinux32: Result := 'linux32';
-    ctpLinux64: Result := 'linux64';
-    ctpLinuxARM: Result := 'linuxarm';
-    ctpLinuxARM64: Result := 'linuxarm64';
-    ctpDarwin32: Result := 'darwin32';
-    ctpDarwin64: Result := 'darwin64';
-    ctpDarwinARM64: Result := 'darwinarm64';
-    ctpAndroid: Result := 'android';
-    ctpiOS: Result := 'ios';
-    ctpFreeBSD64: Result := 'freebsd64';
-    ctpCustom: Result := 'custom';
-  else
-    Result := 'unknown';
-  end;
-end;
-
-function TCrossCompilerManager.StringToPlatform(const AStr: string): TCrossTargetPlatform;
-begin
-  if SameText(AStr, 'win32') then Result := ctpWin32
-  else if SameText(AStr, 'win64') then Result := ctpWin64
-  else if SameText(AStr, 'linux32') then Result := ctpLinux32
-  else if SameText(AStr, 'linux64') then Result := ctpLinux64
-  else if SameText(AStr, 'linuxarm') then Result := ctpLinuxARM
-  else if SameText(AStr, 'linuxarm64') then Result := ctpLinuxARM64
-  else if SameText(AStr, 'darwin32') then Result := ctpDarwin32
-  else if SameText(AStr, 'darwin64') then Result := ctpDarwin64
-  else if SameText(AStr, 'darwinarm64') then Result := ctpDarwinARM64
-  else if SameText(AStr, 'android') then Result := ctpAndroid
-  else if SameText(AStr, 'ios') then Result := ctpiOS
-  else if SameText(AStr, 'freebsd64') then Result := ctpFreeBSD64
-  else Result := ctpCustom;
-end;
-
-function TCrossCompilerManager.DetectSystemCrossCompiler(const ATarget: string; out ABinutilsPath: string): Boolean;
-var
-  SearchPaths: array of string;
-  Prefix, GCCExe: string;
-  i: Integer;
-begin
-  Result := False;
-  ABinutilsPath := '';
-
-  // Determine binutils prefix based on target
-  case StringToPlatform(ATarget) of
-    ctpWin32: Prefix := 'i686-w64-mingw32-';
-    ctpWin64: Prefix := 'x86_64-w64-mingw32-';
-    ctpLinux32: Prefix := 'i686-linux-gnu-';
-    ctpLinux64: Prefix := 'x86_64-linux-gnu-';
-    ctpLinuxARM: Prefix := 'arm-linux-gnueabihf-';
-    ctpLinuxARM64: Prefix := 'aarch64-linux-gnu-';
-    ctpDarwin64: Prefix := 'x86_64-apple-darwin-';
-    ctpDarwinARM64: Prefix := 'aarch64-apple-darwin-';
-    ctpAndroid: Prefix := 'arm-linux-androideabi-';
-  else
-    Exit;
-  end;
-
-  // Search paths for cross compilers
-  SearchPaths := nil;
-  {$IFDEF UNIX}
-  SetLength(SearchPaths, 4);
-  SearchPaths[0] := '/usr/bin';
-  SearchPaths[1] := '/usr/local/bin';
-  SearchPaths[2] := '/opt/cross/bin';
-  SearchPaths[3] := ExpandFileName('~/.local/bin');
-  {$ELSE}
-  SetLength(SearchPaths, 3);
-  SearchPaths[0] := 'C:' + PathDelim + 'mingw64' + PathDelim + 'bin';
-  SearchPaths[1] := 'C:' + PathDelim + 'mingw32' + PathDelim + 'bin';
-  SearchPaths[2] := GetEnvironmentVariable('MINGW_HOME') + PathDelim + 'bin';
-  {$ENDIF}
-
-  // Search for GCC with the target prefix
-  for i := 0 to High(SearchPaths) do
-  begin
-    GCCExe := SearchPaths[i] + PathDelim + Prefix + 'gcc';
-    {$IFDEF MSWINDOWS}
-    GCCExe := GCCExe + '.exe';
-    {$ENDIF}
-
-    if FileExists(GCCExe) then
-    begin
-      ABinutilsPath := SearchPaths[i];
-      Result := True;
-      Exit;
-    end;
-  end;
-end;
-
-function TCrossCompilerManager.GetPackageManagerInstructions(const ATarget: string): string;
-begin
-  Result := '';
-
-  {$IFDEF LINUX}
-  case StringToPlatform(ATarget) of
-    ctpWin32, ctpWin64:
-      Result := 'Install MinGW cross compiler:' + LineEnding +
-                '  Debian/Ubuntu: sudo apt-get install gcc-mingw-w64' + LineEnding +
-                '  Fedora/RHEL:   sudo dnf install mingw64-gcc mingw32-gcc' + LineEnding +
-                '  Arch Linux:    sudo pacman -S mingw-w64-gcc';
-    ctpLinuxARM:
-      Result := 'Install ARM cross compiler:' + LineEnding +
-                '  Debian/Ubuntu: sudo apt-get install gcc-arm-linux-gnueabihf' + LineEnding +
-                '  Fedora/RHEL:   sudo dnf install arm-linux-gnueabihf-gcc' + LineEnding +
-                '  Arch Linux:    sudo pacman -S arm-linux-gnueabihf-gcc';
-    ctpLinuxARM64:
-      Result := 'Install AArch64 cross compiler:' + LineEnding +
-                '  Debian/Ubuntu: sudo apt-get install gcc-aarch64-linux-gnu' + LineEnding +
-                '  Fedora/RHEL:   sudo dnf install aarch64-linux-gnu-gcc' + LineEnding +
-                '  Arch Linux:    sudo pacman -S aarch64-linux-gnu-gcc';
-  else
-    Result := 'Cross compiler not available via package manager.' + LineEnding +
-              'Please install manually and use "fpdev cross configure".';
-  end;
-  {$ENDIF}
-
-  {$IFDEF DARWIN}
-  case StringToPlatform(ATarget) of
-    ctpWin32, ctpWin64:
-      Result := 'Install MinGW cross compiler:' + LineEnding +
-                '  Homebrew: brew install mingw-w64';
-    ctpLinuxARM, ctpLinuxARM64:
-      Result := 'Install ARM cross compiler:' + LineEnding +
-                '  Homebrew: brew install arm-linux-gnueabihf-binutils';
-  else
-    Result := 'Cross compiler not available via Homebrew.' + LineEnding +
-              'Please install manually and use "fpdev cross configure".';
-  end;
-  {$ENDIF}
-
-  {$IFDEF MSWINDOWS}
-  case StringToPlatform(ATarget) of
-    ctpLinux32, ctpLinux64, ctpLinuxARM, ctpLinuxARM64:
-      Result := 'Install cross compiler from:' + LineEnding +
-                '  https://gnutoolchains.com/raspberry/' + LineEnding +
-                '  Or use WSL for Linux cross-compilation.';
-  else
-    Result := 'Cross compiler not readily available.' + LineEnding +
-              'Please install manually and use "fpdev cross configure".';
-  end;
-  {$ENDIF}
-
-  if Result = '' then
-    Result := 'Please install the cross compiler manually and use "fpdev cross configure".';
 end;
 
 function TCrossCompilerManager.GetTargetInstallPath(const ATarget: string): string;
