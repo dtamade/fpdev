@@ -151,7 +151,7 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B083 (next)
+B087 (next)
 
 ## Baseline (2026-02-09)
 - 测试状态: 118/118 通过 (100%)
@@ -252,16 +252,26 @@ bash scripts/run_all_tests.sh
 
 ### M5: 后端探索开发任务（B053-B062）
 - [x] B053 命令契约测试矩阵 - 新增 command-registry 级别测试
-- [ ] B054 测试发现器升级 - 支持嵌套测试目录
+- [x] B054 测试发现器升级 - 支持嵌套测试目录 (done in B084)
 - [x] B055 退出码残余清理 - 检查遗漏的魔法数字
 - [ ] B056 错误语义统一 - 帮助文档与实际行为对齐
 - [x] B057 package deps 命令 - 依赖树展示
 - [x] B058 package why 命令 - 依赖路径解释
 - [x] B059 文档基线对齐 - README 命令集更新
-- [ ] B060 文档测试规模更新 - 测试数量与覆盖率
+- [x] B060 文档测试规模更新 - 测试数量与覆盖率 (done in B085)
 - [x] B061/B062 resource.repo/build.cache 懒加载优化
 
 ### M6: 代码健壮性（B083+）
 - [x] B083 剩余 Objects[]/Arrays[] 安全审计 (审计完成，内部API安全)
 - [x] B084 测试发现器升级 - 支持嵌套测试目录 (115->118)
 - [x] B085 文档测试规模更新 - README badge 94->118
+- [x] B086 周期复盘 - M4-M6 收口
+
+## Batch Queue (Week 2)
+
+| Batch | Scope | Done Criteria |
+|-------|-------|---------------|
+| B087 | cross 命令测试补充 | 至少 5 个 cross 子命令有基础测试 |
+| B088 | config 命令测试 | config 命令有基础测试 |
+| B089 | @deprecated 代码清理 | 移除或迁移 deprecated 标记的代码 |
+| B090 | 错误语义统一 (B056) | 帮助文档与实际行为对齐 |
