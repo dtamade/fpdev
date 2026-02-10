@@ -143,22 +143,41 @@ begin
     Engine.SetDryRun(DryRun);
 
     if DryRun then
-      Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' (dry-run) ===')
+    begin
+      Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' (dry-run) ===');
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn('Build Plan:');
+      Ctx.Out.WriteLn('  Step 1: compiler_cycle  - Build native compiler');
+      Ctx.Out.WriteLn('  Step 2: compiler_install - Install native compiler');
+      Ctx.Out.WriteLn('  Step 3: rtl_all         - Build RTL for ' + CPU + '-' + OS);
+      Ctx.Out.WriteLn('  Step 4: rtl_install     - Install RTL');
+      Ctx.Out.WriteLn('  Step 5: packages_all    - Build packages for ' + CPU + '-' + OS);
+      Ctx.Out.WriteLn('  Step 6: packages_install - Install packages');
+      Ctx.Out.WriteLn('  Step 7: verify          - Verify installation');
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn('Source:  ' + SourceRoot);
+      Ctx.Out.WriteLn('Sandbox: ' + SandboxRoot);
+      Ctx.Out.WriteLn('Version: ' + Version);
+      Ctx.Out.WriteLn('');
+    end
     else
       Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' ===');
 
     if Engine.BuildCrossCompiler(Target, SourceRoot, SandboxRoot, Version) then
     begin
       Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Cross-compilation completed successfully.');
       if DryRun then
       begin
+        Ctx.Out.WriteLn('Dry-run completed. The following commands would be executed:');
         Ctx.Out.WriteLn('');
-        Ctx.Out.WriteLn('Command log:');
         Log := Engine.GetCommandLog;
         for I := 0 to Engine.GetCommandLogCount - 1 do
-          Ctx.Out.WriteLn('  ' + Log[I]);
-      end;
+          Ctx.Out.WriteLn('  $ ' + Log[I]);
+        Ctx.Out.WriteLn('');
+        Ctx.Out.WriteLn('To execute these commands, run without --dry-run flag.');
+      end
+      else
+        Ctx.Out.WriteLn('Cross-compilation completed successfully.');
     end
     else
     begin
