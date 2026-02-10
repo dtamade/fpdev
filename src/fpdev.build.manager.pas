@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes, fpdev.build.config, fpdev.build.logger, fpdev.build.toolchain,
-  fpdev.build.cache, fpdev.build.interfaces;
+  fpdev.build.cache, fpdev.build.interfaces, fpdev.perf.monitor;
 
 type
   { TBuildManager }
@@ -785,7 +785,10 @@ begin
   Log('== BuildCompiler START version=' + AVersion + ' src=' + LSrc);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LStart := Now;
+  PerfMon.StartOperation('BuildCompiler', 'Build');
+  PerfMon.SetMetadata('BuildCompiler', 'version=' + AVersion);
   Result := RunMake(LSrc, ['clean','compiler']);
+  PerfMon.EndOperation('BuildCompiler', Result);
   LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== BuildCompiler END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildCompiler END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
@@ -801,7 +804,10 @@ begin
   Log('== BuildRTL START version=' + AVersion + ' src=' + LSrc);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LStart := Now;
+  PerfMon.StartOperation('BuildRTL', 'Build');
+  PerfMon.SetMetadata('BuildRTL', 'version=' + AVersion);
   Result := RunMake(LSrc, ['rtl']);
+  PerfMon.EndOperation('BuildRTL', Result);
   LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== BuildRTL END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildRTL END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
@@ -817,7 +823,10 @@ begin
   Log('== BuildPackages START version=' + AVersion + ' src=' + LSrc);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LStart := Now;
+  PerfMon.StartOperation('BuildPackages', 'Build');
+  PerfMon.SetMetadata('BuildPackages', 'version=' + AVersion);
   Result := RunMake(LSrc, ['packages']);
+  PerfMon.EndOperation('BuildPackages', Result);
   LMs := MilliSecondsBetween(Now, LStart);
   if Result then
     Log('== BuildPackages END OK elapsed_ms=' + IntToStr(LMs))
@@ -866,7 +875,7 @@ var
 begin
   if not FAllowInstall then
   begin
-    Log('Install 被禁止（FAllowInstall=False），跳过');
+    Log('Install skipped (FAllowInstall=False)');
     Exit(True);
   end;
   LSrc := GetSourcePath(AVersion);
@@ -875,8 +884,11 @@ begin
   Log('== Install START version=' + AVersion + ' src=' + LSrc + ' dest=' + LDest);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LStart := Now;
-  // 将安装目标定向到沙箱（尝试常见变量：DESTDIR/PREFIX），具体支持取决于上游 Makefile
+  PerfMon.StartOperation('Install', 'Build');
+  PerfMon.SetMetadata('Install', 'version=' + AVersion + ',dest=' + LDest);
+  // Direct install target to sandbox (try common variables: DESTDIR/PREFIX)
   Result := RunMake(LSrc, ['DESTDIR=' + LDest, 'PREFIX=' + LDest, 'INSTALL_PREFIX=' + LDest, 'install']);
+  PerfMon.EndOperation('Install', Result);
   LMs := MilliSecondsBetween(Now, LStart);
   if Result then Log('== Install END OK elapsed_ms=' + IntToStr(LMs)) else Log('== Install END FAIL elapsed_ms=' + IntToStr(LMs));
 end;
