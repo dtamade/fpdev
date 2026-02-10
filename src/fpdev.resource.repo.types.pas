@@ -105,20 +105,12 @@ implementation
 
 function EmptyMirrorInfo: TMirrorInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.Name := '';
-  Result.URL := '';
-  Result.Region := '';
-  Result.Priority := 0;
+  Result := Default(TMirrorInfo);
 end;
 
 function EmptyResourceRepoConfig: TResourceRepoConfig;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.URL := '';
-  SetLength(Result.Mirrors, 0);
-  SetLength(Result.MirrorInfos, 0);
-  Result.LocalPath := '';
+  Result := Default(TResourceRepoConfig);
   Result.Branch := 'main';
   Result.AutoUpdate := True;
   Result.UpdateIntervalHours := 24;
@@ -126,41 +118,17 @@ end;
 
 function EmptyPlatformInfo: TPlatformInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.URL := '';
-  SetLength(Result.Mirrors, 0);
-  Result.Path := '';
-  Result.Executable := '';
-  Result.SHA256 := '';
-  Result.Size := 0;
-  Result.Tested := False;
+  Result := Default(TPlatformInfo);
 end;
 
 function EmptyCrossToolchainInfo: TCrossToolchainInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.TargetName := '';
-  Result.DisplayName := '';
-  Result.CPU := '';
-  Result.OS := '';
-  Result.BinutilsPrefix := '';
-  Result.BinutilsArchive := '';
-  Result.LibsArchive := '';
-  Result.BinutilsSHA256 := '';
-  Result.LibsSHA256 := '';
+  Result := Default(TCrossToolchainInfo);
 end;
 
 function EmptyRepoPackageInfo: TRepoPackageInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.Name := '';
-  Result.Version := '';
-  Result.Description := '';
-  Result.Category := '';
-  Result.Archive := '';
-  Result.SHA256 := '';
-  SetLength(Result.Dependencies, 0);
-  Result.FPCMinVersion := '';
+  Result := Default(TRepoPackageInfo);
 end;
 
 function MirrorInfoToString(const AInfo: TMirrorInfo): string;

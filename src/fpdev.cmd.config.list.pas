@@ -64,6 +64,7 @@ end;
 
 function TConfigListCommand.Aliases: TStringArray;
 begin
+  Result := nil;
   SetLength(Result, 1);
   Result[0] := 'ls';
 end;

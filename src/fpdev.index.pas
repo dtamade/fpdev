@@ -261,8 +261,6 @@ begin
     rtFPC: Result := 'fpc';
     rtLazarus: Result := 'lazarus';
     rtCross: Result := 'cross';
-  else
-    Result := 'unknown';
   end;
 end;
 
@@ -335,10 +333,7 @@ var
   RepoData: TJSONObject;
   TypeStr: string;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.Name := '';
-  Result.GitHubURL := '';
-  Result.GiteeURL := '';
+  Result := Default(TRepoInfo);
   Result.RepoType := AType;
 
   if not Assigned(FIndexData) then
@@ -369,12 +364,8 @@ var
   ChannelData: TJSONObject;
   BootstrapObj, FPCObj, LazarusObj, CrossObj: TJSONObject;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result := Default(TChannelInfo);
   Result.Name := AChannel;
-  Result.BootstrapRef := '';
-  Result.FPCRef := '';
-  Result.LazarusRef := '';
-  Result.CrossRef := '';
 
   if not Assigned(FIndexData) then
     Exit;

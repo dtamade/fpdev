@@ -115,8 +115,6 @@ begin
     bsPackagesInstall: Result := 'packages_install';
     bsVerify:          Result := 'verify';
     bsComplete:        Result := 'complete';
-  else
-    Result := 'unknown';
   end;
 end;
 
@@ -140,57 +138,22 @@ end;
 
 function EmptyBuildCacheEntry: TBuildCacheEntry;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.Version := '';
-  Result.Revision := '';
-  Result.BuildTime := 0;
-  Result.CPU := '';
-  Result.OS := '';
-  Result.CompilerHash := '';
-  Result.SourceHash := '';
-  Result.Status := bsIdle;
+  Result := Default(TBuildCacheEntry);
 end;
 
 function EmptyArtifactInfo: TArtifactInfo;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.Version := '';
-  Result.CPU := '';
-  Result.OS := '';
-  Result.ArchivePath := '';
-  Result.ArchiveSize := 0;
-  Result.CreatedAt := 0;
-  Result.SourcePath := '';
-  Result.SourceType := '';
-  Result.SHA256 := '';
-  Result.DownloadURL := '';
-  Result.FileExt := '';
-  Result.AccessCount := 0;
-  Result.LastAccessed := 0;
+  Result := Default(TArtifactInfo);
 end;
 
 function EmptyCacheIndexStats: TCacheIndexStats;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.TotalEntries := 0;
-  Result.TotalSize := 0;
-  Result.OldestVersion := '';
-  Result.NewestVersion := '';
-  Result.OldestDate := 0;
-  Result.NewestDate := 0;
+  Result := Default(TCacheIndexStats);
 end;
 
 function EmptyCacheDetailedStats: TCacheDetailedStats;
 begin
-  FillChar(Result, SizeOf(Result), 0);
-  Result.TotalEntries := 0;
-  Result.TotalSize := 0;
-  Result.TotalAccesses := 0;
-  Result.AverageEntrySize := 0;
-  Result.MostAccessedVersion := '';
-  Result.MostAccessedCount := 0;
-  Result.LeastAccessedVersion := '';
-  Result.LeastAccessedCount := 0;
+  Result := Default(TCacheDetailedStats);
 end;
 
 end.
