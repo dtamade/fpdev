@@ -15,7 +15,7 @@ program test_build_cache_binary;
 }
 
 uses
-  SysUtils, Classes, Process, fpdev.build.cache;
+  SysUtils, Classes, Process, fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;

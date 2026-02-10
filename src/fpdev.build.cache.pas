@@ -21,73 +21,11 @@ unit fpdev.build.cache;
 interface
 
 uses
-  SysUtils, Classes, Process;
+  SysUtils, Classes, Process, fpdev.build.cache.types;
 
 type
-  { TBuildStep - Build stage state machine }
-  TBuildStep = (
-    bsIdle,             // 0 - Idle
-    bsPreflight,        // 1 - Preflight check
-    bsCompiler,         // 2 - Compiler build
-    bsCompilerInstall,  // 3 - Compiler install
-    bsRTL,              // 4 - RTL build
-    bsRTLInstall,       // 5 - RTL install
-    bsPackages,         // 6 - Packages build
-    bsPackagesInstall,  // 7 - Packages install
-    bsVerify,           // 8 - Verify
-    bsComplete          // 9 - Complete
-  );
-
-  { TBuildCacheEntry - Build cache entry record }
-  TBuildCacheEntry = record
-    Version: string;          // FPC version
-    Revision: string;         // Git commit hash
-    BuildTime: TDateTime;     // Build timestamp
-    CPU: string;              // Target CPU
-    OS: string;               // Target OS
-    CompilerHash: string;     // Compiler SHA256
-    SourceHash: string;       // Source key files SHA256
-    Status: TBuildStep;       // Build stage reached
-  end;
-
-  { TArtifactInfo - Cached artifact metadata }
-  TArtifactInfo = record
-    Version: string;          // FPC version
-    CPU: string;              // Target CPU
-    OS: string;               // Target OS
-    ArchivePath: string;      // Path to .tar.gz archive
-    ArchiveSize: Int64;       // Archive size in bytes
-    CreatedAt: TDateTime;     // When cached
-    SourcePath: string;       // Original install path
-    SourceType: string;       // NEW: 'binary' | 'source'
-    SHA256: string;           // NEW: File checksum
-    DownloadURL: string;      // NEW: Original download URL
-    FileExt: string;          // NEW: File extension (.tar or .tar.gz)
-    AccessCount: Integer;     // Phase 3: Access count for statistics
-    LastAccessed: TDateTime;  // Phase 3: Last access time for LRU
-  end;
-
-  { TCacheIndexStats - Cache index statistics }
-  TCacheIndexStats = record
-    TotalEntries: Integer;    // Number of cached versions
-    TotalSize: Int64;         // Total cache size in bytes
-    OldestVersion: string;    // Oldest cached version
-    NewestVersion: string;    // Newest cached version
-    OldestDate: TDateTime;    // Oldest entry date
-    NewestDate: TDateTime;    // Newest entry date
-  end;
-
-  { TCacheDetailedStats - Detailed cache statistics (Phase 3) }
-  TCacheDetailedStats = record
-    TotalEntries: Integer;       // Number of cached versions
-    TotalSize: Int64;            // Total cache size in bytes
-    TotalAccesses: Integer;      // Total access count across all entries
-    AverageEntrySize: Int64;     // Average entry size in bytes
-    MostAccessedVersion: string; // Version with most accesses
-    MostAccessedCount: Integer;  // Access count of most accessed version
-    LeastAccessedVersion: string;// Version with least accesses
-    LeastAccessedCount: Integer; // Access count of least accessed version
-  end;
+  { Types are now in fpdev.build.cache.types unit }
+  { Re-exported for backward compatibility }
 
   { TBuildCache - Build cache management
     B068: 线程安全说明

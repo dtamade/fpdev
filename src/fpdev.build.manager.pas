@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes, fpdev.build.config, fpdev.build.logger, fpdev.build.toolchain,
-  fpdev.build.cache, fpdev.build.interfaces, fpdev.perf.monitor;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.build.interfaces, fpdev.perf.monitor;
 
 type
   { TBuildManager }

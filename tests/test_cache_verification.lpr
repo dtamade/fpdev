@@ -4,7 +4,7 @@ program test_cache_verification;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache;
+  fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;

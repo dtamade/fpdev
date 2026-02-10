@@ -4,7 +4,7 @@ program test_cache_space;
 
 uses
   SysUtils, Classes,
-  fpdev.build.cache;
+  fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;

@@ -7,7 +7,7 @@ interface
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
   fpdev.http.download, fpdev.archive.extract, fpdev.build.cache,
-  fpdev.fpc.verify, fpdev.toolchain.fetcher, fpdev.manifest;
+  fpdev.build.cache.types, fpdev.fpc.verify, fpdev.toolchain.fetcher, fpdev.manifest;
 
 type
   { TBinaryInstaller - Manages FPC binary installation }

@@ -4,7 +4,8 @@ program test_build_packages;
 
 uses
   SysUtils, Classes,
-  fpdev.build.manager, fpdev.build.config, fpdev.build.cache;
+  fpdev.build.manager, fpdev.build.config, fpdev.build.cache,
+  fpdev.build.cache.types;
 
 procedure EnsureDir(const APath: string);
 begin

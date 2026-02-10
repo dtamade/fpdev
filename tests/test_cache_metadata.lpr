@@ -4,7 +4,7 @@ program test_cache_metadata;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache;
+  fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;
