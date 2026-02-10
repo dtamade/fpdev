@@ -356,6 +356,7 @@ end;
 function TFPCBinaryInstaller.ExtractNestedFPCPackage(const ATempDir, AInstallPath, ATempFile: string): Boolean;
 var
   SR: TSearchRec;
+  ExtractedSubDir: string;
   BinaryTar: string;
   BaseArchive: string;
 begin
@@ -366,18 +367,23 @@ begin
   // Inside that subdirectory is binary.x86_64-linux.tar with the actual FPC binaries
 
   // Find the extracted subdirectory (should be the only directory in ATempDir)
-  BinaryTar := '';
+  ExtractedSubDir := '';
   if FindFirst(ATempDir + PathDelim + '*', faDirectory, SR) = 0 then
   begin
     repeat
       if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
       begin
-        BinaryTar := ATempDir + PathDelim + SR.Name + PathDelim + 'binary.' + fpdev.fpc.installer.config.GetFPCArchSuffix + '.tar';
+        ExtractedSubDir := ATempDir + PathDelim + SR.Name;
         Break;
       end;
     until FindNext(SR) <> 0;
     FindClose(SR);
   end;
+
+  // Use dynamic search (like TFPCArchiveExtractor) instead of hardcoded arch suffix
+  BinaryTar := '';
+  if ExtractedSubDir <> '' then
+    BinaryTar := TFPCArchiveExtractor.FindBinaryArchive(ExtractedSubDir);
 
   if (BinaryTar <> '') and FileExists(BinaryTar) then
   begin
@@ -389,10 +395,10 @@ begin
     end;
 
     // Stage 3: Extract base package which contains the actual FPC binaries
-    // The binary TAR contains many .tar.gz files, but base.ARCH.tar.gz has the core compiler
-    BaseArchive := AInstallPath + PathDelim + 'base.' + fpdev.fpc.installer.config.GetFPCArchSuffix + '.tar.gz';
+    // Use dynamic search instead of hardcoded arch suffix
+    BaseArchive := TFPCArchiveExtractor.FindBaseArchive(AInstallPath);
 
-    if FileExists(BaseArchive) then
+    if (BaseArchive <> '') and FileExists(BaseArchive) then
     begin
       FOut.WriteLn('[Manifest] Extracting base package...');
       if not ExtractArchive(BaseArchive, AInstallPath) then
@@ -402,6 +408,10 @@ begin
       end;
       // Clean up the .tar.gz files after extraction
       DeleteFile(BaseArchive);
+    end
+    else
+    begin
+      FOut.WriteLn('[Manifest] No base archive found, checking if binaries are directly available...');
     end;
   end
   else
@@ -413,6 +423,15 @@ begin
       FErr.WriteLn('[Manifest] Extraction failed');
       Exit;
     end;
+  end;
+
+  // Post-extraction validation: verify bin/ or lib/ exists
+  if not DirectoryExists(AInstallPath + PathDelim + 'bin') and
+     not DirectoryExists(AInstallPath + PathDelim + 'lib') then
+  begin
+    FErr.WriteLn('[Manifest] Post-extraction validation failed: no bin/ or lib/ directory found');
+    FErr.WriteLn('[Manifest] Installation directory may be incomplete');
+    Exit;
   end;
 
   FOut.WriteLn('[Manifest] Extraction completed');
@@ -794,6 +813,7 @@ function TFPCBinaryInstaller.InstallFromBinary(const AVersion: string; const APr
 var
   InstallPath: string;
   Platform: string;
+  InstallOK: Boolean;
 begin
   Result := False;
 
@@ -813,12 +833,15 @@ begin
     FOut.WriteLn('Platform: ' + Platform);
     FOut.WriteLn;
 
+    // Try installation via fallback chain: Manifest → Repo → SourceForge
+    InstallOK := False;
+
     // Step 1: Try manifest-based installation first (with multi-mirror and SHA512)
     FOut.WriteLn('[1/4] Attempting manifest-based installation...');
     if InstallFromManifest(AVersion, InstallPath) then
     begin
       FOut.WriteLn('  Manifest-based installation successful');
-      // Installation complete, skip to environment setup
+      InstallOK := True;
     end
     else
     begin
@@ -826,15 +849,19 @@ begin
       FOut.WriteLn;
 
       // Step 2-4: Try fpdev-repo installation
-      if not TryInstallFromRepo(AVersion, Platform, InstallPath) then
+      if TryInstallFromRepo(AVersion, Platform, InstallPath) then
+      begin
+        InstallOK := True;
+      end
+      else
       begin
         // Fallback: Download from SourceForge
         FOut.WriteLn('');
         FOut.WriteLn('');
         FOut.WriteLn('[4/4] Attempting SourceForge download (with 30s timeout)...');
-        Result := InstallFromSourceForge(AVersion, InstallPath);
+        InstallOK := InstallFromSourceForge(AVersion, InstallPath);
 
-        if Result then
+        if InstallOK then
         begin
           FOut.WriteLn('');
           FOut.WriteLn('===========================================');
@@ -844,7 +871,11 @@ begin
           FOut.WriteLn;
         end;
       end;
-    end;  // Close the else block from manifest installation
+    end;
+
+    // Only proceed with post-install steps if installation succeeded
+    if not InstallOK then
+      Exit;
 
     // Generate fpc.cfg configuration file if bin directory exists
     if DirectoryExists(InstallPath + PathDelim + 'bin') then

@@ -568,11 +568,11 @@ begin
     end;
   end;
 
-  // Use provided SHA256 hash or calculate placeholder
+  // Use provided SHA256 hash or calculate from file
   if ASHA256 <> '' then
     SHA256Hash := ASHA256
   else
-    SHA256Hash := IntToHex(ArchiveSize, 16);  // Fallback: use file size as placeholder
+    SHA256Hash := BuildCacheCalculateSHA256(ArchivePath);
 
   // Write metadata file using helper
   BuildCacheSaveBinaryMeta(MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
