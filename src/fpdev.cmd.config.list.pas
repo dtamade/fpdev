@@ -44,7 +44,6 @@ type
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
     function Execute(const AParams: array of string; const Ctx: IContext): Integer;
-    function GetHelp: string;
   end;
 
 function CreateConfigListCommand: ICommand;
@@ -239,11 +238,6 @@ begin
 
   if FShowLazarus then
     ListLazarusVersions(Ctx);
-end;
-
-function TConfigListCommand.GetHelp: string;
-begin
-  Result := 'List installed FPC and Lazarus toolchains';
 end;
 
 initialization
