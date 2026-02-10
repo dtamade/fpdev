@@ -116,8 +116,9 @@ uses
   fpdev.cmd.project.run,
   fpdev.cmd.project.help,
 
-  // Config command
+  // Config commands
   fpdev.cmd.config,
+  fpdev.cmd.config.list,
 
   // Performance monitoring commands
   fpdev.cmd.perf,
