@@ -285,6 +285,8 @@ end;
 procedure TPackageTestTest.TestInstallDependencies;
 var
   Cmd: TPackageTestCommand;
+  RegistryDir: string;
+  F: TextFile;
 begin
   WriteLn;
   WriteLn('=== Test: Install Dependencies ===');
@@ -298,8 +300,25 @@ begin
   CreateTestFile('package.json',
     '{"name":"testpkg","version":"1.0.0","dependencies":{"libfoo":">=1.0.0"}}');
 
+  // Create mock registry with metadata files for resolver
+  RegistryDir := FTestDataDir + PathDelim + 'registry';
+  ForceDirectories(RegistryDir);
+
+  // testpkg.json - the main package
+  AssignFile(F, RegistryDir + PathDelim + 'testpkg.json');
+  Rewrite(F);
+  Write(F, '{"name":"testpkg","version":"1.0.0","dependencies":{"libfoo":">=1.0.0"}}');
+  CloseFile(F);
+
+  // libfoo.json - the dependency
+  AssignFile(F, RegistryDir + PathDelim + 'libfoo.json');
+  Rewrite(F);
+  Write(F, '{"name":"libfoo","version":"1.0.0"}');
+  CloseFile(F);
+
   Cmd := TPackageTestCommand.Create;
   try
+    Cmd.RegistryPath := RegistryDir;
     AssertTrue(Cmd.InstallDependencies(FTestDataDir), 'Should install package dependencies');
   finally
     Cmd.Free;

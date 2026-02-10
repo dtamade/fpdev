@@ -20,7 +20,8 @@ unit fpdev.cmd.package.test;
 interface
 
 uses
-  SysUtils, Classes, Process, fpjson, jsonparser;
+  SysUtils, Classes, Process, fpjson, jsonparser,
+  fpdev.paths;
 
 type
   { TPackageTestCommand }
@@ -28,10 +29,12 @@ type
   private
     FTempDir: string;
     FLastError: string;
+    FRegistryPath: string;
 
     function LoadPackageMetadata(const APackageDir: string; out AMetadata: TJSONObject): Boolean;
     function GetTestScript(const AMetadata: TJSONObject): string;
     function GetShellExecutable: string;
+    function GetEffectiveRegistryPath: string;
 
   public
     constructor Create;
@@ -40,7 +43,7 @@ type
     { Extract package archive to temporary directory }
     function ExtractToTempDir(const AArchive: string): string;
 
-    { Install package dependencies (stub for now, will integrate with Week 8 resolver) }
+    { Install package dependencies using TPackageResolver }
     function InstallDependencies(const APackageDir: string): Boolean;
 
     { Run test script from package.json }
@@ -53,9 +56,12 @@ type
     function GetLastError: string;
 
     property TempDir: string read FTempDir;
+    property RegistryPath: string read FRegistryPath write FRegistryPath;
   end;
 
 implementation
+
+uses fpdev.package.resolver;
 
 { TPackageTestCommand }
 
@@ -64,6 +70,7 @@ begin
   inherited Create;
   FTempDir := '';
   FLastError := '';
+  FRegistryPath := '';
   Randomize;  // Initialize random number generator for temp directory names
 end;
 
@@ -82,6 +89,14 @@ begin
   {$ELSE}
   Result := '/bin/sh';
   {$ENDIF}
+end;
+
+function TPackageTestCommand.GetEffectiveRegistryPath: string;
+begin
+  if FRegistryPath <> '' then
+    Result := FRegistryPath
+  else
+    Result := GetDataRoot + PathDelim + 'registry' + PathDelim + 'packages';
 end;
 
 function TPackageTestCommand.LoadPackageMetadata(const APackageDir: string; out AMetadata: TJSONObject): Boolean;
@@ -209,6 +224,10 @@ function TPackageTestCommand.InstallDependencies(const APackageDir: string): Boo
 var
   Metadata: TJSONObject;
   Dependencies: TJSONObject;
+  Resolver: TPackageResolver;
+  ResolveResult: TPackageResolveResult;
+  PkgName: string;
+  I: Integer;
 begin
   Result := False;
   FLastError := '';
@@ -234,12 +253,47 @@ begin
       Exit;
     end;
 
-    // Dependency installation integrated with Week 8 dependency resolver
-    WriteLn('[INFO] Found ', Dependencies.Count, ' dependencies in package.json');
-    WriteLn('[INFO] Dependency resolution and installation will be handled by package manager');
-    // Note: Actual dependency installation is handled by TPackageManager.InstallPackage
-    // which uses TDependencyGraph for resolution (see fpdev.cmd.package.pas)
-    Result := True;
+    // Get package name for resolver
+    PkgName := Metadata.Get('name', '');
+    if PkgName = '' then
+    begin
+      FLastError := 'Package name not specified in package.json';
+      Exit;
+    end;
+
+    // Resolve dependencies using TPackageResolver
+    Resolver := TPackageResolver.Create(GetEffectiveRegistryPath, APackageDir);
+    try
+      Resolver.SetUseLockFile(False);  // Don't generate lock file during test
+
+      try
+        ResolveResult := Resolver.Resolve(PkgName);
+      except
+        on E: Exception do
+        begin
+          FLastError := 'Dependency resolution failed: ' + E.Message;
+          Exit;
+        end;
+      end;
+
+      if not ResolveResult.Success then
+      begin
+        if ResolveResult.HasCircularDependency then
+          FLastError := 'Circular dependency detected: ' + ResolveResult.CircularPath
+        else
+          FLastError := 'Dependency resolution failed: ' + ResolveResult.ErrorMessage;
+        Exit;
+      end;
+
+      // Report resolved dependencies
+      WriteLn('[INFO] Resolved ', Length(ResolveResult.InstallOrder), ' dependencies:');
+      for I := 0 to High(ResolveResult.InstallOrder) do
+        WriteLn('[INFO]   ', I + 1, '. ', ResolveResult.InstallOrder[I]);
+
+      Result := True;
+    finally
+      Resolver.Free;
+    end;
   finally
     Metadata.Free;
   end;
