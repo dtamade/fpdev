@@ -1137,3 +1137,45 @@ M7 (B107-B119) 已在之前会话中完成，13 个批次全部标记 done。
 | P1 | 剩余文档国际化 (API.en.md) | 1 天 |
 | P2 | cmd.cross.pas 拆分 | 2-3 天 |
 | P3 | 测试覆盖增强 | 低 |
+
+## P1-P3 流水线完成报告 (2026-02-10 Session 2)
+
+### P1: 文档国际化
+
+**状态**: 已完成 (API.en.md 已存在)
+
+### P2: cmd.cross.pas 拆分
+
+**成果**:
+- 新建 `src/fpdev.cmd.cross.query.pas` (237 行)
+- 提取 `TCrossTargetQuery` 类
+- 提供方法: GetAvailableTargets, GetInstalledTargets, GetTargetInfo, ValidateTarget, IsTargetInstalled, GetTargetInstallPath
+- cmd.cross.pas 从 1099 行减少到 947 行 (-152 行, -14%)
+
+**提交**: `d204888 refactor(P2): Extract target query helper from cmd.cross.pas`
+
+### P3: 测试覆盖增强
+
+**成果**:
+- 新建 `tests/test_cross_query.lpr` (14 个测试)
+- 新建 `tests/test_fpc_installer_config.lpr` (9 个测试)
+- 覆盖 TCrossTargetQuery 和 TFPCConfigGenerator 新单元
+
+**提交**: `9b731fd test(P3): Add tests for new helper units`
+
+### 最终基线
+
+| 维度 | P2/P3 前 | P1-P3 后 | 变化 |
+|------|----------|----------|------|
+| 测试文件 | 142 | 144 | +2 |
+| 测试通过 | 142/142 | 144/144 | +2 |
+| 源码文件 | 247 | 248 | +1 |
+| 编译警告 | 0 | 0 | - |
+
+### 下一步建议
+
+| 优先级 | 任务 | 预估 |
+|--------|------|------|
+| P1 | 继续大文件拆分 (fpc.source 1063 行) | 1-2 天 |
+| P2 | 性能监控 CLI 命令 | 1 天 |
+| P3 | CI/CD 集成 | 低 |
