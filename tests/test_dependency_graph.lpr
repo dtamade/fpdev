@@ -4,7 +4,7 @@ program test_dependency_graph;
 
 uses
   SysUtils, Classes,
-  fpdev.cmd.package;
+  fpdev.cmd.package, fpdev.package.types;
 
 var
   TestsPassed: Integer = 0;

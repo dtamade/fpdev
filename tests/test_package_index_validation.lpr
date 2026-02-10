@@ -7,7 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.cmd.package;
+  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.cmd.package,
+  fpdev.package.types;
 
 procedure AssertTrue(const ACond: Boolean; const AMsg: string);
 begin

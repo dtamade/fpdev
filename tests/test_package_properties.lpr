@@ -17,7 +17,7 @@ program test_package_properties;
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.cmd.package, fpdev.hash, fpdev.paths;
+  fpdev.cmd.package, fpdev.package.types, fpdev.hash, fpdev.paths;
 
 var
   TestsPassed: Integer = 0;

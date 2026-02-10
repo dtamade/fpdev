@@ -36,80 +36,11 @@ uses
   fpdev.toolchain.fetcher, fpdev.toolchain.extract, fpdev.paths, fpdev.hash,
   fpdev.resource.repo, fpdev.pkg.deps, fpdev.utils.fs, fpdev.utils,
   fpdev.i18n, fpdev.i18n.strings, fpdev.pkg.builder, fpdev.pkg.repository,
-  fpdev.package.archiver, fpdev.pkg.version;
+  fpdev.package.archiver, fpdev.pkg.version, fpdev.package.types;
 
 type
-  { TPackageInfo }
-  TPackageInfo = record
-    Name: string;
-    Version: string;
-    Description: string;
-    Author: string;
-    License: string;
-    Homepage: string;
-    Repository: string;
-    Dependencies: TStringArray;
-    URLs: TStringArray;   // 下载地址（可空）
-    Sha256: string;       // 期望校验（可空）
-    SourcePath: string;   // 本地源码/包路径（可空）
-    Installed: Boolean;
-    InstallPath: string;
-    InstallDate: TDateTime;
-  end;
-
-  TPackageArray = array of TPackageInfo;
-
-  { TSemanticVersion - Semantic version parsing and comparison }
-  TSemanticVersion = record
-    Valid: Boolean;
-    Major: Integer;
-    Minor: Integer;
-    Patch: Integer;
-    PreRelease: string;
-  end;
-
   { TDependencyGraph - Array-based dependency graph for test compatibility }
   TDependencyGraph = TDependencyNodeArray;
-
-  { TVerificationStatus - Package verification status enum }
-  TVerificationStatus = (vsValid, vsInvalid, vsMissingFiles, vsMetadataError);
-
-  { TPackageVerificationResult - Package verification result }
-  TPackageVerificationResult = record
-    Status: TVerificationStatus;
-    PackageName: string;
-    Version: string;
-    MissingFiles: TStringArray;
-  end;
-
-  { TPackageCreationOptions - Package creation options }
-  TPackageCreationOptions = record
-    Name: string;
-    Version: string;
-    SourcePath: string;
-    ExcludePatterns: TStringArray;
-  end;
-
-  { TPackageErrorCode - Package operation error codes }
-  TPackageErrorCode = (
-    pecNone,
-    pecPackageNotFound,
-    pecDependencyNotFound,
-    pecCircularDependency,
-    pecVersionConflict,
-    pecInvalidMetadata,
-    pecChecksumMismatch,
-    pecNetworkError,
-    pecFileSystemError,
-    pecRepositoryNotConfigured
-  );
-
-  { TPackageOperationResult - Package operation result }
-  TPackageOperationResult = record
-    Success: Boolean;
-    ErrorCode: TPackageErrorCode;
-    ErrorMessage: string;
-  end;
 
   { TPackageManager }
   TPackageManager = class

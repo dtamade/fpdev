@@ -13,7 +13,7 @@ program test_package_version;
 }
 
 uses
-  SysUtils, Classes, fpdev.cmd.package;
+  SysUtils, Classes, fpdev.cmd.package, fpdev.package.types;
 
 var
   TestsPassed: Integer = 0;

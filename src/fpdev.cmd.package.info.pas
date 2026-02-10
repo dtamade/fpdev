@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.package.types, fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TPackageInfoCommand = class(TInterfacedObject, ICommand)
