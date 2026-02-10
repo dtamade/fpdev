@@ -123,6 +123,9 @@ uses
   // Index command
   fpdev.cmd.index,
 
+  // Cache command
+  fpdev.cmd.cache,
+
   // Performance monitoring commands
   fpdev.cmd.perf,
 
