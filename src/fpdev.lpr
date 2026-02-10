@@ -120,6 +120,9 @@ uses
   fpdev.cmd.config,
   fpdev.cmd.config.list,
 
+  // Index command
+  fpdev.cmd.index,
+
   // Performance monitoring commands
   fpdev.cmd.perf,
 

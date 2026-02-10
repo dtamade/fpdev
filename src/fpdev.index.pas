@@ -335,7 +335,10 @@ var
   RepoData: TJSONObject;
   TypeStr: string;
 begin
-  Initialize(Result);
+  FillChar(Result, SizeOf(Result), 0);
+  Result.Name := '';
+  Result.GitHubURL := '';
+  Result.GiteeURL := '';
   Result.RepoType := AType;
 
   if not Assigned(FIndexData) then
@@ -366,8 +369,12 @@ var
   ChannelData: TJSONObject;
   BootstrapObj, FPCObj, LazarusObj, CrossObj: TJSONObject;
 begin
-  Initialize(Result);
+  FillChar(Result, SizeOf(Result), 0);
   Result.Name := AChannel;
+  Result.BootstrapRef := '';
+  Result.FPCRef := '';
+  Result.LazarusRef := '';
+  Result.CrossRef := '';
 
   if not Assigned(FIndexData) then
     Exit;
