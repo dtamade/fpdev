@@ -35,24 +35,12 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.cross.downloader, fpdev.cross.platform,
   fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester, fpdev.cmd.cross.query;
 
 type
-  { TCrossTargetInfo }
-  TCrossTargetInfo = record
-    Platform: TCrossTargetPlatform;
-    Name: string;
-    DisplayName: string;
-    CPU: string;
-    OS: string;
-    BinutilsPrefix: string;
-    LibrariesURL: string;
-    BinutilsURL: string;
-    Available: Boolean;
-    Installed: Boolean;
-  end;
-
-  TCrossTargetArray = array of TCrossTargetInfo;
+  { TCrossTargetInfo - Re-exported from query helper for backward compatibility }
+  TCrossTargetInfo = fpdev.cmd.cross.query.TCrossTargetQueryInfo;
+  TCrossTargetArray = fpdev.cmd.cross.query.TCrossTargetQueryArray;
 
   { TCrossCompilerManager }
   TCrossCompilerManager = class
@@ -62,14 +50,11 @@ type
     FResourceRepo: TResourceRepository;  // fpdev-repo integration (legacy)
     FBuildTester: TCrossBuildTester;     // Cross-build testing service
     FDownloader: TCrossToolchainDownloader;  // Modern toolchain downloader
+    FQuery: TCrossTargetQuery;           // Target query helper
 
     function DownloadBinutils(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
     function DownloadLibraries(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput = nil): Boolean;
     function SetupCrossEnvironment(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo): Boolean;
-    function ValidateTarget(const ATarget: string): Boolean;
-    function GetTargetInstallPath(const ATarget: string): string;
-    function IsTargetInstalled(const ATarget: string): Boolean;
-    function GetTargetInfo(const ATarget: string): TCrossTargetInfo;
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager); overload;
@@ -151,10 +136,15 @@ begin
     'https://raw.githubusercontent.com/fpdev/fpdev-repo/main/cross-manifest.json'
   );
   FDownloader.LoadManifest;
+
+  // Initialize target query helper
+  FQuery := TCrossTargetQuery.Create(FConfigManager, FResourceRepo, FInstallRoot);
 end;
 
 destructor TCrossCompilerManager.Destroy;
 begin
+  if Assigned(FQuery) then
+    FQuery.Free;
   if Assigned(FDownloader) then
     FDownloader.Free;
   if Assigned(FBuildTester) then
@@ -164,156 +154,14 @@ begin
   inherited Destroy;
 end;
 
-function TCrossCompilerManager.GetTargetInstallPath(const ATarget: string): string;
-begin
-  Result := FInstallRoot + PathDelim + 'cross' + PathDelim + ATarget;
-end;
-
-function TCrossCompilerManager.IsTargetInstalled(const ATarget: string): Boolean;
-var
-  CrossTarget: TCrossTarget;
-begin
-  Result := FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) and CrossTarget.Enabled;
-end;
-
-function TCrossCompilerManager.ValidateTarget(const ATarget: string): Boolean;
-var
-  LRegistry: TCrossTargetRegistry;
-begin
-  LRegistry := TCrossTargetRegistry.Create;
-  try
-    LRegistry.LoadBuiltinTargets;
-    Result := LRegistry.HasTarget(ATarget);
-  finally
-    LRegistry.Free;
-  end;
-end;
-
-function TCrossCompilerManager.GetTargetInfo(const ATarget: string): TCrossTargetInfo;
-var
-  LRegistry: TCrossTargetRegistry;
-  LDef: TCrossTargetDef;
-begin
-  System.Initialize(Result);
-  LRegistry := TCrossTargetRegistry.Create;
-  try
-    LRegistry.LoadBuiltinTargets;
-    if LRegistry.GetTarget(ATarget, LDef) then
-    begin
-      Result.Platform := StringToPlatform(LDef.Name);
-      Result.Name := LDef.Name;
-      Result.DisplayName := LDef.DisplayName;
-      Result.CPU := LDef.CPU;
-      Result.OS := LDef.OS;
-      Result.BinutilsPrefix := LDef.BinutilsPrefix;
-      Result.Available := True;
-      Result.Installed := IsTargetInstalled(ATarget);
-    end;
-  finally
-    LRegistry.Free;
-  end;
-end;
-
 function TCrossCompilerManager.GetAvailableTargets: TCrossTargetArray;
-var
-  i: Integer;
-  RepoTargets: SysUtils.TStringArray;
-  RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
-  HostPlatform: string;
-  LRegistry: TCrossTargetRegistry;
-  LRegDefs: TCrossTargetDefArray;
 begin
-  Result := nil;
-
-  // First try to get targets from fpdev-repo
-  if Assigned(FResourceRepo) then
-  begin
-    RepoTargets := FResourceRepo.ListCrossTargets;
-    HostPlatform := GetCurrentPlatform;
-
-    if Length(RepoTargets) > 0 then
-    begin
-      SetLength(Result, Length(RepoTargets));
-      for i := 0 to High(RepoTargets) do
-      begin
-        Result[i].Platform := StringToPlatform(RepoTargets[i]);
-        Result[i].Name := RepoTargets[i];
-        Result[i].Available := FResourceRepo.HasCrossToolchain(RepoTargets[i], HostPlatform);
-        Result[i].Installed := IsTargetInstalled(RepoTargets[i]);
-
-        // Get detailed info from fpdev-repo
-        if FResourceRepo.GetCrossToolchainInfo(RepoTargets[i], HostPlatform, RepoInfo) then
-        begin
-          Result[i].DisplayName := RepoInfo.DisplayName;
-          Result[i].CPU := RepoInfo.CPU;
-          Result[i].OS := RepoInfo.OS;
-          Result[i].BinutilsPrefix := RepoInfo.BinutilsPrefix;
-        end
-        else
-        begin
-          // Fallback to built-in info
-          Result[i].DisplayName := RepoTargets[i];
-          Result[i].CPU := '';
-          Result[i].OS := '';
-          Result[i].BinutilsPrefix := '';
-        end;
-      end;
-      Exit;
-    end;
-  end;
-
-  // Fallback to target registry (replaces hardcoded CROSS_TARGETS)
-  begin
-    LRegistry := TCrossTargetRegistry.Create;
-    try
-      LRegistry.LoadBuiltinTargets;
-      LRegDefs := LRegistry.ListTargetDefs;
-      SetLength(Result, Length(LRegDefs));
-      for i := 0 to High(LRegDefs) do
-      begin
-        Result[i].Platform := StringToPlatform(LRegDefs[i].Name);
-        Result[i].Name := LRegDefs[i].Name;
-        Result[i].DisplayName := LRegDefs[i].DisplayName;
-        Result[i].CPU := LRegDefs[i].CPU;
-        Result[i].OS := LRegDefs[i].OS;
-        Result[i].BinutilsPrefix := LRegDefs[i].BinutilsPrefix;
-        Result[i].LibrariesURL := '';
-        Result[i].BinutilsURL := '';
-        Result[i].Available := True;
-        Result[i].Installed := IsTargetInstalled(LRegDefs[i].Name);
-      end;
-    finally
-      LRegistry.Free;
-    end;
-  end;
+  Result := FQuery.GetAvailableTargets;
 end;
 
 function TCrossCompilerManager.GetInstalledTargets: TCrossTargetArray;
-var
-  AllTargets: TCrossTargetArray;
-  i, Count: Integer;
 begin
-  Result := nil;
-  AllTargets := GetAvailableTargets;
-  Count := 0;
-
-  // 计算已安装目标数量
-  for i := 0 to High(AllTargets) do
-    if AllTargets[i].Installed then
-      Inc(Count);
-
-  // 创建结果数组
-  SetLength(Result, Count);
-  Count := 0;
-
-  for i := 0 to High(AllTargets) do
-  begin
-    if AllTargets[i].Installed then
-    begin
-      Result[Count] := AllTargets[i];
-      Inc(Count);
-    end;
-  end;
+  Result := FQuery.GetInstalledTargets;
 end;
 
 function TCrossCompilerManager.DownloadBinutils(const ATarget: string; const {%H-} ATargetInfo: TCrossTargetInfo; Outp: IOutput): Boolean;
@@ -394,7 +242,7 @@ begin
   // ATargetInfo parameter reserved for future use
 
   try
-    InstallPath := GetTargetInstallPath(ATarget);
+    InstallPath := FQuery.GetTargetInstallPath(ATarget);
 
     // 创建交叉编译目标配置
     System.Initialize(CrossTarget);
@@ -431,14 +279,14 @@ begin
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
 
-  if not ValidateTarget(ATarget) then
+  if not FQuery.ValidateTarget(ATarget) then
   begin
     if Errp <> nil then
       Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
-  if IsTargetInstalled(ATarget) then
+  if FQuery.IsTargetInstalled(ATarget) then
   begin
     LO.WriteLn(_Fmt(MSG_CROSS_ALREADY_INSTALLED, [ATarget]));
     Result := True;
@@ -446,8 +294,8 @@ begin
   end;
 
   try
-    TargetInfo := GetTargetInfo(ATarget);
-    InstallPath := GetTargetInstallPath(ATarget);
+    TargetInfo := FQuery.GetTargetInfo(ATarget);
+    InstallPath := FQuery.GetTargetInstallPath(ATarget);
 
     LO.WriteLn(_Fmt(MSG_CROSS_INSTALLING, [ATarget]));
     LO.WriteLn('');
@@ -552,7 +400,7 @@ var
 begin
   Result := False;
 
-  if not IsTargetInstalled(ATarget) then
+  if not FQuery.IsTargetInstalled(ATarget) then
   begin
     if Outp <> nil then
       Outp.WriteLn(_Fmt(MSG_CROSS_TARGET_NOT_INSTALLED_MSG, [ATarget]));
@@ -561,7 +409,7 @@ begin
   end;
 
   try
-    InstallPath := GetTargetInstallPath(ATarget);
+    InstallPath := FQuery.GetTargetInstallPath(ATarget);
 
     // 删除安装目录
     if DirectoryExists(InstallPath) then
@@ -743,14 +591,14 @@ begin
   if LE = nil then
     LE := TConsoleOutput.Create(True) as IOutput;
 
-  if not ValidateTarget(ATarget) then
+  if not FQuery.ValidateTarget(ATarget) then
   begin
     LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   try
-    TargetInfo := GetTargetInfo(ATarget);
+    TargetInfo := FQuery.GetTargetInfo(ATarget);
     LO.WriteLn(_Fmt(MSG_CROSS_SHOW_DISPLAY_NAME, [TargetInfo.DisplayName]));
     LO.WriteLn(_Fmt(MSG_CROSS_SHOW_CPU, [TargetInfo.CPU]));
     LO.WriteLn(_Fmt(MSG_CROSS_SHOW_OS, [TargetInfo.OS]));
@@ -758,7 +606,7 @@ begin
 
     if TargetInfo.Installed then
     begin
-      InstallPath := GetTargetInstallPath(ATarget);
+      InstallPath := FQuery.GetTargetInstallPath(ATarget);
       if InstallPath <> '' then
         LO.WriteLn('Install Path: ' + InstallPath);
     end;
@@ -782,7 +630,7 @@ var
 begin
   Result := False;
 
-  if not IsTargetInstalled(ATarget) then
+  if not FQuery.IsTargetInstalled(ATarget) then
   begin
     if Errp <> nil then
       Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
@@ -801,7 +649,7 @@ begin
       Outp.WriteLn(_Fmt(MSG_CROSS_TEST_TESTING, [ATarget]));
 
     // 查找交叉编译器
-    GCCExe := CrossTarget.BinutilsPath + PathDelim + GetTargetInfo(ATarget).BinutilsPrefix + 'gcc';
+    GCCExe := CrossTarget.BinutilsPath + PathDelim + FQuery.GetTargetInfo(ATarget).BinutilsPrefix + 'gcc';
     {$IFDEF MSWINDOWS}
     GCCExe := GCCExe + '.exe';
     {$ENDIF}
@@ -857,7 +705,7 @@ begin
     LE := TConsoleOutput.Create(True) as IOutput;
 
   // Check if target is installed
-  if not IsTargetInstalled(ATarget) then
+  if not FQuery.IsTargetInstalled(ATarget) then
   begin
     LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
     Exit;
@@ -870,7 +718,7 @@ begin
     Exit;
   end;
 
-  TargetInfo := GetTargetInfo(ATarget);
+  TargetInfo := FQuery.GetTargetInfo(ATarget);
 
   LO.WriteLn(_Fmt(MSG_CROSS_BUILDING_TEST, [ATarget]));
   LO.WriteLn(_Fmt(MSG_CROSS_BUILD_TARGET_CPU, [TargetInfo.CPU]));
@@ -899,7 +747,7 @@ var
 begin
   Result := False;
 
-  if not ValidateTarget(ATarget) then
+  if not FQuery.ValidateTarget(ATarget) then
   begin
     if Errp <> nil then
       Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
@@ -971,14 +819,14 @@ begin
     LE := TConsoleOutput.Create(True) as IOutput;
 
   // Validate target
-  if not ValidateTarget(ATarget) then
+  if not FQuery.ValidateTarget(ATarget) then
   begin
     LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   // Check if target is installed
-  if not IsTargetInstalled(ATarget) then
+  if not FQuery.IsTargetInstalled(ATarget) then
   begin
     LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_NOT_INSTALLED, [ATarget]));
     LO.WriteLn(_Fmt(MSG_CROSS_USE_INSTALL_FIRST, [ATarget]));
@@ -987,7 +835,7 @@ begin
 
   LO.WriteLn(_Fmt(MSG_CROSS_UPDATING, [ATarget]));
 
-  TargetInfo := GetTargetInfo(ATarget);
+  TargetInfo := FQuery.GetTargetInfo(ATarget);
 
   // Re-download binutils
   LO.WriteLn(_(MSG_CROSS_UPDATE_STEP1));
@@ -1028,14 +876,14 @@ begin
     LE := TConsoleOutput.Create(True) as IOutput;
 
   // Validate target
-  if not ValidateTarget(ATarget) then
+  if not FQuery.ValidateTarget(ATarget) then
   begin
     LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [ATarget]));
     Exit;
   end;
 
   // Check if target is installed
-  if not IsTargetInstalled(ATarget) then
+  if not FQuery.IsTargetInstalled(ATarget) then
   begin
     LO.WriteLn(_Fmt(MSG_CROSS_NOT_INSTALLED_NOTHING, [ATarget]));
     Result := True;
@@ -1045,7 +893,7 @@ begin
   LO.WriteLn(_Fmt(MSG_CROSS_CLEANING, [ATarget]));
 
   // Get paths
-  InstallPath := GetTargetInstallPath(ATarget);
+  InstallPath := FQuery.GetTargetInstallPath(ATarget);
   BinutilsPath := InstallPath + PathDelim + 'bin';
   LibPath := InstallPath + PathDelim + 'lib';
 
