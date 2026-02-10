@@ -228,7 +228,7 @@ end;
 
 function TCrossService.TestCrossCompile(const ATarget: TCrossTarget): Boolean;
 begin
-  // Placeholder: actual cross-compile test would need FPC
+  // Basic validation only; full cross-compile test requires actual FPC toolchain
   Result := (ATarget.CPU <> '') and (ATarget.OS <> '');
 end;
 

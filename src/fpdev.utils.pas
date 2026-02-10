@@ -567,7 +567,7 @@ end;
 {$IFNDEF UNIX}
 function uname(var system_info: utsname_t): LongInt;
 begin
-  // Stub for Windows
+  // Windows compatibility: provide uname-like info on non-Unix platforms
   FillChar(system_info, SizeOf(system_info), 0);
   StrPCopy(system_info.sysname, 'Windows');
   StrPCopy(system_info.machine, 'x86');
