@@ -1089,3 +1089,51 @@ fpdev package search X --json # 搜索结果
 | --json 覆盖率 | 7 个核心查询命令 |
 | Shell 补全 | Bash + Zsh |
 | CI/CD | GitHub Actions 就绪 |
+
+## P2/P3 流水线完成报告
+
+### 完成时间: 2026-02-10
+
+### P3: fpc.installer.pas 配置工具提取
+
+**成果**:
+- 新建 `src/fpdev.fpc.installer.config.pas` (194 行)
+- 提取 `TFPCConfigGenerator` 类
+- 提取 `GetFPCArchSuffix()` 和 `GetNativeCompilerName()` 函数
+- fpc.installer.pas 从 1253 行减少到 1160 行 (-93 行)
+
+**提交**: `34ca158 refactor(P3): Extract config utilities from fpc.installer.pas`
+
+### P2: 性能监控系统
+
+**成果**:
+- 新建 `src/fpdev.perf.monitor.pas` (430 行)
+- `TPerfMonitor` 类支持操作计时、父子关系、元数据
+- `PerfMon()` 全局单例
+- JSON 报告生成 (`GetReport`, `SaveReport`)
+- Linux 内存追踪 (via /proc/self/status VmRSS)
+- 集成到 `TBuildManager` (BuildCompiler, BuildRTL, BuildPackages, Install)
+- 新建 `tests/test_perf_monitor.lpr` (26 测试用例)
+
+**提交**: `7d28cf5 feat(P2): Add performance monitoring system`
+
+### 基线更新
+
+| 维度 | B145 结束 | P2/P3 后 | 变化 |
+|------|----------|----------|------|
+| 测试文件 | 141 | 142 | +1 |
+| 测试通过 | 140/140 | 142/142 | +2 |
+| 源码文件 | 245 | 247 | +2 |
+| 编译警告 | 0 | 0 | - |
+
+### M7 状态确认
+
+M7 (B107-B119) 已在之前会话中完成，13 个批次全部标记 done。
+
+### 下一步建议
+
+| 优先级 | 任务 | 预估 |
+|--------|------|------|
+| P1 | 剩余文档国际化 (API.en.md) | 1 天 |
+| P2 | cmd.cross.pas 拆分 | 2-3 天 |
+| P3 | 测试覆盖增强 | 低 |
