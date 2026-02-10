@@ -119,6 +119,9 @@ uses
   // Config command
   fpdev.cmd.config,
 
+  // Performance monitoring commands
+  fpdev.cmd.perf,
+
   // New rustup/nvm-style commands
   fpdev.cmd.doctor,
   fpdev.cmd.default,
