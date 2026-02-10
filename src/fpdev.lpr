@@ -129,6 +129,9 @@ uses
   // Performance monitoring commands
   fpdev.cmd.perf,
 
+  // Environment command
+  fpdev.cmd.env,
+
   // New rustup/nvm-style commands
   fpdev.cmd.doctor,
   fpdev.cmd.default,
