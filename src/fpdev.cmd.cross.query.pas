@@ -23,7 +23,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.cross.targets, fpdev.cross.platform,
-  fpdev.resource.repo;
+  fpdev.resource.repo, fpdev.resource.repo.types;
 
 type
   { TCrossTargetQueryInfo - Query result record }
@@ -136,7 +136,7 @@ function TCrossTargetQuery.GetAvailableTargets: TCrossTargetQueryArray;
 var
   i: Integer;
   RepoTargets: SysUtils.TStringArray;
-  RepoInfo: fpdev.resource.repo.TCrossToolchainInfo;
+  RepoInfo: TCrossToolchainInfo;
   HostPlatform: string;
   LRegistry: TCrossTargetRegistry;
   LRegDefs: TCrossTargetDefArray;

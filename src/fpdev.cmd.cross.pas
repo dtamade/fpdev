@@ -34,7 +34,8 @@ uses
   SysUtils, Classes,
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.cross.downloader, fpdev.cross.platform,
-  fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.resource.repo, fpdev.resource.repo.types,
+  fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester, fpdev.cmd.cross.query;
 
 type

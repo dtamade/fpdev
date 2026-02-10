@@ -7,68 +7,17 @@ interface
 uses
   Classes, SysUtils, fpjson, jsonparser, DateUtils, fpdev.utils.fs,
   fpdev.utils.process, fpdev.utils.git, fpdev.constants,
-  fpdev.output.intf;
+  fpdev.output.intf,
+  fpdev.resource.repo.types;  // TMirrorInfo, TResourceRepoConfig, TPlatformInfo, etc.
 
 type
-  { 镜像信息 }
-  TMirrorInfo = record
-    Name: string;             // 镜像名称
-    URL: string;              // 镜像URL
-    Region: string;           // 区域（china, europe, us）
-    Priority: Integer;        // 优先级（越小越优先）
-  end;
+  // Re-export types for backward compatibility
+  // Types are now defined in fpdev.resource.repo.types
 
-  TMirrorArray = array of TMirrorInfo;
-
-  { 资源仓库配置 }
-  TResourceRepoConfig = record
-    URL: string;              // 主仓库URL
-    Mirrors: array of string; // 镜像URL列表（简单格式，向后兼容）
-    MirrorInfos: TMirrorArray; // 镜像详细信息
-    LocalPath: string;        // 本地克隆路径
-    Branch: string;           // 使用的分支（默认main）
-    AutoUpdate: Boolean;      // 自动更新
-    UpdateIntervalHours: Integer;  // 更新间隔（小时）
-  end;
-
-  { 平台信息 - 支持 manifest v2.0 格式 }
-  TPlatformInfo = record
-    // v2.0 字段（推荐）
-    URL: string;              // 主下载 URL（完整 HTTP/HTTPS URL）
-    Mirrors: array of string; // 备用镜像 URL 列表（故障转移）
-    // v1.0 字段（向后兼容）
-    Path: string;             // 资源在仓库中的相对路径（当 URL 为空时使用）
-    // 通用字段
-    Executable: string;       // 可执行文件相对路径（仅 bootstrap）
-    SHA256: string;           // 校验和
-    Size: Int64;              // 大小（字节）
-    Tested: Boolean;          // 是否经过测试
-  end;
-
-  { 交叉编译工具链信息 }
-  TCrossToolchainInfo = record
-    TargetName: string;       // 目标名称（如 win32, linux-arm）
-    DisplayName: string;      // 显示名称
-    CPU: string;              // 目标 CPU
-    OS: string;               // 目标 OS
-    BinutilsPrefix: string;   // binutils 前缀
-    BinutilsArchive: string;  // binutils 存档路径
-    LibsArchive: string;      // 库文件存档路径
-    BinutilsSHA256: string;   // binutils 校验和
-    LibsSHA256: string;       // 库文件校验和
-  end;
-
-  { 包信息 }
-  TPackageInfo = record
-    Name: string;             // 包名
-    Version: string;          // 版本
-    Description: string;      // 描述
-    Category: string;         // 分类
-    Archive: string;          // 存档路径
-    SHA256: string;           // 校验和
-    Dependencies: array of string;  // 依赖
-    FPCMinVersion: string;    // 最低 FPC 版本
-  end;
+  { TPackageInfo - Alias for TRepoPackageInfo (backward compatibility)
+    Note: TRepoPackageInfo is used in the types unit to avoid collision
+    with fpdev.package.types.TPackageInfo }
+  TPackageInfo = TRepoPackageInfo;
 
   { 资源仓库管理器
     B068: 线程安全说明
