@@ -46,7 +46,7 @@ uses
   fpdev.utils.process, fpdev.hash, fpdev.resource.repo, fpdev.constants,
   fpdev.paths, fpdev.manifest, fpdev.manifest.cache, fpdev.toolchain.fetcher,
   fpdev.build.cache, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.version,
-  fpdev.fpc.builder, fpdev.config, fpdev.fpc.installer.extract,
+  fpdev.fpc.builder, fpdev.fpc.builder.di, fpdev.config, fpdev.fpc.installer.extract,
   fpdev.fpc.installer.config;
 
 type

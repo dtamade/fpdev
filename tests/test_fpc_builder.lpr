@@ -16,8 +16,8 @@ program test_fpc_builder;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.types,
-  fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config;
+  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.builder.di,
+  fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config;
 
 var
   TestInstallRoot: string;
