@@ -3,7 +3,8 @@ program test_progress_enhanced;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, DateUtils, fpdev.ui.progress.enhanced;
+  Classes, SysUtils, DateUtils, fpdev.ui.progress.enhanced,
+  fpdev.ui.progress.download;
 
 var
   TestsPassed: Integer = 0;
