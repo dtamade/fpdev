@@ -852,6 +852,8 @@ begin
   Log('== InstallPackages START version=' + AVersion + ' src=' + LSrc + ' dest=' + LDest);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LStart := Now;
+  PerfMon.StartOperation('InstallPackages', 'Build');
+  PerfMon.SetMetadata('InstallPackages', 'version=' + AVersion);
   // 使用动态路径替换: INSTALL_UNITDIR=$$(packagename)
   Result := RunMake(LSrc, [
     'DESTDIR=' + LDest,
@@ -861,6 +863,7 @@ begin
     'packages_install'
   ]);
   LMs := MilliSecondsBetween(Now, LStart);
+  PerfMon.EndOperation('InstallPackages', Result);
   if Result then
     Log('== InstallPackages END OK elapsed_ms=' + IntToStr(LMs))
   else
@@ -975,6 +978,8 @@ var
   i: integer;
 begin
   FCurrentStep := bsPreflight;
+  PerfMon.StartOperation('Preflight', 'Build');
+  PerfMon.SetMetadata('Preflight', 'version=' + AVersion);
   LStart := Now;
   Log('== Preflight START version=' + AVersion + ' srcRoot=' + FSourceRoot + ' sandbox=' + FSandboxRoot + ' logDir=' + FLogDir);
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
@@ -1032,6 +1037,7 @@ begin
 
     // 结果
     Result := (LIssues.Count = 0);
+    PerfMon.EndOperation('Preflight', Result);
     if Result then
     begin
       Log('== Preflight END OK');
