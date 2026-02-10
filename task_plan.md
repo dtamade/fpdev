@@ -151,7 +151,64 @@ Phase 4 (active) / Phase 1-3 (rolling backlog)
 | B047 | 周期复盘 | 汇总 B045-B046 结果并刷新下轮池 |
 
 ## Current Batch
-B168-B172 ✅ 完成 (测试补充 + 文档整理)
+B175 ✅ 完成 (Phase 5 文档基线更新)
+
+## Phase 5: Comprehensive Enhancement (B173+)
+
+### M1: P0 - 清理与基线恢复 (B173-B175)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B173 | 提交当前工作 | 两个逻辑提交（repo.types + env 命令）| ✅ 完成 |
+| B174 | 修复 14 个编译警告 | Default() 替代 FillChar | ✅ 完成 (14→0) |
+| B175 | 更新文档基线 | CLAUDE.md + CHANGELOG.md + task_plan.md | ✅ 完成 |
+
+### M2: P1-A - 二进制安装核心强化 (B176-B180)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B176 | TDD: 二进制安装测试骨架 | 15+ 测试 (URL/缓存/离线/目录/环境) | ⬜ |
+| B177 | Manifest 安装路径修复 | Linux tarball 三层解包 | ⬜ |
+| B178 | SourceForge 安装路径修复 | 下载→解压→验证→注册流程 | ⬜ |
+| B179 | 缓存 SHA256 真实化 | build.cache placeholder→真实哈希 | ⬜ |
+| B180 | 安装后环境设置完善 | fpc.cfg + activate + config.json | ⬜ |
+
+### M3: P1-B - Doctor 与性能监控强化 (B181-B185)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B181 | TDD: FPC Doctor 增强测试 | 20+ 测试 | ⬜ |
+| B182 | FPC Doctor 新增检查项 | 7→11 项检查 | ⬜ |
+| B183 | TDD: 性能监控集成测试 | 15+ 测试 | ⬜ |
+| B184 | 性能监控真实实现 | GetCurrentMemory + BuildManager 埋点 | ⬜ |
+| B185 | Package 依赖安装真实化 | InstallDependencies stub→真实实现 | ⬜ |
+
+### M4-M6: P2 - CLI 集成测试覆盖 (B186-B200)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B186 | CLI 测试基础设施 | test_cli_helpers.pas 共享单元 | ⬜ |
+| B187-B190 | FPC 命令族 CLI 测试 | 85+ tests | ⬜ |
+| B191-B195 | Lazarus/Cross CLI 测试 | 115+ tests | ⬜ |
+| B196-B200 | Package/Project/Config CLI 测试 | 125+ tests, 覆盖>80% | ⬜ |
+
+### M7: P3 - 收尾与打磨 (B201-B205)
+
+| Batch | Scope | Done Criteria | Status |
+|-------|-------|---------------|--------|
+| B201 | 文档 i18n 补全 | *.en.md >= 10 | ⬜ |
+| B202 | 大文件拆分（可选）| >500 行文件评估 | ⬜ |
+| B203 | 剩余 Stub 清理 | stub < 3 处 | ⬜ |
+| B204 | Phase 5 回顾文档 | PHASE5-SUMMARY.md | ⬜ |
+| B205 | 全面回归 + 发布准备 | Release 编译 + 0 warnings | ⬜ |
+
+## Baseline (2026-02-11 Phase 5 M1 End)
+- 测试状态: 154/154 通过 (100%)
+- 编译警告: 0（全范围）
+- @deprecated 标记: 0 处
+- 源码文件: 248 个 (.pas)
+- 新增命令: fpdev env (overview/vars/path/export)
+- 新增类型单元: fpdev.resource.repo.types
 
 ## Batch Queue (Week 11 - Phase 2)
 

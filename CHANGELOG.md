@@ -6,6 +6,12 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 
 ## [Unreleased]
 ### Added
+- **Phase 5: Comprehensive Enhancement - ACTIVE (2026-02-11)**
+  - **B173**: Extracted resource repo types to `fpdev.resource.repo.types.pas` for modularity
+  - **B173**: Added `fpdev env` command (overview/vars/path/export sub-commands, 35/35 tests)
+  - **B174**: Eliminated 14 compiler warnings with `Default()` pattern (0 warnings baseline restored)
+  - **B175**: Documentation baseline updated (154/154 tests passing)
+
 - **Phase 2: Architecture Refactoring - COMPLETE (2026-01-31)**
   - **2.1 TBuildManager Interface Extraction**: Extracted IBuildLogger, IToolchainChecker, IBuildManager interfaces
   - **2.2 Git Manager Unification**: Unified SharedGitManager and FGitManager into IGitManager interface
