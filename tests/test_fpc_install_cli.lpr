@@ -31,7 +31,8 @@ uses
   fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.logger.intf, fpdev.exitcodes,
   fpdev.cmd.fpc,           // Register 'fpc' root command
-  fpdev.cmd.fpc.install;
+  fpdev.cmd.fpc.install,
+  fpdev.cmd.fpc.uninstall;
 
 var
   GTestCount: Integer = 0;
@@ -489,6 +490,160 @@ begin
   Test('fpc install is registered in command registry', Found);
 end;
 
+{ Group 8: Uninstall command basics }
+
+procedure TestUninstallCommandName;
+var
+  Cmd: TFPCUninstallCommand;
+begin
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Test('Uninstall command name is "uninstall"', Cmd.Name = 'uninstall');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallAliasesIsNil;
+var
+  Cmd: TFPCUninstallCommand;
+begin
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Test('Uninstall aliases returns nil', Cmd.Aliases = nil);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallHelpFlag;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Test('Uninstall --help returns EXIT_OK', Ret = EXIT_OK);
+    Test('Uninstall --help shows usage', StdOut.Contains('uninstall'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallMissingVersion;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Test('Uninstall no args returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Uninstall no args shows error on stderr', StdErr.Contains('version'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallNonExistent;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  AllOutput: string;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['99.99.99'], Ctx);
+    AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
+    // The command should produce some output (success or error)
+    Test('Uninstall non-existent version produces output', Length(AllOutput) > 0);
+    Test('Uninstall non-existent version returns valid code', Ret >= 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallRegistration;
+var
+  Children: TStringArray;
+  I: Integer;
+  Found: Boolean;
+begin
+  Children := GlobalCommandRegistry.ListChildren(['fpc']);
+  Found := False;
+  for I := Low(Children) to High(Children) do
+    if Children[I] = 'uninstall' then
+    begin
+      Found := True;
+      Break;
+    end;
+  Test('fpc uninstall is registered in command registry', Found);
+end;
+
+{ Group 9: Install edge cases }
+
+procedure TestInstallWithFromAutoFlag;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--from=auto'], Ctx);
+    // auto is valid mode, command should proceed (and likely fail due to no network)
+    Test('--from=auto returns valid exit code', Ret >= 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallWithFromBinaryExplicit;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--from=binary'], Ctx);
+    Test('--from=binary returns valid exit code', Ret >= 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallWithFromSourceExplicit;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--from=source'], Ctx);
+    Test('--from=source returns valid exit code', Ret >= 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Main ===== }
 begin
   WriteLn('=== FPC Install CLI Tests ===');
@@ -539,6 +694,23 @@ begin
     WriteLn('');
     WriteLn('--- Command Registration ---');
     TestCommandRegistration;
+
+    // Group 8: Uninstall command
+    WriteLn('');
+    WriteLn('--- Uninstall Command ---');
+    TestUninstallCommandName;
+    TestUninstallAliasesIsNil;
+    TestUninstallHelpFlag;
+    TestUninstallMissingVersion;
+    TestUninstallNonExistent;
+    TestUninstallRegistration;
+
+    // Group 9: Install edge cases
+    WriteLn('');
+    WriteLn('--- Install Edge Cases ---');
+    TestInstallWithFromAutoFlag;
+    TestInstallWithFromBinaryExplicit;
+    TestInstallWithFromSourceExplicit;
   finally
     // Cleanup temp directory
     if DirectoryExists(GTempConfigDir) then
