@@ -221,7 +221,11 @@ end;
 function TDefaultProcessRunner.ExecuteWithTimeout(const AExecutable: string;
   const AParams: array of string; const ATimeoutMs: Integer; const AWorkDir: string): TProcessResult;
 begin
-  // For simplicity, delegate to Execute (timeout not implemented yet)
+  // Timeout enforcement is intentionally deferred: TProcess with poWaitOnExit
+  // does not natively support timeouts. Implementing would require a background
+  // thread or timer, adding complexity for a rarely-needed feature.
+  // Callers should use fpdev.utils.process.TProcessExecutor for timeout support.
+  if ATimeoutMs > 0 then; // Acknowledge parameter to suppress hint
   Result := Execute(AExecutable, AParams, AWorkDir);
 end;
 

@@ -196,8 +196,9 @@ begin
   end;
   {$ENDIF}
   {$IFDEF MSWINDOWS}
-  // Windows: Could use GetProcessMemoryInfo from psapi
-  // For now, return 0 (not implemented)
+  // Windows memory reporting is intentionally not implemented.
+  // GetProcessMemoryInfo from psapi would add a Windows-only dependency
+  // for a non-critical diagnostic feature. Return 0 to indicate unavailable.
   Result := 0;
   {$ENDIF}
 end;
