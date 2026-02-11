@@ -118,6 +118,13 @@ uses
   fpdev.cmd.project.run,
   fpdev.cmd.project.help,
 
+  // Project template commands
+  fpdev.cmd.project.template.root,
+  fpdev.cmd.project.template.list,
+  fpdev.cmd.project.template.install,
+  fpdev.cmd.project.template.remove,
+  fpdev.cmd.project.template.update,
+
   // Config commands
   fpdev.cmd.config,
   fpdev.cmd.config.list,
