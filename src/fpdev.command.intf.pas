@@ -18,7 +18,7 @@ type
     procedure SaveIfModified;
   end;
 
-  // 通用命令接口（支持嵌套子命令）
+  // Generic command interface (supports nested subcommands)
   ICommand = interface
     ['{B4DCC2C3-8AF7-4C3E-9F31-0B7A4E6A2F2E}']
     function Name: string;

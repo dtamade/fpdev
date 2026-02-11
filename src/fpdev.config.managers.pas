@@ -399,7 +399,7 @@ end;
 
 function TRepositoryManager.GetDefaultRepository: string;
 begin
-  // 返回本地备用值，实际的默认仓库存储在 Settings 中
+  // Return local fallback value, actual default repo is stored in Settings
   Result := FDefaultRepo;
 end;
 
@@ -1141,7 +1141,7 @@ begin
   FModified := False;
   FVersion := CONFIG_VERSION;
   
-  // 创建子管理器，使用接口引用，完全拥抱引用计数
+  // Create sub-managers using interface references, fully embrace reference counting
   FToolchainManager := TToolchainManager.Create(FNotifier);
   FLazarusManager := TLazarusManager.Create(FNotifier);
   FCrossTargetManager := TCrossTargetManager.Create(FNotifier);

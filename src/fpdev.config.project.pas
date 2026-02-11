@@ -33,7 +33,7 @@ type
     LazarusVersion: string;
     Channel: string;           // stable, lts, trunk
 
-    // 交叉编译目标
+    // Cross-compilation target
     CrossTargets: TStringArray;
 
     // 设置
@@ -78,10 +78,10 @@ type
     // 解析版本别名
     function ResolveVersionAlias(const AAlias: string): string;
 
-    // 获取完整解析后的配置 (合并所有来源)
+    // Get fully resolved config (merged from all sources)
     function ResolveConfig(const AStartDir: string = ''): TResolvedConfig;
 
-    // 检查是否有项目配置
+    // Check if project config exists
     function HasProjectConfig(const AStartDir: string = ''): Boolean;
   end;
 
@@ -128,7 +128,7 @@ const
   PROJECT_CONFIG_FILES: array[0..1] of string = ('.fpdevrc', 'fpdev.toml');
   MAX_PARENT_SEARCH = 10;
 
-  // 版本别名映射
+  // Version alias mapping
   ALIAS_STABLE = 'stable';
   ALIAS_LTS = 'lts';
   ALIAS_TRUNK = 'trunk';
@@ -202,7 +202,7 @@ begin
       end;
     end;
 
-    // 向上一级目录
+    // Go up one directory level
     LDir := ExtractFileDir(ExcludeTrailingPathDelimiter(LDir));
     Inc(LDepth);
 
@@ -278,7 +278,7 @@ begin
 
   LVersion := Trim(AContent);
 
-  // 移除可能的注释
+  // Remove possible comments
   if Pos('#', LVersion) > 0 then
     LVersion := Trim(Copy(LVersion, 1, Pos('#', LVersion) - 1));
 
@@ -308,7 +308,7 @@ begin
   AKey := Trim(Copy(ALine, 1, LEqPos - 1));
   AValue := Trim(Copy(ALine, LEqPos + 1, Length(ALine)));
 
-  // 移除引号
+  // Remove quotes
   if (Length(AValue) >= 2) and (AValue[1] = '"') and (AValue[Length(AValue)] = '"') then
     AValue := Copy(AValue, 2, Length(AValue) - 2);
 
@@ -326,7 +326,7 @@ begin
 
   LValue := Trim(AValue);
 
-  // 移除方括号
+  // Remove square brackets
   if (Length(LValue) >= 2) and (LValue[1] = '[') and (LValue[Length(LValue)] = ']') then
     LValue := Copy(LValue, 2, Length(LValue) - 2);
 
@@ -340,7 +340,7 @@ begin
     for I := 0 to LItems.Count - 1 do
     begin
       LItem := Trim(LItems[I]);
-      // 移除引号
+      // Remove quotes
       if (Length(LItem) >= 2) and (LItem[1] = '"') and (LItem[Length(LItem)] = '"') then
         LItem := Copy(LItem, 2, Length(LItem) - 2);
       Result[I] := LItem;
@@ -462,7 +462,7 @@ begin
   Result.Mirror := 'auto';
   Result.AutoInstall := False;
 
-  // 1. 应用全局默认 (如果有)
+  // 1. Apply global defaults (if any)
   if FGlobalFPCDefault <> '' then
   begin
     Result.FPCVersion := FGlobalFPCDefault;
@@ -475,7 +475,7 @@ begin
     Result.LazarusSource := csGlobal;
   end;
 
-  // 2. 应用项目配置 (如果有)
+  // 2. Apply project config (if any)
   LProjectConfigFile := FindProjectConfig(AStartDir);
   if LProjectConfigFile <> '' then
   begin
@@ -514,7 +514,7 @@ begin
     Result.AutoInstall := LProjectConfig.AutoInstall;
   end;
 
-  // 3. 应用环境变量 (最高优先级)
+  // 3. Apply environment variables (highest priority)
   LEnvFPC := GetEnvFPCVersion;
   if LEnvFPC <> '' then
   begin

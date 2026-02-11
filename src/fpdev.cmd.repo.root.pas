@@ -10,7 +10,7 @@ uses
 implementation
 
 initialization
-  // 根节点，仅用于挂载子命令
+  // Root node, only for mounting subcommands
   GlobalCommandRegistry.RegisterPath(['repo'], nil, []);
 
 end.

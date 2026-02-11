@@ -438,7 +438,7 @@ begin
 
     if FoundLPI <> '' then
     begin
-      // 使用 lazbuild 构建 Lazarus 项目
+      // Use lazbuild to build Lazarus project
       Params := nil;
       if ATarget <> '' then
       begin
@@ -473,13 +473,13 @@ begin
 
       if FoundLPR <> '' then
       begin
-        // 使用 fpc 构建 .lpr（仅用于项目，不用于本地测试/示例）
+        // Use fpc to build .lpr (only for projects, not for local tests/examples)
         LResult := TProcessExecutor.Execute('fpc', [ExtractFileName(FoundLPR)], AProjectDir);
         Result := LResult.Success;
       end
       else if FileExists(AProjectDir + PathDelim + 'Makefile') then
       begin
-        // 回退使用 make（如果提供 Makefile）
+        // Fallback to make (if Makefile provided)
         LResult := TProcessExecutor.Execute('make', [], AProjectDir);
         Result := LResult.Success;
       end
@@ -528,7 +528,7 @@ begin
   end;
 
   try
-    // 使用共享清理函数（包含平台可执行文件）
+    // Use shared cleanup function (includes platform executables)
     DeletedCount := CleanBuildArtifacts(AProjectDir, nil, True);
     LO.WriteLn(_Fmt(CMD_PROJECT_CLEANED, [DeletedCount, AProjectDir]));
     Result := True;

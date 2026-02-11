@@ -38,7 +38,7 @@ uses
   fpdev.config.managers;
 
 type
-  // 重新导出类型定义以保持向后兼容
+  // Re-export type definitions for backward compatibility
   TToolchainType = fpdev.config.interfaces.TToolchainType;
   TToolchainInfo = fpdev.config.interfaces.TToolchainInfo;
   TLazarusInfo = fpdev.config.interfaces.TLazarusInfo;
@@ -56,7 +56,7 @@ type
   { 已废弃：请使用 TConfigManager 和相关接口 }
   TFPDevConfigManager = class
   private
-    FConfigManager: IConfigManager;  // 使用接口引用，自动管理生命周期
+    FConfigManager: IConfigManager;  // Use interface reference, auto-managed lifecycle
     function GetModified: Boolean;
     function GetConfigPath: string;
 
@@ -87,7 +87,7 @@ type
     function GetDefaultLazarusVersion: string;
     function ListLazarusVersions: TStringArray;
 
-    // 交叉编译目标管理
+    // Cross-compilation target management
     function AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;
     function RemoveCrossTarget(const ATarget: string): Boolean;
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
@@ -122,7 +122,7 @@ end;
 
 destructor TFPDevConfigManager.Destroy;
 begin
-  // 显式清空接口引用，触发引用计数清理
+  // Explicitly clear interface reference, trigger reference count cleanup
   FConfigManager := nil;
   inherited Destroy;
 end;
@@ -224,7 +224,7 @@ begin
   Result := FConfigManager.GetLazarusManager.ListLazarusVersions;
 end;
 
-// 交叉编译目标管理方法
+// Cross-compilation target management methods
 function TFPDevConfigManager.AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;
 begin
   Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, AInfo);

@@ -10,7 +10,7 @@ uses
 implementation
 
 initialization
-  // 注册 lazarus 根节点（用于自动帮助列出子命令）
+  // Register lazarus root node (for auto-help listing subcommands)
   GlobalCommandRegistry.RegisterPath(['lazarus'], nil, []);
 
 end.

@@ -91,12 +91,12 @@ begin
   if Ctx.Config <> nil then
   begin
     LGlobalFPC := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
-    // 移除 'fpc-' 前缀
+    // Remove 'fpc-' prefix
     if Pos('fpc-', LGlobalFPC) = 1 then
       LGlobalFPC := Copy(LGlobalFPC, 5, Length(LGlobalFPC));
 
     LGlobalLazarus := Ctx.Config.GetLazarusManager.GetDefaultLazarusVersion;
-    // 移除 'lazarus-' 前缀
+    // Remove 'lazarus-' prefix
     if Pos('lazarus-', LGlobalLazarus) = 1 then
       LGlobalLazarus := Copy(LGlobalLazarus, 9, Length(LGlobalLazarus));
   end;
@@ -131,7 +131,7 @@ begin
     end
     else
     begin
-      // 简单输出：仅版本号（供 shell hook 使用）
+      // Simple output: version number only (for shell hook use)
       Ctx.Out.WriteLn(LResolved.FPCVersion);
     end;
   finally

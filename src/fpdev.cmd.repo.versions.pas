@@ -118,7 +118,7 @@ begin
   VersSet := TStringList.Create;
   VersSet.Sorted := True; VersSet.Duplicates := dupIgnore;
   try
-    // 默认仓库优先
+    // Default repository takes priority
     if RepoArg='' then
     begin
       Settings := Ctx.Config.GetSettingsManager.GetSettings;
@@ -145,7 +145,7 @@ begin
       end
       else if (not Refresh) and FileExists(CacheFile) and (FileAge(CacheFile, FTime)) and (Now - FTime < 1) then
       begin
-        // 缓存小于24小时
+        // Cache is less than 24 hours old
         SL := TStringList.Create; try SL.LoadFromFile(CacheFile); S := SL.Text; finally SL.Free; end;
       end
       else
@@ -191,7 +191,7 @@ begin
     end
     else
     begin
-      // 遍历配置里的所有仓库
+      // Iterate through all repositories in config
       Names := Ctx.Config.GetRepositoryManager.ListRepositories;
       for j := 0 to High(Names) do
       begin

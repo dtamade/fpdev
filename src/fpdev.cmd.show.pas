@@ -169,7 +169,7 @@ begin
     for I := 0 to High(LToolchains) do
     begin
       LName := LToolchains[I];
-      // 移除 'fpc-' 前缀显示
+      // Remove 'fpc-' prefix for display
       if Pos('fpc-', LName) = 1 then
         LName := Copy(LName, 5, Length(LName));
       Ctx.Out.WriteLn('  ' + LName);
@@ -220,7 +220,7 @@ begin
 
   Ctx.Out.WriteLn('');
 
-  // 显示已安装版本
+  // Show installed versions
   ShowInstalledVersions(Ctx);
 
   Ctx.Out.WriteLn('');

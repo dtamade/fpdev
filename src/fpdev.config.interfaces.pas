@@ -52,7 +52,7 @@ type
     Installed: Boolean;
   end;
 
-  // 交叉编译目标
+  // Cross-compilation target
   TCrossTarget = record
     Enabled: Boolean;
     BinutilsPath: string;
