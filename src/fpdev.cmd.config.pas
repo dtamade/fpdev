@@ -44,6 +44,8 @@ type
     procedure ShowHelp;
     procedure GetConfigValue(const AKey: string);
     procedure SetConfigValue(const AKey, AValue: string);
+    procedure ExportConfig(const AFilePath: string);
+    procedure ImportConfig(const AFilePath: string);
 
   public
     constructor Create(AOut: IOutput = nil; AErr: IOutput = nil);
@@ -61,7 +63,7 @@ function CreateConfigCommand: ICommand;
 implementation
 
 uses
-  fpdev.output.console;
+  fpdev.output.console, fpjson, jsonparser;
 
 function CreateConfigCommand: ICommand;
 begin
@@ -108,6 +110,8 @@ begin
   FOut.WriteLn('  show                    Show current configuration');
   FOut.WriteLn('  get <key>               Get a configuration value');
   FOut.WriteLn('  set <key> <value>       Set a configuration value');
+  FOut.WriteLn('  export <file>           Export configuration to file');
+  FOut.WriteLn('  import <file>           Import configuration from file');
   FOut.WriteLn('');
   FOut.WriteLn('Configuration keys:');
   FOut.WriteLn('  mirror                  Mirror source: auto, github, gitee, or custom URL');
@@ -122,6 +126,8 @@ begin
   FOut.WriteLn('  fpdev config set mirror github');
   FOut.WriteLn('  fpdev config set custom_repo_url https://my-server.com/fpdev-repo.git');
   FOut.WriteLn('  fpdev config get mirror');
+  FOut.WriteLn('  fpdev config export ~/fpdev-backup.json');
+  FOut.WriteLn('  fpdev config import ~/fpdev-backup.json');
 end;
 
 procedure TConfigCommand.ShowConfig;
@@ -247,6 +253,63 @@ begin
   FOut.WriteLn('Configuration updated: ' + AKey + ' = ' + AValue);
 end;
 
+procedure TConfigCommand.ExportConfig(const AFilePath: string);
+var
+  SrcPath: string;
+  SL: TStringList;
+begin
+  SrcPath := GetConfigPath;
+  if not FileExists(SrcPath) then
+  begin
+    FErr.WriteLn('Error: Configuration file not found: ' + SrcPath);
+    Exit;
+  end;
+
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(SrcPath);
+    SL.SaveToFile(AFilePath);
+    FOut.WriteLn('Configuration exported to: ' + AFilePath);
+  finally
+    SL.Free;
+  end;
+end;
+
+procedure TConfigCommand.ImportConfig(const AFilePath: string);
+var
+  DestPath: string;
+  SL: TStringList;
+  J: TJSONData;
+begin
+  if not FileExists(AFilePath) then
+  begin
+    FErr.WriteLn('Error: File not found: ' + AFilePath);
+    Exit;
+  end;
+
+  // Validate JSON before importing
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(AFilePath);
+    try
+      J := GetJSON(SL.Text);
+      J.Free;
+    except
+      on E: Exception do
+      begin
+        FErr.WriteLn('Error: Invalid JSON format: ' + E.Message);
+        Exit;
+      end;
+    end;
+
+    DestPath := GetConfigPath;
+    SL.SaveToFile(DestPath);
+    FOut.WriteLn('Configuration imported from: ' + AFilePath);
+  finally
+    SL.Free;
+  end;
+end;
+
 function TConfigCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   SubCommand: string;
@@ -299,6 +362,28 @@ begin
       Exit;
     end;
     SetConfigValue(AParams[1], AParams[2]);
+  end
+  else if SubCommand = 'export' then
+  begin
+    if Length(AParams) < 2 then
+    begin
+      FErr.WriteLn('Error: Missing file path argument');
+      FErr.WriteLn('Usage: fpdev config export <file>');
+      Result := EXIT_USAGE_ERROR;
+      Exit;
+    end;
+    ExportConfig(AParams[1]);
+  end
+  else if SubCommand = 'import' then
+  begin
+    if Length(AParams) < 2 then
+    begin
+      FErr.WriteLn('Error: Missing file path argument');
+      FErr.WriteLn('Usage: fpdev config import <file>');
+      Result := EXIT_USAGE_ERROR;
+      Exit;
+    end;
+    ImportConfig(AParams[1]);
   end
   else
   begin

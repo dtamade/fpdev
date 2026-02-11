@@ -320,6 +320,12 @@ const
   HELP_CROSS_TEST_USAGE = 'help.cross.test.usage';
   HELP_CROSS_TEST_DESC = 'help.cross.test.desc';
   HELP_CROSS_TEST_OPT_HELP = 'help.cross.test.opt.help';
+  HELP_CROSS_CLEAN_USAGE = 'help.cross.clean.usage';
+  HELP_CROSS_CLEAN_DESC = 'help.cross.clean.desc';
+  HELP_CROSS_CLEAN_OPT_HELP = 'help.cross.clean.opt.help';
+  HELP_CROSS_UPDATE_USAGE = 'help.cross.update.usage';
+  HELP_CROSS_UPDATE_DESC = 'help.cross.update.desc';
+  HELP_CROSS_UPDATE_OPT_HELP = 'help.cross.update.opt.help';
   HELP_CROSS_CONFIGURE_USAGE = 'help.cross.configure.usage';
   HELP_CROSS_CONFIGURE_DESC = 'help.cross.configure.desc';
   HELP_CROSS_CONFIGURE_OPTIONS = 'help.cross.configure.options';
@@ -1066,6 +1072,12 @@ begin
   T(HELP_CROSS_TEST_USAGE,             'Usage: fpdev cross test <target>',                                        '用法: fpdev cross test <目标>');
   T(HELP_CROSS_TEST_DESC,              'Test a cross-compilation target.',                                        '测试交叉编译目标。');
   T(HELP_CROSS_TEST_OPT_HELP,          '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_CLEAN_USAGE,            'Usage: fpdev cross clean <target>',                                       '用法: fpdev cross clean <目标>');
+  T(HELP_CROSS_CLEAN_DESC,             'Clean build artifacts for a cross-compilation target.',                   '清理交叉编译目标的构建产物。');
+  T(HELP_CROSS_CLEAN_OPT_HELP,         '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
+  T(HELP_CROSS_UPDATE_USAGE,           'Usage: fpdev cross update <target>',                                      '用法: fpdev cross update <目标>');
+  T(HELP_CROSS_UPDATE_DESC,            'Update binutils and libraries for a cross-compilation target.',           '更新交叉编译目标的 binutils 和库文件。');
+  T(HELP_CROSS_UPDATE_OPT_HELP,        '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
   T(HELP_CROSS_CONFIGURE_USAGE,        'Usage: fpdev cross configure <target> [options]',                         '用法: fpdev cross configure <目标> [选项]');
   T(HELP_CROSS_CONFIGURE_DESC,         'Configure a cross-compilation target.',                                   '配置交叉编译目标。');
   T(HELP_CROSS_CONFIGURE_OPTIONS,      'Options:',                                                                '选项:');
