@@ -32,7 +32,7 @@
 
 ```
 [OK] Phase 7 in progress (Phase 6 complete)
-[OK] Test coverage: 171 test files, 100% pass rate
+[OK] Test coverage: 171 tests passing, 100% pass rate
 [OK] Documentation: Complete user and developer documentation (20 English translations)
 [OK] Cross-platform: Windows, Linux, macOS
 [OK] Code quality: Production-ready (6 hints, 0 errors)

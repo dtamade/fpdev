@@ -47,6 +47,7 @@ src/fpdev
 *.so
 *.a
 *.dylib
+*.dll
 
 # Local workspace artifacts (should not be committed)
 logs/

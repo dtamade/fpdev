@@ -131,7 +131,7 @@ begin
 end;
 
 function TCrossBuildEngine.ResolveCrossCompilerPath(const ATarget: TCrossTarget;
-  const ASourceRoot, {%H-}AVersion: string): string;
+  const ASourceRoot, AVersion: string): string;
 var
   PPName, CompilerDir: string;
 begin
