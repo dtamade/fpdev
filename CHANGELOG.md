@@ -6,6 +6,19 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 
 ## [Unreleased]
 ### Added
+- **Phase 6: Architecture Improvement & Feature Completion - COMPLETE (2026-02-11)**
+  - **M1 (B206-B210)**: Fix CompareVersions semantic bug, PathDelim hardcoding, clear 13 compiler hints
+  - **M2 (B211-B215)**: Add parameter parsing tests (38) and package verify tests (20)
+  - **M3 (B216-B220)**: Skipped - deprecated code has active callers
+  - **M4 (B221-B225)**: Refactor cmd.config to use Ctx.Out/Err
+  - **M5 (B226-B230)**: Extract install helpers from resource.repo.pas (-16% lines)
+  - **M6 (B231-B235)**: Merged into M5 - large files already well-architected
+  - **M7 (B236-B242)**: Add cross clean/update and config export/import commands
+  - **M8 (B243-B247)**: Add project template subcommands (list/install/remove/update, 16 tests)
+  - **M9 (B248-B252)**: Translate 10 more docs to English (total: 20 .en.md files)
+  - **M10 (B253-B255)**: Phase 6 summary, CHANGELOG update, final regression
+  - **Final**: 171/171 tests passing, 5 compiler hints (pre-existing), 7 new CLI commands
+
 - **Phase 5: Quality Assurance & CLI Test Coverage - COMPLETE (2026-02-11)**
   - **M1 (B173-B175)**: Baseline recovery - commit pending work, fix 14 warnings, update docs
   - **M2 (B176-B180)**: Binary installer hardening - extraction pipeline, post-install, SHA256 fix
