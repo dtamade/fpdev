@@ -4,9 +4,9 @@
 
 **现代化的 FreePascal 和 Lazarus 开发环境管理工具**
 
-[![Release](https://img.shields.io/badge/release-v2.0.6-blue.svg)](https://github.com/fpdev/fpdev/releases)
+[![Release](https://img.shields.io/badge/release-v2.1.0--beta-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-139%20passed-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-171%20passed-brightgreen.svg)](#testing)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
 [快速开始](QUICKSTART.md) • [安装指南](docs/INSTALLATION.md) • [常见问题](FAQ.md) • [完整文档](docs/QUICKSTART.md)
@@ -31,11 +31,11 @@
 ### 📊 项目状态
 
 ```
-✅ 功能完整性: 100% (Phase 4 M10 完成)
-✅ 测试覆盖率: 100% (139 测试用例，100% 通过率)
-✅ 文档完整性: 100% (完整的用户和开发者文档)
-✅ 跨平台支持: Windows, Linux, macOS
-✅ 代码质量: 生产就绪 (0 Warning, 0 Error)
+[OK] Phase 7 in progress (Phase 6 complete)
+[OK] Test coverage: 171 test files, 100% pass rate
+[OK] Documentation: Complete user and developer documentation (20 English translations)
+[OK] Cross-platform: Windows, Linux, macOS
+[OK] Code quality: Production-ready (6 hints, 0 errors)
 ```
 
 ---

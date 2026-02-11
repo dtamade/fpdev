@@ -125,9 +125,9 @@ This document defines the format for package dependency metadata in FPDev packag
 ### Installation Order
 
 Dependencies are installed in topological order:
-1. Leaves (no dependencies) → first
-2. Intermediate packages → middle
-3. Root package → last
+1. Leaves (no dependencies) -> first
+2. Intermediate packages -> middle
+3. Root package -> last
 
 ### Example Dependency Graph
 
@@ -151,7 +151,7 @@ Installation order: libD, libA, libC, libB, myapp
 
 1. **Missing Dependency**: Required package not found in any repository
 2. **Version Conflict**: No version satisfies all constraints
-3. **Circular Dependency**: A → B → C → A
+3. **Circular Dependency**: A -> B -> C -> A
 4. **Self Dependency**: Package depends on itself
 
 ### Error Messages
@@ -159,7 +159,7 @@ Installation order: libD, libA, libC, libB, myapp
 ```
 Error: Missing dependency 'openssl' required by 'synapse'
 Error: Version conflict for 'fpjson': requires '>=1.2.0' but '1.1.0' is installed
-Error: Circular dependency detected: libA → libB → libC → libA
+Error: Circular dependency detected: libA -> libB -> libC -> libA
 ```
 
 ## Example Package Metadata

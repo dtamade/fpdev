@@ -54,25 +54,109 @@ FPDev uses a **command registry pattern** with hierarchical command dispatch:
 
 ```
 fpdev (root)
-├── help
-├── version
-├── fpc
-│   ├── install
-│   ├── list
-│   ├── use
-│   ├── current
-│   ├── show
-│   └── doctor
-├── lazarus
-│   ├── install
-│   ├── list
-│   ├── use
-│   ├── current
-│   └── run
-├── repo (source repository management)
-├── cross (cross-compilation targets)
-├── package
-└── project
++-- help (h, ?)
++-- version (-v, --version)
++-- doctor
++-- show
++-- default
++-- env
++-- perf
+|   +-- report
+|   +-- summary
+|   +-- clear
+|   +-- save
++-- cache
++-- index
++-- shell-hook
++-- resolve-version
++-- config
+|   +-- list (ls)
++-- fpc
+|   +-- install
+|   +-- uninstall
+|   +-- list
+|   +-- use (default)
+|   +-- current
+|   +-- show
+|   +-- update
+|   +-- test
+|   +-- doctor
+|   +-- help
+|   +-- verify
+|   +-- auto-install
+|   +-- update-manifest
+|   +-- cache
+|       +-- list
+|       +-- stats
+|       +-- clean
+|       +-- path
++-- lazarus
+|   +-- install
+|   +-- uninstall
+|   +-- list
+|   +-- use (default)
+|   +-- current
+|   +-- show
+|   +-- update
+|   +-- test
+|   +-- doctor
+|   +-- help
+|   +-- run
+|   +-- configure (config)
++-- repo
+|   +-- add
+|   +-- remove (rm)
+|   +-- list (ls)
+|   +-- show
+|   +-- default
+|   +-- versions
+|   +-- help
++-- cross (x)
+|   +-- build
+|   +-- install
+|   +-- uninstall
+|   +-- list
+|   +-- enable
+|   +-- disable
+|   +-- show
+|   +-- configure
+|   +-- doctor
+|   +-- test
+|   +-- help
+|   +-- clean
+|   +-- update
++-- package (pkg)
+|   +-- install
+|   +-- install-local
+|   +-- uninstall
+|   +-- list (ls)
+|   +-- search
+|   +-- publish
+|   +-- info
+|   +-- update
+|   +-- clean
+|   +-- deps (dependencies)
+|   +-- why
+|   +-- help
+|   +-- repo
+|       +-- add
+|       +-- remove (rm, del)
+|       +-- list (ls)
+|       +-- update
++-- project (proj)
+    +-- new
+    +-- build
+    +-- run
+    +-- test
+    +-- clean
+    +-- list
+    +-- info
+    +-- help
+    +-- template (tpl)
+        +-- list (ls)
+        +-- install
+        +-- remove (rm)
+        +-- update
 ```
 
 **Command Registration**: Commands register via `GlobalCommandRegistry.RegisterPath()` in their unit's `initialization` section. The main program imports all command units to trigger registration.
@@ -1438,4 +1522,4 @@ end;
 
 **Last Updated**: 2026-02-11
 **Branch**: main
-**Status**: Phase 5 Complete - B205 (168/168 tests passing, 0 warnings, CLI coverage >80%)
+**Status**: Phase 7 in progress (171/171 tests passing, 6 hints)

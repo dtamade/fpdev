@@ -43,6 +43,11 @@ reference/
 .ace-tool/
 src/fpdev
 
+# Binary artifacts (shared libraries and static libraries)
+*.so
+*.a
+*.dylib
+
 # Local workspace artifacts (should not be committed)
 logs/
 .claude/
