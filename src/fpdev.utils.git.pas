@@ -20,7 +20,7 @@ unit fpdev.utils.git;
 interface
 
 uses
-  SysUtils, Classes;
+  SysUtils, Classes, git2.api;
 
 type
   TGitBackend = (gbLibgit2, gbCommandLine, gbNone);
@@ -31,9 +31,15 @@ type
     FBackend: TGitBackend;
     FLastError: string;
     FVerbose: Boolean;
+    FGitManager: IGitManager;
 
     function TryInitLibgit2: Boolean;
     function ExecuteGitCommand(const AParams: array of string; const AWorkDir: string = ''): Boolean;
+
+    // libgit2 backend functions (use instance FGitManager)
+    function CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean;
+    function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
+    function GetBranchWithLibgit2(const ARepoPath: string): string;
 
   public
     constructor Create;
@@ -58,20 +64,14 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, git2.api, git2.impl;
+  fpdev.utils.process, git2.impl;
 
 var
   Libgit2Available: Boolean = False;
   Libgit2Checked: Boolean = False;
 
-  // Internal singleton for libgit2 backend (lazy-initialized)
-  SharedGitManager: IGitManager = nil;
-
-// Forward declarations for libgit2 backend functions
-function CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean; forward;
-function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean; forward;
+// Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
-function GetBranchWithLibgit2(const ARepoPath: string): string; forward;
 
 function GitBackendToString(ABackend: TGitBackend): string;
 begin
@@ -89,6 +89,7 @@ begin
   inherited Create;
   FLastError := '';
   FVerbose := False;
+  FGitManager := nil;
 
   // Try to use libgit2 first
   if TryInitLibgit2 then
@@ -105,11 +106,11 @@ end;
 
 destructor TGitOperations.Destroy;
 begin
-  // Cleanup libgit2 if we initialized it
-  if FBackend = gbLibgit2 then
+  // Cleanup libgit2 instance manager
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
   begin
     try
-      // Note: GitManager singleton handles shutdown
+      FGitManager.Finalize;
     except
       on E: Exception do
       begin
@@ -117,13 +118,14 @@ begin
           WriteLn('Error during Git cleanup: ', E.Message);
       end;
     end;
+    FGitManager := nil;
   end;
   inherited Destroy;
 end;
 
 function TGitOperations.TryInitLibgit2: Boolean;
 begin
-  // Only check once per process
+  // Only check libgit2 availability once per process
   if not Libgit2Checked then
   begin
     Libgit2Checked := True;
@@ -131,16 +133,15 @@ begin
 
     try
       // Create and initialize GitManager (using modern interface)
-      if SharedGitManager = nil then
-        SharedGitManager := NewGitManager();
+      FGitManager := NewGitManager();
 
       // Try to initialize libgit2
-      if SharedGitManager.Initialize then
+      if FGitManager.Initialize then
         Libgit2Available := True
       else
       begin
         // Initialization failed, release the interface
-        SharedGitManager := nil;
+        FGitManager := nil;
       end;
     except
       on E: Exception do
@@ -148,13 +149,24 @@ begin
         // libgit2 library not available or initialization failed
         if FVerbose then
           WriteLn('libgit2 initialization failed: ', E.Message);
-        SharedGitManager := nil;
+        FGitManager := nil;
         Libgit2Available := False;
       end;
     end;
+  end
+  else if Libgit2Available and (FGitManager = nil) then
+  begin
+    // libgit2 is available but this instance doesn't have a manager yet
+    try
+      FGitManager := NewGitManager();
+      if not FGitManager.Initialize then
+        FGitManager := nil;
+    except
+      FGitManager := nil;
+    end;
   end;
 
-  Result := Libgit2Available;
+  Result := Libgit2Available and (FGitManager <> nil);
 end;
 
 function TGitOperations.ExecuteGitCommand(const AParams: array of string; const AWorkDir: string): Boolean;
@@ -320,17 +332,17 @@ begin
 end;
 
 // ============================================================================
-// libgit2 backend functions
+// libgit2 backend instance methods
 // ============================================================================
 
-function CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean;
+function TGitOperations.CloneWithLibgit2(const AURL, ALocalPath, ABranch: string; out AError: string): Boolean;
 var
   Repo: IGitRepository;
 begin
   Result := False;
   AError := '';
 
-  if SharedGitManager = nil then
+  if FGitManager = nil then
   begin
     AError := 'libgit2 not initialized';
     Exit;
@@ -338,7 +350,7 @@ begin
 
   try
     // CloneRepository returns IGitRepository interface
-    Repo := SharedGitManager.CloneRepository(AURL, ALocalPath);
+    Repo := FGitManager.CloneRepository(AURL, ALocalPath);
 
     if Repo <> nil then
     begin
@@ -362,21 +374,21 @@ begin
   end;
 end;
 
-function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
+function TGitOperations.FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
 var
   Repo: IGitRepository;
 begin
   Result := False;
   AError := '';
 
-  if SharedGitManager = nil then
+  if FGitManager = nil then
   begin
     AError := 'libgit2 not initialized';
     Exit;
   end;
 
   try
-    Repo := SharedGitManager.OpenRepository(ARepoPath);
+    Repo := FGitManager.OpenRepository(ARepoPath);
     if Repo <> nil then
     begin
       Result := Repo.Fetch(ARemote);
@@ -392,6 +404,28 @@ begin
   end;
 end;
 
+function TGitOperations.GetBranchWithLibgit2(const ARepoPath: string): string;
+var
+  Repo: IGitRepository;
+begin
+  Result := '';
+
+  if FGitManager = nil then
+    Exit;
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if Repo <> nil then
+    begin
+      Result := Repo.CurrentBranch;
+      // No manual Free needed - interface reference counting
+    end;
+  except
+    Result := '';
+  end;
+end;
+
+// Standalone function for IsRepository (creates temporary manager)
 function IsRepositoryWithLibgit2(const APath: string): Boolean;
 var
   Mgr: IGitManager;
@@ -413,38 +447,5 @@ begin
     end;
   end;
 end;
-
-function GetBranchWithLibgit2(const ARepoPath: string): string;
-var
-  Repo: IGitRepository;
-begin
-  Result := '';
-
-  if SharedGitManager = nil then
-    Exit;
-
-  try
-    Repo := SharedGitManager.OpenRepository(ARepoPath);
-    if Repo <> nil then
-    begin
-      Result := Repo.CurrentBranch;
-      // No manual Free needed - interface reference counting
-    end;
-  except
-    Result := '';
-  end;
-end;
-
-finalization
-  // Cleanup shared git manager on unit finalization
-  if SharedGitManager <> nil then
-  begin
-    try
-      SharedGitManager.Finalize;
-    except
-      // Ignore cleanup errors
-    end;
-    SharedGitManager := nil;
-  end;
 
 end.
