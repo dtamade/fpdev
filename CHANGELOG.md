@@ -6,11 +6,15 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 
 ## [Unreleased]
 ### Added
-- **Phase 5: Comprehensive Enhancement - ACTIVE (2026-02-11)**
-  - **B173**: Extracted resource repo types to `fpdev.resource.repo.types.pas` for modularity
-  - **B173**: Added `fpdev env` command (overview/vars/path/export sub-commands, 35/35 tests)
-  - **B174**: Eliminated 14 compiler warnings with `Default()` pattern (0 warnings baseline restored)
-  - **B175**: Documentation baseline updated (154/154 tests passing)
+- **Phase 5: Quality Assurance & CLI Test Coverage - COMPLETE (2026-02-11)**
+  - **M1 (B173-B175)**: Baseline recovery - commit pending work, fix 14 warnings, update docs
+  - **M2 (B176-B180)**: Binary installer hardening - extraction pipeline, post-install, SHA256 fix
+  - **M3 (B181-B185)**: Doctor enhanced (7->11 checks), PerfMon integration, stub removal
+  - **M4 (B186-B190)**: FPC CLI tests (132 tests) with shared test infrastructure
+  - **M5 (B191-B195)**: Lazarus (63 tests) + Cross (49 tests) CLI tests
+  - **M6 (B196-B200)**: Package (85) + Project (40) + Misc (82) CLI tests
+  - **M7 (B201-B205)**: Docs i18n (10 .en.md files), stub cleanup, Phase 5 summary
+  - **Final**: 168/168 tests passing, 0 compiler warnings, CLI coverage >80%
 
 - **Phase 2: Architecture Refactoring - COMPLETE (2026-01-31)**
   - **2.1 TBuildManager Interface Extraction**: Extracted IBuildLogger, IToolchainChecker, IBuildManager interfaces
