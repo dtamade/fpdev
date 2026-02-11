@@ -13,9 +13,9 @@ unit fpdev.build.cache;
 
   Cache Structure:
     ~/.fpdev/cache/builds/
-    ├── fpc-3.2.2-x86_64-linux.tar.gz    # Compressed artifacts
-    ├── fpc-3.2.2-x86_64-linux.meta      # Metadata file
-    └── build-cache.txt                   # Entry index
+    +-- fpc-3.2.2-x86_64-linux.tar.gz    # Compressed artifacts
+    +-- fpc-3.2.2-x86_64-linux.meta      # Metadata file
+    +-- build-cache.txt                   # Entry index
 }
 
 interface

@@ -103,12 +103,12 @@ begin
   if ACondition then
   begin
     Inc(FTestsPassed);
-  // WriteLn('✓ PASS: ', AMessage);  // 调试代码已注释
+  // WriteLn('[OK] PASS: ', AMessage);  // debug code commented out
   end
   else
   begin
     Inc(FTestsFailed);
-  // WriteLn('✗ FAIL: ', AMessage);  // 调试代码已注释
+  // WriteLn('[FAIL] FAIL: ', AMessage);  // debug code commented out
   end;
 end;
 
@@ -150,9 +150,9 @@ begin
   // WriteLn('Total Tests: ', FTestsPassed + FTestsFailed);  // 调试代码已注释
 
   if FTestsFailed = 0 then
-  // WriteLn('✓ All tests passed!')  // 调试代码已注释
+  // WriteLn('[OK] All tests passed!')  // debug code commented out
   else
-  // WriteLn('✗ Some tests failed!');  // 调试代码已注释
+  // WriteLn('[FAIL] Some tests failed!');  // debug code commented out
 end;
 
 procedure TFPDevConfigTest.TestCreateDefaultConfig;

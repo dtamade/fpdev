@@ -228,6 +228,7 @@ var
   ResolveResult: TPackageResolveResult;
   PkgName: string;
   I: Integer;
+  LOut: IOutput;
 begin
   Result := False;
   FLastError := '';
@@ -286,9 +287,10 @@ begin
       end;
 
       // Report resolved dependencies
-      (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO] Resolved ' + IntToStr(Length(ResolveResult.InstallOrder)) + ' dependencies:');
+      LOut := TConsoleOutput.Create(False) as IOutput;
+      LOut.WriteLn('[INFO] Resolved ' + IntToStr(Length(ResolveResult.InstallOrder)) + ' dependencies:');
       for I := 0 to High(ResolveResult.InstallOrder) do
-        (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO]   ' + IntToStr(I + 1) + '. ' + ResolveResult.InstallOrder[I]);
+        LOut.WriteLn('[INFO]   ' + IntToStr(I + 1) + '. ' + ResolveResult.InstallOrder[I]);
 
       Result := True;
     finally
@@ -307,6 +309,7 @@ var
   ExitCode: Integer;
   OutputLines: TStringList;
   Line: string;
+  LOut: IOutput;
 begin
   Result := False;
   FLastError := '';
@@ -324,7 +327,8 @@ begin
       Exit;
     end;
 
-    (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO] Running test script: ' + TestScript);
+    LOut := TConsoleOutput.Create(False) as IOutput;
+    LOut.WriteLn('[INFO] Running test script: ' + TestScript);
 
     // Execute test script using shell
     Process := TProcess.Create(nil);
@@ -347,7 +351,7 @@ begin
         try
           OutputLines.LoadFromStream(Process.Output);
           for Line in OutputLines do
-            (TConsoleOutput.Create(False) as IOutput).WriteLn(Line);
+            LOut.WriteLn(Line);
         finally
           OutputLines.Free;
         end;

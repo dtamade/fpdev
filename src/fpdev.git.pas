@@ -87,9 +87,9 @@ function TGitManager.ValidateGitEnvironment: Boolean;
 begin
   Result := IsGitInstalled;
   if Result then
-  // WriteLn('✓ Git found: ', GetGitVersion)  // 调试代码已注释
+  // WriteLn('[OK] Git found: ', GetGitVersion)  // debug code commented out
   else
-  // WriteLn('✗ Git not found. Please install Git first.');  // 调试代码已注释
+  // WriteLn('[FAIL] Git not found. Please install Git first.');  // debug code commented out
 end;
 
 function TGitManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
@@ -265,9 +265,9 @@ begin
   Result := ExecuteGitCommand(Command);
 
   if Result then
-  // WriteLn('✓ 仓库克隆成功')  // 调试代码已注释
+  // WriteLn('[OK] Clone succeeded')  // debug code commented out
   else
-  // WriteLn('✗ 仓库克隆失败');  // 调试代码已注释
+  // WriteLn('[FAIL] Clone failed');  // debug code commented out
 end;
 
 function TGitManager.UpdateRepository(const ARepoDir: string): Boolean;
@@ -286,9 +286,9 @@ begin
   Result := ExecuteGitCommand('pull', ARepoDir);
 
   if Result then
-  // WriteLn('✓ 仓库更新成功')  // 调试代码已注释
+  // WriteLn('[OK] Update succeeded')  // debug code commented out
   else
-  // WriteLn('✗ 仓库更新失败');  // 调试代码已注释
+  // WriteLn('[FAIL] Update failed');  // debug code commented out
 end;
 
 function TGitManager.CheckoutBranch(const ARepoDir, ABranch: string): Boolean;
@@ -305,9 +305,9 @@ begin
   Result := ExecuteGitCommand('checkout ' + ABranch, ARepoDir);
 
   if Result then
-  // WriteLn('✓ 分支切换成功')  // 调试代码已注释
+  // WriteLn('[OK] Branch switch succeeded')  // debug code commented out
   else
-  // WriteLn('✗ 分支切换失败');  // 调试代码已注释
+  // WriteLn('[FAIL] Branch switch failed');  // debug code commented out
 end;
 
 function TGitManager.GetCurrentBranch(const ARepoDir: string): string;

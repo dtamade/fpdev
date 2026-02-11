@@ -14,14 +14,14 @@ unit fpdev.package.registry;
 
   Registry Structure:
     registry/
-    ├── index.json          # Package index
-    ├── config.json         # Registry configuration
-    └── packages/
-        └── packagename/
-            └── version/
-                ├── packagename-version.tar.gz
-                ├── packagename-version.tar.gz.sha256
-                └── package.json
+    +-- index.json          # Package index
+    +-- config.json         # Registry configuration
+    +-- packages/
+        +-- packagename/
+            +-- version/
+                +-- packagename-version.tar.gz
+                +-- packagename-version.tar.gz.sha256
+                +-- package.json
 
   Usage:
     Registry := TPackageRegistry.Create('~/.fpdev/registry');
