@@ -28,6 +28,24 @@ jobs:
     - name: Run tests
       run: bash scripts/run_all_tests.sh
 
+    - name: Verify test count
+      run: |
+        # Extract the number of tests found and passed
+        TEST_COUNT=$(find tests -name "test_*.lpr" \
+            ! -path "*/examples/*" \
+            ! -path "*/fpdev.git2.adapter/*" \
+            ! -path "*/fpdev.libgit2.base/*" \
+            ! -path "*/fpdev.core.misc/*" \
+            ! -path "*/migrated/*" \
+            | wc -l)
+        EXPECTED_MIN=170
+        echo "Found ${TEST_COUNT} test files (minimum expected: ${EXPECTED_MIN})"
+        if [ "${TEST_COUNT}" -lt "${EXPECTED_MIN}" ]; then
+          echo "::error::Test count regression: found ${TEST_COUNT}, expected at least ${EXPECTED_MIN}"
+          exit 1
+        fi
+        echo "Test count check passed."
+
     - name: Upload test logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
@@ -48,11 +66,23 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y fpc lazarus
 
-    - name: Check for warnings/hints
+    - name: Check for warnings and hints
       run: |
         lazbuild -B fpdev.lpi 2>&1 | tee build.log
-        if grep -E "^(src/|\.\/src/).*Warning:" build.log; then
+
+        # Check for compilation warnings in source files
+        if grep -E "^(/|\./).*src/.*Warning:" build.log; then
           echo "::error::Compilation warnings found in src/"
           exit 1
         fi
-        echo "No warnings in src/"
+        echo "No warnings in src/."
+
+        # Check for compilation hints in source files (target: 0 source hints)
+        # System hints (11030/11031 config file read) are excluded
+        SOURCE_HINTS=$(grep -E "^(/|\./).*src/.*Hint: \(50" build.log || true)
+        if [ -n "${SOURCE_HINTS}" ]; then
+          echo "${SOURCE_HINTS}"
+          echo "::error::Compilation hints found in src/ (target is zero hints)"
+          exit 1
+        fi
+        echo "No source-code hints in src/."

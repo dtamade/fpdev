@@ -50,9 +50,13 @@ echo "Running All FPDev Tests"
 echo "========================================"
 echo ""
 
-# Find all test files (including nested directories, excluding experimental/dev tests)
-# Excluded directories: fpdev.git2.adapter, fpdev.libgit2.base, fpdev.core.misc, migrated
-# These require special environments (libgit2, git CLI, etc.)
+# Find all test files (including nested directories)
+# Excluded directories and reasons:
+#   fpdev.git2.adapter - Requires libgit2 native library (not available in CI)
+#   fpdev.libgit2.base - Requires libgit2 native library (not available in CI)
+#   fpdev.core.misc    - Legacy/experimental tests not part of main suite
+#   migrated           - Old tests superseded by newer implementations
+#   examples           - Example code, not test cases
 TEST_FILES=$(find tests -name "test_*.lpr" \
     ! -path "*/examples/*" \
     ! -path "*/fpdev.git2.adapter/*" \
