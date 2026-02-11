@@ -410,9 +410,13 @@ var
   FoundLPI, FoundLPR: string;
   SR: TSearchRec;
   Params: array of string;
+  {$IFDEF DEBUG}
   LOut: IOutput;
+  {$ENDIF}
 begin
+  {$IFDEF DEBUG}
   LOut := TConsoleOutput.Create(True) as IOutput;
+  {$ENDIF}
   Result := False;
 
   if not DirectoryExists(AProjectDir) then
