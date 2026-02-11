@@ -302,7 +302,10 @@ begin
 
   except
     on E: Exception do
+    begin
+      WriteLn(StdErr, 'BuildFromSource error: ', E.Message);
       Result := False;
+    end;
   end;
 end;
 
@@ -341,7 +344,10 @@ begin
 
   except
     on E: Exception do
+    begin
+      WriteLn(StdErr, 'SetupEnvironment error: ', E.Message);
       Result := False;
+    end;
   end;
 end;
 
@@ -561,7 +567,10 @@ begin
 
   except
     on E: Exception do
+    begin
+      WriteLn(StdErr, 'ListVersions error: ', E.Message);
       Result := False;
+    end;
   end;
 end;
 
@@ -618,6 +627,7 @@ begin
   except
     on E: Exception do
     begin
+      WriteLn(StdErr, 'GetCurrentVersion error: ', E.Message);
       Result := '';
     end;
   end;
@@ -714,7 +724,10 @@ begin
 
   except
     on E: Exception do
+    begin
+      WriteLn(StdErr, 'CleanSources error: ', E.Message);
       Result := False;
+    end;
   end;
 end;
 
@@ -776,7 +789,10 @@ begin
 
   except
     on E: Exception do
+    begin
+      WriteLn(StdErr, 'ShowVersionInfo error: ', E.Message);
       Result := False;
+    end;
   end;
 end;
 

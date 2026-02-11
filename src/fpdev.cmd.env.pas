@@ -134,10 +134,22 @@ begin
   {$IFDEF DARWIN}
   Ctx.Out.WriteLn('  OS:           macOS');
   {$ENDIF}
-  {$IFDEF CPU64}
+  {$IFDEF CPUX86_64}
   Ctx.Out.WriteLn('  Architecture: x86_64');
   {$ELSE}
+  {$IFDEF CPUAARCH64}
+  Ctx.Out.WriteLn('  Architecture: aarch64');
+  {$ELSE}
+  {$IFDEF CPU64}
+  Ctx.Out.WriteLn('  Architecture: 64-bit');
+  {$ELSE}
+  {$IFDEF CPUARM}
+  Ctx.Out.WriteLn('  Architecture: arm');
+  {$ELSE}
   Ctx.Out.WriteLn('  Architecture: x86');
+  {$ENDIF}
+  {$ENDIF}
+  {$ENDIF}
   {$ENDIF}
   Ctx.Out.WriteLn('');
 

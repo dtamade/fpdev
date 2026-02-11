@@ -291,7 +291,7 @@ begin
   if FColorEnabled then
   begin
     WriteRaw(CSI + '32m');  // Green
-    WriteRaw('✓ ');
+    WriteRaw('[OK] ');
     WriteRaw(S);
     WriteRaw(GetAnsiReset);
     WriteLn;
@@ -305,7 +305,7 @@ begin
   if FColorEnabled then
   begin
     WriteRaw(CSI + '1;31m');  // Bold Red
-    WriteRaw('✗ ');
+    WriteRaw('[FAIL] ');
     WriteRaw(S);
     WriteRaw(GetAnsiReset);
     WriteLn;

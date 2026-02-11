@@ -274,6 +274,7 @@ begin
     // 设置项目环境
     if not SetupProjectEnvironment(ATargetDir) then
     begin
+      WriteLn(StdErr, 'Warning: Project environment setup incomplete for: ', ATargetDir);
     end;
 
     Result := True;

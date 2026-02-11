@@ -185,8 +185,8 @@ begin
   // Display help footer
   WriteLn;
   WriteLn('Need more help?');
-  WriteLn('  • fpdev doctor          - Run system diagnostics');
-  WriteLn('  • fpdev help            - View all commands');
+  WriteLn('  - fpdev doctor          - Run system diagnostics');
+  WriteLn('  - fpdev help            - View all commands');
 end;
 
 function TEnhancedError.ToString: string;

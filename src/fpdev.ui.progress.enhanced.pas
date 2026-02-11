@@ -200,11 +200,11 @@ end;
 function TMultiStageProgress.GetStatusSymbol(AStatus: TStageStatus): string;
 begin
   case AStatus of
-    ssWaiting: Result := '○';
-    ssRunning: Result := '⣾';
-    ssCompleted: Result := '✓';
-    ssFailed: Result := '✗';
-    ssSkipped: Result := '⊘';
+    ssWaiting: Result := '[ ]';
+    ssRunning: Result := '[..]';
+    ssCompleted: Result := '[OK]';
+    ssFailed: Result := '[FAIL]';
+    ssSkipped: Result := '[SKIP]';
   else
     Result := '?';
   end;

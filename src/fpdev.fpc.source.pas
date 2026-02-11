@@ -261,7 +261,7 @@ begin
   if LVersion = '' then LVersion := FCurrentVersion;
   if LVersion = '' then LVersion := 'main';
   Result := Repo.UpdateFPCSource(LVersion);
-  if Result then WriteLn('✓ FPC source updated successfully (fetch)') else WriteLn('✗ FPC source update failed (fetch)');
+  if Result then WriteLn('[OK] FPC source updated successfully (fetch)') else WriteLn('[FAIL] FPC source update failed (fetch)');
 end;
 
 function TFPCSourceManager.SwitchFPCVersion(const AVersion: string): Boolean;

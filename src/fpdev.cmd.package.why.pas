@@ -99,8 +99,8 @@ begin
   Ctx.Out.WriteLn('Dependency path:');
   Ctx.Out.WriteLn('');
   Ctx.Out.WriteLn('  (current project)');
-  Ctx.Out.WriteLn('    └── fpdev-core >= 1.0.0');
-  Ctx.Out.WriteLn('          └── ' + PackageName);
+  Ctx.Out.WriteLn('    +-- fpdev-core >= 1.0.0');
+  Ctx.Out.WriteLn('          +-- ' + PackageName);
   Ctx.Out.WriteLn('');
   Ctx.Out.WriteLn('Required by: fpdev-core');
   Ctx.Out.WriteLn('Constraint: >= 1.0.0');

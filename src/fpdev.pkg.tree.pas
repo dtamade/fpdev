@@ -75,9 +75,9 @@ begin
     for I := 0 to High(ADependencies) do
     begin
       if I < High(ADependencies) then
-        Line := '  ├── ' + ADependencies[I]
+        Line := '  +-- ' + ADependencies[I]
       else
-        Line := '  └── ' + ADependencies[I];
+        Line := '  +-- ' + ADependencies[I];
 
       AOutput.WriteLn(Line);
     end;

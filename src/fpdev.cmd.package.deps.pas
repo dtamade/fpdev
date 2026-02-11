@@ -79,9 +79,9 @@ begin
   for i := 0 to High(ADeps) do
   begin
     if i = High(ADeps) then
-      Connector := '└── '
+      Connector := '+-- '
     else
-      Connector := '├── ';
+      Connector := '+-- ';
 
     Ctx.Out.WriteLn(APrefix + Connector + ADeps[i]);
     // In a real implementation, we would recursively show sub-dependencies
