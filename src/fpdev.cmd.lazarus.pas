@@ -326,21 +326,16 @@ begin
     InstallPath := GetVersionInstallPath(AVersion);
     FPCVersion := GetCompatibleFPCVersion(AVersion);
 
-    // 创建Lazarus信息
-    System.Initialize(LazarusInfo);
-    try
-      LazarusInfo.Version := AVersion;
-      LazarusInfo.FPCVersion := 'fpc-' + FPCVersion;
-      LazarusInfo.InstallPath := InstallPath;
-      LazarusInfo.SourceURL := LAZARUS_OFFICIAL_REPO;
-      LazarusInfo.Installed := True;
+    LazarusInfo := Default(TLazarusInfo);
+    LazarusInfo.Version := AVersion;
+    LazarusInfo.FPCVersion := 'fpc-' + FPCVersion;
+    LazarusInfo.InstallPath := InstallPath;
+    LazarusInfo.SourceURL := LAZARUS_OFFICIAL_REPO;
+    LazarusInfo.Installed := True;
 
-      // 添加到配置
-      Result := FConfigManager.GetLazarusManager.AddLazarusVersion('lazarus-' + AVersion, LazarusInfo);
-      if Result then
-    finally
-      System.Finalize(LazarusInfo);
-    end;
+    Result := FConfigManager.GetLazarusManager.AddLazarusVersion('lazarus-' + AVersion, LazarusInfo);
+    if not Result then
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('SetupEnvironment: failed to add version to config');
 
   except
     on E: Exception do
