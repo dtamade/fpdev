@@ -49,7 +49,7 @@ type
     procedure AddToLog(const ALine: string);
     function BuildCrossOpt(const ATarget: TCrossTarget): string;
     function ResolveCrossCompilerPath(const ATarget: TCrossTarget;
-      const ASourceRoot, {%H-}AVersion: string): string;
+      const ASourceRoot, AVersion: string): string;
   public
     constructor Create(ABuildManager: TBuildManager; AOwnsManager: Boolean = False);
     destructor Destroy; override;
@@ -136,6 +136,7 @@ var
   PPName, CompilerDir: string;
 begin
   Result := '';
+  if AVersion <> '' then; // Reserved for version-specific compiler resolution
   PPName := TCrossCompilerResolver.GetPPCrossName(ATarget.CPU);
   if PPName = '' then
   begin

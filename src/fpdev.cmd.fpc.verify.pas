@@ -41,9 +41,10 @@ begin
   Result := nil;
 end;
 
-function TFPCVerifyCommand.FindSub(const {%H-}AName: string): ICommand;
+function TFPCVerifyCommand.FindSub(const AName: string): ICommand;
 begin
   Result := nil;
+  if AName <> '' then; // Suppress unused parameter hint
 end;
 
 function TFPCVerifyCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
