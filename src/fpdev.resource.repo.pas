@@ -134,6 +134,7 @@ uses
   fpdev.resource.repo.search,
   fpdev.resource.repo.binary,
   fpdev.resource.repo.cross,
+  fpdev.resource.repo.install,
   fpdev.paths;  // 用于GetUserConfigDir等
 
 { 辅助函数实现 }
@@ -522,6 +523,15 @@ begin
   Result := LoadManifest;
 end;
 
+{ B226: Build install context for delegation to fpdev.resource.repo.install }
+function BuildInstallContext(ARepo: TResourceRepository): TRepoInstallContext;
+begin
+  Result.LocalPath := ARepo.LocalPath;
+  Result.Log := @ARepo.Log;
+  Result.LogFmt := @ARepo.LogFmt;
+  Result.VerifyChecksum := @ARepo.VerifyChecksum;
+end;
+
 function TResourceRepository.GetManifestVersion: string;
 begin
   Result := 'unknown';
@@ -883,15 +893,8 @@ end;
 function TResourceRepository.InstallBinaryRelease(const AVersion, APlatform, ADestDir: string): Boolean;
 var
   Info: TPlatformInfo;
-  ArchivePath: string;
-  TempFile: string;
-  DownloadURL: string;
-  i: Integer;
-  DownloadSuccess: Boolean;
 begin
   Result := False;
-
-  LogFmt('Installing FPC %s binary release for %s...', [AVersion, APlatform]);
 
   // Get release info
   if not GetBinaryReleaseInfo(AVersion, APlatform, Info) then
@@ -900,192 +903,25 @@ begin
     Exit;
   end;
 
-  // Ensure destination directory exists
-  if not DirectoryExists(ADestDir) then
-    EnsureDir(ADestDir);
-
-  // Determine archive path - either download from URL or use local file
-  if Info.URL <> '' then
-  begin
-    // v2.0: Download from URL with mirror fallback
-    TempFile := GetTempDir + 'fpdev_download_' + IntToStr(GetTickCount64) + ExtractFileExt(Info.URL);
-    DownloadSuccess := False;
-
-    // Try primary URL first
-    LogFmt('Downloading from: %s', [Info.URL]);
-    DownloadSuccess := DownloadFile(Info.URL, TempFile);
-
-    // If primary URL fails, try mirrors
-    if not DownloadSuccess then
-    begin
-      for i := 0 to High(Info.Mirrors) do
-      begin
-        DownloadURL := Info.Mirrors[i];
-        LogFmt('Primary URL failed, trying mirror %d: %s', [i + 1, DownloadURL]);
-        DownloadSuccess := DownloadFile(DownloadURL, TempFile);
-        if DownloadSuccess then
-          Break;
-      end;
-    end;
-
-    if not DownloadSuccess then
-    begin
-      Log('Error: Failed to download binary release from all sources');
-      if FileExists(TempFile) then
-        DeleteFile(TempFile);
-      Exit;
-    end;
-
-    ArchivePath := TempFile;
-    Log('Download completed');
-  end
-  else if Info.Path <> '' then
-  begin
-    // v1.0 backward compatibility: use local file from repository
-    ArchivePath := FLocalPath + PathDelim + Info.Path;
-    if not FileExists(ArchivePath) then
-    begin
-      LogFmt('Error: Binary release archive not found: %s', [ArchivePath]);
-      Exit;
-    end;
-    TempFile := '';  // No temp file to clean up
-  end
-  else
-  begin
-    Log('Error: No URL or archive path specified in manifest');
-    Exit;
-  end;
-
-  LogFmt('Source: %s', [ArchivePath]);
-  LogFmt('Destination: %s', [ADestDir]);
-
-  // Verify checksum
-  if Info.SHA256 <> '' then
-  begin
-    Log('Verifying checksum...');
-    if not VerifyChecksum(ArchivePath, Info.SHA256) then
-    begin
-      Log('Error: Checksum verification failed');
-      if TempFile <> '' then
-        DeleteFile(TempFile);
-      Exit;
-    end;
-    Log('Checksum verified');
-  end;
-
-  // Extract based on file extension
-  if (Pos('.tar.gz', LowerCase(ArchivePath)) > 0) or
-     (Pos('.tgz', LowerCase(ArchivePath)) > 0) then
-  begin
-    // tar.gz extraction
-    Result := TProcessExecutor.Run('tar', ['-xzf', ArchivePath, '-C', ADestDir], '');
-  end
-  else if Pos('.tar', LowerCase(ArchivePath)) > 0 then
-  begin
-    // tar extraction
-    Result := TProcessExecutor.Run('tar', ['-xf', ArchivePath, '-C', ADestDir], '');
-  end
-  else if Pos('.zip', LowerCase(ArchivePath)) > 0 then
-  begin
-    // zip extraction
-    Result := TProcessExecutor.Run('unzip', ['-q', '-o', ArchivePath, '-d', ADestDir], '');
-  end
-  else
-  begin
-    LogFmt('Error: Unsupported archive format: %s', [ExtractFileExt(ArchivePath)]);
-    if TempFile <> '' then
-      DeleteFile(TempFile);
-    Exit;
-  end;
-
-  // Clean up temp file
-  if TempFile <> '' then
-    DeleteFile(TempFile);
-
-  if Result then
-    Log('Binary release installed successfully')
-  else
-    Log('Error: Failed to extract archive');
+  // B226: Delegate to install helper
+  Result := RepoInstallBinaryRelease(BuildInstallContext(Self), Info, AVersion, APlatform, ADestDir);
 end;
 
 function TResourceRepository.InstallBootstrap(const AVersion, APlatform, ADestDir: string): Boolean;
 var
   Info: TPlatformInfo;
-  SourceDir: string;
-  DestPath: string;
-  ExeName: string;
 begin
   Result := False;
 
-  LogFmt('Installing bootstrap compiler %s for %s...', [AVersion, APlatform]);
-
-  // 获取信息
+  // Get bootstrap info
   if not GetBootstrapInfo(AVersion, APlatform, Info) then
   begin
     Log('Error: Bootstrap compiler info not found');
     Exit;
   end;
 
-  // 源目录（资源仓库中）
-  SourceDir := FLocalPath + PathDelim + Info.Path;
-  if not DirectoryExists(SourceDir) then
-  begin
-    LogFmt('Error: Bootstrap compiler source directory not found: %s', [SourceDir]);
-    Exit;
-  end;
-
-  // 确保目标目录存在
-  if not DirectoryExists(ADestDir) then
-    EnsureDir(ADestDir);
-
-  LogFmt('Source: %s', [SourceDir]);
-  LogFmt('Destination: %s', [ADestDir]);
-
-  // 复制整个目录
-  {$IFDEF MSWINDOWS}
-  Result := TProcessExecutor.Run('xcopy', [SourceDir, ADestDir, '/E', '/I', '/Q', '/Y'], '');
-  {$ELSE}
-  Result := TProcessExecutor.Run('cp', ['-r', SourceDir + PathDelim + '.', ADestDir], '');
-  {$ENDIF}
-
-  if not Result then
-  begin
-    Log('Failed to copy bootstrap compiler files');
-    Exit;
-  end;
-
-  // 验证可执行文件
-  ExeName := ExtractFileName(Info.Executable);
-  DestPath := ADestDir + PathDelim + ExeName;
-
-  if not FileExists(DestPath) then
-  begin
-    LogFmt('Bootstrap compiler executable not found after installation: %s', [DestPath]);
-    Exit(False);
-  end;
-
-  // 在Unix系统上设置执行权限
-  {$IFNDEF MSWINDOWS}
-  TProcessExecutor.Run('chmod', ['+x', DestPath], '');
-
-  // 同样处理编译器可执行文件（如ppcx64）
-  if FileExists(ADestDir + PathDelim + 'ppcx64') then
-    TProcessExecutor.Run('chmod', ['+x', ADestDir + PathDelim + 'ppcx64'], '');
-  {$ENDIF}
-
-  // 验证校验和（如果提供）
-  if Info.SHA256 <> '' then
-  begin
-    if not VerifyChecksum(DestPath, Info.SHA256) then
-    begin
-      Log('Checksum verification failed');
-      Exit(False);
-    end;
-  end;
-
-  Log('Bootstrap compiler installed successfully');
-  LogFmt('  Executable: %s', [DestPath]);
-  Result := True;
+  // B226: Delegate to install helper
+  Result := RepoInstallBootstrapCompiler(BuildInstallContext(Self), Info, AVersion, APlatform, ADestDir);
 end;
 
 { Mirror Management }
@@ -1279,11 +1115,8 @@ end;
 function TResourceRepository.InstallCrossToolchain(const ATarget, AHostPlatform, ADestDir: string): Boolean;
 var
   Info: TCrossToolchainInfo;
-  BinutilsPath, LibsPath: string;
 begin
   Result := False;
-
-  LogFmt('Installing cross toolchain for %s on %s...', [ATarget, AHostPlatform]);
 
   // Get toolchain info
   if not GetCrossToolchainInfo(ATarget, AHostPlatform, Info) then
@@ -1292,64 +1125,8 @@ begin
     Exit;
   end;
 
-  // Ensure destination directory exists
-  if not DirectoryExists(ADestDir) then
-    EnsureDir(ADestDir);
-
-  // Install binutils if specified
-  if Info.BinutilsArchive <> '' then
-  begin
-    BinutilsPath := FLocalPath + PathDelim + Info.BinutilsArchive;
-    if not FileExists(BinutilsPath) then
-    begin
-      LogFmt('Error: Binutils archive not found: %s', [BinutilsPath]);
-      Exit;
-    end;
-
-    // Verify checksum
-    if (Info.BinutilsSHA256 <> '') and not VerifyChecksum(BinutilsPath, Info.BinutilsSHA256) then
-    begin
-      Log('Error: Binutils checksum verification failed');
-      Exit;
-    end;
-
-    Log('Extracting binutils...');
-    if not TProcessExecutor.Run('tar', ['-xzf', BinutilsPath, '-C', ADestDir], '') then
-    begin
-      Log('Error: Failed to extract binutils');
-      Exit;
-    end;
-  end;
-
-  // Install libraries if specified
-  if Info.LibsArchive <> '' then
-  begin
-    LibsPath := FLocalPath + PathDelim + Info.LibsArchive;
-    if not FileExists(LibsPath) then
-    begin
-      LogFmt('Error: Libraries archive not found: %s', [LibsPath]);
-      Exit;
-    end;
-
-    // Verify checksum
-    if (Info.LibsSHA256 <> '') and not VerifyChecksum(LibsPath, Info.LibsSHA256) then
-    begin
-      Log('Error: Libraries checksum verification failed');
-      Exit;
-    end;
-
-    Log('Extracting libraries...');
-    if not TProcessExecutor.Run('tar', ['-xzf', LibsPath, '-C', ADestDir], '') then
-    begin
-      Log('Error: Failed to extract libraries');
-      Exit;
-    end;
-  end;
-
-  Log('Cross toolchain installed successfully');
-  LogFmt('  Target: %s (%s-%s)', [Info.DisplayName, Info.CPU, Info.OS]);
-  LogFmt('  Location: %s', [ADestDir]);
-  Result := True;
+  // B226: Delegate to install helper
+  Result := RepoInstallCrossToolchain(BuildInstallContext(Self), Info, ATarget, ADestDir);
 end;
 
 { Package Management }
@@ -1563,11 +1340,8 @@ end;
 function TResourceRepository.InstallPackage(const AName, AVersion, ADestDir: string): Boolean;
 var
   Info: TPackageInfo;
-  ArchivePath: string;
 begin
   Result := False;
-
-  LogFmt('Installing package %s version %s...', [AName, AVersion]);
 
   // Get package info
   if not GetPackageInfo(AName, AVersion, Info) then
@@ -1576,43 +1350,8 @@ begin
     Exit;
   end;
 
-  // Find archive
-  if Info.Archive <> '' then
-    ArchivePath := FLocalPath + PathDelim + Info.Archive
-  else
-    ArchivePath := FLocalPath + PathDelim + 'packages' + PathDelim + Info.Category +
-                   PathDelim + AName + PathDelim + AName + '-' + Info.Version + '.tar.gz';
-
-  if not FileExists(ArchivePath) then
-  begin
-    LogFmt('Error: Package archive not found: %s', [ArchivePath]);
-    Exit;
-  end;
-
-  // Verify checksum
-  if (Info.SHA256 <> '') and not VerifyChecksum(ArchivePath, Info.SHA256) then
-  begin
-    Log('Error: Package checksum verification failed');
-    Exit;
-  end;
-
-  // Ensure destination directory exists
-  if not DirectoryExists(ADestDir) then
-    EnsureDir(ADestDir);
-
-  LogFmt('Extracting package to %s...', [ADestDir]);
-
-  // Extract archive
-  if TProcessExecutor.Run('tar', ['-xzf', ArchivePath, '-C', ADestDir], '') then
-  begin
-    Log('Package installed successfully');
-    LogFmt('  Name: %s', [Info.Name]);
-    LogFmt('  Version: %s', [Info.Version]);
-    LogFmt('  Location: %s', [ADestDir]);
-    Result := True;
-  end
-  else
-    Log('Error: Failed to extract package archive');
+  // B226: Delegate to install helper
+  Result := RepoInstallPackage(BuildInstallContext(Self), Info, AName, AVersion, ADestDir);
 end;
 
 end.
