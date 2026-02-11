@@ -11,10 +11,15 @@ unit fpdev.git2;
   For new code, use the modern interface-based API: git2.api + git2.impl.
   This unit is maintained for backward compatibility only.
 
-  Legacy usage example:
+  Legacy usage example (direct class instantiation):
     var Mgr: TGitManager; Repo: TGitRepository;
-    Mgr := GitManager;
-    Repo := Mgr.OpenRepository('.');
+    Mgr := TGitManager.Create;
+    try
+      Mgr.Initialize;
+      Repo := Mgr.OpenRepository('.');
+    finally
+      Mgr.Free;
+    end;
 
   Recommended modern usage:
     uses git2.api, git2.impl;
@@ -219,7 +224,6 @@ type
     function GetLastCommitHash(ARepo: git_repository): string;
   end;
 
-function GitManager: TGitManager; deprecated 'Use NewGitManager() from git2.impl instead';
 procedure CheckGitResult(AResult: Integer; const AOperation: string = '');
 function GetGitErrorMessage: string;
 
@@ -300,16 +304,6 @@ begin
     LP^.Items.Add(LItem);
   end;
   Result := 0;
-end;
-
-var
-  FGitManager: TGitManager = nil;
-
-function GitManager: TGitManager;
-begin
-  if not Assigned(FGitManager) then
-    FGitManager := TGitManager.Create;
-  Result := FGitManager;
 end;
 
 procedure CheckGitResult(AResult: Integer; const AOperation: string);
