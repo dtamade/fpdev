@@ -274,7 +274,7 @@ begin
     // 设置项目环境
     if not SetupProjectEnvironment(ATargetDir) then
     begin
-      WriteLn(StdErr, 'Warning: Project environment setup incomplete for: ', ATargetDir);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('Warning: Project environment setup incomplete for: ' + ATargetDir);
     end;
 
     Result := True;
@@ -283,7 +283,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      WriteLn(StdErr, 'CreateProject exception: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('CreateProject exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -335,7 +335,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      WriteLn(StdErr, 'ListTemplates exception: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('ListTemplates exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -394,7 +394,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      WriteLn(StdErr, 'ShowTemplateInfo exception: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('ShowTemplateInfo exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -488,7 +488,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      WriteLn(StdErr, 'BuildProject exception: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('BuildProject exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;

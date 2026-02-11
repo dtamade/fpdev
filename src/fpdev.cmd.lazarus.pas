@@ -303,7 +303,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'BuildFromSource error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('BuildFromSource error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -345,7 +345,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'SetupEnvironment error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('SetupEnvironment error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -568,7 +568,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'ListVersions error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('ListVersions error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -627,7 +627,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'GetCurrentVersion error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('GetCurrentVersion error: ' + E.Message);
       Result := '';
     end;
   end;
@@ -725,7 +725,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'CleanSources error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('CleanSources error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -790,7 +790,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(StdErr, 'ShowVersionInfo error: ', E.Message);
+      (TConsoleOutput.Create(True) as IOutput).WriteLn('ShowVersionInfo error: ' + E.Message);
       Result := False;
     end;
   end;

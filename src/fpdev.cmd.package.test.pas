@@ -61,7 +61,7 @@ type
 
 implementation
 
-uses fpdev.package.resolver;
+uses fpdev.package.resolver, fpdev.output.intf, fpdev.output.console;
 
 { TPackageTestCommand }
 
@@ -286,9 +286,9 @@ begin
       end;
 
       // Report resolved dependencies
-      WriteLn('[INFO] Resolved ', Length(ResolveResult.InstallOrder), ' dependencies:');
+      (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO] Resolved ' + IntToStr(Length(ResolveResult.InstallOrder)) + ' dependencies:');
       for I := 0 to High(ResolveResult.InstallOrder) do
-        WriteLn('[INFO]   ', I + 1, '. ', ResolveResult.InstallOrder[I]);
+        (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO]   ' + IntToStr(I + 1) + '. ' + ResolveResult.InstallOrder[I]);
 
       Result := True;
     finally
@@ -324,7 +324,7 @@ begin
       Exit;
     end;
 
-    WriteLn('[INFO] Running test script: ', TestScript);
+    (TConsoleOutput.Create(False) as IOutput).WriteLn('[INFO] Running test script: ' + TestScript);
 
     // Execute test script using shell
     Process := TProcess.Create(nil);
@@ -347,7 +347,7 @@ begin
         try
           OutputLines.LoadFromStream(Process.Output);
           for Line in OutputLines do
-            WriteLn(Line);
+            (TConsoleOutput.Create(False) as IOutput).WriteLn(Line);
         finally
           OutputLines.Free;
         end;
