@@ -66,7 +66,7 @@ type
     function GetAvailableTargets: TCrossTargetArray;
     function GetInstalledTargets: TCrossTargetArray;
 
-    // 交叉编译目标管理
+    // Cross-compilation target management
     function InstallTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function UninstallTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function ListTargets(const AShowAll: Boolean = False; Outp: IOutput = nil): Boolean;
@@ -245,7 +245,7 @@ begin
   try
     InstallPath := FQuery.GetTargetInstallPath(ATarget);
 
-    // 创建交叉编译目标配置
+    // Create cross-compilation target configuration
     System.Initialize(CrossTarget);
     try
       CrossTarget.Enabled := True;
@@ -416,7 +416,7 @@ begin
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 
-    // 从配置中移除
+    // Remove from configuration
     FConfigManager.GetCrossTargetManager.RemoveCrossTarget(ATarget);
 
     if Outp <> nil then
@@ -649,7 +649,7 @@ begin
     if Outp <> nil then
       Outp.WriteLn(_Fmt(MSG_CROSS_TEST_TESTING, [ATarget]));
 
-    // 查找交叉编译器
+    // Find cross-compiler
     GCCExe := CrossTarget.BinutilsPath + PathDelim + FQuery.GetTargetInfo(ATarget).BinutilsPrefix + 'gcc';
     {$IFDEF MSWINDOWS}
     GCCExe := GCCExe + '.exe';

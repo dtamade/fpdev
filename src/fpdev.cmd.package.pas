@@ -81,7 +81,7 @@ type
     // 设置
     procedure SetKeepBuildArtifacts(const AValue: Boolean);
 
-    // 查询（供测试和上层使用）
+    // Query methods (for tests and upper layers)
     function GetAvailablePackageList: TPackageArray;
     function GetInstalledPackageList: TPackageArray;
 
@@ -888,7 +888,7 @@ begin
   end;
 
   try
-    // 从可用索引选择版本
+    // Select version from available index
     Avail := GetAvailablePackages;
     BestIdx := -1;
     for i := 0 to High(Avail) do
@@ -958,7 +958,7 @@ begin
       Exit;
     end;
 
-    // 编译安装
+    // Compile and install
     InstalledOK := InstallPackageFromSource(APackageName, TmpDir);
     if not InstalledOK then
     begin
@@ -1410,18 +1410,18 @@ begin
       if Length(Info.URLs)>0 then
       begin
         begin
-          // FPC 不支持局部 var inline 声明，使用临时变量
-          // 注意：此处在嵌套 begin..end 内创建并释放数组
-          // 改为直接构造数组后添加
-          // 为避免生命周期问题，先构造到临时变量再加入对象
-          // 但 JSON 对象接管后会拥有其生命周期，这里仍手动释放可能导致双重释放
-          // 因此采用：先构造，加入时不释放（由 O 拥有）；无需 finally free
-          // 兼容写法：先构造，O.Add 后不要手动 Free
-          // 构造
-          // 注意：FPC 无匿名块局部变量，改为上层声明（简化实现：直接逐项 Add 到新数组并交给 O 持有）
-          // 具体如下：
-          // 由于不方便引入上层变量，这里采用直接序列化字符串数组的方式留待改进
-          // 简化：不再使用局部变量，直接创建数组并附加
+          // FPC doesn't support local var inline declaration, use temp variable
+          // Note: Array creation in nested begin..end block
+          // Changed to construct array then add directly
+          // To avoid lifecycle issues, construct to temp var then add to object
+          // But JSON object takes ownership of lifecycle, manual free may cause double-free
+          // Solution: construct first, don't free after O.Add (owned by O); no finally free needed
+          // Compatible pattern: construct first, don't manually Free after O.Add
+          // Construction note: FPC has no anonymous block local vars, declare at upper level
+          // (simplified: add items directly to new array and let O own it)
+          // Since inconvenient to introduce upper-level variables,
+          // use direct string array serialization (to be improved)
+          // Simplified: don't use local variables, create array and attach directly
           // create array
           O.Add('url', TJSONArray.Create);
           for i := 0 to High(Info.URLs) do

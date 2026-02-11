@@ -94,7 +94,7 @@ type
     function FullBuild(const AVersion: string): Boolean;
     // 缓存支持
     procedure CreateBuildStamp(const AVersion: string);
-    // 环境体检（纯代码实现，不依赖脚本）
+    // Environment preflight check (pure code implementation, no scripts)
     function CheckToolchain: Boolean;
     // Package selection (Phase 4.3)
     function ListPackages: TStringArray;
@@ -558,7 +558,7 @@ begin
     // 版本控制/SSL（可选）
     Check('git','--version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
     Check('openssl','version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
-    // 各平台编译器前端（可选）
+    // Platform-specific compiler frontends (optional)
     Check('ppc386','', Ok, Line); if not Ok then if FLogger.Verbosity>0 then Log(Line);
     Check('ppcx64','', Ok, Line); if not Ok then if FLogger.Verbosity>0 then Log(Line);
     Check('ppcarm','', Ok, Line); if not Ok then if FLogger.Verbosity>0 then Log(Line);
@@ -741,7 +741,7 @@ begin
   if FParallelJobs <= 0 then FParallelJobs := 1;
   if FParallelJobs > 16 then FParallelJobs := 16;
   LJobs := IntToStr(FParallelJobs);
-  // 预留 额外变量位：CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX/PP/CROSSOPT
+  // Reserved extra variable slots: CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX/PP/CROSSOPT
   SetLength(LArgs, 2 + 2 + 6 + Length(ATargets));
   LArgs[0] := '-C'; LArgs[1] := ASourcePath;
   LArgs[2] := '-j' + LJobs;
@@ -854,7 +854,7 @@ begin
   LStart := Now;
   PerfMon.StartOperation('InstallPackages', 'Build');
   PerfMon.SetMetadata('InstallPackages', 'version=' + AVersion);
-  // 使用动态路径替换: INSTALL_UNITDIR=$$(packagename)
+  // Use dynamic path replacement: INSTALL_UNITDIR=$$(packagename)
   Result := RunMake(LSrc, [
     'DESTDIR=' + LDest,
     'PREFIX=' + LDest,
@@ -910,7 +910,7 @@ var
   LDest, LBin, LLib: string;
   LStart: TDateTime;
 begin
-  // 优先校验沙箱安装（仅在允许安装时）
+  // Prioritize sandbox installation verification (only when install is allowed)
   if FAllowInstall then
   begin
     // 耗时统计：去除内联变量
@@ -930,7 +930,7 @@ begin
       LogTestSummary(AVersion, 'sandbox', 'FAIL', MilliSecondsBetween(Now, LStart));
       Exit(False);
     end;
-    // Verbose: 输出目录样本，便于排查
+    // Verbose: Output directory sample for debugging
     if FLogger.Verbosity > 0 then
     begin
       if DirectoryExists(LBin) then begin Log('sample of sandbox/bin:'); LogDirSample(LBin, 10); end;
@@ -947,7 +947,7 @@ begin
       if FStrictResults then begin Log('FAIL: sandbox lib empty under strict mode: ' + LLib); LogTestSummary(AVersion, 'sandbox/lib', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
       else Log('WARN: sandbox lib is empty: ' + LLib);
     end;
-    // 若存在严格模式配置，按清单执行进一步校验
+    // If strict mode configured, perform additional verification per manifest
     if FStrictResults then
     begin
       if not ApplyStrictConfig(LDest) then begin LogTestSummary(AVersion, 'sandbox/strict', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end;
@@ -1011,7 +1011,7 @@ begin
       if not LHasMake then LIssues.Add('make not available');
     end;
 
-    // 目标与日志目录可写
+    // Target and log directories are writable
     EnsureDir(FSandboxRoot);
     EnsureDir(FLogDir);
     LSandOk := CanWriteDir(FSandboxRoot);
@@ -1019,7 +1019,7 @@ begin
     LLogOk := CanWriteDir(FLogDir);
     if not LLogOk then LIssues.Add('logs not writable: ' + FLogDir);
 
-    // 若允许安装，进一步检查版本安装根是否可创建
+    // If install allowed, check if version install root can be created
     if FAllowInstall then
     begin
       LDestRoot := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
@@ -1045,7 +1045,7 @@ begin
     end
     else
     begin
-      // 输出所有问题
+      // Output all issues
       Log('== Preflight END FAIL issues=' + IntToStr(LIssues.Count));
       if FLogger.Verbosity > 0 then
       begin

@@ -113,7 +113,7 @@ begin
   // 创建配置解析器
   LResolver := TProjectConfigResolver.Create(LGlobalFPC, '');
   try
-    // 无参数时: 使用项目配置或全局默认
+    // No arguments: use project config or global default
     if Length(AParams) < 1 then
     begin
       LResolved := LResolver.ResolveConfig(GetCurrentDir);
@@ -149,10 +149,10 @@ begin
 
   LEnsure := HasFlag(AParams, 'ensure');
 
-  // 检查版本是否已安装
+  // Check if version is installed
   if not GuessInstalled(LVer, Ctx) then
   begin
-    // 如果有 --ensure 标志或项目配置了 auto_install，则自动安装
+    // If --ensure flag or project auto_install is set, install automatically
     if LEnsure or LAutoInstall then
     begin
       LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
@@ -171,7 +171,7 @@ begin
     end
     else
     begin
-      // 提示用户安装
+      // Prompt user to install
       Ctx.Err.WriteLn('');
       Ctx.Err.WriteLn('Error: FPC ' + LVer + ' is not installed.');
       Ctx.Err.WriteLn('');

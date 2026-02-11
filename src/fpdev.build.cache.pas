@@ -1015,7 +1015,7 @@ var
   Info: TArtifactInfo;
   i: Integer;
 begin
-  // B065: 清空并标记为已加载，防止 UpdateIndexEntry 回灌旧索引
+  // B065: Clear and mark as loaded, prevent UpdateIndexEntry from backfilling old index
   FIndexEntries.Clear;
   FIndexLoaded := True;
 

@@ -112,7 +112,7 @@ type
     function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
   end;
 
-// 导出索引更新过程，供子命令调用
+// Export index update procedure for subcommands to call
 procedure FPC_UpdateIndex;
 
 implementation
@@ -170,7 +170,7 @@ begin
         Free;
       end;
     except
-      // 忽略日志写入异常
+      // Ignore log write exceptions
     end;
   end;
 end;
@@ -201,7 +201,7 @@ begin
     begin
       if not TryParseInt(Copy(s, 1, p2-1), B) then B := 0;
       Delete(s, 1, p2);
-      // 剩余为 patch（可能含后缀，取数字前缀）
+      // Rest is patch (may contain suffix, take numeric prefix)
       i := 1;
       while (i <= Length(s)) and (s[i] in ['0'..'9']) do Inc(i);
       if i > 1 then
@@ -317,7 +317,7 @@ begin
 
   if FInstallRoot = '' then
   begin
-    // 默认优先使用程序旁 data 目录，不可写时再由 ConfigManager 回退
+    // Default to data directory next to executable, fallback via ConfigManager if not writable
     FInstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
     Settings.InstallRoot := FInstallRoot;
     FConfigManager.GetSettingsManager.SetSettings(Settings);
@@ -674,7 +674,7 @@ begin
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 
-    // 从配置中移除
+    // Remove from configuration
     FConfigManager.GetToolchainManager.RemoveToolchain('fpc-' + AVersion);
 
     Result := True;
@@ -932,7 +932,7 @@ begin
   end;
 
   try
-    // 使用共享清理函数（包含平台可执行文件）
+    // Use shared cleanup function (includes platform executables)
     DeletedCount := CleanBuildArtifacts(SourceDir, nil, True);
     FOut.WriteLn(_(CMD_FPC_CLEAN_DONE) + ' - ' + IntToStr(DeletedCount) + ' file(s): ' + SourceDir);
     Result := True;

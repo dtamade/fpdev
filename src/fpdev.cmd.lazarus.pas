@@ -118,7 +118,7 @@ begin
 
   if FInstallRoot = '' then
   begin
-    // 默认优先使用程序旁 data 目录，不可写时再由 ConfigManager 回退
+    // Default to data directory next to executable, fallback via ConfigManager if not writable
     FInstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
     Settings.InstallRoot := FInstallRoot;
     FConfigManager.GetSettingsManager.SetSettings(Settings);
@@ -196,7 +196,7 @@ begin
   AllVersions := GetAvailableVersions;
   Count := 0;
 
-  // 计算已安装版本数量
+  // Count installed versions
   for i := 0 to High(AllVersions) do
     if AllVersions[i].Installed then
       Inc(Count);
@@ -487,7 +487,7 @@ begin
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 
-    // 从配置中移除
+    // Remove from configuration
     FConfigManager.GetLazarusManager.RemoveLazarusVersion('lazarus-' + AVersion);
 
     Result := True;
@@ -668,7 +668,7 @@ begin
     if Git.Backend = gbNone then
       Exit;
 
-    // 检查是否是有效的 git 仓库
+    // Check if it's a valid git repository
     if not Git.IsRepository(SourceDir) then
     begin
       Exit;
@@ -677,8 +677,8 @@ begin
     // If no remote configured, repository is already up-to-date (local only)
     if not Git.HasRemote(SourceDir) then
     begin
-      // 仓库存在但没有 remote
-      // 这仍然算作成功，因为源码目录存在且是 git 仓库
+      // Repository exists but has no remote
+      // This still counts as success since source directory exists and is a git repo
       Result := True;
       Exit;
     end;
