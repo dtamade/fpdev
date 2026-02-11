@@ -67,7 +67,7 @@ type
     function Name: string;
     function Aliases: TStringArray;
     function FindSub(const AName: string): ICommand;
-    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+    function Execute(const {%H-}AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 function CreatePerfCommand: ICommand;
@@ -121,7 +121,7 @@ begin
   if AName <> '' then; // Suppress unused hint
 end;
 
-function TPerfCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+function TPerfCommand.Execute(const {%H-}AParams: array of string; const Ctx: IContext): Integer;
 var
   LO: IOutput;
 begin

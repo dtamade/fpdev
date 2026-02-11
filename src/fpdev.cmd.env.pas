@@ -27,7 +27,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
+  fpdev.command.intf, fpdev.command.registry,
   fpdev.output.intf, fpdev.paths, fpdev.exitcodes;
 
 type

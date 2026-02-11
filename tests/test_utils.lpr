@@ -23,6 +23,7 @@ type
     procedure AssertNotEmpty(const AValue: string; const AMessage: string);
     procedure AssertEquals(const AExpected, AActual: string; const AMessage: string);
     procedure AssertGreaterThan(const AValue, AMin: Int64; const AMessage: string);
+    procedure AssertIntEquals(const AExpected, AActual: Integer; const AMessage: string);
 
   public
     constructor Create;
@@ -51,6 +52,9 @@ type
     procedure TestSafeWriteAllText;
     procedure TestReadAllTextIfExists;
     procedure TestAvailableParallelism;
+    procedure TestCompareVersions;
+    procedure TestParseVersionString;
+    procedure TestIsVersionHigher;
 
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
@@ -132,6 +136,20 @@ begin
   end;
 end;
 
+procedure TUtilsTest.AssertIntEquals(const AExpected, AActual: Integer; const AMessage: string);
+begin
+  if AExpected = AActual then
+  begin
+    Inc(FTestsPassed);
+    WriteLn('PASS: ', AMessage);
+  end
+  else
+  begin
+    Inc(FTestsFailed);
+    WriteLn('FAIL: ', AMessage, ' (expected ', AExpected, ', got ', AActual, ')');
+  end;
+end;
+
 procedure TUtilsTest.RunAllTests;
 begin
   WriteLn('');
@@ -158,6 +176,9 @@ begin
   TestSafeWriteAllText;
   TestReadAllTextIfExists;
   TestAvailableParallelism;
+  TestCompareVersions;
+  TestParseVersionString;
+  TestIsVersionHigher;
 
   WriteLn('');
   WriteLn('=== Test Results ===');
@@ -405,6 +426,65 @@ begin
   WriteLn('-- TestAvailableParallelism --');
   P := available_parallelism();
   AssertGreaterThan(P, 0, 'available_parallelism() should return > 0');
+end;
+
+procedure TUtilsTest.TestCompareVersions;
+begin
+  WriteLn('-- TestCompareVersions --');
+
+  // Equal versions
+  AssertIntEquals(0, CompareVersions('1.0.0', '1.0.0'), 'Equal versions should return 0');
+  AssertIntEquals(0, CompareVersions('3.2.2', '3.2.2'), 'Equal 3.2.2 should return 0');
+
+  // V1 > V2: must return exactly 1 (not EXIT_ERROR or any other positive)
+  AssertIntEquals(1, CompareVersions('2.0.0', '1.0.0'), 'Major greater should return exactly 1');
+  AssertIntEquals(1, CompareVersions('1.1.0', '1.0.0'), 'Minor greater should return exactly 1');
+  AssertIntEquals(1, CompareVersions('1.0.1', '1.0.0'), 'Patch greater should return exactly 1');
+  AssertIntEquals(1, CompareVersions('3.2.2', '3.2.0'), '3.2.2 > 3.2.0 should return exactly 1');
+  AssertIntEquals(1, CompareVersions('3.2.2', '3.0.4'), '3.2.2 > 3.0.4 should return exactly 1');
+
+  // V1 < V2: must return exactly -1
+  AssertIntEquals(-1, CompareVersions('1.0.0', '2.0.0'), 'Major less should return exactly -1');
+  AssertIntEquals(-1, CompareVersions('1.0.0', '1.1.0'), 'Minor less should return exactly -1');
+  AssertIntEquals(-1, CompareVersions('1.0.0', '1.0.1'), 'Patch less should return exactly -1');
+  AssertIntEquals(-1, CompareVersions('3.0.4', '3.2.2'), '3.0.4 < 3.2.2 should return exactly -1');
+
+  // Edge cases
+  AssertIntEquals(0, CompareVersions('0.0.0', '0.0.0'), 'Zero versions should return 0');
+  AssertIntEquals(1, CompareVersions('10.0.0', '9.0.0'), 'Multi-digit major should work');
+  AssertIntEquals(-1, CompareVersions('1.9.0', '1.10.0'), 'Multi-digit minor should work');
+end;
+
+procedure TUtilsTest.TestParseVersionString;
+var
+  Major, Minor, Patch: Integer;
+begin
+  WriteLn('-- TestParseVersionString --');
+
+  ParseVersionString('3.2.2', Major, Minor, Patch);
+  AssertIntEquals(3, Major, 'Parse 3.2.2 major');
+  AssertIntEquals(2, Minor, 'Parse 3.2.2 minor');
+  AssertIntEquals(2, Patch, 'Parse 3.2.2 patch');
+
+  ParseVersionString('1.0.0', Major, Minor, Patch);
+  AssertIntEquals(1, Major, 'Parse 1.0.0 major');
+  AssertIntEquals(0, Minor, 'Parse 1.0.0 minor');
+  AssertIntEquals(0, Patch, 'Parse 1.0.0 patch');
+
+  ParseVersionString('10.20.30', Major, Minor, Patch);
+  AssertIntEquals(10, Major, 'Parse 10.20.30 major');
+  AssertIntEquals(20, Minor, 'Parse 10.20.30 minor');
+  AssertIntEquals(30, Patch, 'Parse 10.20.30 patch');
+end;
+
+procedure TUtilsTest.TestIsVersionHigher;
+begin
+  WriteLn('-- TestIsVersionHigher --');
+
+  AssertTrue(IsVersionHigher('2.0.0', '1.0.0'), '2.0.0 should be higher than 1.0.0');
+  AssertTrue(IsVersionHigher('3.2.2', '3.2.0'), '3.2.2 should be higher than 3.2.0');
+  AssertFalse(IsVersionHigher('1.0.0', '2.0.0'), '1.0.0 should NOT be higher than 2.0.0');
+  AssertFalse(IsVersionHigher('1.0.0', '1.0.0'), 'Equal versions should NOT be higher');
 end;
 
 var

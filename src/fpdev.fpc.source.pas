@@ -124,7 +124,7 @@ const
 implementation
 
 uses
-  fphttpclient, opensslsockets, zipper, fpdev.utils.fs, fpdev.utils.process;
+  fphttpclient, opensslsockets, zipper, fpdev.utils.fs;
 
 { TFPCSourceManager }
 

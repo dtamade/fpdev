@@ -42,7 +42,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config, fpdev.fpc.version, fpdev.fpc.interfaces, fpdev.fpc.types,
-  fpdev.exitcodes, fpdev.constants;
+  fpdev.constants;
 
 type
   { TFPCBuilder - FPC builder with dependency injection for testing }

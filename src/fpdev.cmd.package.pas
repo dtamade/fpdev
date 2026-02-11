@@ -587,8 +587,10 @@ begin
       Count := 0;
       for i := 0 to High(RepoPackages) do
       begin
-        // Skip category entries (ending with /)
-        if (Length(RepoPackages[i]) > 0) and (RepoPackages[i][Length(RepoPackages[i])] = '/') then
+        // Skip category entries (ending with / or PathDelim)
+        if (Length(RepoPackages[i]) > 0) and
+           ((RepoPackages[i][Length(RepoPackages[i])] = '/') or
+            (RepoPackages[i][Length(RepoPackages[i])] = PathDelim)) then
           Continue;
 
         Initialize(Pkg);

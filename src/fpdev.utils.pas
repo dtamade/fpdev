@@ -15,7 +15,7 @@ uses
   {$IFDEF MSWINDOWS}
   , Windows
   {$ENDIF}
-  , fpdev.exitcodes;
+  ;
 
 type
   env_item = record
@@ -531,11 +531,11 @@ begin
   ParseVersionString(V2, M2, N2, P2);
 
   if M1 < M2 then Exit(-1);
-  if M1 > M2 then Exit(EXIT_ERROR);
+  if M1 > M2 then Exit(1);
   if N1 < N2 then Exit(-1);
-  if N1 > N2 then Exit(EXIT_ERROR);
+  if N1 > N2 then Exit(1);
   if P1 < P2 then Exit(-1);
-  if P1 > P2 then Exit(EXIT_ERROR);
+  if P1 > P2 then Exit(1);
   Result := 0;
 end;
 

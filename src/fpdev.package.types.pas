@@ -110,7 +110,6 @@ implementation
 
 function ParseSemanticVersion(const AVersionStr: string): TSemanticVersion;
 var
-  Parts: TStringArray;
   MainParts: TStringArray;
   VersionPart: string;
   PreReleasePart: string;
@@ -137,10 +136,6 @@ begin
     VersionPart := AVersionStr;
 
   // Split version on dots
-  SetLength(Parts, 0);
-  SetLength(MainParts, 0);
-
-  // Manual split on '.'
   MainParts := VersionPart.Split(['.']);
 
   if Length(MainParts) < 1 then
