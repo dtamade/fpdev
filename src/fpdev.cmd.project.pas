@@ -255,7 +255,10 @@ begin
 end;
 
 function TProjectManager.CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
+var
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
   if not ValidateProjectName(AProjectName) then
@@ -265,16 +268,16 @@ begin
 
   try
 
-    // 从模板创建项目
+    // Create project from template
     if not CreateFromTemplate(ATemplateName, AProjectName, ATargetDir) then
     begin
       Exit;
     end;
 
-    // 设置项目环境
+    // Setup project environment
     if not SetupProjectEnvironment(ATargetDir) then
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('Warning: Project environment setup incomplete for: ' + ATargetDir);
+      LOut.WriteLn('Warning: Project environment setup incomplete for: ' + ATargetDir);
     end;
 
     Result := True;
@@ -283,7 +286,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('CreateProject exception: ' + E.Message);
+      LOut.WriteLn('CreateProject exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -335,7 +338,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('ListTemplates exception: ' + E.Message);
+      LO.WriteLn('ListTemplates exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -394,7 +397,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('ShowTemplateInfo exception: ' + E.Message);
+      LO.WriteLn('ShowTemplateInfo exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;
@@ -407,7 +410,9 @@ var
   FoundLPI, FoundLPR: string;
   SR: TSearchRec;
   Params: array of string;
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
   if not DirectoryExists(AProjectDir) then
@@ -417,7 +422,7 @@ begin
 
   try
 
-    // 优先查找首个 .lpi 项目文件
+    // Find first .lpi project file
     FoundLPI := '';
     if FindFirst(AProjectDir + PathDelim + '*.lpi', faAnyFile, SR) = 0 then
     begin
@@ -488,7 +493,7 @@ begin
     on E: Exception do
     begin
       {$IFDEF DEBUG}
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('BuildProject exception: ' + E.Message);
+      LOut.WriteLn('BuildProject exception: ' + E.Message);
       {$ENDIF}
       Result := False;
     end;

@@ -256,7 +256,9 @@ var
   FPCPath: string;
   Params: array of string;
   EnvVars: array of string;
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
   if not DirectoryExists(ASourceDir) then
@@ -303,7 +305,7 @@ begin
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('BuildFromSource error: ' + E.Message);
+      LOut.WriteLn('BuildFromSource error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -314,7 +316,9 @@ var
   LazarusInfo: TLazarusInfo;
   InstallPath: string;
   FPCVersion: string;
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
   if not IsVersionInstalled(AVersion) then
@@ -335,12 +339,12 @@ begin
 
     Result := FConfigManager.GetLazarusManager.AddLazarusVersion('lazarus-' + AVersion, LazarusInfo);
     if not Result then
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('SetupEnvironment: failed to add version to config');
+      LOut.WriteLn('SetupEnvironment: failed to add version to config');
 
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('SetupEnvironment error: ' + E.Message);
+      LOut.WriteLn('SetupEnvironment error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -563,7 +567,7 @@ begin
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('ListVersions error: ' + E.Message);
+      LO.WriteLn('ListVersions error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -611,7 +615,9 @@ end;
 function TLazarusManager.GetCurrentVersion: string;
 var
   DefaultVersion: string;
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := '';
 
   try
@@ -622,7 +628,7 @@ begin
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('GetCurrentVersion error: ' + E.Message);
+      LOut.WriteLn('GetCurrentVersion error: ' + E.Message);
       Result := '';
     end;
   end;
@@ -693,7 +699,9 @@ function TLazarusManager.CleanSources(const AVersion: string): Boolean;
 var
   SourceDir: string;
   UseVersion: string;
+  LOut: IOutput;
 begin
+  LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
   // Determine version to clean
@@ -713,14 +721,14 @@ begin
     Exit;
 
   try
-    // 使用共享清理函数（包含平台可执行文件）
+    // Use shared cleanup function (includes platform executables)
     CleanBuildArtifacts(SourceDir, nil, True);
     Result := True;
 
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('CleanSources error: ' + E.Message);
+      LOut.WriteLn('CleanSources error: ' + E.Message);
       Result := False;
     end;
   end;
@@ -785,7 +793,7 @@ begin
   except
     on E: Exception do
     begin
-      (TConsoleOutput.Create(True) as IOutput).WriteLn('ShowVersionInfo error: ' + E.Message);
+      LO.WriteLn('ShowVersionInfo error: ' + E.Message);
       Result := False;
     end;
   end;
