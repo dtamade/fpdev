@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
-  fpdev.http.download, fpdev.archive.extract, fpdev.build.cache,
+  fpdev.archive.extract, fpdev.build.cache,
   fpdev.build.cache.types, fpdev.fpc.verify, fpdev.toolchain.fetcher, fpdev.manifest;
 
 type
@@ -14,7 +14,6 @@ type
   TBinaryInstaller = class
   private
     FMirrorManager: TMirrorManager;
-    FDownloader: THTTPDownloader;
     FExtractor: TArchiveExtractor;
     FCacheManager: TBuildCache;
     FVerifier: TFPCVerifier;
@@ -56,7 +55,6 @@ constructor TBinaryInstaller.Create;
 begin
   inherited Create;
   FMirrorManager := TMirrorManager.Create;
-  FDownloader := THTTPDownloader.Create;
   FExtractor := TArchiveExtractor.Create;
   FCacheManager := TBuildCache.Create(GetUserDir + '.fpdev' + PathDelim + 'cache');
   FVerifier := TFPCVerifier.Create;
@@ -75,7 +73,6 @@ begin
   FVerifier.Free;
   FCacheManager.Free;
   FExtractor.Free;
-  FDownloader.Free;
   FMirrorManager.Free;
   inherited Destroy;
 end;
