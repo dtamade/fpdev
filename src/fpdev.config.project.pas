@@ -1,12 +1,12 @@
 unit fpdev.config.project;
 
 {
-  项目级配置文件解析器
+  Project-level configuration file parser
 
-  支持 .fpdevrc 和 fpdev.toml 格式
-  实现配置优先级: 环境变量 > 命令行 > 项目配置 > 全局默认
+  Supports .fpdevrc and fpdev.toml formats
+  Implements configuration priority: environment variables > command line > project config > global defaults
 
-  参考: docs/FPDEVRC_SPEC.md
+  Reference: docs/FPDEVRC_SPEC.md
 }
 
 {$mode objfpc}{$H+}
@@ -17,18 +17,18 @@ uses
   SysUtils, Classes, fpjson, jsonparser;
 
 type
-  { 配置来源 }
+  { Configuration source }
   TConfigSource = (
-    csDefault,      // 系统默认值
-    csGlobal,       // 全局配置 (~/.fpdev/config.json)
-    csProject,      // 项目配置 (.fpdevrc / fpdev.toml)
-    csCommandLine,  // 命令行参数
-    csEnvironment   // 环境变量
+    csDefault,      // System default values
+    csGlobal,       // Global config (~/.fpdev/config.json)
+    csProject,      // Project config (.fpdevrc / fpdev.toml)
+    csCommandLine,  // Command line arguments
+    csEnvironment   // Environment variables
   );
 
-  { 项目配置记录 }
+  { Project configuration record }
   TProjectConfig = record
-    // 工具链版本
+    // Toolchain version
     FPCVersion: string;
     LazarusVersion: string;
     Channel: string;           // stable, lts, trunk
@@ -36,16 +36,16 @@ type
     // Cross-compilation target
     CrossTargets: TStringArray;
 
-    // 设置
+    // Settings
     Mirror: string;
     AutoInstall: Boolean;
 
-    // 元数据
-    ConfigFile: string;        // 配置文件路径
-    Source: TConfigSource;     // 配置来源
+    // Metadata
+    ConfigFile: string;        // Configuration file path
+    Source: TConfigSource;     // Configuration source
   end;
 
-  { 解析后的有效配置 }
+  { Parsed effective configuration }
   TResolvedConfig = record
     FPCVersion: string;
     FPCSource: TConfigSource;
@@ -60,22 +60,22 @@ type
     AutoInstall: Boolean;
   end;
 
-  { IProjectConfigResolver - 项目配置解析器接口 }
+  { IProjectConfigResolver - Project configuration resolver interface }
   IProjectConfigResolver = interface
     ['{A1B2C3D4-5678-90AB-CDEF-123456789ABC}']
-    // 查找项目配置文件
+    // Find project configuration file
     function FindProjectConfig(const AStartDir: string = ''): string;
 
-    // 解析项目配置
+    // Parse project configuration
     function ParseProjectConfig(const AConfigFile: string): TProjectConfig;
 
-    // 解析简单格式 (仅版本号)
+    // Parse simple format (version number only)
     function ParseSimpleFormat(const AContent: string): TProjectConfig;
 
-    // 解析 TOML 格式
+    // Parse TOML format
     function ParseTOMLFormat(const AContent: string): TProjectConfig;
 
-    // 解析版本别名
+    // Parse version alias
     function ResolveVersionAlias(const AAlias: string): string;
 
     // Get fully resolved config (merged from all sources)
@@ -85,7 +85,7 @@ type
     function HasProjectConfig(const AStartDir: string = ''): Boolean;
   end;
 
-  { TProjectConfigResolver - 项目配置解析器实现 }
+  { TProjectConfigResolver - Project configuration resolver implementation }
   TProjectConfigResolver = class(TInterfacedObject, IProjectConfigResolver)
   private
     FGlobalFPCDefault: string;
@@ -110,11 +110,11 @@ type
     function ResolveConfig(const AStartDir: string = ''): TResolvedConfig;
     function HasProjectConfig(const AStartDir: string = ''): Boolean;
 
-    // 属性
+    // Properties
     property MaxSearchDepth: Integer read FMaxSearchDepth write FMaxSearchDepth;
   end;
 
-{ 辅助函数 }
+{ Helper functions }
 function ConfigSourceToString(ASource: TConfigSource): string;
 function GetDefaultFPCVersion: string;
 function GetDefaultLazarusVersion: string;
@@ -191,7 +191,7 @@ begin
 
   while (LDir <> '') and (LDepth < FMaxSearchDepth) do
   begin
-    // 检查每个可能的配置文件名
+    // Check each possible configuration file name
     for I := Low(PROJECT_CONFIG_FILES) to High(PROJECT_CONFIG_FILES) do
     begin
       LFile := IncludeTrailingPathDelimiter(LDir) + PROJECT_CONFIG_FILES[I];
@@ -206,7 +206,7 @@ begin
     LDir := ExtractFileDir(ExcludeTrailingPathDelimiter(LDir));
     Inc(LDepth);
 
-    // 到达根目录
+    // Reached root directory
     if (LDir = '') or (LDir = PathDelim) then
       Break;
   end;
@@ -222,8 +222,8 @@ var
   LTrimmed: string;
 begin
   LTrimmed := Trim(AContent);
-  // 简单格式: 仅包含版本号 (如 "3.2.2" 或 "stable")
-  // 不包含 '[' (TOML section) 或 '=' (TOML key-value)
+  // Simple format: contains only version number (e.g. "3.2.2" or "stable")
+  // Does not contain '[' (TOML section) or '=' (TOML key-value)
   Result := (Pos('[', LTrimmed) = 0) and (Pos('=', LTrimmed) = 0);
 end;
 
@@ -232,7 +232,7 @@ var
   LContent: string;
   LLines: TStringList;
 begin
-  // 初始化默认值
+  // Initialize default values
   Result.FPCVersion := '';
   Result.LazarusVersion := '';
   Result.Channel := '';
@@ -266,7 +266,7 @@ function TProjectConfigResolver.ParseSimpleFormat(const AContent: string): TProj
 var
   LVersion: string;
 begin
-  // 初始化
+  // Initialize
   Result.FPCVersion := '';
   Result.LazarusVersion := '';
   Result.Channel := '';
@@ -285,7 +285,7 @@ begin
   if LVersion = '' then
     Exit;
 
-  // 检查是否是别名
+  // Check if it's an alias
   if (LVersion = ALIAS_STABLE) or (LVersion = ALIAS_LTS) or
      (LVersion = ALIAS_TRUNK) or (LVersion = ALIAS_LATEST) then
     Result.Channel := LVersion
@@ -356,7 +356,7 @@ var
   LLine, LSection, LKey, LValue: string;
   I: Integer;
 begin
-  // 初始化
+  // Initialize
   Result.FPCVersion := '';
   Result.LazarusVersion := '';
   Result.Channel := '';
@@ -375,18 +375,18 @@ begin
     begin
       LLine := Trim(LLines[I]);
 
-      // 跳过空行和注释
+      // Skip empty lines and comments
       if (LLine = '') or (LLine[1] = '#') then
         Continue;
 
-      // 检查 section
+      // Check section
       if (Length(LLine) >= 2) and (LLine[1] = '[') and (LLine[Length(LLine)] = ']') then
       begin
         LSection := LowerCase(Copy(LLine, 2, Length(LLine) - 2));
         Continue;
       end;
 
-      // 解析 key = value
+      // Parse key = value
       if ParseTOMLValue(LLine, LKey, LValue) then
       begin
         LKey := LowerCase(LKey);
@@ -429,7 +429,7 @@ begin
     ALIAS_TRUNK:
       Result := 'main';
   else
-    Result := AAlias;  // 不是别名，返回原值
+    Result := AAlias;  // Not an alias, return original value
   end;
 end;
 
@@ -449,7 +449,7 @@ var
   LProjectConfig: TProjectConfig;
   LEnvFPC, LEnvLazarus: string;
 begin
-  // 初始化为默认值
+  // Initialize to default values
   Result.FPCVersion := DEFAULT_FPC_VERSION;
   Result.FPCSource := csDefault;
   Result.FPCSourceFile := '';
@@ -481,7 +481,7 @@ begin
   begin
     LProjectConfig := ParseProjectConfig(LProjectConfigFile);
 
-    // 处理 channel 别名
+    // Handle channel alias
     if LProjectConfig.Channel <> '' then
     begin
       Result.FPCVersion := ResolveVersionAlias(LProjectConfig.Channel);
@@ -489,7 +489,7 @@ begin
       Result.FPCSourceFile := LProjectConfigFile;
     end;
 
-    // 具体版本覆盖 channel
+    // Specific version overrides channel
     if LProjectConfig.FPCVersion <> '' then
     begin
       Result.FPCVersion := ResolveVersionAlias(LProjectConfig.FPCVersion);
@@ -504,7 +504,7 @@ begin
       Result.LazarusSourceFile := LProjectConfigFile;
     end;
 
-    // 其他设置
+    // Other settings
     if Length(LProjectConfig.CrossTargets) > 0 then
       Result.CrossTargets := LProjectConfig.CrossTargets;
 
