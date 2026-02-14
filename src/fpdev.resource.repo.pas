@@ -19,28 +19,28 @@ type
     with fpdev.package.types.TPackageInfo }
   TPackageInfo = TRepoPackageInfo;
 
-  { 资源仓库管理器
-    B068: 线程安全说明
-    - 此类设计为单线程使用（命令行工具的正常场景）
-    - 懒加载标志 FManifestLoaded 和共享对象 FManifestData 无同步保护
-    - 并发访问可能导致重复加载或竞态读写
-    - 如需多线程支持，需添加临界区保护 }
+  { Resource repository manager
+    B068: Thread safety notes
+    - This class is designed for single-threaded use (normal scenario for CLI tools)
+    - Lazy loading flag FManifestLoaded and shared object FManifestData have no synchronization protection
+    - Concurrent access may cause duplicate loading or race conditions
+    - If multi-threading support is needed, critical section protection must be added }
   TResourceRepository = class
   private
     FConfig: TResourceRepoConfig;
     FLocalPath: string;
     FLastUpdateCheck: TDateTime;
     FManifestData: TJSONObject;
-    FManifestLoaded: Boolean;         // 懒加载标志
+    FManifestLoaded: Boolean;         // Lazy loading flag
     FUserRegion: string;
     FGitOps: TGitOperations;
-    FCachedBestMirror: string;      // 缓存最佳镜像
-    FMirrorCacheTime: TDateTime;    // 镜像缓存时间
+    FCachedBestMirror: string;      // Cached best mirror
+    FMirrorCacheTime: TDateTime;    // Mirror cache time
     FMirrorLatencies: array of record
       URL: string;
-      Latency: Integer;  // 毫秒，-1 表示不可达
+      Latency: Integer;  // Milliseconds, -1 means unreachable
     end;
-    FOutput: IOutput;               // 可选输出接口
+    FOutput: IOutput;               // Optional output interface
 
     procedure Log(const AMsg: string);
     procedure LogFmt(const AFormat: string; const AArgs: array of const);
@@ -52,64 +52,64 @@ type
     function DetectUserRegion: string;
     function SelectBestMirror: string;
     function TestMirrorLatency(const AURL: string; ATimeoutMS: Integer = 5000): Integer;
-    { B066: 懒加载辅助 - 返回 Boolean 因为 manifest 是必需资源
-      调用方必须检查返回值：if not EnsureManifestLoaded then Exit;
-      与 TBuildCache.EnsureIndexLoaded 不同，manifest 加载失败需要显式处理 }
+    { B066: Lazy loading helper - returns Boolean because manifest is a required resource
+      Caller must check return value: if not EnsureManifestLoaded then Exit;
+      Unlike TBuildCache.EnsureIndexLoaded, manifest loading failure needs explicit handling }
     function EnsureManifestLoaded: Boolean;
 
   public
     constructor Create(const AConfig: TResourceRepoConfig);
     destructor Destroy; override;
 
-    // 仓库操作
+    // Repository operations
     function Initialize: Boolean;
     function Update(const AForce: Boolean = False): Boolean;
     function GetStatus: string;
 
-    // 清单操作
+    // Manifest operations
     function LoadManifest: Boolean;
     function GetManifestVersion: string;
 
-    // 资源查询 - 引导编译器
+    // Resource queries - bootstrap compiler
     function HasBootstrapCompiler(const AVersion, APlatform: string): Boolean;
     function GetBootstrapInfo(const AVersion, APlatform: string; out AInfo: TPlatformInfo): Boolean;
     function GetBootstrapExecutable(const AVersion, APlatform: string): string;
 
-    // 引导编译器版本映射（多版本支持）
+    // Bootstrap compiler version mapping (multi-version support)
     function GetRequiredBootstrapVersion(const AFPCVersion: string): string;
     function GetBootstrapVersionFromMakefile(const ASourcePath: string): string;
     function ListBootstrapVersions: SysUtils.TStringArray;
     function FindBestBootstrapVersion(const AFPCVersion, APlatform: string): string;
 
-    // 资源查询 - 二进制发布（FPC/Lazarus 工具链）
+    // Resource queries - binary releases (FPC/Lazarus toolchain)
     function HasBinaryRelease(const AVersion, APlatform: string): Boolean;
     function GetBinaryReleaseInfo(const AVersion, APlatform: string; out AInfo: TPlatformInfo): Boolean;
     function GetBinaryReleasePath(const AVersion, APlatform: string): string;
 
-    // 资源查询 - 交叉编译工具链
+    // Resource queries - cross-compilation toolchain
     function HasCrossToolchain(const ATarget, AHostPlatform: string): Boolean;
     function GetCrossToolchainInfo(const ATarget, AHostPlatform: string; out AInfo: TCrossToolchainInfo): Boolean;
     function ListCrossTargets: SysUtils.TStringArray;
 
-    // 资源查询 - 组件包
+    // Resource queries - component packages
     function HasPackage(const AName, AVersion: string): Boolean;
     function GetPackageInfo(const AName, AVersion: string; out AInfo: TPackageInfo): Boolean;
     function ListPackages(const ACategory: string = ''): SysUtils.TStringArray;
     function SearchPackages(const AKeyword: string): SysUtils.TStringArray;
 
-    // 资源提取/安装
+    // Resource extraction/installation
     function InstallBootstrap(const AVersion, APlatform, ADestDir: string): Boolean;
     function InstallBinaryRelease(const AVersion, APlatform, ADestDir: string): Boolean;
     function InstallCrossToolchain(const ATarget, AHostPlatform, ADestDir: string): Boolean;
     function InstallPackage(const AName, AVersion, ADestDir: string): Boolean;
     function VerifyChecksum(const AFile, AExpectedSHA256: string): Boolean;
 
-    // 镜像管理
+    // Mirror management
     function GetMirrors: TMirrorArray;
     function GetBestMirrorURL: string;
     property UserRegion: string read FUserRegion write FUserRegion;
 
-    // 属性
+    // Properties
     property LocalPath: string read FLocalPath;
     property LastUpdateCheck: TDateTime read FLastUpdateCheck;
     property Output: IOutput read FOutput write FOutput;
@@ -117,7 +117,7 @@ type
 
   // Use SysUtils.TStringArray instead of local declaration
 
-  { 辅助函数 }
+  { Helper functions }
   function GetCurrentPlatform: string;
   function CreateDefaultConfig: TResourceRepoConfig;
   { Creates config based on user mirror settings.
@@ -135,9 +135,9 @@ uses
   fpdev.resource.repo.binary,
   fpdev.resource.repo.cross,
   fpdev.resource.repo.install,
-  fpdev.paths;  // 用于GetUserConfigDir等
+  fpdev.paths;  // For GetUserConfigDir etc.
 
-{ 辅助函数实现 }
+{ Helper function implementation }
 
 function GetCurrentPlatform: string;
 begin
@@ -297,12 +297,12 @@ begin
   LogFmt('Cloning resource repository from %s...', [AURL]);
   LogFmt('  Using backend: %s', [GitBackendToString(FGitOps.Backend)]);
 
-  // 确保父目录存在
+  // Ensure parent directory exists
   ParentDir := ExtractFileDir(FLocalPath);
   if not DirectoryExists(ParentDir) then
     EnsureDir(ParentDir);
 
-  // 克隆仓库 - 使用 TGitOperations
+  // Clone repository - use TGitOperations
   Result := FGitOps.Clone(AURL, FLocalPath, FConfig.Branch);
 
   if Result then
@@ -363,16 +363,16 @@ var
 begin
   Result := False;
 
-  // 检查是否已经克隆
+  // Check if already cloned
   if IsGitRepository then
   begin
     LogFmt('Resource repository already exists at: %s', [FLocalPath]);
     LogFmt('Commit: %s', [GetLastCommitHash]);
 
-    // 如果需要更新
+    // If update is needed
     if NeedsUpdate then
     begin
-      GitPull;  // 更新失败也不影响使用
+      GitPull;  // Update failure does not affect usage
       FLastUpdateCheck := Now;
     end;
 
@@ -380,7 +380,7 @@ begin
   end
   else
   begin
-    // 首次克隆 - 尝试主URL和所有镜像
+    // First clone - try primary URL and all mirrors
     Success := GitClone(FConfig.URL);
 
     if not Success then
@@ -407,7 +407,7 @@ begin
     end;
   end;
 
-  // 加载清单
+  // Load manifest
   if Result then
     Result := LoadManifest;
 end;
@@ -426,7 +426,7 @@ begin
     if Result then
     begin
       FLastUpdateCheck := Now;
-      // B064: 重新加载清单并检查返回值
+      // B064: Reload manifest and check return value
       if not LoadManifest then
         Log('Warning: Git pull succeeded but manifest reload failed');
     end;
@@ -462,14 +462,14 @@ begin
   if not FileExists(ManifestPath) then
   begin
     Log('Warning: manifest.json not found in resource repository');
-    // B064: 确保状态一致
+    // B064: Ensure state consistency
     FManifestLoaded := False;
     FreeAndNil(FManifestData);
     Exit;
   end;
 
   try
-    // 读取文件
+    // Read file
     AssignFile(F, ManifestPath);
     Reset(F);
     try
@@ -483,7 +483,7 @@ begin
       CloseFile(F);
     end;
 
-    // 解析JSON - B064: 使用 FreeAndNil 避免悬垂指针
+    // Parse JSON - B064: Use FreeAndNil to avoid dangling pointer
     FreeAndNil(FManifestData);
 
     Parser := TJSONParser.Create(ManifestContent, []);
@@ -496,7 +496,7 @@ begin
         LogFmt('Manifest loaded (version: %s)', [GetManifestVersion])
       else
       begin
-        // B064: 解析返回 nil 时确保状态一致
+        // B064: Ensure state consistency when parsing returns nil
         FManifestLoaded := False;
         Log('Warning: Failed to parse manifest.json');
       end;
@@ -508,7 +508,7 @@ begin
     on E: Exception do
     begin
       LogFmt('Error loading manifest: %s', [E.Message]);
-      // B064: 异常时确保状态一致
+      // B064: Ensure state consistency on exception
       FManifestLoaded := False;
       FreeAndNil(FManifestData);
       Result := False;
@@ -663,7 +663,7 @@ end;
 
 function TResourceRepository.GetRequiredBootstrapVersion(const AFPCVersion: string): string;
 begin
-  // B064: 检查返回值，失败时使用 fallback
+  // B064: Check return value, use fallback on failure
   if not EnsureManifestLoaded then
   begin
     Result := ResourceRepoGetRequiredBootstrapVersion(nil, AFPCVersion);
@@ -695,8 +695,8 @@ end;
 
 function TResourceRepository.ListBootstrapVersions: SysUtils.TStringArray;
 begin
-  Result := nil;  // B064: 初始化 managed type
-  // B064: 检查返回值，失败时返回空数组
+  Result := nil;  // B064: Initialize managed type
+  // B064: Check return value, return empty array on failure
   if not EnsureManifestLoaded then
     Exit;
   try
@@ -802,13 +802,13 @@ begin
   if AExpectedSHA256 = '' then
   begin
     Log('Warning: No checksum provided, skipping verification');
-    Exit(True);  // 没有校验和要求，认为通过
+    Exit(True);  // No checksum required, consider it passed
   end;
 
   LResult := TProcessExecutor.Execute('sha256sum', [AFile], '');
   if LResult.Success then
   begin
-    // 提取哈希值（第一个字段）
+    // Extract hash value (first field)
     ActualSHA256 := Trim(Copy(LResult.StdOut, 1, Pos(' ', LResult.StdOut) - 1));
 
     Result := SameText(ActualSHA256, AExpectedSHA256);
@@ -834,7 +834,7 @@ begin
     Exit;
 
   try
-    // B067: 使用 helper 函数
+    // B067: Use helper function
     Result := ResourceRepoHasBinaryRelease(FManifestData, AVersion, APlatform);
   except
     on E: Exception do
@@ -857,11 +857,11 @@ begin
     Exit;
 
   try
-    // B067: 使用 helper 函数
+    // B067: Use helper function
     if not ResourceRepoGetBinaryReleaseInfo(FManifestData, AVersion, APlatform, BinaryInfo) then
       Exit;
 
-    // 转换 TBinaryReleaseInfo -> TPlatformInfo
+    // Convert TBinaryReleaseInfo -> TPlatformInfo
     AInfo.Path := BinaryInfo.Path;
     AInfo.URL := BinaryInfo.URL;
     AInfo.SHA256 := BinaryInfo.SHA256;
@@ -938,7 +938,7 @@ end;
 
 function TResourceRepository.SelectBestMirror: string;
 const
-  CACHE_TTL_HOURS = 1;  // 镜像缓存 1 小时
+  CACHE_TTL_HOURS = 1;  // Mirror cache 1 hour
 var
   Region: string;
   i: Integer;
@@ -949,7 +949,7 @@ var
 begin
   Result := FConfig.URL;  // Default to primary URL
 
-  // 检查缓存
+  // Check cache
   if ResourceRepoTryGetCachedMirror(FCachedBestMirror, FMirrorCacheTime,
     CACHE_TTL_HOURS, Now, Result) then
     Exit;
@@ -988,7 +988,7 @@ begin
     if BestMirror <> '' then
       Result := BestMirror;
 
-    // 缓存结果
+    // Cache result
     ResourceRepoSetCachedMirror(Result, Now, FCachedBestMirror, FMirrorCacheTime);
 
   except
@@ -1046,7 +1046,7 @@ begin
     Exit;
 
   try
-    // B069: 使用 helper 函数
+    // B069: Use helper function
     Result := ResourceRepoHasCrossToolchain(FManifestData, ATarget, AHostPlatform);
   except
     on E: Exception do
@@ -1071,11 +1071,11 @@ begin
     Exit;
 
   try
-    // B069: 使用 helper 函数
+    // B069: Use helper function
     if not ResourceRepoGetCrossToolchainInfo(FManifestData, ATarget, AHostPlatform, CrossInfo) then
       Exit;
 
-    // 转换 TResourceRepoCrossInfo -> TCrossToolchainInfo
+    // Convert TResourceRepoCrossInfo -> TCrossToolchainInfo
     AInfo.TargetName := CrossInfo.TargetName;
     AInfo.DisplayName := CrossInfo.DisplayName;
     AInfo.CPU := CrossInfo.CPU;
@@ -1104,7 +1104,7 @@ begin
     Exit;
 
   try
-    // B069: 使用 helper 函数
+    // B069: Use helper function
     Result := ResourceRepoListCrossTargets(FManifestData);
   except
     on E: Exception do

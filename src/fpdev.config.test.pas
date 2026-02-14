@@ -14,7 +14,7 @@ unit fpdev.config.test;
 ```
 # fpdev.config.test
 
-配置管理系统测试单元
+Configuration management system test unit
 
 
 ## 声明
@@ -56,7 +56,7 @@ type
 
     procedure RunAllTests;
 
-    // 测试方法
+    // Test methods
     procedure TestCreateDefaultConfig;
     procedure TestLoadSaveConfig;
     procedure TestToolchainManagement;
@@ -65,12 +65,12 @@ type
     procedure TestRepositoryManagement;
     procedure TestSettingsManagement;
 
-    // 属性
+    // Properties
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
   end;
 
-// 全局测试函数
+// Global test function
 procedure RunConfigTests;
 
 implementation
@@ -83,14 +83,14 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // 创建临时测试配置文件路径
+  // Create temporary test config file path
   FTestConfigPath := 'fpdev_test_config.json';
   FConfigManager := TFPDevConfigManager.Create(FTestConfigPath);
 end;
 
 destructor TFPDevConfigTest.Destroy;
 begin
-  // 清理测试文件
+  // Clean up test files
   if FileExists(FTestConfigPath) then
     DeleteFile(FTestConfigPath);
 
@@ -129,7 +129,7 @@ end;
 
 procedure TFPDevConfigTest.RunAllTests;
 begin
-  // WriteLn('=== FPDev Configuration Management Tests ===');  // 调试代码已注释
+  // WriteLn('=== FPDev Configuration Management Tests ===');  // debug code commented out
   WriteLn;
 
   FTestsPassed := 0;
@@ -144,10 +144,10 @@ begin
   TestSettingsManagement;
 
   WriteLn;
-  // WriteLn('=== Test Results ===');  // 调试代码已注释
-  // WriteLn('Tests Passed: ', FTestsPassed);  // 调试代码已注释
-  // WriteLn('Tests Failed: ', FTestsFailed);  // 调试代码已注释
-  // WriteLn('Total Tests: ', FTestsPassed + FTestsFailed);  // 调试代码已注释
+  // WriteLn('=== Test Results ===');  // debug code commented out
+  // WriteLn('Tests Passed: ', FTestsPassed);  // debug code commented out
+  // WriteLn('Tests Failed: ', FTestsFailed);  // debug code commented out
+  // WriteLn('Total Tests: ', FTestsPassed + FTestsFailed);  // debug code commented out
 
   if FTestsFailed = 0 then
   // WriteLn('[OK] All tests passed!')  // debug code commented out
@@ -157,9 +157,9 @@ end;
 
 procedure TFPDevConfigTest.TestCreateDefaultConfig;
 begin
-  // WriteLn('--- Testing Default Config Creation ---');  // 调试代码已注释
+  // WriteLn('--- Testing Default Config Creation ---');  // debug code commented out
 
-  // 确保测试文件不存在
+  // Ensure test file does not exist
   if FileExists(FTestConfigPath) then
     DeleteFile(FTestConfigPath);
 
@@ -171,15 +171,15 @@ end;
 
 procedure TFPDevConfigTest.TestLoadSaveConfig;
 begin
-  // WriteLn('--- Testing Load/Save Config ---');  // 调试代码已注释
+  // WriteLn('--- Testing Load/Save Config ---');  // debug code commented out
 
-  // 创建默认配置
+  // Create default config
   AssertTrue(FConfigManager.CreateDefaultConfig, 'Should create default config');
 
-  // 测试加载
+  // Test loading
   AssertTrue(FConfigManager.LoadConfig, 'Should load config successfully');
 
-  // 测试保存
+  // Test saving
   AssertTrue(FConfigManager.SaveConfig, 'Should save config successfully');
 
   WriteLn;
@@ -190,9 +190,9 @@ var
   ToolchainInfo: TToolchainInfo;
   Toolchains: TStringArray;
 begin
-  // WriteLn('--- Testing Toolchain Management ---');  // 调试代码已注释
+  // WriteLn('--- Testing Toolchain Management ---');  // debug code commented out
 
-  // 准备测试数据
+  // Prepare test data
   FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
   ToolchainInfo.ToolchainType := ttRelease;
   ToolchainInfo.Version := '3.2.2';
@@ -202,23 +202,23 @@ begin
   ToolchainInfo.Installed := True;
   ToolchainInfo.InstallDate := Now;
 
-  // 测试添加工具链
+  // Test adding toolchain
   AssertTrue(FConfigManager.AddToolchain('fpc-3.2.2', ToolchainInfo), 'Should add toolchain');
 
-  // 测试获取工具链
+  // Test getting toolchain
   FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
   AssertTrue(FConfigManager.GetToolchain('fpc-3.2.2', ToolchainInfo), 'Should get toolchain');
   AssertEquals('3.2.2', ToolchainInfo.Version, 'Toolchain version should match');
 
-  // 测试设置默认工具链
+  // Test setting default toolchain
   AssertTrue(FConfigManager.SetDefaultToolchain('fpc-3.2.2'), 'Should set default toolchain');
   AssertEquals('fpc-3.2.2', FConfigManager.GetDefaultToolchain, 'Default toolchain should match');
 
-  // 测试列出工具链
+  // Test listing toolchains
   Toolchains := FConfigManager.ListToolchains;
   AssertTrue(Length(Toolchains) > 0, 'Should have at least one toolchain');
 
-  // 测试删除工具链
+  // Test removing toolchain
   AssertTrue(FConfigManager.RemoveToolchain('fpc-3.2.2'), 'Should remove toolchain');
   AssertTrue(not FConfigManager.GetToolchain('fpc-3.2.2', ToolchainInfo), 'Toolchain should not exist after removal');
 
@@ -230,9 +230,9 @@ var
   LazarusInfo: TLazarusInfo;
   Versions: TStringArray;
 begin
-  // WriteLn('--- Testing Lazarus Management ---');  // 调试代码已注释
+  // WriteLn('--- Testing Lazarus Management ---');  // debug code commented out
 
-  // 准备测试数据
+  // Prepare test data
   FillChar(LazarusInfo, SizeOf(LazarusInfo), 0);
   LazarusInfo.Version := '3.0';
   LazarusInfo.FPCVersion := 'fpc-3.2.2';
@@ -241,23 +241,23 @@ begin
   LazarusInfo.Branch := 'lazarus_3_0';
   LazarusInfo.Installed := True;
 
-  // 测试添加Lazarus版本
+  // Test adding Lazarus version
   AssertTrue(FConfigManager.AddLazarusVersion('lazarus-3.0', LazarusInfo), 'Should add Lazarus version');
 
-  // 测试获取Lazarus版本
+  // Test getting Lazarus version
   FillChar(LazarusInfo, SizeOf(LazarusInfo), 0);
   AssertTrue(FConfigManager.GetLazarusVersion('lazarus-3.0', LazarusInfo), 'Should get Lazarus version');
   AssertEquals('3.0', LazarusInfo.Version, 'Lazarus version should match');
 
-  // 测试设置默认Lazarus版本
+  // Test setting default Lazarus version
   AssertTrue(FConfigManager.SetDefaultLazarusVersion('lazarus-3.0'), 'Should set default Lazarus version');
   AssertEquals('lazarus-3.0', FConfigManager.GetDefaultLazarusVersion, 'Default Lazarus version should match');
 
-  // 测试列出Lazarus版本
+  // Test listing Lazarus versions
   Versions := FConfigManager.ListLazarusVersions;
   AssertTrue(Length(Versions) > 0, 'Should have at least one Lazarus version');
 
-  // 测试删除Lazarus版本
+  // Test removing Lazarus version
   AssertTrue(FConfigManager.RemoveLazarusVersion('lazarus-3.0'), 'Should remove Lazarus version');
   AssertTrue(not FConfigManager.GetLazarusVersion('lazarus-3.0', LazarusInfo), 'Lazarus version should not exist after removal');
 
@@ -269,27 +269,27 @@ var
   CrossTarget: TCrossTarget;
   Targets: TStringArray;
 begin
-  // WriteLn('--- Testing Cross Target Management ---');  // 调试代码已注释
+  // WriteLn('--- Testing Cross Target Management ---');  // debug code commented out
 
-  // 准备测试数据
+  // Prepare test data
   FillChar(CrossTarget, SizeOf(CrossTarget), 0);
   CrossTarget.Enabled := True;
   CrossTarget.BinutilsPath := '/test/binutils/win64';
   CrossTarget.LibrariesPath := '/test/libs/win64';
 
-  // 测试添加交叉编译目标
+  // Test adding cross-compilation target
   AssertTrue(FConfigManager.AddCrossTarget('win64', CrossTarget), 'Should add cross target');
 
-  // 测试获取交叉编译目标
+  // Test getting cross-compilation target
   FillChar(CrossTarget, SizeOf(CrossTarget), 0);
   AssertTrue(FConfigManager.GetCrossTarget('win64', CrossTarget), 'Should get cross target');
   AssertEquals(True, CrossTarget.Enabled, 'Cross target should be enabled');
 
-  // 测试列出交叉编译目标
+  // Test listing cross-compilation targets
   Targets := FConfigManager.ListCrossTargets;
   AssertTrue(Length(Targets) > 0, 'Should have at least one cross target');
 
-  // 测试删除交叉编译目标
+  // Test removing cross-compilation target
   AssertTrue(FConfigManager.RemoveCrossTarget('win64'), 'Should remove cross target');
   AssertTrue(not FConfigManager.GetCrossTarget('win64', CrossTarget), 'Cross target should not exist after removal');
 
@@ -300,19 +300,19 @@ procedure TFPDevConfigTest.TestRepositoryManagement;
 var
   Repositories: TStringArray;
 begin
-  // WriteLn('--- Testing Repository Management ---');  // 调试代码已注释
+  // WriteLn('--- Testing Repository Management ---');  // debug code commented out
 
-  // 测试添加仓库
+  // Test adding repository
   AssertTrue(FConfigManager.AddRepository('test_repo', 'https://example.com/test.git'), 'Should add repository');
 
-  // 测试获取仓库
+  // Test getting repository
   AssertEquals('https://example.com/test.git', FConfigManager.GetRepository('test_repo'), 'Repository URL should match');
 
-  // 测试列出仓库
+  // Test listing repositories
   Repositories := FConfigManager.ListRepositories;
   AssertTrue(Length(Repositories) > 0, 'Should have at least one repository');
 
-  // 测试删除仓库
+  // Test removing repository
   AssertTrue(FConfigManager.RemoveRepository('test_repo'), 'Should remove repository');
   AssertEquals('', FConfigManager.GetRepository('test_repo'), 'Repository should not exist after removal');
 
@@ -323,19 +323,19 @@ procedure TFPDevConfigTest.TestSettingsManagement;
 var
   Settings: TFPDevSettings;
 begin
-  // WriteLn('--- Testing Settings Management ---');  // 调试代码已注释
+  // WriteLn('--- Testing Settings Management ---');  // debug code commented out
 
-  // 准备测试数据
+  // Prepare test data
   FillChar(Settings, SizeOf(Settings), 0);
   Settings.AutoUpdate := True;
   Settings.ParallelJobs := 8;
   Settings.KeepSources := False;
   Settings.InstallRoot := '/test/fpdev';
 
-  // 测试设置配置
+  // Test setting configuration
   AssertTrue(FConfigManager.SetSettings(Settings), 'Should set settings');
 
-  // 测试获取配置
+  // Test getting configuration
   Settings := FConfigManager.GetSettings;
   AssertEquals(True, Settings.AutoUpdate, 'AutoUpdate should match');
   AssertEquals(8, Settings.ParallelJobs, 'ParallelJobs should match');
@@ -345,7 +345,7 @@ begin
   WriteLn;
 end;
 
-// 全局测试函数
+// Global test function
 procedure RunConfigTests;
 var
   Test: TFPDevConfigTest;
