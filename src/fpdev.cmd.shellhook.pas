@@ -1,16 +1,16 @@
 unit fpdev.cmd.shellhook;
 
 {
-  fpdev shell-hook 命令
+  fpdev shell-hook command
 
-  生成 shell 集成脚本，实现自动版本切换（类似 nvm 的 cd hook）
+  Generate shell integration scripts for automatic version switching (similar to nvm's cd hook)
 
-  用法:
-    fpdev shell-hook bash     # 生成 bash 集成脚本
-    fpdev shell-hook zsh      # 生成 zsh 集成脚本
-    fpdev shell-hook fish     # 生成 fish 集成脚本
+  Usage:
+    fpdev shell-hook bash     # Generate bash integration script
+    fpdev shell-hook zsh      # Generate zsh integration script
+    fpdev shell-hook fish     # Generate fish integration script
 
-  安装方法:
+  Installation:
     # Bash (~/.bashrc)
     eval "$(fpdev shell-hook bash)"
 
