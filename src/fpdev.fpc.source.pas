@@ -103,7 +103,7 @@ type
   end;
 
 const
-  // FPC Git仓库信息 - 使用中央常量
+  // FPC Git repository information - using central constants
   FPC_GIT_URL = FPC_OFFICIAL_REPO;
 
   // 支持的FPC版本分支
@@ -154,7 +154,7 @@ end;
 
 function TFPCSourceManager.Repo: TSourceRepoManager;
 begin
-  // 简单工厂：每次返回一个轻量对象，避免引入持久字段
+  // Simple factory: return a lightweight object each time, avoiding persistent fields
   Result := TSourceRepoManager.Create(FSourceRoot);
 end;
 
@@ -248,7 +248,7 @@ end;
 
 function TFPCSourceManager.CloneFPCSource(const AVersion: string): Boolean;
 begin
-  // 代理到 SourceRepoManager，保持现有日志与行为最小变更
+  // Delegate to SourceRepoManager, keeping existing logs and behavior with minimal changes
   Result := Repo.CloneFPCSource(AVersion);
   if Result then FCurrentVersion := IfThen(AVersion<>'', AVersion, 'main');
 end;
@@ -410,7 +410,7 @@ begin
 
   // Step 2: Ensure bootstrap compiler
   FCurrentStep := bsBootstrap;
-  if not ReportBuildStep(bsBootstrap, '检查Bootstrap编译器') then Exit;
+  if not ReportBuildStep(bsBootstrap, 'Check Bootstrap Compiler') then Exit;
   if not EnsureBootstrapCompiler(Version) then
   begin
     Exit;
@@ -448,7 +448,7 @@ begin
 
   // Step 4: Build compiler
   FCurrentStep := bsCompiler;
-  if not ReportBuildStep(bsCompiler, '构建FPC编译器') then Exit;
+  if not ReportBuildStep(bsCompiler, 'Build FPC Compiler') then Exit;
   if not BuildFPCCompiler(Version) then
   begin
     Exit;
@@ -664,7 +664,7 @@ var
   LBM: TBuildManager;
 begin
 
-  // 代理到 BuildManager（目前为占位实现，后续逐步迁移真实逻辑）
+  // Delegate to BuildManager (currently placeholder implementation, will gradually migrate real logic later)
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.BuildCompiler(AVersion);

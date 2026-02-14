@@ -7,10 +7,10 @@ interface
 uses
   SysUtils, Classes, DateUtils,
   git2.api, git2.types,
-  libgit2, fpdev.git2; // 复用统一对外入口，内部仍由现代封装实现
+  libgit2, fpdev.git2; // Reuse unified external interface, internally still implemented by modern wrapper
 
 type
-  // 以现有 TGit* 类为后端的适配器实现
+  // Adapter implementation using existing TGit* classes as backend
   TGitManagerImpl = class(TInterfacedObject, IGitManager)
   private
     FMgr: TGitManager;
@@ -166,7 +166,7 @@ function TGitManagerImpl.DiscoverRepository(const AStartPath: string): string;
 var
   p, prev: string;
 begin
-  // 先用纯Pascal回退，避免因头文件签名差异导致的不稳定
+  // Use pure Pascal fallback first to avoid instability due to header signature differences
   p := ExpandFileName(AStartPath);
   prev := '';
   while (p <> '') and (p <> prev) do
@@ -178,7 +178,7 @@ begin
     prev := p;
     p := ExtractFileDir(p);
   end;
-  // 若未找到，再尝试调用底层（包裹异常，避免崩溃）
+  // If not found, try calling underlying layer (wrap exceptions to avoid crashes)
   try
     Result := FMgr.DiscoverRepository(AStartPath);
   except

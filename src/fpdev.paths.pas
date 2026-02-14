@@ -47,20 +47,20 @@ function IsPortableMode: Boolean;
 var
   PortableMarker: string;
 begin
-  // 已经检查过，直接返回缓存结果
+  // Already checked, return cached result directly
   if GPortableModeChecked then
     Exit(GPortableMode);
 
   GPortableModeChecked := True;
 
-  // 1. 环境变量优先
+  // 1. Environment variable takes priority
   if GetEnvironmentVariable('FPDEV_PORTABLE') = '1' then
   begin
     GPortableMode := True;
     Exit(True);
   end;
 
-  // 2. 检查程序目录下是否有 .portable 标记文件
+  // 2. Check if .portable marker file exists in program directory
   PortableMarker := GetProgramDir + '.portable';
   if FileExists(PortableMarker) then
   begin
@@ -68,7 +68,7 @@ begin
     Exit(True);
   end;
 
-  // 3. 检查程序目录下是否有 data 目录（已有便携安装）
+  // 3. Check if data directory exists in program directory (existing portable installation)
   if DirectoryExists(GetProgramDir + 'data') then
   begin
     GPortableMode := True;
@@ -92,11 +92,11 @@ var
   AppData: string;
   {$ENDIF}
 begin
-  // 便携模式：使用程序目录下的 data 子目录
+  // Portable mode: use data subdirectory under program directory
   if IsPortableMode then
     Exit(EnsureDir(GetProgramDir + 'data'));
 
-  // 优先环境变量覆盖
+  // Environment variable override takes priority
   R := get_env('FPDEV_DATA_ROOT');
   if R<>'' then Exit(R);
 

@@ -8,7 +8,7 @@ unit fpdev.fpc.logger;
   改进的日志系统，支持：
   - 日志级别过滤 (Debug, Info, Warn, Error)
   - 文件追加写入（不重新加载整个文件）
-  - 异常安全（不向调用者传播异常）
+  - Exception-safe (does not propagate exceptions to caller)
   - 单例模式
 }
 
@@ -21,7 +21,7 @@ type
   { TLogLevel - 日志级别 }
   TLogLevel = (
     llDebug,   // 调试信息
-    llInfo,    // 一般信息
+    llInfo,    // General information
     llWarn,    // 警告
     llError    // 错误
   );
@@ -126,19 +126,19 @@ begin
       if not DirectoryExists(ExtractFileDir(FLogFile)) then
         ForceDirectories(ExtractFileDir(FLogFile));
       
-      // 以追加模式打开文件
+      // Open file in append mode
       if FileExists(FLogFile) then
         FFileStream := TFileStream.Create(FLogFile, fmOpenWrite or fmShareDenyNone)
       else
         FFileStream := TFileStream.Create(FLogFile, fmCreate or fmShareDenyNone);
       
-      // 移动到文件末尾
+      // Move to end of file
       FFileStream.Seek(0, soEnd);
       
       // 写入启动标记
       WriteToFile('=== Logger initialized at ' + DateTimeToStr(Now) + ' ===');
     except
-      // 忽略文件打开错误，禁用日志
+      // Ignore file open errors, disable logging
       FFileStream := nil;
     end;
   finally
@@ -202,7 +202,7 @@ begin
     Bytes := TEncoding.UTF8.GetBytes(Line);
     FFileStream.Write(Bytes[0], Length(Bytes));
   except
-    // 忽略写入错误，不向调用者传播异常
+    // Ignore write errors, do not propagate exceptions to caller
   end;
 end;
 

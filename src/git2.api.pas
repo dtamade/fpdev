@@ -8,7 +8,7 @@ uses
   SysUtils, git2.types;
 
 type
-  // 认证与证书事件（占位，后续接线）
+  // Authentication and certificate events (placeholder, to be wired later)
   TCredentialAcquireEvent = function(const Url, UserFromURL: string; AllowedTypes: Cardinal): Boolean of object;
   TCertificateCheckEvent = function(const Host: string; Valid: Boolean): Boolean of object;
 
@@ -37,9 +37,9 @@ type
     function CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
 
 
-    // 简易列表（兼容旧接口）
+    // Simple list (compatible with old interface)
     function Status: TStringArray;
-    // 详细状态与过滤
+    // Detailed status and filtering
     function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
     function IsClean: Boolean;
     function HasUncommittedChanges: Boolean;

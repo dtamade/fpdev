@@ -89,7 +89,7 @@ begin
   // 标准沙箱路径
   Dest := IncludeTrailingPathDelimiter(GetSandboxDir)+'sources' + PathDelim + AName + PathDelim + AVersion;
   EnsureDir(Dest);
-  // 将本地目录复制到标准沙箱，避免直接引用外部路径（更可控）
+  // Copy local directory to standard sandbox to avoid direct reference to external paths (more controllable)
   // DeleteDirRecursive already handles errors gracefully
   if DirectoryExists(Dest) then
     DeleteDirRecursive(Dest);
@@ -217,7 +217,7 @@ begin
   finally
     Files.Free;
   end;
-  // 清理临时目录（如果有）
+  // Clean up temporary directory (if any)
   if LIsTemp and DirectoryExists(BaseDir) then
   begin
     try

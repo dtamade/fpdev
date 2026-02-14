@@ -95,13 +95,13 @@ type
     function CheckoutBranch(const ABranch: string): Boolean;
     function CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
 
-    // 状态接口（简易与详细）
-    // Status: 返回简化的路径字符串数组（不含标志）
-    // StatusEntries: 返回带标志的条目数组。Filter 含义：
-    //   - WorkingTreeOnly: 仅工作区变更
-    //   - IndexOnly: 仅索引/暂存区变更（与 WorkingTreeOnly 互斥时以 IndexOnly 优先）
-    //   - IncludeUntracked: 是否包含未跟踪文件
-    //   - IncludeIgnored: 是否包含被忽略的文件（受 .gitignore 影响）
+    // Status interface (simple and detailed)
+    // Status: Returns simplified path string array (without flags)
+    // StatusEntries: Returns entry array with flags. Filter meanings:
+    //   - WorkingTreeOnly: Working tree changes only
+    //   - IndexOnly: Index/staging area changes only (IndexOnly takes priority when mutually exclusive with WorkingTreeOnly)
+    //   - IncludeUntracked: Whether to include untracked files
+    //   - IncludeIgnored: Whether to include ignored files (affected by .gitignore)
     function Status: TStringArray;
     function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
     function IsClean: Boolean;
@@ -369,7 +369,7 @@ var
   LOpts: git_checkout_options;
 begin
   // 切换到本地分支并检出到工作区（安全模式）
-  // 注意：仅支持本地分支名，如需从远程创建本地分支后续扩展
+  // Note: Only supports local branch names, future extension needed for creating local branches from remote
   Result := False;
   try
     if Trim(ABranch) = '' then
@@ -393,7 +393,7 @@ begin
   except
     on E: Exception do
     begin
-      // 转为布尔返回；详细错误已由 EGitError 携带
+      // Convert to boolean return; detailed error already carried by EGitError
       Result := False;
     end;
   end;
@@ -872,7 +872,7 @@ function TGitManager.DiscoverRepository(const AStartPath: string): string;
 var
   LPath, LPrev: string;
 begin
-  // 为避免不同 libgit2 版本的 ABI 差异，这里采用安全的纯Pascal回退：
+  // To avoid ABI differences between different libgit2 versions, use safe pure Pascal fallback here:
   // 自 AStartPath 向上查找含 .git 的目录
   if not FInitialized then
     Initialize;

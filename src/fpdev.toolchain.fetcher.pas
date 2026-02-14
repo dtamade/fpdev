@@ -33,10 +33,10 @@ function ParseHashString(const AHash: string; out AAlgorithm: THashAlgorithm; ou
 // Verify file hash using specified algorithm
 function VerifyFileHash(const AFile: string; AAlgorithm: THashAlgorithm; const AExpectedDigest: string): Boolean;
 
-// 从多个镜像依次尝试下载，成功返回 True，文件保存到 DestFile。
+// Try downloading from multiple mirrors sequentially, return True on success, file saved to DestFile.
 function FetchWithMirrors(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
 
-// 若 DestFile 已存在且 hash 校验通过，直接复用；否则调用 FetchWithMirrors。
+// If DestFile already exists and hash verification passes, reuse it directly; otherwise call FetchWithMirrors.
 function EnsureDownloadedCached(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
 
 // Download from manifest target (with multi-mirror fallback and hash verification)
@@ -45,7 +45,7 @@ function FetchFromManifest(const ATarget: TManifestTarget; const DestFile: strin
 implementation
 
 uses
-  md5; // 提供 MD5；缺省无 sha256 单元可用时采用长度判定机制
+  md5; // Provides MD5; uses length-based mechanism when sha256 unit is not available by default
 
 { Helper functions for hash parsing and verification }
 

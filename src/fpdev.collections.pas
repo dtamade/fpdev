@@ -223,49 +223,49 @@ type
      *}
     function  Equals(aCollection: TCollection): Boolean;
 
-    { 容器游标
-      基础容器的基本迭代接口
-      这是一组用于遍历容器元素的通用接口,由于它的实现依赖虚函数(无法内联),性能不是最优的,但是保持了组件的灵活性
+    { Container cursor
+      Basic iteration interface for base container
+      This is a set of generic interfaces for traversing container elements. Due to its implementation relying on virtual functions (cannot be inlined), performance is not optimal, but it maintains component flexibility
     }
 
     {**
      * CursorSave
      *
-     * @desc 保存容器游标
+     * @desc Save container cursor
      *}
     procedure CursorSave;
 
     {**
      * CursorRestore
      *
-     * @desc 恢复容器游标
+     * @desc Restore container cursor
      *}
     procedure CursorRestore;
 
     {**
      * CursorCurrentPtr
      *
-     * @desc 获取容器当前元素指针
+     * @desc Get current element pointer of container
      *
-     * @return 返回容器当前元素指针
+     * @return Returns current element pointer of container
      *}
     function  CursorCurrentPtr: Pointer;
 
     {**
      * CursorNext
      *
-     * @desc 移动容器游标到下一个元素
+     * @desc Move container cursor to next element
      *
-     * @return 返回是否成功移动游标
+     * @return Returns whether cursor was successfully moved
      *}
     function  CursorNext: Boolean;
 
     {**
      * CursorGoFirst
      *
-     * @desc 移动容器游标到第一个元素
+     * @desc Move container cursor to first element
      *
-     * @return 返回是否成功移动游标
+     * @return Returns whether cursor was successfully moved
      *}
     function  CursorGoFirst: Boolean;
 

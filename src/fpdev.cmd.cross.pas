@@ -12,7 +12,7 @@ unit fpdev.cmd.cross;
 ```
 # fpdev.cmd.cross
 
-交叉编译工具链管理
+Cross-compilation toolchain management
 
 
 ## 声明

@@ -62,7 +62,7 @@ type
   end;
 
 const
-  // Lazarus Git仓库信息 - 使用中央常量
+  // Lazarus Git repository information - using central constants
   LAZARUS_GIT_URL = LAZARUS_OFFICIAL_REPO;
 
   // 支持的Lazarus版本分支
@@ -188,7 +188,7 @@ begin
   if Version = '' then
     Version := 'main';
 
-  // 查找对应的分支
+  // Find corresponding branch
   Branch := Version;
   for i := 0 to High(LAZARUS_VERSIONS) do
   begin
@@ -207,7 +207,7 @@ begin
   WriteLn('  Target: ', SourcePath);
   WriteLn;
 
-  // 如果目录已存在，先删除
+  // If directory already exists, delete it first
   if DirectoryExists(SourcePath) then
   begin
     WriteLn('Removing existing source directory...');
@@ -218,7 +218,7 @@ begin
     {$ENDIF}
   end;
 
-  // 执行克隆（使用浅克隆减少下载时间）
+  // Execute clone (use shallow clone to reduce download time)
   Result := ExecuteGitCommand(['clone', '--depth', '1', '--branch', Branch,
     LAZARUS_GIT_URL, SourcePath], '');
 

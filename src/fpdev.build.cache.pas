@@ -29,7 +29,7 @@ type
 
   { TBuildCache - Build cache management
     B068: 线程安全说明
-    - 此类设计为单线程使用（命令行工具的正常场景）
+    - This class is designed for single-threaded use (normal scenario for command-line tools)
     - 懒加载标志 FIndexLoaded 和共享对象 FIndexEntries 无同步保护
     - 并发访问可能导致重复加载或竞态读写
     - 如需多线程支持，需添加临界区保护 }
@@ -49,8 +49,8 @@ type
     function GetEntryCount: Integer;
     procedure LoadEntries;
     procedure SaveEntries;
-    { B066: 懒加载辅助 - 无返回值因为空索引是有效状态
-      与 TResourceRepository.EnsureManifestLoaded 不同，索引是可选缓存而非必需资源 }
+    { B066: Lazy loading helper - no return value because empty index is a valid state
+      Unlike TResourceRepository.EnsureManifestLoaded, index is optional cache rather than required resource }
     procedure EnsureIndexLoaded;
     function FindEntry(const AVersion: string): Integer;
     function GetCurrentCPU: string;

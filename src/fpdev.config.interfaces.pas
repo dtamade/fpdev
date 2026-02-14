@@ -1,15 +1,15 @@
 unit fpdev.config.interfaces;
 
 {
-配置管理接口定义
+Configuration management interface definitions
 
-将原来的 TFPDevConfigManager 拆分为多个职责单一的管理器接口：
-- IToolchainManager: 工具链管理
-- ILazarusManager: Lazarus版本管理
-- ICrossTargetManager: 交叉编译目标管理
-- IRepositoryManager: 仓库管理
-- ISettingsManager: 设置管理
-- IConfigManager: 总入口，协调各个子管理器
+Split the original TFPDevConfigManager into multiple single-responsibility manager interfaces:
+- IToolchainManager: Toolchain management
+- ILazarusManager: Lazarus version management
+- ICrossTargetManager: Cross-compilation target management
+- IRepositoryManager: Repository management
+- ISettingsManager: Settings management
+- IConfigManager: Main entry point, coordinates all sub-managers
 }
 
 {$I fpdev.settings.inc}
@@ -21,8 +21,8 @@ uses
   SysUtils, Classes, fpjson;
 
 type
-  { IConfigChangeNotifier - 配置修改通知接口 }
-  { 子管理器通过此接口通知父管理器配置已修改 }
+  { IConfigChangeNotifier - Configuration change notification interface }
+  { Sub-managers notify parent manager of configuration changes through this interface }
   IConfigChangeNotifier = interface
     ['{91A2B3C4-D5E6-789F-0ABC-DEF123456789}']
     procedure NotifyConfigChanged;
@@ -110,7 +110,7 @@ type
     procedure Clear;
   end;
 
-  { ICrossTargetManager - 交叉编译目标管理接口 }
+  { ICrossTargetManager - Cross-compilation target management interface }
   ICrossTargetManager = interface
     ['{C3D4E5F6-A7B8-9012-CDEF-123456789012}']
     function AddCrossTarget(const ATarget: string; const AInfo: TCrossTarget): Boolean;

@@ -29,7 +29,7 @@ type
     Level: string; // OK|WARN|FAIL
   end;
 
-// 构建一个最小体检报告（HostReady 场景）：fpc/make/lazbuild/git/openssl
+// Build a minimal health check report (HostReady scenario): fpc/make/lazbuild/git/openssl
 function BuildToolchainReportJSON: string;
 // 获取当前 fpc 版本（fpc -iV），成功返回 True 并填充版本号
 function GetFPCVersion(out AFPCVersion: string): boolean;
@@ -117,7 +117,7 @@ function LoadPolicyAuto: boolean;
 var P: string;
 begin
   Result := False;
-  // 环境变量优先
+  // Environment variable takes priority
   P := GetEnvironmentVariable('FPDEV_POLICY_FILE');
   if (P<>'') and LoadPolicyFromFile(P) then Exit(True);
   // 常见位置
@@ -348,7 +348,7 @@ procedure GetPolicyForSource(const ASource: string; out AMin, ARec: string);
 var S, MatchedKey: string;
 begin
   S := LowerCase(Trim(ASource));
-  // 先尝试外部策略（若有加载）
+  // Try external policy first (if loaded)
   if GetExternalPolicy(S, AMin, ARec, MatchedKey) then Exit;
   // 内置保守策略
   if (S='trunk') or (S='main') or (Pos('3.3.', S)=1) then
@@ -363,7 +363,7 @@ function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;
 var cmpMin, cmpRec: Integer;
 begin
-  // 尝试自动加载外部策略（只加载一次）
+  // Try to auto-load external policy (load only once)
   if not GPolicyLoaded then LoadPolicyAuto;
   GetPolicyForSource(ASourceVersion, AMin, ARec);
   if not GetFPCVersion(AFPCVersion) then
@@ -413,16 +413,16 @@ begin
   if not T.Found then AddIssue(R.Issues, 'missing make-family');
   AddTool(R.Tools, T);
 
-  // lazbuild（建议）
+  // lazbuild (recommended)
   T := ProbeOne('lazbuild', ['--version']);
   if not T.Found then T.Notes := 'optional';
   AddTool(R.Tools, T);
 
-  // git（建议）
+  // git (recommended)
   T := ProbeOne('git', ['--version']); if not T.Found then T.Notes := 'optional';
   AddTool(R.Tools, T);
 
-  // openssl（建议）
+  // openssl (recommended)
   T := ProbeOne('openssl', ['version']); if not T.Found then T.Notes := 'optional for HTTPS';
   AddTool(R.Tools, T);
 
