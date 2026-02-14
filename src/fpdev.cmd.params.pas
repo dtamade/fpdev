@@ -4,7 +4,7 @@ unit fpdev.cmd.params;
 
 {
   Command-line parameter parsing utilities.
-  
+
   This module provides common functions for parsing command-line arguments
   used across all fpdev subcommands.
 }

@@ -26,7 +26,11 @@ uses fpdev.cmd.utils;
 
 function TProjectTemplateUpdateCommand.Name: string; begin Result := 'update'; end;
 function TProjectTemplateUpdateCommand.Aliases: TStringArray; begin Result := nil; end;
-function TProjectTemplateUpdateCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TProjectTemplateUpdateCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function ProjectTemplateUpdateFactory: ICommand;
 begin

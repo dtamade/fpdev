@@ -24,7 +24,11 @@ uses fpdev.cmd.utils;
 
 function TPackageInstallLocalCommand.Name: string; begin Result := 'install-local'; end;
 function TPackageInstallLocalCommand.Aliases: TStringArray; begin Result := nil; end;
-function TPackageInstallLocalCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TPackageInstallLocalCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function PackageInstallLocalFactory: ICommand;
 begin

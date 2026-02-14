@@ -87,7 +87,7 @@ type
     function SetDefaultToolchain(const AName: string): Boolean;
     function GetDefaultToolchain: string;
     function ListToolchains: TStringArray;
-    
+
     // 序列化接口
     procedure LoadFromJSON(AToolchains: TJSONObject; const ADefaultToolchain: string);
     procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
@@ -103,7 +103,7 @@ type
     function SetDefaultLazarusVersion(const AName: string): Boolean;
     function GetDefaultLazarusVersion: string;
     function ListLazarusVersions: TStringArray;
-    
+
     // 序列化接口
     procedure LoadFromJSON(ALazarus: TJSONObject);
     procedure SaveToJSON(out ALazarus: TJSONObject);
@@ -117,7 +117,7 @@ type
     function RemoveCrossTarget(const ATarget: string): Boolean;
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
     function ListCrossTargets: TStringArray;
-    
+
     // 序列化接口
     procedure LoadFromJSON(ACrossTargets: TJSONObject);
     procedure SaveToJSON(out ACrossTargets: TJSONObject);
@@ -133,7 +133,7 @@ type
     function HasRepository(const AName: string): Boolean;
     function GetDefaultRepository: string;
     function ListRepositories: TStringArray;
-    
+
     // 序列化接口
     procedure LoadFromJSON(ARepos: TJSONObject; const ADefaultRepo: string);
     procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
@@ -145,7 +145,7 @@ type
     ['{E5F6A7B8-C9D0-1234-EF12-345678901234}']
     function GetSettings: TFPDevSettings;
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
-    
+
     // 序列化接口
     procedure LoadFromJSON(ASettings: TJSONObject);
     procedure SaveToJSON(out ASettings: TJSONObject);
@@ -159,14 +159,14 @@ type
     function SaveConfig: Boolean;
     function GetConfigPath: string;
     function CreateDefaultConfig: Boolean;
-    
+
     // 访问子管理器
     function GetToolchainManager: IToolchainManager;
     function GetLazarusManager: ILazarusManager;
     function GetCrossTargetManager: ICrossTargetManager;
     function GetRepositoryManager: IRepositoryManager;
     function GetSettingsManager: ISettingsManager;
-    
+
     // 配置状态
     function IsModified: Boolean;
   end;

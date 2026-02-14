@@ -21,7 +21,34 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses
+  fpdev.cmd.utils,
+  fpdev.utils.process;
+
+function TryTestSystemFPC(const Ctx: IContext): Boolean;
+var
+  LFPCExe: string;
+  LResult: TProcessResult;
+begin
+  Result := False;
+
+  LFPCExe := TProcessExecutor.FindExecutable('fpc');
+  if LFPCExe = '' then
+  begin
+    Ctx.Err.WriteLn('Error: system FPC not found in PATH');
+    Exit(False);
+  end;
+
+  Ctx.Out.WriteLn('Testing system FPC...');
+  LResult := TProcessExecutor.Execute(LFPCExe, ['-i'], '');
+  Result := LResult.Success;
+  if Result then
+    Ctx.Out.WriteLn('OK: system FPC is functional')
+  else if LResult.ErrorMessage <> '' then
+    Ctx.Err.WriteLn('Error: system FPC failed - ' + LResult.ErrorMessage)
+  else
+    Ctx.Err.WriteLn('Error: system FPC failed');
+end;
 
 function TFPCCTestCommand.Name: string; begin Result := 'test'; end;
 
@@ -62,8 +89,11 @@ begin
       LVer := StringReplace(LVer, 'fpc-', '', [rfReplaceAll]);
     if LVer = '' then
     begin
+      // No default toolchain set: fall back to checking the system FPC in PATH.
+      if TryTestSystemFPC(Ctx) then
+        Exit(EXIT_OK);
       Ctx.Err.WriteLn(_(CMD_FPC_CURRENT_NONE));
-      Exit(EXIT_USAGE_ERROR);
+      Exit(EXIT_CONFIG_ERROR);
     end;
   end
   else

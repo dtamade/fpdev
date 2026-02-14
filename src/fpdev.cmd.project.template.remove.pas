@@ -26,7 +26,11 @@ uses fpdev.cmd.utils;
 
 function TProjectTemplateRemoveCommand.Name: string; begin Result := 'remove'; end;
 function TProjectTemplateRemoveCommand.Aliases: TStringArray; begin Result := nil; end;
-function TProjectTemplateRemoveCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TProjectTemplateRemoveCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function ProjectTemplateRemoveFactory: ICommand;
 begin

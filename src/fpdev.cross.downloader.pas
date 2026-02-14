@@ -83,8 +83,8 @@ type
     destructor Destroy; override;
     
     { Load or refresh manifest }
-    function LoadManifest: Boolean;
-    function RefreshManifest: Boolean;
+    function LoadManifest: Boolean; virtual;
+    function RefreshManifest: Boolean; virtual;
     
     { Host platform detection }
     function DetectHostPlatform: THostPlatform;

@@ -19,29 +19,29 @@ type
   TCrossToolchainCache = class
   private
     FCacheDir: string;
-    
+
     function GetCachePath(const ATarget, AComponentType: string): string;
     function EnsureCacheDir: Boolean;
-    
+
   public
     constructor Create(const ACacheDir: string);
     destructor Destroy; override;
-    
+
     { Check if a valid cached archive exists with matching SHA256 }
     function HasValidCache(const ATarget, AComponentType, ASHA256: string): Boolean;
-    
+
     { Get the path to a cached archive (empty if not exists) }
     function GetCachedArchive(const ATarget, AComponentType: string): string;
-    
+
     { Store an archive in the cache }
     function StoreArchive(const ASourcePath, ATarget, AComponentType: string): Boolean;
-    
+
     { Invalidate (delete) a cached archive }
     procedure InvalidateCache(const ATarget, AComponentType: string);
-    
+
     { Get the SHA256 of a cached archive (empty if not exists) }
     function GetCachedSHA256(const ATarget, AComponentType: string): string;
-    
+
     { Get cache directory }
     property CacheDir: string read FCacheDir;
   end;
@@ -64,7 +64,7 @@ end;
 function TCrossToolchainCache.GetCachePath(const ATarget, AComponentType: string): string;
 begin
   // Format: <cache_dir>/<target>-<componentType>.archive
-  Result := IncludeTrailingPathDelimiter(FCacheDir) + 
+  Result := IncludeTrailingPathDelimiter(FCacheDir) +
             LowerCase(ATarget) + '-' + LowerCase(AComponentType) + '.archive';
 end;
 
@@ -87,20 +87,20 @@ var
   CachePath, CachedHash: string;
 begin
   Result := False;
-  
+
   // Validate input checksum length
   if Length(ASHA256) <> 64 then
     Exit;
-  
+
   CachePath := GetCachePath(ATarget, AComponentType);
   if not FileExists(CachePath) then
     Exit;
-    
+
   // Verify SHA256 checksum
   CachedHash := SHA256FileHex(CachePath);
   if Length(CachedHash) <> 64 then
     Exit;
-    
+
   Result := SameText(CachedHash, ASHA256);
 end;
 
@@ -121,15 +121,15 @@ var
   SrcStream, DstStream: TFileStream;
 begin
   Result := False;
-  
+
   if not FileExists(ASourcePath) then
     Exit;
-    
+
   if not EnsureCacheDir then
     Exit;
-    
+
   CachePath := GetCachePath(ATarget, AComponentType);
-  
+
   try
     // Copy file to cache
     SrcStream := TFileStream.Create(ASourcePath, fmOpenRead or fmShareDenyWrite);

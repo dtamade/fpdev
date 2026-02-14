@@ -100,10 +100,18 @@ def analyze_temp_files_and_debug_code():
             code_sans_strings = re.sub(r"'([^']|'')*'", "''", code_part)
             code_lower = code_sans_strings.lower()
             is_declaration = re.match(r'\s*(procedure|function)\b', code_lower) is not None
+            is_console_wrapper_unit = pas_file.name.lower() == 'fpdev.output.console.pas'
+            is_file_handle_write = re.search(
+                r'(?<![\w\.])write(?:ln)?\s*\(\s*[a-z_]\w*\s*,',
+                code_lower,
+                re.IGNORECASE
+            ) is not None
             has_debug_write = (not is_declaration) and any(
                 re.search(pattern, code_lower, re.IGNORECASE)
                 for pattern in debug_write_patterns
             )
+            if is_console_wrapper_unit or is_file_handle_write:
+                has_debug_write = False
 
             comment_lower = inline_comment.strip().lower()
             has_comment_tag = any(comment_lower.startswith(keyword)

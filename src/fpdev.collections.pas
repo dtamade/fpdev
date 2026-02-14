@@ -56,12 +56,33 @@ type
     freeMem:    allocator_freeMem_t;
   end;
 
-function  allocator_create(aGetMem: allocator_getMem_t; aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; aFreeMem: allocator_freeMem_t): pallocator_t;
-procedure allocator_init(aAllocator: pallocator_t; aGetMem: allocator_getMem_t; aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; aFreeMem: allocator_freeMem_t);
+function allocator_create(
+  aGetMem: allocator_getMem_t;
+  aAllocMem: allocator_allocMem_t;
+  aReallocMem: allocator_reAllocMem_t;
+  aFreeMem: allocator_freeMem_t
+): pallocator_t;
+procedure allocator_init(
+  aAllocator: pallocator_t;
+  aGetMem: allocator_getMem_t;
+  aAllocMem: allocator_allocMem_t;
+  aReallocMem: allocator_reAllocMem_t;
+  aFreeMem: allocator_freeMem_t
+);
 procedure allocator_destroy(aAllocator: pallocator_t);
-function  allocator_getMem(aAllocator: pallocator_t; aSize: PtrUInt): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
-function  allocator_allocMem(aAllocator: pallocator_t; aSize: PtrUInt): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
-function  allocator_reallocMem(aAllocator: pallocator_t; var aMem: Pointer; aSize: PtrUInt): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
+function allocator_getMem(
+  aAllocator: pallocator_t;
+  aSize: PtrUInt
+): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
+function allocator_allocMem(
+  aAllocator: pallocator_t;
+  aSize: PtrUInt
+): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
+function allocator_reallocMem(
+  aAllocator: pallocator_t;
+  var aMem: Pointer;
+  aSize: PtrUInt
+): Pointer; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
 procedure allocator_freeMem(aAllocator: pallocator_t; aPtr: Pointer); {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}
 
 {**
@@ -99,7 +120,12 @@ type
     class destructor Destroy;
   public
     constructor CreateFromAllocator(aAllocator: pallocator_t); overload;
-    constructor Create(aGetMem: allocator_getMem_t; aAllocMem: allocator_allocMem_t; aReallocMem: allocator_reAllocMem_t; aFreeMem: allocator_freeMem_t); overload;
+    constructor Create(
+      aGetMem: allocator_getMem_t;
+      aAllocMem: allocator_allocMem_t;
+      aReallocMem: allocator_reAllocMem_t;
+      aFreeMem: allocator_freeMem_t
+    ); overload;
     destructor  Destroy; override;
 
     function  GetAllocator: pallocator_t; {$IFDEF FAFAFA_COLLECTIONS_INLINE}inline;{$ENDIF}

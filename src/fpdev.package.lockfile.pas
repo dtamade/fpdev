@@ -4,13 +4,13 @@ unit fpdev.package.lockfile;
 
 (*
   Package Lock File Management
-  
+
   Provides functionality for managing package lock files (fpdev-lock.json):
   - Generate lock files from resolved dependencies
   - Parse and validate existing lock files
   - Compare lock files for changes
   - Ensure reproducible builds
-  
+
   Lock File Format (inspired by npm package-lock.json):
   {
     "name": "myproject",
@@ -39,7 +39,7 @@ unit fpdev.package.lockfile;
       }
     }
   }
-  
+
   Usage:
     LockFile := TPackageLockFile.Create('fpdev-lock.json');
     try
@@ -70,7 +70,7 @@ type
     Resolved: string;  // Path to package archive
     Integrity: string; // SHA256 checksum
     Dependencies: TStringList;  // Package name -> version constraint
-    
+
     constructor Create;
     destructor Destroy; override;
   end;
@@ -207,7 +207,7 @@ var
 begin
   Result := TJSONObject.Create;
   if not Assigned(AEntry) then Exit;
-  
+
   Result.Add('version', AEntry.Version);
   Result.Add('resolved', AEntry.Resolved);
   Result.Add('integrity', AEntry.Integrity);

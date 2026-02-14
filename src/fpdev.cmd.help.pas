@@ -47,6 +47,80 @@ procedure execute(const aParams: array of string; const Outp: IOutput);
 
 implementation
 
+uses
+  fpdev.command.intf,
+  fpdev.config.interfaces,
+  fpdev.exitcodes,
+  fpdev.logger.intf;
+
+type
+  { THelpContext - Minimal context for routing "fpdev help <leaf>" to "<leaf> --help" }
+  THelpContext = class(TInterfacedObject, IContext)
+  private
+    FOut: IOutput;
+    FErr: IOutput;
+  public
+    constructor Create(const AOut, AErr: IOutput);
+    function Config: IConfigManager;
+    function Out: IOutput;
+    function Err: IOutput;
+    function Logger: ILogger;
+    procedure SaveIfModified;
+  end;
+
+constructor THelpContext.Create(const AOut, AErr: IOutput);
+begin
+  inherited Create;
+  FOut := AOut;
+  FErr := AErr;
+end;
+
+function THelpContext.Config: IConfigManager;
+begin
+  Result := nil;
+end;
+
+function THelpContext.Out: IOutput;
+begin
+  Result := FOut;
+end;
+
+function THelpContext.Err: IOutput;
+begin
+  Result := FErr;
+end;
+
+function THelpContext.Logger: ILogger;
+begin
+  Result := nil;
+end;
+
+procedure THelpContext.SaveIfModified;
+begin
+  // help routing must be side-effect free
+end;
+
+function TryDispatchLeafHelp(const PathParts: array of string; const Outp: IOutput): Boolean;
+var
+  Args: TStringArray;
+  I: Integer;
+  Code: Integer;
+  Ctx: IContext;
+begin
+  Result := False;
+  if Length(PathParts) = 0 then Exit(False);
+
+  Args := nil;
+  SetLength(Args, Length(PathParts) + 1);
+  for I := 0 to High(PathParts) do
+    Args[I] := PathParts[I];
+  Args[High(Args)] := '--help';
+
+  Ctx := THelpContext.Create(Outp, Outp);
+  Code := GlobalCommandRegistry.Dispatch(Args, Ctx);
+  Result := Code = EXIT_OK;
+end;
+
 procedure ListChildrenDynamic(const PathParts: array of string);
 var
   Outp: IOutput;
@@ -63,6 +137,9 @@ begin
   children := GlobalCommandRegistry.ListChildren(PathParts);
   if Length(children) = 0 then
   begin
+    // Leaf command: route to "<command> --help" if available.
+    if TryDispatchLeafHelp(PathParts, Outp) then
+      Exit;
     Outp.WriteLn(_(HELP_NO_COMMAND_FOUND));
     Exit;
   end;

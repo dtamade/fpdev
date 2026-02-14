@@ -54,7 +54,11 @@ begin
   inherited Destroy;
 end;
 
-function TFPCVerifier.ExecuteCommand(const ACommand: string; const AArgs: array of string; out AOutput: string): Boolean;
+function TFPCVerifier.ExecuteCommand(
+  const ACommand: string;
+  const AArgs: array of string;
+  out AOutput: string
+): Boolean;
 var
   Process: TProcess;
   OutputStream: TStringList;
@@ -75,11 +79,11 @@ begin
 
     try
       Process.Execute;
-      
+
       // Read output
       while Process.Output.NumBytesAvailable > 0 do
         OutputStream.LoadFromStream(Process.Output);
-      
+
       AOutput := OutputStream.Text;
       Result := Process.ExitStatus = 0;
 
@@ -103,19 +107,19 @@ var
   StartPos, EndPos: Integer;
 begin
   Result := '';
-  
+
   // Look for "version X.Y.Z" pattern
   StartPos := Pos('version ', LowerCase(AOutput));
   if StartPos > 0 then
   begin
     StartPos := StartPos + Length('version ');
     EndPos := StartPos;
-    
+
     // Find end of version string (space, bracket, or end of line)
-    while (EndPos <= Length(AOutput)) and 
+    while (EndPos <= Length(AOutput)) and
           (AOutput[EndPos] in ['0'..'9', '.']) do
       Inc(EndPos);
-    
+
     Result := Copy(AOutput, StartPos, EndPos - StartPos);
   end;
 end;
@@ -133,10 +137,10 @@ var
   Output, ActualVersion: string;
 begin
   Result := False;
-  
+
   if not ExecuteCommand(AFPCPath, ['-version'], Output) then
     Exit;
-  
+
   ActualVersion := ParseVersion(Output);
   Result := ActualVersion = AExpectedVersion;
 
@@ -156,11 +160,11 @@ var
   Output: string;
 begin
   Result := False;
-  
+
   // Create temporary directory
   TempDir := GetTempDir + 'fpdev_verify_' + IntToStr(Random(10000)) + PathDelim;
   ForceDirectories(TempDir);
-  
+
   try
     // Write hello world source
     SourceFile := TempDir + 'hello.pas';
@@ -168,11 +172,11 @@ begin
     Rewrite(Source);
     Write(Source, GetHelloWorldSource);
     CloseFile(Source);
-    
+
     // Compile
     OutputFile := TempDir + 'hello';
     Result := ExecuteCommand(AFPCPath, ['-o' + OutputFile, SourceFile], Output);
-    
+
     if Result then
       Result := FileExists(OutputFile);
 
@@ -181,7 +185,8 @@ begin
                     'Troubleshooting:' + LineEnding +
                     '  1. The FPC installation may be incomplete or corrupted' + LineEnding +
                     '  2. Required libraries or dependencies may be missing' + LineEnding +
-                    '  3. Try reinstalling: fpdev fpc install ' + ExtractFileName(AFPCPath) + ' --no-cache' + LineEnding +
+                    '  3. Try reinstalling: fpdev fpc install ' +
+                    ExtractFileName(AFPCPath) + ' --no-cache' + LineEnding +
                     '  4. Check system requirements and dependencies';
   finally
     // Cleanup
@@ -204,13 +209,13 @@ var
   Platform: TPlatformInfo;
 begin
   Result := False;
-  
+
   try
     MetaFile := AInstallPath + PathDelim + '.fpdev-meta.json';
-    
+
     // Detect current platform
     Platform := DetectPlatform;
-    
+
     // Create JSON metadata
     JSON := TJSONObject.Create;
     try
@@ -218,9 +223,9 @@ begin
       JSON.Add('install_date', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
       JSON.Add('source_type', 'binary');
       JSON.Add('platform', Platform.ToString);
-      
+
       JSONString := JSON.FormatJSON;
-      
+
       // Write to file
       FileStream := TFileStream.Create(MetaFile, fmCreate);
       try

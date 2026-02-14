@@ -98,7 +98,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Examples:');
     Ctx.Out.WriteLn('  fpdev cross build x86_64-win64 --dry-run');
-    Ctx.Out.WriteLn('  fpdev cross build arm-linux --source=sources/fpc/fpc-main');
+    Ctx.Out.WriteLn('  fpdev cross build arm-linux --source=sources/fpc');
     Exit(EXIT_OK);
   end;
 
@@ -122,13 +122,34 @@ begin
   DryRun := HasFlag(AParams, 'dry-run');
   GetFlagValue(AParams, 'source', SourceRoot);
   if SourceRoot = '' then
-    SourceRoot := 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-main';
+    SourceRoot := 'sources' + PathDelim + 'fpc';
   GetFlagValue(AParams, 'sandbox', SandboxRoot);
   if SandboxRoot = '' then
     SandboxRoot := 'sandbox';
   GetFlagValue(AParams, 'version', Version);
   if Version = '' then
     Version := 'main';
+
+  // Preflight: for real builds, require a populated FPC source tree.
+  // BuildManager expects: <sourceRoot>/fpc-<version>/Makefile.
+  if not DryRun then
+  begin
+    // The engine/build manager will fail later anyway; this makes the failure actionable and avoids
+    // unexpected network/make tool failures during acceptance smoke.
+    if not DirectoryExists(IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version) then
+    begin
+      Ctx.Err.WriteLn('Error: FPC source tree not found: ' + IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version);
+      Ctx.Err.WriteLn('Hint: Provide a checkout under that path, or pass --source=<root> and --version=<ver>.');
+      Exit(EXIT_NOT_FOUND);
+    end;
+    if not FileExists(IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version + PathDelim + 'Makefile') then
+    begin
+      Ctx.Err.WriteLn('Error: FPC source tree incomplete (missing Makefile): ' +
+        IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version);
+      Ctx.Err.WriteLn('Hint: Ensure the directory contains a full FPC source checkout (must include Makefile).');
+      Exit(EXIT_NOT_FOUND);
+    end;
+  end;
 
   // Build target record
   Target := Default(TCrossTarget);
@@ -159,6 +180,11 @@ begin
       Ctx.Out.WriteLn('Sandbox: ' + SandboxRoot);
       Ctx.Out.WriteLn('Version: ' + Version);
       Ctx.Out.WriteLn('');
+
+      // Dry-run should be side-effect free and should not fail just because sources
+      // or toolchains are not present yet. The purpose is to show the plan/options.
+      Ctx.Out.WriteLn('Dry-run: build execution skipped.');
+      Exit(EXIT_OK);
     end
     else
       Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' ===');

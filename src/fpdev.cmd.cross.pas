@@ -39,6 +39,14 @@ uses
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester, fpdev.cmd.cross.query;
 
 type
+  TCrossToolchainDownloaderFactory = function(const ADataRoot, AManifestURL: string): TCrossToolchainDownloader;
+
+var
+  { Test seam: allows injecting a spy downloader to verify which commands trigger manifest loads.
+    Production default is nil => uses TCrossToolchainDownloader.Create. }
+  CrossToolchainDownloaderFactory: TCrossToolchainDownloaderFactory;
+
+type
   { TCrossTargetInfo - Re-exported from query helper for backward compatibility }
   TCrossTargetInfo = fpdev.cmd.cross.query.TCrossTargetQueryInfo;
   TCrossTargetArray = fpdev.cmd.cross.query.TCrossTargetQueryArray;
@@ -99,6 +107,7 @@ constructor TCrossCompilerManager.Create(AConfigManager: IConfigManager);
 var
   Settings: TFPDevSettings;
   RepoConfig: TResourceRepoConfig;
+  ManifestURL: string;
 begin
   inherited Create;
   FConfigManager := AConfigManager;
@@ -132,11 +141,16 @@ begin
   FBuildTester := TCrossBuildTester.Create(FConfigManager, FInstallRoot);
 
   // Initialize modern toolchain downloader
-  FDownloader := TCrossToolchainDownloader.Create(
-    FInstallRoot,
-    'https://raw.githubusercontent.com/fpdev/fpdev-repo/main/cross-manifest.json'
-  );
-  FDownloader.LoadManifest;
+  ManifestURL := GetEnvironmentVariable('FPDEV_CROSS_MANIFEST_URL');
+  if ManifestURL = '' then
+    ManifestURL := 'https://raw.githubusercontent.com/fpdev/fpdev-repo/main/cross-manifest.json';
+
+  if Assigned(CrossToolchainDownloaderFactory) then
+    FDownloader := CrossToolchainDownloaderFactory(FInstallRoot, ManifestURL)
+  else
+    FDownloader := TCrossToolchainDownloader.Create(FInstallRoot, ManifestURL);
+
+  // Manifest is loaded lazily by download operations; listing/doctor should not block on network I/O.
 
   // Initialize target query helper
   FQuery := TCrossTargetQuery.Create(FConfigManager, FResourceRepo, FInstallRoot);

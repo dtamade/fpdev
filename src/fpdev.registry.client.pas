@@ -155,6 +155,9 @@ begin
       // Add custom headers
       if Assigned(AHeaders) then
         FHTTPClient.RequestHeaders.AddStrings(AHeaders);
+
+      // Reset request body between attempts/method changes.
+      FHTTPClient.RequestBody := nil;
       
       // Execute HTTP request
       if AMethod = 'GET' then
@@ -164,11 +167,20 @@ begin
       end
       else if (AMethod = 'POST') or (AMethod = 'PUT') then
       begin
-        // For POST/PUT, we need to use FormPost or manually set RequestBody
-        // Since TFPHTTPClient doesn't have direct Post(URL, Stream, Stream) method,
-        // we'll use a workaround with Get and manual request setup
-        FLastError := 'HTTP POST/PUT not yet implemented - requires custom HTTP client';
-        Exit(False);
+        if Assigned(ABody) then
+          ABody.Position := 0;
+        FHTTPClient.RequestBody := ABody;
+        try
+          FHTTPClient.HTTPMethod(AMethod, AURL, AResponse, [200, 201, 202, 204]);
+        finally
+          FHTTPClient.RequestBody := nil;
+        end;
+        Success := True;
+      end
+      else if AMethod = 'DELETE' then
+      begin
+        FHTTPClient.HTTPMethod('DELETE', AURL, AResponse, [200, 202, 204]);
+        Success := True;
       end
       else
       begin

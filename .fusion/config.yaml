@@ -1,0 +1,43 @@
+# Fusion 配置文件
+# FPDev 项目
+
+runtime:
+  enabled: true
+  auto_commit: false
+  max_parallel: 1
+
+backends:
+  primary: claude
+  fallback: claude
+
+understand:
+  pass_threshold: 7
+  require_confirmation: false
+  max_questions: 0
+
+scheduler:
+  enabled: true
+  max_parallel: 1
+  fail_fast: false
+
+tdd:
+  enabled: true
+  red_phase: true
+  green_phase: true
+  refactor_phase: true
+
+git:
+  enabled: true
+  auto_commit: false
+
+quality_gates:
+  max_compiler_errors: 0
+  max_compiler_warnings: 0
+  max_compiler_hints: 0
+  min_test_pass_rate: 100
+
+project:
+  name: "FPDev"
+  language: "Object Pascal"
+  build_tool: "lazbuild"
+  test_command: "scripts/run_all_tests.sh"

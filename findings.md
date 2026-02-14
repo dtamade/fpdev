@@ -1,5 +1,30 @@
 # Findings & Decisions
 
+## 2026-02-13 CLI Smoke / Acceptance Gaps
+
+- Root cause: `TCommandRegistry.DispatchPath` rewrote `--help/-h` into positional `help`, breaking leaf commands (e.g. `shell-hook`, `fpc test`, `cross test`, `lazarus run`).
+- Fix: only rewrite a trailing help flag when an actual `<prefix> help` command exists; otherwise keep args unchanged so leaf commands can handle `--help` directly.
+- Fix: `cross build --dry-run` should be side-effect free and not fail when sources/toolchains are absent.
+- Fix: `resolve-version --help` now prints usage (previously printed a version).
+- Fix: `fpdev --self-test` implemented (toolchain report + exit code 2 on FAIL).
+
+## 2026-02-13 Real Completion / Acceptance (P0 Blockers)
+
+- `fpdev fpc test` in a clean config (no default toolchain) is now smoke-friendly:
+  - Behavior: falls back to validating the system `fpc` in `PATH` (`Testing system FPC...`), exits `0` on success.
+  - Rationale: makes `fpdev` CLI usable for first-run smoke; explicit versions still test fpdev-managed toolchains.
+- `fpdev project build` could hang when invoking `lazbuild` via `TProcessExecutor.Execute` (pipes + verbose output can deadlock).
+  - Fix: `TProjectManager.BuildProject` uses `TProcessExecutor.RunDirect` for `lazbuild/fpc/make` so output streams without pipe buffering deadlocks.
+- Offline/deterministic test runs:
+  - `TFPCInstallCommand` short-circuits network installs when `FPDEV_SKIP_NETWORK_TESTS=1`, returning `EXIT_IO_ERROR` with a hint.
+  - Keeps `scripts/run_all_tests.sh` stable (default `FPDEV_SKIP_NETWORK_TESTS=1`).
+- Host toolchain reality (external):
+  - `scripts/check_toolchain.sh` now exits `0` when required tools are present and reports cross-only tools as optional by default (use `--strict` / `FPDEV_TOOLCHAIN_STRICT=1` to enforce).
+  - Cross-compilation *execution* still depends on external prerequisites (target toolchains + populated FPC sources), but:
+    - `fpdev cross list` no longer triggers network manifest loads (no first-run hangs/timeouts).
+    - `fpdev cross build` now fails fast with actionable errors when the source tree is missing/incomplete.
+    - Build system failures no longer crash the process when `make` is missing (BuildManager catches `EOSError` and sets `GetLastError`).
+
 ## Phase 4 自治运行策略 (2026-02-07)
 
 ### 目标
@@ -1081,3 +1106,420 @@ Result := nil;
 1. B046 build.cache 第八切片（stats report helper）
 2. B047 周期复盘（B045-B046 收口）
 3. B048 resource.repo 第九切片（search filter helper）
+
+## Session 2026-02-12: 全仓未完成项/缺口扫描（writing-plans 输入）
+
+### 扫描范围与命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests scripts docs`
+- `python3 scripts/analyze_code_quality.py`
+- `rg -n "not yet implemented|not implemented" src`
+- `rg -n "fpdev.registry.client|fpdev.github.api|fpdev.gitlab.api|TRemoteRegistryClient|TGitHubClient|TGitLabClient" tests`
+
+### 关键发现
+1. `src/` 内与“未实现”直接相关的命中共 15 处，集中在 3 个网络客户端：
+   - `src/fpdev.registry.client.pas`（POST/PUT 未实现）
+   - `src/fpdev.github.api.pas`（POST/PUT/DELETE 与 create/upload/delete API 未实现）
+   - `src/fpdev.gitlab.api.pas`（POST/PUT/DELETE 与 create/upload/delete API 未实现）
+2. 针对上述 3 个单元，`tests/` 内当前没有直接覆盖（`rg` 命中为空）。
+3. `python3 scripts/analyze_code_quality.py` 报告 3 类问题：debug_code(1)、code_style(1)、hardcoded_constants(1)，其中 `src/fpdev.fpc.binary.pas` 的直接 `WriteLn` 属可改进项，但优先级低于功能未实现路径。
+
+### 优先级判断（用于执行计划）
+- P0: 先补 `TRemoteRegistryClient` 的 POST/PUT/DELETE 请求通路，并以离线可复现测试验证“不再返回 not yet implemented”。
+- P1: 为 `TGitHubClient`/`TGitLabClient` 做同类 HTTP 方法能力补全。
+- P2: 清理 quality 脚本指示的 debug/style/hardcoded 低风险项。
+
+## Session 2026-02-12: P0 执行结果（remote registry HTTP methods）
+
+### Root Cause
+`TRemoteRegistryClient.ExecuteWithRetry` 仅实现 GET；POST/PUT 直接返回硬编码错误，导致 `UploadPackage/PublishMetadata` 永远失败。
+
+### Fix
+在 `src/fpdev.registry.client.pas` 中将 POST/PUT 由占位分支改为真实 HTTP 调用：
+- `FHTTPClient.RequestBody := ABody`
+- `FHTTPClient.HTTPMethod(AMethod, AURL, AResponse, [200,201,202,204])`
+- 调用后清空 `RequestBody`
+- 同时新增 DELETE 分支（`HTTPMethod('DELETE', ...)`）
+
+### Tests Added
+- `tests/test_registry_client_remote.lpr`
+  - 验证 `PublishMetadata` / `UploadPackage` 走真实请求路径（不可达地址时失败，但错误不应再是 `not yet implemented`）
+
+### Verification
+- 新增测试：RED 失败 -> GREEN 通过
+- 目标回归：`test_package_registry` 35/35，`test_package_publish` 26/26
+- 全量回归：`scripts/run_all_tests.sh` => `174/174` 通过
+
+## Session 2026-02-12: Team T1 结果（GitHub API 非 GET）
+
+### 缺口
+`fpdev.github.api` 的 `ExecuteRequest` 仅实现 GET，Create/Release/Asset 操作使用硬编码 `not yet implemented`。
+
+### 修复
+- 在 `ExecuteRequest` 中实现 POST/PUT (`RequestBody + HTTPMethod`) 与 DELETE (`HTTPMethod('DELETE')`)。
+- `CreateRepository` / `CreateRelease`：构建 JSON body 发起 POST，并解析 JSON object 响应。
+- `UploadReleaseAsset`：读取文件并 POST 上传；文件不存在时返回明确错误。
+- `DeleteReleaseAsset`：发起 DELETE 请求。
+
+### 证据
+- RED: 新测试 `tests/test_github_api_remote.lpr` 初次运行 `Failed: 4`。
+- GREEN: 同测试修复后 `Passed: 8, Failed: 0`。
+- 全量回归: `scripts/run_all_tests.sh` -> `175/175` 通过。
+
+## Session 2026-02-12: Team T2 结果（GitLab API 非 GET）
+
+### 缺口
+`fpdev.gitlab.api` 的 `ExecuteRequest` 仅实现 GET，Create/Package/Release 的写操作路径使用硬编码 `not yet implemented`。
+
+### 修复
+- 在 `ExecuteRequest` 中实现 POST/PUT (`RequestBody + HTTPMethod`) 与 DELETE (`HTTPMethod('DELETE')`)。
+- `CreateProject`：JSON body 发起 POST 并解析 JSON object 响应。
+- `UploadPackage`：读取文件并 POST 上传；文件不存在时返回明确错误。
+- `DeletePackage`：发起 DELETE 请求。
+- `CreateRelease`：JSON body 发起 POST 并解析 JSON object 响应。
+
+### 证据
+- RED: 新测试 `tests/test_gitlab_api_remote.lpr` 初次运行 `Failed: 4`。
+- GREEN: 同测试修复后 `Passed: 8, Failed: 0`。
+- 全量回归: `scripts/run_all_tests.sh` -> `176/176` 通过。
+
+## Session 2026-02-12 (Round 2): 全仓扫描结果与优先级
+
+### 扫描命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs --glob '!docs/archive/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests`
+- `python3 scripts/analyze_code_quality.py`
+
+### 结果摘要
+1. 功能未实现类缺口已显著收敛；`src/` 中仅剩注释/提示类 `not implemented` 文案与平台保留分支。
+2. 当前最可执行的真实缺口转为质量扫描噪音：`analyze_code_quality.py` 将以下场景误判为 debug：
+   - `fpdev.output.console.pas` 中的输出封装方法
+   - `Write(Source, ...)` 这种文件写入操作
+3. `analyze_code_quality.py` 当前输出 `总问题数: 3`，其中 `debug_code` 包含明显误报，影响后续治理优先级判断。
+
+### 本轮优先级
+- P0: 修复 `analyze_code_quality.py` 的 debug 误报（先测试后修复）。
+- P1: 处理 code_style 项（长行/行尾空格）按风险分批。
+- P2: 硬编码常量治理（路径/版本字面量分类提取）。
+
+## Session 2026-02-12 Round 2: P0 执行结果（质量扫描器误报治理）
+
+### Root Cause
+`analyze_temp_files_and_debug_code()` 使用通用 `write/writeln` 模式扫描，未区分以下非调试场景：
+1. `fpdev.output.console.pas` 的输出封装方法
+2. `Write(Source, ...)`/`WriteLn(Source, ...)` 的文件句柄写入
+
+### Fix
+- 新增回归测试 `tests/test_analyze_code_quality.py` 覆盖上述两类误报 + 一个真实 debug 命中样例。
+- 在 `scripts/analyze_code_quality.py` 中加入最小规则修正：
+  - `fpdev.output.console.pas` 不作为 debug 输出候选
+  - `write(?:ln)?(<identifier>, ...)` 视为文件句柄写入，不计入 debug
+
+### Evidence
+- RED: `python3 -m unittest tests/test_analyze_code_quality.py -v` -> `FAILED (failures=2)`
+- GREEN: 同命令 -> `OK`
+- VERIFY: `python3 scripts/analyze_code_quality.py` 误报样例消失
+- VERIFY: `bash scripts/run_all_tests.sh` -> `176/176` 通过
+
+## Session 2026-02-12 Round 3: Style Batch 1 完成 + 新优先级计划
+
+### 全仓扫描（本轮）
+
+#### 扫描命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs --glob '!docs/archive/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests`
+- `python3 scripts/analyze_code_quality.py`
+
+#### 关键发现
+1. 功能性 `not yet implemented` 主路径已收敛，当前 `src/` 命中以注释/提示或平台保留说明为主。
+2. 质量脚本仍报告 `3` 类问题，但 style 目标文件已从报告中消失：
+   - `src/fpdev.package.lockfile.pas`
+   - `src/fpdev.cmd.package.repo.list.pas`
+3. 当前最具性价比的下一批缺口是剩余 code_style 项：
+   - `src/fpdev.cmd.lazarus.pas`（5 处超长行）
+   - `src/fpdev.cmd.params.pas`（行尾空格）
+   - `src/fpdev.cross.cache.pas`（多处行尾空格）
+
+### 可执行优先级计划（下一批建议）
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 2（长行 + 行尾空格） | `src/fpdev.cmd.lazarus.pas`, `src/fpdev.cmd.params.pas`, `src/fpdev.cross.cache.pas` | 新增 Python 风格回归测试 RED->GREEN，且 analyzer 的 style 项减少 |
+| P2 | Debug 输出分类治理（真实调试 vs 用户可见输出） | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 约定输出策略后减少 debug_code 噪音，不影响 CLI 可见行为 |
+| P3 | 硬编码常量分层 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 将路径/版本字面量分类为常量或保留项并补充注释 |
+
+### 本轮执行结论
+- Style Batch 1 已按 TDD 完成（RED->GREEN->VERIFY）。
+- 验证通过：`run_all_tests.sh` 全量 `176/176`。
+
+## Session 2026-02-12 Round 4: Batch 2 执行完成 + 优先级更新
+
+### 全仓扫描（本轮）
+
+#### 扫描命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs --glob '!docs/archive/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests`
+- `python3 scripts/analyze_code_quality.py`
+
+#### 关键发现
+1. `src/tests` 中“未实现”命中主要为注释、i18n 文案或测试断言文本，不是新功能缺口。
+2. 当前最优先缺口仍为代码风格治理，但 Batch 2 的三个目标文件已清理完成。
+3. `code_style` 现存文件为：
+   - `src/fpdev.build.interfaces.pas`（行尾空格）
+   - `src/fpdev.collections.pas`（长行）
+   - `src/fpdev.cmd.project.template.remove.pas`（长行）
+
+### 本轮执行（严格 TDD）
+- RED: `python3 -m unittest tests/test_style_regressions_batch2.py -v` -> `FAILED (failures=3)`
+- GREEN: 最小格式修复后同命令 -> `OK`
+- VERIFY:
+  - `python3 scripts/analyze_code_quality.py` -> `总问题数: 3`（style 已切换到下一批文件）
+  - `bash scripts/run_all_tests.sh` -> `176/176` 通过
+
+### 可执行优先级计划（更新）
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 3 | `src/fpdev.build.interfaces.pas`, `src/fpdev.collections.pas`, `src/fpdev.cmd.project.template.remove.pas` | 新增回归测试 RED->GREEN，analyzer style 项继续下降 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音且不改变用户可见输出语义 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |
+
+## Session 2026-02-12 Round 5: Batch 3 执行完成 + 优先级更新
+
+### 全仓扫描（本轮）
+
+#### 扫描命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs --glob '!docs/archive/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests`
+- `python3 scripts/analyze_code_quality.py`
+
+#### 关键发现
+1. 功能未实现类命中仍以注释、文案和测试断言文本为主。
+2. Batch 3 目标 style 文件清理后，style 报告已切换到新一批文件：
+   - `src/fpdev.cmd.project.template.update.pas`
+   - `src/fpdev.source.pas`
+   - `src/fpdev.fpc.verify.pas`
+3. debug_code 与 hardcoded_constants 仍为稳定存量，尚未进入本批次。
+
+### 本轮执行（严格 TDD）
+- RED: `python3 -m unittest tests/test_style_regressions_batch3.py -v` -> `FAILED (failures=3)`
+- GREEN: 最小格式修复后同命令 -> `OK`
+- VERIFY:
+  - `python3 scripts/analyze_code_quality.py` -> `总问题数: 3`（style 已切换到下一批文件）
+  - `bash scripts/run_all_tests.sh` -> `176/176` 通过
+
+### 可执行优先级计划（更新）
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 4 | `src/fpdev.cmd.project.template.update.pas`, `src/fpdev.source.pas`, `src/fpdev.fpc.verify.pas` | 新增回归测试 RED->GREEN，analyzer style 项继续下降 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出与用户提示输出，降低 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |
+
+## Session 2026-02-12 Round 6: Batch 4 执行完成 + 优先级更新
+
+### 全仓扫描（本轮）
+
+#### 扫描命令
+- `rg -n "TODO|FIXME|HACK|XXX|TBD" src tests scripts docs --glob '!docs/archive/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests`
+- `python3 scripts/analyze_code_quality.py`
+
+#### 关键发现
+1. 功能未实现类命中仍以注释、文案和测试断言文本为主。
+2. Batch 4 目标 style 文件清理后，style 报告已切换到新一批文件：
+   - `src/fpdev.cmd.package.pas`
+   - `src/fpdev.config.interfaces.pas`
+   - `src/fpdev.toml.parser.pas`
+3. debug_code 与 hardcoded_constants 仍是稳定存量问题组。
+
+### 本轮执行（严格 TDD）
+- RED: `python3 -m unittest tests/test_style_regressions_batch4.py -v` -> `FAILED (failures=4)`
+- GREEN: 最小格式修复后同命令 -> `OK`
+- VERIFY:
+  - `python3 scripts/analyze_code_quality.py` -> `总问题数: 3`（style 已切换到下一批文件）
+  - `bash scripts/run_all_tests.sh` -> `176/176` 通过
+
+### 可执行优先级计划（更新）
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 5 | `src/fpdev.cmd.package.pas`, `src/fpdev.config.interfaces.pas`, `src/fpdev.toml.parser.pas` | 新增回归测试 RED->GREEN，analyzer style 项继续下降 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出与用户提示输出，降低 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |
+
+## Session 2026-02-12 Round 7: 全仓扫描结果与缺口
+
+### 扫描命令
+- `python3 scripts/analyze_code_quality.py`
+- `rg -n "TODO|FIXME|XXX|TBD|HACK|WIP|未完成|待实现|待办" src tests scripts docs --glob '!**/__pycache__/**'`
+- `rg -n "NotImplemented|raise Exception|assert\\(False\\)|fail\\(" src tests --glob '!**/__pycache__/**'`
+
+### 结果摘要
+1. 当前质量脚本输出仍为 `总问题数: 3`（`debug_code=1`, `code_style=1`, `hardcoded_constants=1`）。
+2. `code_style` 明确命中 Batch 5 三文件：
+   - `src/fpdev.cmd.package.pas`（5 处长行）
+   - `src/fpdev.config.interfaces.pas`（5 处行尾空格）
+   - `src/fpdev.toml.parser.pas`（5 处行尾空格）
+3. `debug_code` 与 `hardcoded_constants` 仍是稳定存量组，适合作为 Batch 5 后的下一阶段任务。
+4. TODO/FIXME 全仓命中以脚本文案、历史文档、归档记录为主，未发现新的高优先级“功能未实现”阻塞项。
+
+### 本轮可执行优先级计划
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 5 | `src/fpdev.cmd.package.pas`, `src/fpdev.config.interfaces.pas`, `src/fpdev.toml.parser.pas` | 新增测试 RED->GREEN 且 style 从这三文件迁移 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出和用户输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量抽离并保持行为不变 |
+
+## Session 2026-02-12 Round 7: Batch 5 执行结果（严格 TDD）
+
+### RED
+- 命令: `python3 -m unittest tests/test_style_regressions_batch5.py -v`
+- 输出要点:
+  - `FAILED (failures=3)`
+  - `src/fpdev.cmd.package.pas` 超长行: 6 处（含 line 1802）
+  - `src/fpdev.config.interfaces.pas` 行尾空白: 7 处
+  - `src/fpdev.toml.parser.pas` 行尾空白: 29 处
+
+### GREEN
+- 修改:
+  - `src/fpdev.cmd.package.pas`: 6 处长行换行（接口声明/函数签名/路径拼接）
+  - `src/fpdev.config.interfaces.pas`: 清理行尾空白
+  - `src/fpdev.toml.parser.pas`: 清理行尾空白
+- 命令: `python3 -m unittest tests/test_style_regressions_batch5.py -v`
+- 输出: `Ran 3 tests in 0.001s` + `OK`
+
+### VERIFY
+- 命令: `python3 scripts/analyze_code_quality.py`
+- 输出摘要:
+  - `总问题数: 3`
+  - `debug_code: 1`, `code_style: 1`, `hardcoded_constants: 1`
+  - style 已切换到下一批文件：
+    - `src/fpdev.cmd.fpc.pas`
+    - `src/fpdev.cmd.package.repo.update.pas`
+    - `src/fpdev.toolchain.pas`
+- 命令: `bash scripts/run_all_tests.sh`
+- 输出摘要: `Total 176 / Passed 176 / Failed 0 / Skipped 0`
+
+### 下一批可执行优先级
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 6 | `src/fpdev.cmd.fpc.pas`, `src/fpdev.cmd.package.repo.update.pas`, `src/fpdev.toolchain.pas` | 新增测试 RED->GREEN，style 项继续收敛 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音且行为不变 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量治理后回归通过 |
+
+## Session 2026-02-12 Round 8: 全仓扫描结果与缺口
+
+### 扫描命令
+- `python3 scripts/analyze_code_quality.py`
+- `rg -n "TODO|FIXME|XXX|TBD|HACK|WIP|未完成|待实现|待办" src tests scripts docs --glob '!docs/archive/**' --glob '!**/__pycache__/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests scripts docs --glob '!docs/archive/**' --glob '!**/__pycache__/**'`
+
+### 结果摘要
+1. 当前质量脚本输出仍为 `总问题数: 3`（`debug_code=1`, `code_style=1`, `hardcoded_constants=1`）。
+2. `code_style` 明确命中 Batch 6 三文件（长行）：
+   - `src/fpdev.cmd.fpc.pas`
+   - `src/fpdev.cmd.package.repo.update.pas`
+   - `src/fpdev.toolchain.pas`
+3. `debug_code` 与 `hardcoded_constants` 仍是稳定存量组，适合作为 Batch 6 后的下一阶段任务。
+4. TODO/FIXME 扫描命中以脚本/计划文档/roadmap 为主；“not implemented/stub/placeholder” 命中主要在 roadmap、注释与 i18n 文案，未发现新的高优先级阻塞项。
+
+### 本轮可执行优先级计划
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 6 | `src/fpdev.cmd.fpc.pas`, `src/fpdev.cmd.package.repo.update.pas`, `src/fpdev.toolchain.pas` | 新增测试 RED->GREEN 且 style 从这三文件迁移 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出和用户输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量抽离并保持行为不变 |
+
+## Session 2026-02-12 Round 8: Batch 6 执行结果（严格 TDD）
+
+### RED
+- 命令: `python3 -m unittest tests/test_style_regressions_batch6.py -v`
+- 输出要点:
+  - `FAILED (failures=3)`
+  - `src/fpdev.cmd.fpc.pas` 超长行: 3 处（77/387/523）
+  - `src/fpdev.cmd.package.repo.update.pas` 超长行: 1 处（27）
+  - `src/fpdev.toolchain.pas` 超长行: 1 处（245）
+
+### GREEN
+- 修改:
+  - `src/fpdev.cmd.fpc.pas`: 3 处长行换行（签名 + 路径拼接）
+  - `src/fpdev.cmd.package.repo.update.pas`: `FindSub` 单行展开（保留 `if AName <> '' then;` 语义）
+  - `src/fpdev.toolchain.pas`: `ProbeFirstAvailable` 签名换行
+- 命令: `python3 -m unittest tests/test_style_regressions_batch6.py -v`
+- 输出: `Ran 3 tests in 0.002s` + `OK`
+
+### VERIFY
+- 命令: `python3 scripts/analyze_code_quality.py`
+- 输出摘要:
+  - `总问题数: 3`
+  - `debug_code: 1`, `code_style: 1`, `hardcoded_constants: 1`
+  - style 已切换到下一批文件：
+    - `src/fpdev.fpc.interfaces.pas`
+    - `src/fpdev.cmd.package.install_local.pas`
+    - `src/fpdev.resource.repo.pas`
+- 命令: `bash scripts/run_all_tests.sh`
+- 输出摘要: `Total 176 / Passed 176 / Failed 0 / Skipped 0`
+
+### 下一批可执行优先级
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 7 | `src/fpdev.fpc.interfaces.pas`, `src/fpdev.cmd.package.install_local.pas`, `src/fpdev.resource.repo.pas` | 新增测试 RED->GREEN，style 项继续收敛 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音且行为不变 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量治理后回归通过 |
+
+## Session 2026-02-12 Round 9: 全仓扫描结果与缺口
+
+### 扫描命令
+- `python3 scripts/analyze_code_quality.py`
+- `rg -n "TODO|FIXME|XXX|TBD|HACK|WIP|未完成|待实现|待办" src tests scripts docs --glob '!docs/archive/**' --glob '!**/__pycache__/**'`
+- `rg -n -i "not implemented|not yet implemented|stub|placeholder" src tests scripts docs --glob '!docs/archive/**' --glob '!**/__pycache__/**'`
+
+### 结果摘要
+1. 当前质量脚本输出仍为 `总问题数: 3`（`debug_code=1`, `code_style=1`, `hardcoded_constants=1`）。
+2. `code_style` 明确命中 Batch 7 三文件：
+   - `src/fpdev.fpc.interfaces.pas`（行尾空格）
+   - `src/fpdev.cmd.package.install_local.pas`（长行）
+   - `src/fpdev.resource.repo.pas`（长行）
+3. `debug_code` 与 `hardcoded_constants` 仍是稳定存量组。
+4. TODO/FIXME 与 stub/placeholder 命中仍以文档/注释为主，暂无新的高优先级阻塞项。
+
+### 本轮可执行优先级计划
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 7 | `src/fpdev.fpc.interfaces.pas`, `src/fpdev.cmd.package.install_local.pas`, `src/fpdev.resource.repo.pas` | 新增测试 RED->GREEN 且 style 从这三文件迁移 |
+| P2 | Debug 输出分类治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出和用户输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量抽离并保持行为不变 |
+
+## Session 2026-02-12 Round 9: Batch 7 执行结果（严格 TDD）
+
+### RED
+- 命令: `python3 -m unittest tests/test_style_regressions_batch7.py -v`
+- 输出要点:
+  - `FAILED (failures=3)`
+  - `src/fpdev.fpc.interfaces.pas` 行尾空白: 13 处
+  - `src/fpdev.cmd.package.install_local.pas` 长行: 1 处（27）
+  - `src/fpdev.resource.repo.pas` 长行: 1 处（1060）
+
+### GREEN
+- 修改:
+  - `src/fpdev.fpc.interfaces.pas`: 清理行尾空白
+  - `src/fpdev.cmd.package.install_local.pas`: `FindSub` 单行展开（保留 `if AName <> '' then;` 语义）
+  - `src/fpdev.resource.repo.pas`: `GetCrossToolchainInfo` 签名换行
+- 命令: `python3 -m unittest tests/test_style_regressions_batch7.py -v`
+- 输出: `Ran 3 tests in 0.001s` + `OK`
+
+### VERIFY
+- 命令: `python3 scripts/analyze_code_quality.py`
+- 输出摘要:
+  - `总问题数: 3`
+  - `debug_code: 1`, `code_style: 1`, `hardcoded_constants: 1`
+  - style 已切换到下一批文件：
+    - `src/fpdev.cmd.project.template.list.pas`
+    - `src/fpdev.registry.retry.pas`
+    - `src/fpdev.git2.pas`
+- 命令: `bash scripts/run_all_tests.sh`
+- 输出摘要: `Total 176 / Passed 176 / Failed 0 / Skipped 0`
+
+### 下一批可执行优先级
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 8 | `src/fpdev.cmd.project.template.list.pas`, `src/fpdev.registry.retry.pas`, `src/fpdev.git2.pas` | 新增测试 RED->GREEN，style 项继续收敛 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音且行为不变 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量治理后回归通过 |

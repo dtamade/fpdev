@@ -1057,7 +1057,10 @@ begin
   end;
 end;
 
-function TResourceRepository.GetCrossToolchainInfo(const ATarget, AHostPlatform: string; out AInfo: TCrossToolchainInfo): Boolean;
+function TResourceRepository.GetCrossToolchainInfo(
+  const ATarget, AHostPlatform: string;
+  out AInfo: TCrossToolchainInfo
+): Boolean;
 var
   CrossInfo: TResourceRepoCrossInfo;
 begin

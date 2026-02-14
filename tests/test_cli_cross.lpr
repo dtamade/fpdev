@@ -19,6 +19,7 @@ uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
   fpdev.exitcodes,
+  fpdev.cmd.cross, fpdev.cross.downloader,
   fpdev.cmd.cross.root,
   fpdev.cmd.cross.list,
   fpdev.cmd.cross.show,
@@ -34,6 +35,25 @@ uses
 
 var
   GTempDir: string;
+  GManifestLoadCalled: Boolean = False;
+
+type
+  { TSpyCrossToolchainDownloader - detects unexpected manifest loads during local-only operations }
+  TSpyCrossToolchainDownloader = class(TCrossToolchainDownloader)
+  public
+    function LoadManifest: Boolean; override;
+  end;
+
+function TSpyCrossToolchainDownloader.LoadManifest: Boolean;
+begin
+  GManifestLoadCalled := True;
+  Result := False;
+end;
+
+function CreateSpyDownloader(const ADataRoot, AManifestURL: string): TCrossToolchainDownloader;
+begin
+  Result := TSpyCrossToolchainDownloader.Create(ADataRoot, AManifestURL);
+end;
 
 { ===== list ===== }
 
@@ -66,6 +86,30 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('list no args returns valid code', Ret >= 0);
   finally Cmd.Free; end;
+end;
+
+procedure TestListNoArgsDoesNotLoadManifest;
+var
+  Cmd: TCrossListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  GManifestLoadCalled := False;
+  CrossToolchainDownloaderFactory := @CreateSpyDownloader;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossListCommand.Create;
+    try
+      Ret := Cmd.Execute([], Ctx);
+      Check('list no args returns valid code', Ret >= 0);
+      Check('list no args should not load cross manifest', not GManifestLoadCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainDownloaderFactory := nil;
+  end;
 end;
 
 procedure TestListJsonOutput;
@@ -419,6 +463,7 @@ begin
     TestListName;
     TestListHelp;
     TestListNoArgs;
+    TestListNoArgsDoesNotLoadManifest;
     TestListJsonOutput;
 
     WriteLn('');

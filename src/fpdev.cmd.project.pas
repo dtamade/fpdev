@@ -456,7 +456,9 @@ begin
         Params[0] := FoundLPI;
       end;
 
-      LResult := TProcessExecutor.Execute('lazbuild', Params, AProjectDir);
+      // Build tools can be very chatty; avoid pipe buffering deadlocks by
+      // streaming output directly to the console.
+      LResult := TProcessExecutor.RunDirect('lazbuild', Params, AProjectDir);
       Result := LResult.Success;
     end
     else
@@ -478,13 +480,13 @@ begin
       if FoundLPR <> '' then
       begin
         // Use fpc to build .lpr (only for projects, not for local tests/examples)
-        LResult := TProcessExecutor.Execute('fpc', [ExtractFileName(FoundLPR)], AProjectDir);
+        LResult := TProcessExecutor.RunDirect('fpc', [ExtractFileName(FoundLPR)], AProjectDir);
         Result := LResult.Success;
       end
       else if FileExists(AProjectDir + PathDelim + 'Makefile') then
       begin
         // Fallback to make (if Makefile provided)
-        LResult := TProcessExecutor.Execute('make', [], AProjectDir);
+        LResult := TProcessExecutor.RunDirect('make', [], AProjectDir);
         Result := LResult.Success;
       end
       else

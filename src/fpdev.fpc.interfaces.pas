@@ -4,7 +4,7 @@ unit fpdev.fpc.interfaces;
 
 {
   FPC Interfaces
-  
+
   This module defines interfaces for dependency injection in FPC management classes.
   These interfaces enable unit testing by allowing mock implementations.
 }
@@ -22,31 +22,31 @@ type
     ['{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}']
     { Checks if a file exists at the specified path. }
     function FileExists(const APath: string): Boolean;
-    
+
     { Checks if a directory exists at the specified path. }
     function DirectoryExists(const APath: string): Boolean;
-    
+
     { Creates a directory and all parent directories as needed. }
     function ForceDirectories(const APath: string): Boolean;
-    
+
     { Deletes a file at the specified path. }
     function DeleteFile(const APath: string): Boolean;
-    
+
     { Deletes a directory at the specified path. }
     function DeleteDirectory(const APath: string; const ARecursive: Boolean): Boolean;
-    
+
     { Removes an empty directory. }
     function RemoveDir(const APath: string): Boolean;
-    
+
     { Reads entire contents of a text file. }
     function ReadTextFile(const APath: string): string;
-    
+
     { Writes text content to a file, creating parent directories as needed. }
     procedure WriteTextFile(const APath, AContent: string);
-    
+
     { Writes all text to a file (alias for WriteTextFile). }
     procedure WriteAllText(const APath, AContent: string);
-    
+
     { Returns the system temporary directory path. }
     function GetTempDir: string;
   end;
@@ -68,11 +68,11 @@ type
     { Executes an external process and waits for completion. }
     function Execute(const AExecutable: string; const AParams: array of string;
       const AWorkDir: string = ''): TProcessResult;
-    
+
     { Executes an external process in a specific directory. }
     function ExecuteInDir(const AExecutable: string; const AParams: array of string;
       const AWorkDir: string): TProcessResult;
-    
+
     { Executes an external process with a timeout. }
     function ExecuteWithTimeout(const AExecutable: string; const AParams: array of string;
       const ATimeoutMs: Integer; const AWorkDir: string = ''): TProcessResult;
@@ -97,7 +97,7 @@ type
       @param AURL URL to fetch.
       @returns THttpResponse with status and content. }
     function Get(const AURL: string): THttpResponse;
-    
+
     { Downloads a file from URL to local path.
       @param AURL URL to download from.
       @param ADestPath Local file path to save to.

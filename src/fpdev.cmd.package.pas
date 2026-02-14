@@ -86,10 +86,19 @@ type
     function GetInstalledPackageList: TPackageArray;
 
     // 清理
-    function Clean(const Scope: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean; // 'sandbox' | 'cache' | 'all'
+    function Clean(
+      const Scope: string;
+      Outp: IOutput = nil;
+      Errp: IOutput = nil
+    ): Boolean; // 'sandbox' | 'cache' | 'all'
 
     // 包管理
-    function InstallPackage(const APackageName: string; const AVersion: string = ''; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
+    function InstallPackage(
+      const APackageName: string;
+      const AVersion: string = '';
+      Outp: IOutput = nil;
+      Errp: IOutput = nil
+    ): Boolean;
     function UninstallPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function UpdatePackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function ListPackages(const AShowAll: Boolean = False; Outp: IOutput = nil): Boolean;
@@ -129,7 +138,12 @@ function VerifyPackageChecksum(const FilePath, Hash: string): Boolean;
 function CollectPackageSourceFiles(const SourceDir: string; const ExcludePatterns: TStringArray): TStringArray;
 function IsBuildArtifact(const FileName: string): Boolean;
 function GeneratePackageMetadataJson(const Options: TPackageCreationOptions): string;
-function CreatePackageZipArchive(const SourceDir: string; const {%H-} Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
+function CreatePackageZipArchive(
+  const SourceDir: string;
+  const {%H-} Files: TStringArray;
+  const OutputPath: string;
+  var Err: string
+): Boolean;
 
 { Package Validation Functions }
 function ValidatePackageSourcePath(const SourcePath: string): Boolean;
@@ -855,7 +869,12 @@ begin
   end;
 end;
 
-function TPackageManager.InstallPackage(const APackageName: string; const AVersion: string; Outp: IOutput; Errp: IOutput): Boolean;
+function TPackageManager.InstallPackage(
+  const APackageName: string;
+  const AVersion: string;
+  Outp: IOutput;
+  Errp: IOutput
+): Boolean;
 var
   UseVersion: string;
   Avail: TPackageArray;
@@ -929,7 +948,13 @@ begin
     end;
 
     // 下载到缓存 zip
-    ZipPath := IncludeTrailingPathDelimiter(GetCacheDir) + 'packages' + PathDelim + APackageName + '-' + UseVersion + '.zip';
+    ZipPath := IncludeTrailingPathDelimiter(GetCacheDir)
+      + 'packages'
+      + PathDelim
+      + APackageName
+      + '-'
+      + UseVersion
+      + '.zip';
     EnsureDir(ExtractFileDir(ZipPath));
 
     SetLength(URLs, Length(Avail[BestIdx].URLs));
@@ -1799,7 +1824,12 @@ begin
   Result := GeneratePackageMetadataJsonCore(CreateOptions);
 end;
 
-function CreatePackageZipArchive(const SourceDir: string; const {%H-} Files: TStringArray; const OutputPath: string; var Err: string): Boolean;
+function CreatePackageZipArchive(
+  const SourceDir: string;
+  const {%H-} Files: TStringArray;
+  const OutputPath: string;
+  var Err: string
+): Boolean;
 begin
   Result := CreatePackageZipArchiveCore(SourceDir, Files, OutputPath, Err);
 end;

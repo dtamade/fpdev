@@ -3,6 +3,23 @@
 ## Goal
 在保持测试稳定通过的前提下，通过“批次模式”持续清理编译警告、技术债务和代码质量问题，做到低干预长期推进。
 
+## M5: CLI Smoke & Acceptance (2026-02-13)
+
+- [x] Fix `--help` dispatch: leaf commands must receive `--help/-h` flags; namespace roots should route to `<prefix> help`.
+- [x] Make `cross build --dry-run` side-effect free and exit 0 even when sources/toolchains are absent.
+- [x] Ensure `cross list` is local-only (no implicit network manifest load / no first-run hang).
+- [x] Make `cross build` fail fast with actionable errors when sources are missing (`<sourceRoot>/fpc-<version>/Makefile`).
+- [x] Add `resolve-version --help` usage output.
+- [x] Implement `fpdev --self-test` (toolchain JSON; exit 2 on FAIL).
+- [x] Make `fpdev fpc test` (no default toolchain) fall back to system `fpc` in `PATH` and exit 0 on success.
+- [x] Prevent `project build` hangs by running verbose build tools without pipe buffering deadlocks.
+- [x] Keep `fpc install` CLI tests offline: short-circuit network installs when `FPDEV_SKIP_NETWORK_TESTS=1`.
+- [x] Fix BuildManager to fail gracefully when `make` is missing (no `EOSError` crash) + regression test.
+- [x] Relax `scripts/check_toolchain.sh` default: required tools gate exit code; optional cross tools are warnings (use `--strict` to enforce).
+- [x] Verify smoke: `python3 /tmp/fpdev_cli_smoke.py` => `total 35 ok 35 fail 0 timeout 0`.
+- [x] Verify tests: `bash scripts/run_all_tests.sh` => `177/177` pass.
+- [x] Verify build: `lazbuild -B fpdev.lpi` => exit 0.
+
 ## Working Mode (Phase 4)
 - Mode: Autonomous Batch
 - Batch SLA: 每批 60-120 分钟，单目标，WIP=1
@@ -1236,3 +1253,184 @@ M7 (B107-B119) 已在之前会话中完成，13 个批次全部标记 done。
 | P1 | 继续大文件拆分 (fpc.source 1063 行) | 1-2 天 |
 | P2 | 性能监控 CLI 命令 | 1 天 |
 | P3 | CI/CD 集成 | 低 |
+
+## Session 2026-02-12: 扫描后执行计划（一次性执行）
+
+### Goal
+基于全仓扫描结果，先消除最高优先级“功能未实现”缺口：远端 registry 客户端 POST/PUT/DELETE 通路。
+
+### Priority Queue
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P0 | 实现 `TRemoteRegistryClient` 非 GET HTTP 方法并补测试 | `src/fpdev.registry.client.pas`, `tests/test_registry_client_remote.lpr` | 新测试红→绿，且不再出现 `not yet implemented` 错误文本 |
+| P1 | 补 `TGitHubClient` 非 GET 请求能力 + 测试 | `src/fpdev.github.api.pas`, `tests/test_github_api*.lpr` | Create/Release/Asset 路径不再硬编码未实现 |
+| P1 | 补 `TGitLabClient` 非 GET 请求能力 + 测试 | `src/fpdev.gitlab.api.pas`, `tests/test_gitlab_api*.lpr` | Create/Package/Release 路径不再硬编码未实现 |
+| P2 | 代码质量低风险清理 | `src/fpdev.fpc.binary.pas` 等 | debug/style/hardcoded 报告项下降且无回归 |
+
+### Execution Batch (this run)
+- 执行 P0（完整 TDD：Red -> Green -> Refactor -> Verify）
+
+### Execution Result Update (2026-02-12)
+- [x] P0 `TRemoteRegistryClient` POST/PUT/DELETE 通路实现
+- [x] 新增 `tests/test_registry_client_remote.lpr` 并完成 RED->GREEN
+- [x] 回归验证：targeted + full suite (`174/174`)
+- [ ] P1 `TGitHubClient` 非 GET 通路
+- [ ] P1 `TGitLabClient` 非 GET 通路
+- [ ] P2 低风险质量项清理
+
+### Team Sprint Update (2026-02-12)
+- [x] T1/P0 GitHub API 非 GET 通路 + 测试
+- [ ] T2/P1 GitLab API 非 GET 通路 + 测试
+- [ ] T3/P2 低风险质量项清理
+
+### Team Sprint Update (2026-02-12, after T2)
+- [x] T1/P0 GitHub API 非 GET 通路 + 测试
+- [x] T2/P1 GitLab API 非 GET 通路 + 测试
+- [ ] T3/P2 低风险质量项清理
+
+### Session 2026-02-12 Round 2: Scan -> Plan -> Execute
+
+#### Priority Queue (updated)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P0 | 修复质量扫描器 debug 误报 | `scripts/analyze_code_quality.py`, `tests/test_analyze_code_quality.py` | 新增回归测试红->绿；误报样例不再命中 |
+| P1 | 代码风格分批修复 | `src/fpdev.cmd.lazarus.pas`, `src/fpdev.package.lockfile.pas`, `src/fpdev.cmd.package.repo.list.pas` | style 报告项下降且回归通过 |
+| P2 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | hardcoded 报告项下降且行为不变 |
+
+#### Execution Batch (this run)
+- 执行 P0（严格 TDD：Red -> Green -> Verify）
+
+### Execution Result Update (2026-02-12 Round 2)
+- [x] P0 修复 `analyze_code_quality.py` debug 误报（TDD 红->绿完成）
+- [ ] P1 代码风格分批修复
+- [ ] P2 硬编码常量治理
+
+### Execution Result Update (2026-02-12 Round 3)
+- [x] P1 代码风格分批修复（Batch 1: lockfile + repo.list）
+- [ ] P1 代码风格分批修复（Batch 2: lazarus/cmd.params/cross.cache）
+- [ ] P2 Debug 输出分类治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 3 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 2 | `src/fpdev.cmd.lazarus.pas`, `src/fpdev.cmd.params.pas`, `src/fpdev.cross.cache.pas` | 新增测试红->绿，analyzer style 项减少 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分用户输出与调试输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并回归通过 |
+
+### Execution Result Update (2026-02-12 Round 4)
+- [x] P1 代码风格分批修复（Batch 2: lazarus/params/cross.cache）
+- [ ] P1 代码风格分批修复（Batch 3: build.interfaces/collections/template.remove）
+- [ ] P2 Debug 输出分类治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 4 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 3 | `src/fpdev.build.interfaces.pas`, `src/fpdev.collections.pas`, `src/fpdev.cmd.project.template.remove.pas` | 新增测试红->绿，analyzer style 项继续下降 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分用户输出与调试输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并回归通过 |
+
+### Execution Result Update (2026-02-12 Round 5)
+- [x] P1 代码风格分批修复（Batch 3: build.interfaces/collections/template.remove）
+- [ ] P1 代码风格分批修复（Batch 4: template.update/source/fpc.verify）
+- [ ] P2 Debug 输出分类治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 5 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 4 | `src/fpdev.cmd.project.template.update.pas`, `src/fpdev.source.pas`, `src/fpdev.fpc.verify.pas` | 新增测试红->绿，analyzer style 项继续下降 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分用户输出与调试输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并回归通过 |
+
+### Execution Result Update (2026-02-12 Round 6)
+- [x] P1 代码风格分批修复（Batch 4: template.update/source/fpc.verify）
+- [ ] P1 代码风格分批修复（Batch 5: cmd.package/config.interfaces/toml.parser）
+- [ ] P2 Debug 输出分类治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 6 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 5 | `src/fpdev.cmd.package.pas`, `src/fpdev.config.interfaces.pas`, `src/fpdev.toml.parser.pas` | 新增测试红->绿，analyzer style 项继续下降 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分用户输出与调试输出，减少 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并回归通过 |
+
+### Session 2026-02-12 Round 7: Scan -> Plan -> Execute (Batch 5)
+
+#### Priority Queue (updated)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 5 | `src/fpdev.cmd.package.pas`, `src/fpdev.config.interfaces.pas`, `src/fpdev.toml.parser.pas` | 新增回归测试 RED->GREEN，analyzer style 不再命中这三文件 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音并保持 CLI 可见输出语义 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离并回归通过 |
+
+#### Execution Batch (this run)
+- 执行 P1（严格 TDD：Red -> Green -> Verify）
+- 计划文件：`docs/plans/2026-02-12-style-cleanup-batch5.md`
+
+### Execution Result Update (2026-02-12 Round 7)
+- [x] P1 代码风格分批修复（Batch 5: cmd.package/config.interfaces/toml.parser）
+- [ ] P1 代码风格分批修复（Batch 6: cmd.fpc/cmd.package.repo.update/toolchain）
+- [ ] P2 Debug 输出治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 7 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 6 | `src/fpdev.cmd.fpc.pas`, `src/fpdev.cmd.package.repo.update.pas`, `src/fpdev.toolchain.pas` | 新增回归测试 RED->GREEN，analyzer style 从这三文件继续迁移 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出与用户提示输出，降低 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |
+
+### Session 2026-02-12 Round 8: Scan -> Plan -> Execute (Batch 6)
+
+#### Priority Queue (updated)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 6 | `src/fpdev.cmd.fpc.pas`, `src/fpdev.cmd.package.repo.update.pas`, `src/fpdev.toolchain.pas` | 新增回归测试 RED->GREEN，analyzer style 不再命中这三文件 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音并保持 CLI 可见输出语义 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离并回归通过 |
+
+#### Execution Batch (this run)
+- 执行 P1（严格 TDD：Red -> Green -> Verify）
+- 计划文件：`docs/plans/2026-02-12-style-cleanup-batch6.md`
+
+### Execution Result Update (2026-02-12 Round 8)
+- [x] P1 代码风格分批修复（Batch 6: cmd.fpc/cmd.package.repo.update/toolchain）
+- [ ] P1 代码风格分批修复（Batch 7: fpc.interfaces/cmd.package.install_local/resource.repo）
+- [ ] P2 Debug 输出治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 8 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 7 | `src/fpdev.fpc.interfaces.pas`, `src/fpdev.cmd.package.install_local.pas`, `src/fpdev.resource.repo.pas` | 新增回归测试 RED->GREEN，analyzer style 从这三文件继续迁移 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出与用户提示输出，降低 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |
+
+### Session 2026-02-12 Round 9: Scan -> Plan -> Execute (Batch 7)
+
+#### Priority Queue (updated)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 7 | `src/fpdev.fpc.interfaces.pas`, `src/fpdev.cmd.package.install_local.pas`, `src/fpdev.resource.repo.pas` | 新增回归测试 RED->GREEN，analyzer style 不再命中这三文件 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 降低 debug_code 噪音并保持 CLI 可见输出语义 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离并回归通过 |
+
+#### Execution Batch (this run)
+- 执行 P1（严格 TDD：Red -> Green -> Verify）
+- 计划文件：`docs/plans/2026-02-12-style-cleanup-batch7.md`
+
+### Execution Result Update (2026-02-12 Round 9)
+- [x] P1 代码风格分批修复（Batch 7: fpc.interfaces/cmd.package.install_local/resource.repo）
+- [ ] P1 代码风格分批修复（Batch 8: template.list/registry.retry/git2）
+- [ ] P2 Debug 输出治理
+- [ ] P3 硬编码常量治理
+
+### Priority Queue (updated after Round 9 scan)
+| Priority | Task | Files | Done Criteria |
+|----------|------|-------|---------------|
+| P1 | Style Cleanup Batch 8 | `src/fpdev.cmd.project.template.list.pas`, `src/fpdev.registry.retry.pas`, `src/fpdev.git2.pas` | 新增回归测试 RED->GREEN，analyzer style 从这三文件继续迁移 |
+| P2 | Debug 输出治理 | `src/fpdev.fpc.binary.pas`, `src/fpdev.ui.progress.download.pas`, `src/fpdev.lazarus.source.pas` | 区分调试输出与用户提示输出，降低 debug_code 噪音 |
+| P3 | 硬编码常量治理 | `src/fpdev.cross.search.pas`, `src/fpdev.resource.repo.mirror.pas`, `src/fpdev.cmd.package.pas` | 常量分类抽离完成并保持回归通过 |

@@ -224,21 +224,76 @@ var
   SubCmds: TStringArray;
   Suggestion, UnknownCmd: string;
   LArgs: array of string;
-  CurrentArg: string;
+  BaseLen: Integer;
+  PrefixLen: Integer;
+  HelpPath: array of string;
+  NewArgs: array of string;
+
+  function HasCommandAtPath(const APath: array of string): Boolean;
+  var
+    N: TCommandNode;
+    k: Integer;
+    Part: string;
+  begin
+    Result := False;
+    N := FRoot;
+    for k := Low(APath) to High(APath) do
+    begin
+      Part := APath[k];
+      if Part = '' then Continue;
+      N := N.FindChild(LowerCase(Part));
+      if N = nil then Exit(False);
+      N := N.GetEffectiveNode;
+    end;
+    Result := (N <> nil) and (Assigned(N.Factory) or Assigned(N.Command));
+  end;
 begin
   Result := EXIT_OK;
   Rest := nil;
   LArgs := nil;
 
-  // Normalize args: convert --help/-h to help subcommand
+  // Help flag handling:
+  // - Leaf commands should receive "--help" as a flag (so they can print their own usage).
+  // - Namespace roots (e.g. "fpdev fpc --help") should route to the nearest "<prefix> help" command.
+  // - Subcommand help (e.g. "fpdev fpc test --help") should route to "fpdev fpc help test".
+  //
+  // We only rewrite when the LAST argument is a help flag, and only if a "<prefix> help"
+  // command exists. Otherwise we keep args unchanged.
   SetLength(LArgs, Length(AArgs));
   for i := 0 to High(AArgs) do
+    LArgs[i] := AArgs[i];
+
+  if (Length(LArgs) >= 2) and ((LArgs[High(LArgs)] = '--help') or (LArgs[High(LArgs)] = '-h')) then
   begin
-    CurrentArg := AArgs[i];
-    if (CurrentArg = '--help') or (CurrentArg = '-h') then
-      LArgs[i] := 'help'
-    else
-      LArgs[i] := CurrentArg;
+    // Candidate rewrite (only if "<prefix> help" exists):
+    //   fpc --help         -> fpc help
+    //   fpc test --help    -> fpc help test
+    //   lazarus run --help -> lazarus help run
+    //
+    // If no matching help command exists, keep args unchanged so the leaf command can
+    // handle "--help" directly (e.g. shell-hook, resolve-version).
+    BaseLen := Length(LArgs) - 1; // exclude trailing --help/-h
+    for PrefixLen := BaseLen downto 1 do
+    begin
+      HelpPath := nil;
+      SetLength(HelpPath, PrefixLen + 1);
+      for i := 0 to PrefixLen - 1 do
+        HelpPath[i] := LArgs[i];
+      HelpPath[PrefixLen] := 'help';
+
+      if HasCommandAtPath(HelpPath) then
+      begin
+        NewArgs := nil;
+        SetLength(NewArgs, BaseLen + 1);
+        for i := 0 to PrefixLen - 1 do
+          NewArgs[i] := LArgs[i];
+        NewArgs[PrefixLen] := 'help';
+        for i := PrefixLen to BaseLen - 1 do
+          NewArgs[i + 1] := LArgs[i];
+        LArgs := NewArgs;
+        Break;
+      end;
+    end;
   end;
 
   Node := FRoot;
@@ -418,4 +473,3 @@ finalization
   GRegistry.Free;
 
 end.
-

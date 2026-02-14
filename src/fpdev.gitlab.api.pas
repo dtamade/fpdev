@@ -127,6 +127,9 @@ begin
     // Add custom headers
     if Assigned(AHeaders) then
       FHTTPClient.RequestHeaders.AddStrings(AHeaders);
+
+    // Avoid leaking request body across calls.
+    FHTTPClient.RequestBody := nil;
     
     // Execute HTTP request
     if AMethod = 'GET' then
@@ -134,12 +137,22 @@ begin
       FHTTPClient.Get(AURL, AResponse);
       Result := True;
     end
-    else if (AMethod = 'POST') or (AMethod = 'PUT') or (AMethod = 'DELETE') then
+    else if (AMethod = 'POST') or (AMethod = 'PUT') then
     begin
-      // GitLab API POST/PUT/DELETE not yet implemented
-      // Requires custom HTTP client or different approach
-      FLastError := 'HTTP ' + AMethod + ' not yet implemented - requires custom HTTP client';
-      Exit(False);
+      if Assigned(ABody) then
+        ABody.Position := 0;
+      FHTTPClient.RequestBody := ABody;
+      try
+        FHTTPClient.HTTPMethod(AMethod, AURL, AResponse, [200, 201, 202, 204]);
+      finally
+        FHTTPClient.RequestBody := nil;
+      end;
+      Result := True;
+    end
+    else if AMethod = 'DELETE' then
+    begin
+      FHTTPClient.HTTPMethod('DELETE', AURL, AResponse, [200, 202, 204]);
+      Result := True;
     end
     else
     begin
@@ -171,9 +184,51 @@ end;
 
 function TGitLabClient.CreateProject(const AName, ADescription: string; 
   AVisibility: string): TJSONObject;
+var
+  URL: string;
+  Response: TMemoryStream;
+  Headers: TStringList;
+  Body: TMemoryStream;
+  Payload: TJSONObject;
+  JSON: TJSONData;
+  JSONStr: string;
 begin
   Result := nil;
-  FLastError := 'CreateProject not yet implemented - requires HTTP POST support';
+  URL := BuildURL('/projects');
+  Response := TMemoryStream.Create;
+  Headers := TStringList.Create;
+  Body := TMemoryStream.Create;
+  Payload := TJSONObject.Create;
+  try
+    Payload.Add('name', AName);
+    Payload.Add('description', ADescription);
+    Payload.Add('visibility', AVisibility);
+
+    JSONStr := Payload.AsJSON;
+    WriteString(Body, JSONStr);
+    Body.Position := 0;
+
+    AddAuthHeaders(Headers);
+    Headers.Add('Content-Type: application/json');
+
+    if ExecuteRequest('POST', URL, Body, Headers, Response) then
+    begin
+      Response.Position := 0;
+      JSON := GetJSON(Response);
+      if JSON is TJSONObject then
+        Result := TJSONObject(JSON)
+      else
+      begin
+        JSON.Free;
+        FLastError := 'CreateProject response is not a JSON object';
+      end;
+    end;
+  finally
+    Payload.Free;
+    Body.Free;
+    Headers.Free;
+    Response.Free;
+  end;
 end;
 
 function TGitLabClient.GetProject(const AProjectID: string): TJSONObject;
@@ -238,9 +293,55 @@ end;
 
 function TGitLabClient.UploadPackage(const AProjectID: string; 
   const AFilePath, APackageName, AVersion: string): TJSONObject;
+var
+  URL: string;
+  Response: TMemoryStream;
+  Headers: TStringList;
+  Body: TMemoryStream;
+  FileStream: TFileStream;
+  JSON: TJSONData;
 begin
   Result := nil;
-  FLastError := 'UploadPackage not yet implemented - requires HTTP POST support';
+  if not FileExists(AFilePath) then
+  begin
+    FLastError := 'Package file not found: ' + AFilePath;
+    Exit;
+  end;
+
+  URL := BuildURL('/projects/' + AProjectID + '/packages/generic/' + APackageName +
+    '/' + AVersion + '/' + ExtractFileName(AFilePath));
+  Response := TMemoryStream.Create;
+  Headers := TStringList.Create;
+  Body := TMemoryStream.Create;
+  try
+    FileStream := TFileStream.Create(AFilePath, fmOpenRead or fmShareDenyWrite);
+    try
+      Body.CopyFrom(FileStream, FileStream.Size);
+      Body.Position := 0;
+    finally
+      FileStream.Free;
+    end;
+
+    AddAuthHeaders(Headers);
+    Headers.Add('Content-Type: application/octet-stream');
+
+    if ExecuteRequest('POST', URL, Body, Headers, Response) then
+    begin
+      Response.Position := 0;
+      JSON := GetJSON(Response);
+      if JSON is TJSONObject then
+        Result := TJSONObject(JSON)
+      else
+      begin
+        JSON.Free;
+        FLastError := 'UploadPackage response is not a JSON object';
+      end;
+    end;
+  finally
+    Body.Free;
+    Headers.Free;
+    Response.Free;
+  end;
 end;
 
 function TGitLabClient.GetPackage(const AProjectID, APackageName, AVersion: string): TJSONObject;
@@ -304,15 +405,69 @@ begin
 end;
 
 function TGitLabClient.DeletePackage(const AProjectID, APackageID: string): Boolean;
+var
+  URL: string;
+  Response: TMemoryStream;
+  Headers: TStringList;
 begin
-  Result := False;
-  FLastError := 'DeletePackage not yet implemented - requires HTTP DELETE support';
+  URL := BuildURL('/projects/' + AProjectID + '/packages/' + APackageID);
+  Response := TMemoryStream.Create;
+  Headers := TStringList.Create;
+  try
+    AddAuthHeaders(Headers);
+    Result := ExecuteRequest('DELETE', URL, nil, Headers, Response);
+  finally
+    Headers.Free;
+    Response.Free;
+  end;
 end;
 
 function TGitLabClient.CreateRelease(const AProjectID, ATag, AName, ADescription: string): TJSONObject;
+var
+  URL: string;
+  Response: TMemoryStream;
+  Headers: TStringList;
+  Body: TMemoryStream;
+  Payload: TJSONObject;
+  JSON: TJSONData;
+  JSONStr: string;
 begin
   Result := nil;
-  FLastError := 'CreateRelease not yet implemented - requires HTTP POST support';
+  URL := BuildURL('/projects/' + AProjectID + '/releases');
+  Response := TMemoryStream.Create;
+  Headers := TStringList.Create;
+  Body := TMemoryStream.Create;
+  Payload := TJSONObject.Create;
+  try
+    Payload.Add('tag_name', ATag);
+    Payload.Add('name', AName);
+    Payload.Add('description', ADescription);
+
+    JSONStr := Payload.AsJSON;
+    WriteString(Body, JSONStr);
+    Body.Position := 0;
+
+    AddAuthHeaders(Headers);
+    Headers.Add('Content-Type: application/json');
+
+    if ExecuteRequest('POST', URL, Body, Headers, Response) then
+    begin
+      Response.Position := 0;
+      JSON := GetJSON(Response);
+      if JSON is TJSONObject then
+        Result := TJSONObject(JSON)
+      else
+      begin
+        JSON.Free;
+        FLastError := 'CreateRelease response is not a JSON object';
+      end;
+    end;
+  finally
+    Payload.Free;
+    Body.Free;
+    Headers.Free;
+    Response.Free;
+  end;
 end;
 
 function TGitLabClient.GetRelease(const AProjectID, ATag: string): TJSONObject;

@@ -20,13 +20,13 @@ type
   public
     constructor Create(AType: TTOMLValueType);
     destructor Destroy; override;
-    
+
     property ValueType: TTOMLValueType read FValueType;
     property StringValue: string read FStringValue write FStringValue;
     property BooleanValue: Boolean read FBooleanValue write FBooleanValue;
     property IntegerValue: Int64 read FIntegerValue write FIntegerValue;
     property ArrayValue: TStringList read FArrayValue;
-    
+
     function AsString: string;
     function AsBoolean: Boolean;
     function AsInteger: Int64;
@@ -44,10 +44,10 @@ type
   public
     constructor Create(const AName: string);
     destructor Destroy; override;
-    
+
     property Name: string read FName;
     property Values: TTOMLValueMap read FValues;
-    
+
     function GetValue(const AKey: string): TTOMLValue;
     function HasKey(const AKey: string): Boolean;
     function GetString(const AKey: string; const ADefault: string = ''): string;
@@ -61,7 +61,7 @@ type
     FSections: TTOMLSectionMap;
     FCurrentSection: TTOMLSection;
     FParseError: string;
-    
+
     function ParseLine(const ALine: string): Boolean;
     function ParseSection(const ALine: string): Boolean;
     function ParseKeyValue(const ALine: string): Boolean;
@@ -72,12 +72,12 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    
+
     function LoadFromFile(const AFileName: string): Boolean;
     function LoadFromString(const AContent: string): Boolean;
     function GetSection(const AName: string): TTOMLSection;
     function HasSection(const AName: string): Boolean;
-    
+
     property ParseError: string read FParseError;
     property Sections: TTOMLSectionMap read FSections;
   end;
@@ -251,13 +251,13 @@ var
 begin
   Result := False;
   FParseError := '';
-  
+
   if not FileExists(AFileName) then
   begin
     FParseError := 'File not found: ' + AFileName;
     Exit;
   end;
-  
+
   Content := TStringList.Create;
   try
     Content.LoadFromFile(AFileName);
@@ -275,18 +275,18 @@ var
 begin
   Result := True;
   FParseError := '';
-  
+
   Lines := TStringList.Create;
   try
     Lines.Text := AContent;
-    
+
     for I := 0 to Lines.Count - 1 do
     begin
       Line := Trim(TrimComment(Lines[I]));
-      
+
       if Line = '' then
         Continue;
-      
+
       if not ParseLine(Line) then
       begin
         FParseError := Format('Parse error at line %d: %s', [I + 1, Line]);
@@ -313,15 +313,15 @@ var
   EndPos: Integer;
 begin
   Result := False;
-  
+
   EndPos := Pos(']', ALine);
   if EndPos = 0 then
     Exit;
-  
+
   SectionName := Trim(Copy(ALine, 2, EndPos - 2));
   if SectionName = '' then
     Exit;
-  
+
   FCurrentSection := TTOMLSection.Create(SectionName);
   FSections.Add(SectionName, FCurrentSection);
   Result := True;
@@ -334,24 +334,24 @@ var
   Value: TTOMLValue;
 begin
   Result := False;
-  
+
   if not Assigned(FCurrentSection) then
     Exit;
-  
+
   EqualPos := Pos('=', ALine);
   if EqualPos = 0 then
     Exit;
-  
+
   Key := Trim(Copy(ALine, 1, EqualPos - 1));
   ValueStr := Trim(Copy(ALine, EqualPos + 1, Length(ALine)));
-  
+
   if (Key = '') or (ValueStr = '') then
     Exit;
-  
+
   Value := ParseValue(ValueStr);
   if not Assigned(Value) then
     Exit;
-  
+
   FCurrentSection.Values.Add(Key, Value);
   Result := True;
 end;
@@ -362,7 +362,7 @@ var
   IntValue: Int64;
 begin
   Result := nil;
-  
+
   if (Length(AValue) > 0) and (AValue[1] = '[') then
   begin
     Result := ParseArray(AValue);
@@ -403,21 +403,21 @@ var
   Item: string;
 begin
   Result := TTOMLValue.Create(tvtArray);
-  
+
   if (Length(AValue) < 2) or (AValue[1] <> '[') or (AValue[Length(AValue)] <> ']') then
     Exit;
-  
+
   Content := Trim(Copy(AValue, 2, Length(AValue) - 2));
   if Content = '' then
     Exit;
-  
+
   Items := TStringList.Create;
   try
     Start := 1;
     InQuote := False;
     QuoteChar := #0;
     Len := Length(Content);
-    
+
     for I := 1 to Len do
     begin
       if not InQuote then
@@ -441,11 +441,11 @@ begin
           InQuote := False;
       end;
     end;
-    
+
     Item := Trim(Copy(Content, Start, Len - Start + 1));
     if Item <> '' then
       Items.Add(UnquoteString(Item));
-    
+
     for I := 0 to Items.Count - 1 do
       Result.ArrayValue.Add(Items[I]);
   finally

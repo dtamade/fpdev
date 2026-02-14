@@ -343,6 +343,34 @@ begin
   end;
 end;
 
+procedure TestNonDryRunMissingMakefileIsHelpful;
+var
+  Cmd: TCrossBuildCommand;
+  OutBuf, ErrBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ErrOutput, SrcRoot, SrcTree: string;
+begin
+  SrcRoot := GetTempDir + 'fpdev_test_cross_build_src_' + IntToStr(GetTickCount64);
+  SrcTree := SrcRoot + PathDelim + 'fpc-main';
+  ForceDirectories(SrcTree);
+
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, ErrBuf);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--source=' + SrcRoot, '--version=main'], Ctx);
+    ErrOutput := ErrBuf.GetBuffer;
+
+    Test('Non-dry-run missing Makefile returns non-zero exit code', Ret <> 0);
+    Test('Non-dry-run missing Makefile mentions "Makefile"', Pos('makefile', LowerCase(ErrOutput)) > 0);
+    Test('Non-dry-run missing Makefile mentions source tree path', Pos(SrcTree, ErrOutput) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestRegisteredInGlobalRegistry;
 var
   Ctx: IContext;
@@ -370,6 +398,7 @@ begin
   TestMissingTarget;
   TestInvalidTargetFormat;
   TestDryRunShowsBuildPlan;
+  TestNonDryRunMissingMakefileIsHelpful;
   TestRegisteredInGlobalRegistry;
 
   WriteLn;

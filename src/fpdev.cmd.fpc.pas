@@ -74,7 +74,12 @@ type
     // 版本管理
     function GetAvailableVersions: TFPCVersionArray;
     function GetInstalledVersions: TFPCVersionArray;
-    function InstallVersion(const AVersion: string; const AFromSource: Boolean = False; const APrefix: string = ''; const AEnsure: Boolean = False): Boolean;
+    function InstallVersion(
+      const AVersion: string;
+      const AFromSource: Boolean = False;
+      const APrefix: string = '';
+      const AEnsure: Boolean = False
+    ): Boolean;
     function UninstallVersion(const AVersion: string): Boolean;
     function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
     function ListVersions(const Outp: IOutput; const AShowAll: Boolean = False): Boolean; overload;
@@ -384,7 +389,15 @@ begin
     begin
       if DirectoryExists(ProjectRoot + PathDelim + FPDEV_CONFIG_DIR) then
       begin
-        Result := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
+        Result := ProjectRoot
+          + PathDelim
+          + FPDEV_CONFIG_DIR
+          + PathDelim
+          + 'toolchains'
+          + PathDelim
+          + 'fpc'
+          + PathDelim
+          + AVersion;
         Exit;
       end;
       ProjectRoot := ExtractFileDir(ProjectRoot);
@@ -520,7 +533,12 @@ begin
   end;
 end;
 
-function TFPCManager.InstallVersion(const AVersion: string; const AFromSource: Boolean; const APrefix: string; const AEnsure: Boolean): Boolean;
+function TFPCManager.InstallVersion(
+  const AVersion: string;
+  const AFromSource: Boolean;
+  const APrefix: string;
+  const AEnsure: Boolean
+): Boolean;
 var
   InstallPath, SourceDir, FPCExe: string;
   CacheRestored: Boolean;

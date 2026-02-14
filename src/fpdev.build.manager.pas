@@ -725,17 +725,22 @@ var
   LJobs: string;
   LMake: string;
   LMakeVer: Integer;
+  LExit: Integer;
 begin
   Result := False;
   LArgs := nil;
-  if not DirectoryExists(ASourcePath) then Exit(False);
+  FLastError := '';
+  if not DirectoryExists(ASourcePath) then
+  begin
+    FLastError := 'Source path not found: ' + ASourcePath;
+    Exit(False);
+  end;
   // 解析 make 命令（去除内联变量）
   LMake := ResolveMakeCmd;
-  LMakeVer := ExecuteProcess(LMake, ['--version']);
-  if LMakeVer <> 0 then
+  if LMake = '' then
   begin
-    Log('Make not detected (' + LMake + '), skipping actual build');
-    Exit(True); // Safe: do not block subsequent processes
+    FLastError := 'Make command not configured';
+    Exit(False);
   end;
   // 组合参数：-C <dir> -jN <targets>
   if FParallelJobs <= 0 then FParallelJobs := 1;
@@ -771,7 +776,42 @@ begin
     Log('dry-run: skipped make execution');
     Exit(True);
   end;
-  Result := ExecuteProcess(ResolveMakeCmd, LArgs) = 0;
+
+  // Ensure make is runnable (and avoid unhandled EOSError crashes).
+  try
+    LMakeVer := ExecuteProcess(LMake, ['--version']);
+  except
+    on E: Exception do
+    begin
+      FLastError := 'Failed to execute make (' + LMake + '): ' + E.Message;
+      Log(FLastError);
+      Exit(False);
+    end;
+  end;
+  if LMakeVer <> 0 then
+  begin
+    FLastError := 'Make not detected (' + LMake + '), exit=' + IntToStr(LMakeVer);
+    Log(FLastError);
+    Exit(False);
+  end;
+
+  try
+    LExit := ExecuteProcess(LMake, LArgs);
+  except
+    on E: Exception do
+    begin
+      FLastError := 'Failed to execute make (' + LMake + '): ' + E.Message;
+      Log(FLastError);
+      Exit(False);
+    end;
+  end;
+
+  Result := (LExit = 0);
+  if not Result then
+  begin
+    FLastError := 'make failed (' + LMake + '), exit=' + IntToStr(LExit) + ' (log: ' + FLogger.LogFileName + ')';
+    Log(FLastError);
+  end;
 end;
 
 function TBuildManager.BuildCompiler(const AVersion: string): Boolean;
@@ -1270,4 +1310,3 @@ begin
 end;
 
 end.
-

@@ -7,7 +7,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.types,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes,
+  fpdev.paths;
 
 type
   { TFPCInstallCommand }
@@ -113,14 +114,8 @@ begin
   LSettings := Ctx.Config.GetSettingsManager.GetSettings;
   LInstallRoot := LSettings.InstallRoot;
   if LInstallRoot = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    LInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
-    {$ELSE}
-    LInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
-    {$ENDIF}
-  end;
-  LCacheDir := LInstallRoot + PathDelim + 'cache' + PathDelim + 'builds';
+    LInstallRoot := GetDataRoot;
+  LCacheDir := IncludeTrailingPathDelimiter(IncludeTrailingPathDelimiter(LInstallRoot) + 'cache') + 'builds';
   LCache := TBuildCache.Create(LCacheDir);
   try
     // Check cache before installation (unless --no-cache is specified)
@@ -188,6 +183,16 @@ begin
       Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ', no-cache)')
     else
       Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ')');
+
+    // Test runner safeguard: keep unit/integration tests offline/deterministic by
+    // short-circuiting any network install attempts unless explicitly requested
+    // via --offline + cache hit.
+    if GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1' then
+    begin
+      Ctx.Err.WriteLn('[FAIL] Network operations disabled (FPDEV_SKIP_NETWORK_TESTS=1)');
+      Ctx.Err.WriteLn('[HINT] Re-run without FPDEV_SKIP_NETWORK_TESTS=1 to perform real installation');
+      Exit(EXIT_IO_ERROR);
+    end;
 
     // Perform installation with auto-mode fallback logic
     LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);

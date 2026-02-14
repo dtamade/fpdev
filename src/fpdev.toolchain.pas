@@ -242,7 +242,11 @@ begin
   end;
 end;
 
-function ProbeFirstAvailable(const ANames: array of string; const AArgs: array of string; out Chosen: string): TToolStatus;
+function ProbeFirstAvailable(
+  const ANames: array of string;
+  const AArgs: array of string;
+  out Chosen: string
+): TToolStatus;
 var i: Integer;
 begin
   for i := Low(ANames) to High(ANames) do
@@ -430,4 +434,3 @@ begin
 end;
 
 end.
-

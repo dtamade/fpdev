@@ -24,7 +24,11 @@ uses fpdev.cmd.utils;
 
 function TPackageRepoUpdateCommand.Name: string; begin Result := 'update'; end;
 function TPackageRepoUpdateCommand.Aliases: TStringArray; begin Result := nil; end;
-function TPackageRepoUpdateCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TPackageRepoUpdateCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function PackageRepoUpdateFactory: ICommand;
 begin

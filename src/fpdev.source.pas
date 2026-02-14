@@ -7,7 +7,11 @@ interface
 uses
   SysUtils, Classes, fpdev.toolchain.extract, fpdev.hash, fpdev.paths, fpdev.utils.fs, fpdev.utils;
 
-function EnsureSourceLocalDir(const AName, AVersion, ALocalPath: string; AStrict: Boolean; out ADestPath, AErr: string): boolean;
+function EnsureSourceLocalDir(
+  const AName, AVersion, ALocalPath: string;
+  AStrict: Boolean;
+  out ADestPath, AErr: string
+): boolean;
 function EnsureSourceLocalZip(const AName, AVersion, AZipPath, ASha256: string; out ADestPath, AErr: string): boolean;
 function WriteLockfile(const AName, AVersion, ASource, ADest: string; const ASha256: string): boolean;
 function ImportBundle(const ABundlePathOrDir: string; out AErr: string): boolean;
@@ -70,7 +74,11 @@ begin
   Result := True;
 end;
 
-function EnsureSourceLocalDir(const AName, AVersion, ALocalPath: string; AStrict: Boolean; out ADestPath, AErr: string): boolean;
+function EnsureSourceLocalDir(
+  const AName, AVersion, ALocalPath: string;
+  AStrict: Boolean;
+  out ADestPath, AErr: string
+): boolean;
 var
   Dest: string;
 begin
@@ -164,7 +172,9 @@ begin
     // 如果是 zip 文件，直接解压到临时目录再处理
     if LowerCase(ExtractFileExt(BaseDir)) = '.zip' then
     begin
-      LTmpDir := IncludeTrailingPathDelimiter(GetSandboxDir) + 'tmp' + PathDelim + 'bundle-unzip-' + FormatDateTime('yyyymmddhhnnss', Now);
+      LTmpDir := IncludeTrailingPathDelimiter(GetSandboxDir) + 'tmp' +
+                 PathDelim + 'bundle-unzip-' +
+                 FormatDateTime('yyyymmddhhnnss', Now);
       EnsureDir(LTmpDir);
       if not ZipExtract(BaseDir, LTmpDir, LTmpErr) then
       begin
@@ -220,4 +230,3 @@ begin
 end;
 
 end.
-

@@ -39,6 +39,16 @@ uses
   fpjson,
   fpdev.config.project;
 
+const
+  HELP_RESOLVE_VERSION =
+    'Usage: fpdev resolve-version [--json]' + LineEnding +
+    '' + LineEnding +
+    'Resolve the effective FPC version for the current directory.' + LineEnding +
+    '' + LineEnding +
+    'Options:' + LineEnding +
+    '  --json           Output detailed JSON' + LineEnding +
+    '  --help, -h       Show this help message';
+
 function ResolveVersionCommandFactory: ICommand;
 begin
   Result := TResolveVersionCommand.Create;
@@ -72,6 +82,16 @@ var
   I: Integer;
 begin
   Result := EXIT_OK;
+
+  // Help output (this is an internal command used by shell hooks)
+  for I := 0 to High(AParams) do
+  begin
+    if (AParams[I] = '--help') or (AParams[I] = '-h') then
+    begin
+      Ctx.Out.WriteLn(HELP_RESOLVE_VERSION);
+      Exit(EXIT_OK);
+    end;
+  end;
 
   // 检查 --json 标志
   LJsonOutput := False;

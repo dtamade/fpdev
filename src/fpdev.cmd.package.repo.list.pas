@@ -23,7 +23,12 @@ implementation
 uses fpdev.cmd.utils;
 
 function TPackageRepoListCommand.Name: string; begin Result := 'list'; end;
-function TPackageRepoListCommand.Aliases: TStringArray; begin Result := nil; SetLength(Result,1); Result[0] := 'ls'; end;
+function TPackageRepoListCommand.Aliases: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 1);
+  Result[0] := 'ls';
+end;
 function TPackageRepoListCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
 function PackageRepoListFactory: ICommand;

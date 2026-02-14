@@ -109,7 +109,8 @@ const
     '      if [[ -n "$version" && "$version" != "$_FPDEV_CURRENT_VERSION" ]]; then' + LineEnding +
     '        export _FPDEV_CURRENT_VERSION="$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
-    '        local activate_script="$HOME/.fpdev/env/activate-$version.sh"' + LineEnding +
+    '        local fpdev_root="${FPDEV_DATA_ROOT:-$HOME/.fpdev}"' + LineEnding +
+    '        local activate_script="$fpdev_root/env/activate-$version.sh"' + LineEnding +
     '        if [[ -f "$activate_script" ]]; then' + LineEnding +
     '          source "$activate_script"' + LineEnding +
     '          echo "fpdev: Switched to FPC $version (from $found)"' + LineEnding +
@@ -171,7 +172,11 @@ const
     '      if test -n "$version" -a "$version" != "$_FPDEV_CURRENT_VERSION"' + LineEnding +
     '        set -gx _FPDEV_CURRENT_VERSION "$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
-    '        set -l activate_script "$HOME/.fpdev/env/activate-$version.fish"' + LineEnding +
+    '        set -l fpdev_root "$HOME/.fpdev"' + LineEnding +
+    '        if set -q FPDEV_DATA_ROOT' + LineEnding +
+    '          set fpdev_root "$FPDEV_DATA_ROOT"' + LineEnding +
+    '        end' + LineEnding +
+    '        set -l activate_script "$fpdev_root/env/activate-$version.fish"' + LineEnding +
     '        if test -f "$activate_script"' + LineEnding +
     '          source "$activate_script"' + LineEnding +
     '          echo "fpdev: Switched to FPC $version (from $found)"' + LineEnding +

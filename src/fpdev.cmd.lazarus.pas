@@ -74,8 +74,19 @@ type
     function GetInstalledVersions: TLazarusVersionArray;
 
     // 版本管理
-    function InstallVersion(const AVersion: string; const AFPCVersion: string = ''; const AFromSource: Boolean = False; const AConfigure: Boolean = True): Boolean; overload;
-    function InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean = True): Boolean; overload;
+    function InstallVersion(
+      const AVersion: string;
+      const AFPCVersion: string = '';
+      const AFromSource: Boolean = False;
+      const AConfigure: Boolean = True
+    ): Boolean; overload;
+    function InstallVersion(
+      const Outp, Errp: IOutput;
+      const AVersion: string;
+      const AFPCVersion: string;
+      const AFromSource: Boolean;
+      const AConfigure: Boolean = True
+    ): Boolean; overload;
     function UninstallVersion(const AVersion: string): Boolean; overload;
     function UninstallVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
@@ -350,12 +361,23 @@ begin
   end;
 end;
 
-function TLazarusManager.InstallVersion(const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean): Boolean;
+function TLazarusManager.InstallVersion(
+  const AVersion: string;
+  const AFPCVersion: string;
+  const AFromSource: Boolean;
+  const AConfigure: Boolean
+): Boolean;
 begin
   Result := InstallVersion(nil, nil, AVersion, AFPCVersion, AFromSource, AConfigure);
 end;
 
-function TLazarusManager.InstallVersion(const Outp, Errp: IOutput; const AVersion: string; const AFPCVersion: string; const AFromSource: Boolean; const AConfigure: Boolean): Boolean;
+function TLazarusManager.InstallVersion(
+  const Outp, Errp: IOutput;
+  const AVersion: string;
+  const AFPCVersion: string;
+  const AFromSource: Boolean;
+  const AConfigure: Boolean
+): Boolean;
 var
   InstallPath, SourceDir: string;
   FPCVer: string;
@@ -447,7 +469,11 @@ begin
       begin
         // Configuration failure is non-fatal, just warn
         if Errp <> nil then
-          Errp.WriteLn(_(MSG_WARNING) + ': IDE configuration incomplete, run "fpdev lazarus configure ' + AVersion + '" manually');
+          Errp.WriteLn(
+            _(MSG_WARNING) +
+            ': IDE configuration incomplete, run "fpdev lazarus configure ' +
+            AVersion + '" manually'
+          );
       end;
     end;
 
@@ -1012,9 +1038,13 @@ begin
         LE.WriteLn(_(MSG_LAZARUS_DIR_WARN));
 
       // Set FPC source path if available
-      if DirectoryExists(Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion) then
+      if DirectoryExists(
+        Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion
+      ) then
       begin
-        if IDEConfig.SetFPCSourcePath(Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion) then
+        if IDEConfig.SetFPCSourcePath(
+          Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion
+        ) then
           LO.WriteLn(_(MSG_LAZARUS_FPC_SRC_SET));
       end;
 

@@ -12,6 +12,11 @@ program test_command_registry;
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
+  fpdev.config.managers,
+  fpdev.exitcodes,
+  fpdev.logger.intf,
+  fpdev.output.intf,
   // Import all command units to trigger registration
   fpdev.cmd.help,
   fpdev.cmd.help.root,
@@ -68,6 +73,7 @@ uses
   fpdev.cmd.cross.configure,
   fpdev.cmd.cross.doctor,
   fpdev.cmd.cross.help,
+  fpdev.cmd.cross.build,
   fpdev.cmd.package.root,
   fpdev.cmd.package.install,
   fpdev.cmd.package.list,
@@ -87,7 +93,18 @@ uses
   fpdev.cmd.project.clean,
   fpdev.cmd.project.test,
   fpdev.cmd.project.run,
-  fpdev.cmd.project.help;
+  fpdev.cmd.project.help,
+  fpdev.cmd.shellhook,
+  fpdev.cmd.resolveversion,
+  fpdev.cmd.config,
+  fpdev.cmd.config.list,
+  fpdev.cmd.index,
+  fpdev.cmd.cache,
+  fpdev.cmd.perf,
+  fpdev.cmd.env,
+  fpdev.cmd.doctor,
+  fpdev.cmd.default,
+  fpdev.cmd.show;
 
 var
   TestsPassed: Integer = 0;
@@ -115,6 +132,166 @@ end;
 procedure AssertEquals(AExpected, AActual: Integer; const AMessage: string);
 begin
   AssertTrue(AExpected = AActual, AMessage + ' (expected: ' + IntToStr(AExpected) + ', got: ' + IntToStr(AActual) + ')');
+end;
+
+type
+  { TBufferOutput - captures output to a string buffer for assertions }
+  TBufferOutput = class(TInterfacedObject, IOutput)
+  private
+    FBuf: string;
+  public
+    procedure Write(const S: string);
+    procedure WriteLn; overload;
+    procedure WriteLn(const S: string); overload;
+    procedure WriteFmt(const Fmt: string; const Args: array of const);
+    procedure WriteLnFmt(const Fmt: string; const Args: array of const);
+    procedure WriteColored(const S: string; const AColor: TConsoleColor);
+    procedure WriteLnColored(const S: string; const AColor: TConsoleColor);
+    procedure WriteStyled(const S: string; const AColor: TConsoleColor; const AStyle: TConsoleStyle);
+    procedure WriteLnStyled(const S: string; const AColor: TConsoleColor; const AStyle: TConsoleStyle);
+    procedure WriteSuccess(const S: string);
+    procedure WriteError(const S: string);
+    procedure WriteWarning(const S: string);
+    procedure WriteInfo(const S: string);
+    function SupportsColor: Boolean;
+    function Text: string;
+    procedure Clear;
+  end;
+
+  { TTestContext - minimal context for registry dispatch tests }
+  TTestContext = class(TInterfacedObject, IContext)
+  private
+    FConfig: IConfigManager;
+    FOut: IOutput;
+    FErr: IOutput;
+  public
+    constructor Create(const AOut, AErr: IOutput);
+    function Config: IConfigManager;
+    function Out: IOutput;
+    function Err: IOutput;
+    function Logger: ILogger;
+    procedure SaveIfModified;
+  end;
+
+procedure TBufferOutput.Write(const S: string);
+begin
+  FBuf := FBuf + S;
+end;
+
+procedure TBufferOutput.WriteLn;
+begin
+  FBuf := FBuf + LineEnding;
+end;
+
+procedure TBufferOutput.WriteLn(const S: string);
+begin
+  FBuf := FBuf + S + LineEnding;
+end;
+
+procedure TBufferOutput.WriteFmt(const Fmt: string; const Args: array of const);
+begin
+  Write(Format(Fmt, Args));
+end;
+
+procedure TBufferOutput.WriteLnFmt(const Fmt: string; const Args: array of const);
+begin
+  WriteLn(Format(Fmt, Args));
+end;
+
+procedure TBufferOutput.WriteColored(const S: string; const AColor: TConsoleColor);
+begin
+  if AColor = ccDefault then; // suppress unused parameter
+  Write(S);
+end;
+
+procedure TBufferOutput.WriteLnColored(const S: string; const AColor: TConsoleColor);
+begin
+  if AColor = ccDefault then;
+  WriteLn(S);
+end;
+
+procedure TBufferOutput.WriteStyled(const S: string; const AColor: TConsoleColor; const AStyle: TConsoleStyle);
+begin
+  if AColor = ccDefault then;
+  if AStyle = csNone then;
+  Write(S);
+end;
+
+procedure TBufferOutput.WriteLnStyled(const S: string; const AColor: TConsoleColor; const AStyle: TConsoleStyle);
+begin
+  if AColor = ccDefault then;
+  if AStyle = csNone then;
+  WriteLn(S);
+end;
+
+procedure TBufferOutput.WriteSuccess(const S: string);
+begin
+  WriteLn(S);
+end;
+
+procedure TBufferOutput.WriteError(const S: string);
+begin
+  WriteLn(S);
+end;
+
+procedure TBufferOutput.WriteWarning(const S: string);
+begin
+  WriteLn(S);
+end;
+
+procedure TBufferOutput.WriteInfo(const S: string);
+begin
+  WriteLn(S);
+end;
+
+function TBufferOutput.SupportsColor: Boolean;
+begin
+  Result := False;
+end;
+
+function TBufferOutput.Text: string;
+begin
+  Result := FBuf;
+end;
+
+procedure TBufferOutput.Clear;
+begin
+  FBuf := '';
+end;
+
+constructor TTestContext.Create(const AOut, AErr: IOutput);
+begin
+  inherited Create;
+  FConfig := TConfigManager.Create('') as IConfigManager;
+  FConfig.LoadConfig;
+  FOut := AOut;
+  FErr := AErr;
+end;
+
+function TTestContext.Config: IConfigManager;
+begin
+  Result := FConfig;
+end;
+
+function TTestContext.Out: IOutput;
+begin
+  Result := FOut;
+end;
+
+function TTestContext.Err: IOutput;
+begin
+  Result := FErr;
+end;
+
+function TTestContext.Logger: ILogger;
+begin
+  Result := nil;
+end;
+
+procedure TTestContext.SaveIfModified;
+begin
+  if (FConfig <> nil) and FConfig.IsModified then
+    FConfig.SaveConfig;
 end;
 
 // ============================================================================
@@ -329,6 +506,168 @@ begin
 end;
 
 // ============================================================================
+// Test: Help Flags Dispatch Correctly (--help should not become positional "help")
+// ============================================================================
+procedure TestHelpFlagsDispatch;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestHelpFlagsDispatch');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  // Leaf command should see --help and print its own usage
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['shell-hook', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'shell-hook --help exits 0');
+  AssertTrue(Pos('Usage: fpdev shell-hook', OutBufObj.Text) > 0, 'shell-hook --help prints usage');
+
+  // Namespaced leaf commands should accept --help and print usage
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['fpc', 'test', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'fpc test --help exits 0');
+  AssertTrue(Pos('Usage: fpdev fpc test', OutBufObj.Text) > 0, 'fpc test --help prints usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['cross', 'test', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'cross test --help exits 0');
+  AssertTrue(Pos('Usage: fpdev cross test', OutBufObj.Text) > 0, 'cross test --help prints usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['lazarus', 'run', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'lazarus run --help exits 0');
+  AssertTrue(Pos('Usage: fpdev lazarus run', OutBufObj.Text) > 0, 'lazarus run --help prints usage');
+
+  // Standalone command should provide usage for --help
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['resolve-version', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'resolve-version --help exits 0');
+  AssertTrue(Pos('Usage: fpdev resolve-version', OutBufObj.Text) > 0, 'resolve-version --help prints usage');
+end;
+
+// ============================================================================
+// Test: "fpdev help <leaf>" Should Print Leaf Usage
+// ============================================================================
+procedure TestHelpCommandLeafFallback;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestHelpCommandLeafFallback');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['help', 'shell-hook'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'help shell-hook exits 0');
+  AssertTrue(Pos('Usage: fpdev shell-hook', OutBufObj.Text) > 0, 'help shell-hook prints usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['help', 'env'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'help env exits 0');
+  AssertTrue(Pos('Usage: fpdev env', OutBufObj.Text) > 0, 'help env prints usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['help', 'resolve-version'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'help resolve-version exits 0');
+  AssertTrue(Pos('Usage: fpdev resolve-version', OutBufObj.Text) > 0, 'help resolve-version prints usage');
+end;
+
+// ============================================================================
+// Test: Shell hook scripts should not hardcode $HOME/.fpdev paths
+// ============================================================================
+procedure TestShellHookNoHardcodedHomePath;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestShellHookNoHardcodedHomePath');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['shell-hook', 'bash'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'shell-hook bash exits 0');
+  AssertTrue(Pos('$HOME/.fpdev/env', OutBufObj.Text) = 0, 'shell-hook bash should not hardcode $HOME/.fpdev/env');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['shell-hook', 'fish'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'shell-hook fish exits 0');
+  AssertTrue(Pos('$HOME/.fpdev/env', OutBufObj.Text) = 0, 'shell-hook fish should not hardcode $HOME/.fpdev/env');
+end;
+
+// ============================================================================
+// Test: Cross Build Dry-Run Should Not Fail Without Sources
+// ============================================================================
+procedure TestCrossBuildDryRunNoSources;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestCrossBuildDryRunNoSources');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(
+    ['cross', 'build', 'x86_64-win64', '--dry-run', '--source=/tmp/fpdev-sources-missing'],
+    Ctx
+  );
+  AssertEquals(EXIT_OK, Code, 'cross build --dry-run exits 0 even when sources are missing');
+end;
+
+// ============================================================================
+// Test: fpc test should fall back to system FPC when no default toolchain exists
+// ============================================================================
+procedure TestFPCTestFallsBackToSystemFPC;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestFPCTestFallsBackToSystemFPC');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  // Ensure toolchain state is empty in this isolated test environment.
+  Ctx.Config.GetToolchainManager.Clear;
+  Ctx.SaveIfModified;
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.Dispatch(['fpc', 'test'], Ctx);
+
+  AssertEquals(EXIT_OK, Code, 'fpc test exits 0 by testing system FPC when no default toolchain is set');
+  AssertTrue(Pos('Testing system FPC', OutBufObj.Text) > 0, 'fpc test prints system fallback message');
+end;
+
+// ============================================================================
 // Main
 // ============================================================================
 begin
@@ -343,6 +682,11 @@ begin
   TestRepoSubcommandsRegistered;
   TestCommandCount;
   TestAliasResolution;
+  TestHelpFlagsDispatch;
+  TestHelpCommandLeafFallback;
+  TestShellHookNoHardcodedHomePath;
+  TestCrossBuildDryRunNoSources;
+  TestFPCTestFallsBackToSystemFPC;
 
   WriteLn('');
   WriteLn('========================================');

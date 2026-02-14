@@ -17,6 +17,9 @@ uses
   fpdev.paths,
   fpdev.source, // ensure-source/import-bundle 将使用
 
+  // Type definition units (required for debug symbols)
+  fpdev.build.cache.types,
+
   fpdev.cmd.help,
   fpdev.cmd.help.root,
   fpdev.cmd.version,
@@ -300,6 +303,18 @@ begin
       else if LParam = '--check-toolchain' then
       begin
         Outp.WriteLn(BuildToolchainReportJSON);
+        Exit;
+      end
+      else if LParam = '--self-test' then
+      begin
+        // Self-test: keep it offline and side-effect free. For now this is a
+        // toolchain readiness report with a non-zero exit code on FAIL.
+        S := BuildToolchainReportJSON;
+        Outp.WriteLn(S);
+        if Pos('"level":"FAIL"', S) > 0 then
+          ExitCode := 2
+        else
+          ExitCode := 0;
         Exit;
       end
       else if (LParam = '--check-policy') then

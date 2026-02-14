@@ -226,7 +226,7 @@ begin
   end;
 end;
 
-{ ===== Group 7: fpc test - Missing Version ===== }
+{ ===== Group 7: fpc test - No Args (System FPC Fallback) ===== }
 
 procedure TestTestMissingVersion;
 var
@@ -234,13 +234,16 @@ var
   StdOut, StdErr: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
+  AllOutput: string;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
   Cmd := TFPCCTestCommand.Create;
   try
     Ret := Cmd.Execute([], Ctx);
-    // No args, no default toolchain -> should show error
-    Check('test no args returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
+    // No args, no default toolchain -> should fall back to system FPC in PATH
+    Check('test no args returns EXIT_OK', Ret = EXIT_OK);
+    Check('test no args uses system fallback', Pos('Testing system FPC', AllOutput) > 0);
   finally
     Cmd.Free;
   end;
