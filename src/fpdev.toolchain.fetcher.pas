@@ -15,12 +15,12 @@ type
   THashAlgorithm = (haUnknown, haSHA256, haSHA512);
 
   TFetchOptions = record
-    DestDir: string;        // 下载目录（缓存）
-    Hash: string;           // 期望的 hash（格式："sha256:..." 或 "sha512:..."）
-    HashAlgorithm: THashAlgorithm;  // Hash 算法类型
-    HashDigest: string;     // Hash 摘要（十六进制）
-    TimeoutMS: Integer;     // 超时（毫秒）
-    ExpectedSize: Int64;    // 期望的文件大小（字节，0表示不检查）
+    DestDir: string;        // Download directory (cache)
+    Hash: string;           // Expected hash (format: "sha256:..." or "sha512:...")
+    HashAlgorithm: THashAlgorithm;  // Hash algorithm type
+    HashDigest: string;     // Hash digest (hexadecimal)
+    TimeoutMS: Integer;     // Timeout (milliseconds)
+    ExpectedSize: Int64;    // Expected file size (bytes, 0 means no check)
   end;
 
 const

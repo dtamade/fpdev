@@ -12,18 +12,18 @@ unit fpdev.config;
 ```
 # fpdev.config
 
-JSON配置管理系统 - 向后兼容层
+JSON configuration management system - backward compatibility layer
 
-本单元保留旧的 TFPDevConfigManager API 以实现向后兼容。
-新代码请使用 fpdev.config.interfaces 和 fpdev.config.managers 中的新架构。
+This unit retains the legacy TFPDevConfigManager API for backward compatibility.
+New code should use the new architecture in fpdev.config.interfaces and fpdev.config.managers.
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thank you.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ Group:685403987  QQ:179033731
 
 }
 
@@ -46,14 +46,14 @@ type
   TFPDevSettings = fpdev.config.interfaces.TFPDevSettings;
 
 const
-  // 向后兼容常量
+  // Backward compatibility constants
   ttRelease = fpdev.config.interfaces.ttRelease;
   ttDevelopment = fpdev.config.interfaces.ttDevelopment;
   ttCustom = fpdev.config.interfaces.ttCustom;
 
 type
-  { TFPDevConfigManager - 向后兼容包装类 }
-  { 已废弃：请使用 TConfigManager 和相关接口 }
+  { TFPDevConfigManager - Backward compatibility wrapper }
+  { Deprecated: use TConfigManager and related interfaces }
   TFPDevConfigManager = class
   private
     FConfigManager: IConfigManager;  // Use interface reference, auto-managed lifecycle
@@ -71,7 +71,7 @@ type
     function GetDefaultConfigPath: string;
     function CreateDefaultConfig: Boolean;
 
-    // 工具链管理
+    // Toolchain management
     function AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
     function RemoveToolchain(const AName: string): Boolean;
     function GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
@@ -79,7 +79,7 @@ type
     function GetDefaultToolchain: string;
     function ListToolchains: TStringArray;
 
-    // Lazarus管理
+    // Lazarus management
     function AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
     function RemoveLazarusVersion(const AName: string): Boolean;
     function GetLazarusVersion(const AName: string; out AInfo: TLazarusInfo): Boolean;
@@ -93,7 +93,7 @@ type
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
     function ListCrossTargets: TStringArray;
 
-    // 仓库管理
+    // Repository management
     function AddRepository(const AName, AURL: string): Boolean;
     function RemoveRepository(const AName: string): Boolean;
     function GetRepository(const AName: string): string;
@@ -101,11 +101,11 @@ type
     function GetDefaultRepository: string;
     function ListRepositories: TStringArray;
 
-    // 设置管理
+    // Settings management
     function GetSettings: TFPDevSettings;
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
 
-    // 属性
+    // Properties
     property ConfigPath: string read GetConfigPath;
     property Modified: Boolean read GetModified;
   end;
@@ -162,7 +162,7 @@ begin
   Result := FConfigManager;
 end;
 
-// 工具链管理方法
+// Toolchain management methods
 function TFPDevConfigManager.AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
 begin
   Result := FConfigManager.GetToolchainManager.AddToolchain(AName, AInfo);
@@ -193,7 +193,7 @@ begin
   Result := FConfigManager.GetToolchainManager.ListToolchains;
 end;
 
-// Lazarus管理方法
+// Lazarus management methods
 function TFPDevConfigManager.AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
 begin
   Result := FConfigManager.GetLazarusManager.AddLazarusVersion(AName, AInfo);
@@ -245,7 +245,7 @@ begin
   Result := FConfigManager.GetCrossTargetManager.ListCrossTargets;
 end;
 
-// 仓库管理方法
+// Repository management methods
 function TFPDevConfigManager.AddRepository(const AName, AURL: string): Boolean;
 begin
   Result := FConfigManager.GetRepositoryManager.AddRepository(AName, AURL);
@@ -268,7 +268,7 @@ end;
 
 function TFPDevConfigManager.GetDefaultRepository: string;
 begin
-  // 默认仓库实际存储在 Settings 中
+  // The default repository is stored in Settings
   Result := FConfigManager.GetSettingsManager.GetSettings.DefaultRepo;
 end;
 
@@ -277,7 +277,7 @@ begin
   Result := FConfigManager.GetRepositoryManager.ListRepositories;
 end;
 
-// 设置管理方法
+// Settings management methods
 function TFPDevConfigManager.GetSettings: TFPDevSettings;
 begin
   Result := FConfigManager.GetSettingsManager.GetSettings;

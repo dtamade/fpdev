@@ -82,10 +82,10 @@ type
     { Lists all registered repository names. }
     function ListRepositories: TStringArray;
     
-    // 内部方法
-    procedure Clear;
-    procedure LoadFromJSON(ARepos: TJSONObject; const ADefaultRepo: string);
-    procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
+	    // Internal methods
+	    procedure Clear;
+	    procedure LoadFromJSON(ARepos: TJSONObject; const ADefaultRepo: string);
+	    procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
   end;
 
   { TSettingsManager - Application settings management
@@ -105,9 +105,9 @@ type
       Returns True if settings were saved successfully. }
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
     
-    // 内部方法
-    procedure LoadFromJSON(ASettings: TJSONObject);
-    procedure SaveToJSON(out ASettings: TJSONObject);
+	    // Internal methods
+	    procedure LoadFromJSON(ASettings: TJSONObject);
+	    procedure SaveToJSON(out ASettings: TJSONObject);
   end;
 
   { TToolchainManager - FPC toolchain version management
@@ -151,10 +151,10 @@ type
     { Lists all registered toolchain version names. }
     function ListToolchains: TStringArray;
     
-    // 内部方法
-    procedure Clear;
-    procedure LoadFromJSON(AToolchains: TJSONObject; const ADefaultToolchain: string);
-    procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
+	    // Internal methods
+	    procedure Clear;
+	    procedure LoadFromJSON(AToolchains: TJSONObject; const ADefaultToolchain: string);
+	    procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
   end;
 
   { TLazarusManager - Lazarus IDE version management
@@ -196,10 +196,10 @@ type
     { Lists all registered Lazarus version names. }
     function ListLazarusVersions: TStringArray;
     
-    // 内部方法
-    procedure Clear;
-    procedure LoadFromJSON(ALazarus: TJSONObject);
-    procedure SaveToJSON(out ALazarus: TJSONObject);
+	    // Internal methods
+	    procedure Clear;
+	    procedure LoadFromJSON(ALazarus: TJSONObject);
+	    procedure SaveToJSON(out ALazarus: TJSONObject);
   end;
 
   { TCrossTargetManager - Cross-compilation target management
@@ -233,10 +233,10 @@ type
     { Lists all registered cross-compilation targets. }
     function ListCrossTargets: TStringArray;
     
-    // 内部方法
-    procedure Clear;
-    procedure LoadFromJSON(ACrossTargets: TJSONObject);
-    procedure SaveToJSON(out ACrossTargets: TJSONObject);
+	    // Internal methods
+	    procedure Clear;
+	    procedure LoadFromJSON(ACrossTargets: TJSONObject);
+	    procedure SaveToJSON(out ACrossTargets: TJSONObject);
   end;
 
   { TConfigManager - Central configuration coordinator
@@ -460,9 +460,9 @@ begin
   inherited Create;
   FNotifier := ANotifier;
 
-  // 设置默认值
-  FSettings.AutoUpdate := False;
-  FSettings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
+	  // Set default values
+	  FSettings.AutoUpdate := False;
+	  FSettings.ParallelJobs := DEFAULT_PARALLEL_JOBS;
   FSettings.KeepSources := True;
   FSettings.InstallRoot := '';
   FSettings.DefaultRepo := '';
@@ -1170,17 +1170,17 @@ var
 begin
   Result := False;
   try
-    // 创建配置目录
-    ConfigDir := ExtractFileDir(FConfigPath);
+	    // Create configuration directory
+	    ConfigDir := ExtractFileDir(FConfigPath);
     if (ConfigDir <> '') and not DirectoryExists(ConfigDir) then
       EnsureDir(ConfigDir);
       
-    // 设置默认仓库
-    FRepositoryManager.AddRepository('official_fpc', DEFAULT_FPC_REPO);
-    FRepositoryManager.AddRepository('official_lazarus', DEFAULT_LAZARUS_REPO);
+	    // Set default repositories
+	    FRepositoryManager.AddRepository('official_fpc', DEFAULT_FPC_REPO);
+	    FRepositoryManager.AddRepository('official_lazarus', DEFAULT_LAZARUS_REPO);
     
-    // 设置默认安装根目录
-    Settings := FSettingsManager.GetSettings;
+	    // Set default installation root directory
+	    Settings := FSettingsManager.GetSettings;
     if Settings.InstallRoot = '' then
     begin
       Settings.InstallRoot := IncludeTrailingPathDelimiter(ExtractFileDir(FConfigPath));
@@ -1208,14 +1208,14 @@ begin
   
   if not FileExists(FConfigPath) then
   begin
-    // 创建默认配置
-    Result := CreateDefaultConfig;
-    Exit;
-  end;
+	    // Create default configuration
+	    Result := CreateDefaultConfig;
+	    Exit;
+	  end;
   
   try
-    // 读取配置文件
-    with TStringList.Create do
+	    // Read configuration file
+	    with TStringList.Create do
     try
       LoadFromFile(FConfigPath);
       JSONStr := Text;
@@ -1223,19 +1223,19 @@ begin
       Free;
     end;
     
-    // 解析JSON
-    JSONData := GetJSON(JSONStr);
+	    // Parse JSON
+	    JSONData := GetJSON(JSONStr);
     try
       if not (JSONData is TJSONObject) then
         Exit;
         
       ConfigJSON := TJSONObject(JSONData);
       
-      // 读取版本
-      FVersion := ConfigJSON.Get('version', CONFIG_VERSION);
-      
-      // 加载各子管理器数据
-      FToolchainManager.LoadFromJSON(
+	      // Read version
+	      FVersion := ConfigJSON.Get('version', CONFIG_VERSION);
+	      
+	      // Load sub-manager data
+	      FToolchainManager.LoadFromJSON(
         ConfigJSON.Objects['toolchains'],
         ConfigJSON.Get('default_toolchain', '')
       );
@@ -1278,11 +1278,11 @@ begin
   try
     ConfigJSON := TJSONObject.Create;
     try
-      // 基本信息
-      ConfigJSON.Add('version', FVersion);
-      
-      // 保存各子管理器数据
-      FToolchainManager.SaveToJSON(ToolchainsJSON, DefaultToolchain);
+	      // Basic information
+	      ConfigJSON.Add('version', FVersion);
+	      
+	      // Save sub-manager data
+	      FToolchainManager.SaveToJSON(ToolchainsJSON, DefaultToolchain);
       ConfigJSON.Add('default_toolchain', DefaultToolchain);
       ConfigJSON.Add('toolchains', ToolchainsJSON);
       
@@ -1298,8 +1298,8 @@ begin
       FSettingsManager.SaveToJSON(SettingsJSON);
       ConfigJSON.Add('settings', SettingsJSON);
       
-      // 保存到文件
-      with TStringList.Create do
+	      // Save to file
+	      with TStringList.Create do
       try
         Text := ConfigJSON.FormatJSON;
         SaveToFile(FConfigPath);

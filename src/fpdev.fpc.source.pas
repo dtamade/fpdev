@@ -70,23 +70,23 @@ type
     constructor Create(const ASourceRoot: string = '');
     destructor Destroy; override;
 
-    // 源码管理
+    // Source management
     function CloneFPCSource(const AVersion: string = 'main'): Boolean;
     function UpdateFPCSource(const AVersion: string = ''): Boolean;
     function SwitchFPCVersion(const AVersion: string): Boolean;
-    // 分离职责：仓库管理器
+    // Separation of concerns: repository manager
     function Repo: TSourceRepoManager;
     function BuildFPCSource(const AVersion: string = ''): Boolean;
     function InstallFPCVersion(const AVersion: string): Boolean;
     function ListAvailableVersions: TStringArray;
     function ListLocalVersions: TStringArray;
 
-    // 版本信息
+    // Version information
     function GetCurrentVersion: string;
     function IsVersionAvailable(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
 
-    // 路径管理
+    // Path management
     function GetFPCSourcePath(const AVersion: string = ''): string;
     function GetFPCBuildPath(const AVersion: string = ''): string;
 
@@ -97,7 +97,7 @@ type
     function GetBootstrapDownloadURL(const AVersion: string): string; deprecated 'Use fpdev-repo instead';
     function DownloadBootstrapCompiler(const AVersion: string): Boolean; deprecated 'Use fpdev-repo instead';
 
-    // 属性
+    // Properties
     property SourceRoot: string read FSourceRoot write FSourceRoot;
     property CurrentVersion: string read GetCurrentVersion;
   end;
@@ -106,7 +106,7 @@ const
   // FPC Git repository information - using central constants
   FPC_GIT_URL = FPC_OFFICIAL_REPO;
 
-  // 支持的FPC版本分支
+  // Supported FPC version branches
   FPC_VERSIONS: array[0..6] of record
     Version: string;
     Branch: string;
@@ -147,7 +147,7 @@ begin
   // Initialize bootstrap helper
   FBootstrap := TBootstrapManager.Create(FSourceRoot);
 
-  // 确保源码根目录存在
+  // Ensure source root directory exists
   if not DirectoryExists(FSourceRoot) then
     EnsureDir(FSourceRoot);
 end;
@@ -183,7 +183,7 @@ var
 begin
   Result := ABranch;
 
-  // 从分支名推断版本
+  // Infer version from branch name
   for i := 0 to High(FPC_VERSIONS) do
   begin
     if SameText(FPC_VERSIONS[i].Branch, ABranch) then
@@ -228,7 +228,7 @@ begin
 
   if AWorkingDir <> '' then
 
-  // 转换参数数组
+  // Convert argument array
   SetLength(Args, Length(AArgs));
   for i := 0 to High(AArgs) do
     Args[i] := AArgs[i];
@@ -891,16 +891,16 @@ var
 begin
   Result := False;
 
-  // 检查基本目录结构
+  // Check basic directory structure
   if not DirectoryExists(APath) then
     Exit;
 
-  // 检查关键目录和文件
+  // Check key directories and files
   CompilerPath := APath + PathDelim + 'compiler';
   RTLPath := APath + PathDelim + 'rtl';
   MakefilePath := APath + PathDelim + 'Makefile';
 
-  // 验证源码目录的完整性
+  // Validate source directory integrity
   if DirectoryExists(CompilerPath) and
      DirectoryExists(RTLPath) and
      FileExists(MakefilePath) then

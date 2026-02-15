@@ -113,7 +113,7 @@ type
     function GetHeadCommit: TGitCommit;
     function GetLastCommit: TGitCommit;
 
-    // 兼容旧命名
+    // Backward compatibility with old naming
     function HasUncommit: Boolean;
 
     function GetRemote(const AName: string): TGitRemote;
@@ -206,7 +206,7 @@ type
     property VerifySSL: Boolean read FVerifySSL;
   end;
 
-  // 兼容层：保持旧名称 TGit2Manager（简单代理到 TGitManager）
+  // Compatibility layer: Keep old name TGit2Manager (simple proxy to TGitManager)
   TGit2Manager = class
   private
     FInitialized: Boolean;
@@ -368,7 +368,7 @@ var
   LRefName: string;
   LOpts: git_checkout_options;
 begin
-  // 切换到本地分支并检出到工作区（安全模式）
+  // Switch to local branch and checkout to working directory (safe mode)
   // Note: Only supports local branch names, future extension needed for creating local branches from remote
   Result := False;
   try
@@ -380,10 +380,10 @@ begin
     else
       LRefName := 'refs/heads/' + ABranch;
 
-    // 设置 HEAD 指向目标分支
+    // Set HEAD to target branch
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
 
-    // 安全检出 HEAD 到工作区
+    // Safe checkout HEAD to working directory
     LOpts := Default(git_checkout_options);
     CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
     LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
@@ -594,7 +594,7 @@ var
     if APayload <> nil then; // Suppress unused parameter hint
     if (AFlags <> GIT_STATUS_CURRENT) then
       LList.Add(string(APath));
-    Result := 0; // 继续
+    Result := 0; // Continue
   end;
 begin
   Result := nil;
@@ -873,7 +873,7 @@ var
   LPath, LPrev: string;
 begin
   // To avoid ABI differences between different libgit2 versions, use safe pure Pascal fallback here:
-  // 自 AStartPath 向上查找含 .git 的目录
+  // Search upward from AStartPath for directory containing .git
   if not FInitialized then
     Initialize;
   Result := '';

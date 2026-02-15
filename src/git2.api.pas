@@ -33,7 +33,7 @@ type
     function Remote(const Name: string = 'origin'): IGitRemote;
     function Fetch(const RemoteName: string = 'origin'): Boolean;
     function CheckoutBranch(const Branch: string): Boolean;
-    // 可选：强制检出（覆盖工作区冲突），默认 False
+    // Optional: force checkout (overwrite working directory conflicts), default False
     function CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
 
 
@@ -53,7 +53,7 @@ type
     function CommitterString: string;
     function Time: TDateTime;
     function ParentCount: Integer;
-    function OIDString: string;     // 40字节hex
+    function OIDString: string;     // 40-byte hex
   end;
 
   IGitReference = interface

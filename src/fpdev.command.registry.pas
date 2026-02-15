@@ -204,7 +204,7 @@ begin
   for i := Low(APath) to High(APath) do
     Node := Node.EnsureChild(LowerCase(APath[i]));
   Node.Factory := AFactory;
-  // 别名注册为同级子节点，指向原节点（支持命名空间别名）
+  // Register aliases as sibling child nodes pointing to original node (supports namespace aliases)
   if Assigned(Node.Parent) then
     for i := Low(Aliases) to High(Aliases) do
     begin
@@ -432,10 +432,10 @@ var
   Node: TCommandNode;
 begin
   if ACmd = nil then Exit;
-  // 主名
+  // Main name
   Node := FRoot.EnsureChild(LowerCase(ACmd.Name));
   Node.Command := ACmd;
-  // 别名
+  // Aliases
   LNames := ACmd.Aliases;
   for i := 0 to High(LNames) do
   begin
@@ -458,7 +458,7 @@ begin
 end;
 function TCommandRegistry.Dispatch(const AArgs: array of string; const Ctx: IContext): Integer;
 begin
-  // 兼容旧接口：直接走路径分发
+  // Backward compatibility: dispatch directly via path
   Result := DispatchPath(AArgs, Ctx);
 end;
 

@@ -15,13 +15,13 @@ unit fpdev.cmd.cross;
 Cross-compilation toolchain management
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thank you.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ Group:685403987  QQ:179033731
 
 }
 
@@ -70,7 +70,7 @@ type
     constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
-    // 目标查询
+    // Target query
     function GetAvailableTargets: TCrossTargetArray;
     function GetInstalledTargets: TCrossTargetArray;
 
@@ -81,12 +81,12 @@ type
     function EnableTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function DisableTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
-    // 工具链操作
+    // Toolchain operations
     function ShowTargetInfo(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function TestTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function BuildTest(const ATarget: string; const ASourceFile: string = ''; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
-    // 配置管理
+    // Configuration management
     function ConfigureTarget(const ATarget: string; const ABinutilsPath, ALibrariesPath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function UpdateTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function CleanTarget(const ATarget: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
@@ -266,7 +266,7 @@ begin
       CrossTarget.BinutilsPath := InstallPath + PathDelim + 'bin';
       CrossTarget.LibrariesPath := InstallPath + PathDelim + 'lib';
 
-      // 添加到配置
+      // Add to configuration
       Result := FConfigManager.GetCrossTargetManager.AddCrossTarget(ATarget, CrossTarget);
     finally
       System.Finalize(CrossTarget);
@@ -426,7 +426,7 @@ begin
   try
     InstallPath := FQuery.GetTargetInstallPath(ATarget);
 
-    // 删除安装目录
+    // Delete installation directory
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 

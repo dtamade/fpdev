@@ -12,16 +12,16 @@ unit fpdev.cmd.fpc;
 ```
 # fpdev.cmd.fpc
 
-FPC 版本管理命令
+FPC version management command
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thanks.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ group: 685403987  QQ:179033731
 
 }
 
@@ -44,7 +44,7 @@ type
   private
     FConfigManager: IConfigManager;
     FInstallRoot: string;
-    FResourceRepo: TResourceRepository;  // 资源仓库管理器
+    FResourceRepo: TResourceRepository;  // Resource repository manager
     FActivationMgr: TFPCActivationManager;  // Activation service (Facade delegation)
     FValidatorMgr: TFPCValidator;  // Validation service (Facade delegation)
     FVersionMgr: TFPCVersionManager;  // Version service (Facade delegation)
@@ -71,7 +71,7 @@ type
     constructor Create(AConfigManager: IConfigManager; const AOut: IOutput = nil; const AErr: IOutput = nil);
     destructor Destroy; override;
 
-    // 版本管理
+    // Version management
     function GetAvailableVersions: TFPCVersionArray;
     function GetInstalledVersions: TFPCVersionArray;
     function InstallVersion(
@@ -88,7 +88,7 @@ type
     function GetCurrentVersion: string;
     function ActivateVersion(const AVersion: string): TActivationResult;
 
-    // 二进制安装
+    // Binary installation
     function GetBinaryDownloadURL(const AVersion: string): string;
     function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
     function GetBinaryDownloadURLLegacy(const AVersion: string): string;
@@ -97,11 +97,11 @@ type
     function ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
     function InstallFromBinary(const AVersion: string; const APrefix: string = ''): Boolean;
 
-    // 源码管理
+    // Source management
     function UpdateSources(const AVersion: string = ''): Boolean;
     function CleanSources(const AVersion: string = ''): Boolean;
 
-    // 工具链操作
+    // Toolchain operations
     function ShowVersionInfo(const AVersion: string): Boolean; overload;
     function ShowVersionInfo(const Outp: IOutput; const AVersion: string): Boolean; overload;
     function TestInstallation(const AVersion: string): Boolean; overload;
@@ -302,7 +302,7 @@ var
 begin
   inherited Create;
   FConfigManager := AConfigManager;
-  FResourceRepo := nil;  // 延迟初始化
+  FResourceRepo := nil;  // Lazy initialization
   FActivationMgr := TFPCActivationManager.Create(AConfigManager);  // Activation service
   FValidatorMgr := TFPCValidator.Create(AConfigManager);  // Validation service
   FVersionMgr := TFPCVersionManager.Create(AConfigManager);  // Version service
@@ -328,7 +328,7 @@ begin
     FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
 
-  // 确保安装目录存在
+  // Ensure the install directory exists
   if not DirectoryExists(FInstallRoot) then
     EnsureDir(FInstallRoot);
 
@@ -510,7 +510,7 @@ begin
   end;
 
   try
-    // 创建工具链信息
+    // Create toolchain information
     Initialize(ToolchainInfo);
     ToolchainInfo.ToolchainType := ttRelease;
     ToolchainInfo.Version := AVersion;
@@ -519,7 +519,7 @@ begin
     ToolchainInfo.Installed := True;
     ToolchainInfo.InstallDate := Now;
 
-    // 添加到配置
+    // Add to configuration
     Result := FConfigManager.GetToolchainManager.AddToolchain('fpc-' + AVersion, ToolchainInfo);
     if not Result then
       FErr.WriteLn(_(MSG_ERROR) + ': Failed to add toolchain to configuration');
@@ -688,7 +688,7 @@ begin
   try
     InstallPath := GetVersionInstallPath(AVersion);
 
-    // 删除安装目录
+    // Delete installation directory
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 
@@ -936,13 +936,13 @@ var
 begin
   Result := False;
 
-  // 确定源码目录
+  // Determine source directory
   if AVersion = '' then
     SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-main'
   else
     SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
 
-  // 验证源码目录存在
+  // Verify the source directory exists
   if not DirectoryExists(SourceDir) then
   begin
     FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_SOURCE_DIR_NOT_FOUND, [SourceDir]));

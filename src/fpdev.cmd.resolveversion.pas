@@ -1,14 +1,14 @@
 unit fpdev.cmd.resolveversion;
 
 {
-  fpdev resolve-version 命令
+  fpdev resolve-version command
 
-  内部命令，供 shell hook 使用
-  解析当前目录的有效 FPC 版本（考虑配置优先级）
+  Internal command for use by shell hooks
+  Resolve the effective FPC version for the current directory (respecting configuration precedence)
 
-  用法:
-    fpdev resolve-version           # 输出当前有效的 FPC 版本
-    fpdev resolve-version --json    # JSON 格式输出完整信息
+  Usage:
+    fpdev resolve-version           # Output the effective FPC version
+    fpdev resolve-version --json    # Output full details in JSON format
 }
 
 {$mode objfpc}{$H+}
@@ -22,7 +22,7 @@ uses
   fpdev.exitcodes;
 
 type
-  { TResolveVersionCommand - 解析当前有效版本 }
+  { TResolveVersionCommand - Resolve effective version }
   TResolveVersionCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
@@ -93,7 +93,7 @@ begin
     end;
   end;
 
-  // 检查 --json 标志
+  // Check --json flag
   LJsonOutput := False;
   for I := 0 to High(AParams) do
   begin
@@ -104,7 +104,7 @@ begin
     end;
   end;
 
-  // 获取全局默认值
+  // Get global defaults
   LGlobalFPC := '';
   LGlobalLazarus := '';
 
@@ -121,14 +121,14 @@ begin
       LGlobalLazarus := Copy(LGlobalLazarus, 9, Length(LGlobalLazarus));
   end;
 
-  // 创建解析器
+  // Create resolver
   LResolver := TProjectConfigResolver.Create(LGlobalFPC, LGlobalLazarus);
   try
     LResolved := LResolver.ResolveConfig(GetCurrentDir);
 
     if LJsonOutput then
     begin
-      // JSON 格式输出
+      // JSON-formatted output
       LJson := TJSONObject.Create;
       try
         LJson.Add('fpc_version', LResolved.FPCVersion);

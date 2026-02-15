@@ -72,12 +72,12 @@ type
     { Apply configuration from TBuildConfig record (consolidates all SetXxx methods) }
     procedure ApplyConfig(const AConfig: TBuildConfig);
     property LogFileName: string read GetLogFileName;
-    // 状态查询
+    // Status queries
     function GetBuildStep: Integer;
     function IsDryRun: Boolean;
     function GetParallelJobs: Integer;
     function GetCurrentStep: TBuildStep;
-    // 构建方法
+    // Build methods
     { IBuildManager interface methods }
     function Preflight: Boolean; overload;  // Interface method (no version parameter)
     function GetLastError: string;
@@ -92,7 +92,7 @@ type
     function TestResults(const AVersion: string): Boolean;
     function Preflight(const AVersion: string): Boolean; overload;  // Legacy method
     function FullBuild(const AVersion: string): Boolean;
-    // 缓存支持
+    // Cache support
     procedure CreateBuildStamp(const AVersion: string);
     // Environment preflight check (pure code implementation, no scripts)
     function CheckToolchain: Boolean;
@@ -340,7 +340,7 @@ begin
   try
     LBin := IncludeTrailingPathDelimiter(ASandboxDest) + 'bin';
     LLib := IncludeTrailingPathDelimiter(ASandboxDest) + 'lib';
-    // bin 规则
+    // bin rules
     LMinCountBin := Ini.ReadInteger('bin', 'min_count', 1);
     LReqPrefix := ReadCSV(Ini.ReadString('bin', 'required_prefix', 'fpc,ppc'));
     LReqExt := ReadCSV(Ini.ReadString('bin', 'required_ext', '.exe,.sh,'));
@@ -364,7 +364,7 @@ begin
       end;
     end
     else begin Log('FAIL: [bin] directory not found: ' + LBin); Exit(False); end;
-    // lib 规则
+    // lib rules
     LMinCountLib := Ini.ReadInteger('lib', 'min_count', 1);
     LRequireSubdir := Ini.ReadBool('lib', 'require_subdir', True);
     if DirectoryExists(LLib) then
@@ -387,7 +387,7 @@ begin
     end
     else begin Log('FAIL: [lib] directory not found: ' + LLib); Exit(False); end;
 
-    // share 规则（可选）
+    // share rules (optional)
     LShareRequired := Ini.ReadBool('share', 'required', False);
     LShareMin := Ini.ReadInteger('share', 'min_count', 0);
     LShareRequireSubdir := Ini.ReadBool('share', 'require_subdir', False);
@@ -405,7 +405,7 @@ begin
       if DirectoryExists(LShare) and (FLogger.Verbosity > 0) then Log('info: [share] present but not required');
     end;
 
-    // fpc.cfg 规则（可选）
+    // fpc.cfg rules (optional)
     LRequireCfg := Ini.ReadBool('fpc', 'require_cfg', False);
     LCfgList := ReadCSV(Ini.ReadString('fpc', 'cfg_relative_list', 'etc/fpc.cfg,lib/fpc/fpc.cfg'));
     if LRequireCfg then
@@ -419,7 +419,7 @@ begin
         if FileExists(LFull) then begin LHasCfg := True; LCfgFound := LFull; Break; end;
       end;
       if not LHasCfg then begin Log('FAIL: [fpc] missing fpc.cfg in cfg_relative_list'); if FLogger.Verbosity > 0 then begin Log('hint: [fpc] tried list=' + Ini.ReadString('fpc','cfg_relative_list','etc/fpc.cfg,lib/fpc/fpc.cfg')); Log('hint: [fpc] root=' + ASandboxDest); end; Exit(False); end;
-      // 轻量内容检查：要求 fpc.cfg 非空
+      // Lightweight content check: require fpc.cfg to be non-empty
       if LCfgFound <> '' then
       begin
         if FindFirst(LCfgFound, faAnyFile, SR) = 0 then
@@ -433,7 +433,7 @@ begin
       end;
     end;
 
-    // include 规则（可选，可配置相对目录）
+    // include rules (optional; relative directory configurable)
     LIncRel := Ini.ReadString('include', 'relative_dir', 'include');
     LIncRequired := Ini.ReadBool('include', 'required', False);
     LIncMin := Ini.ReadInteger('include', 'min_count', 0);
@@ -452,7 +452,7 @@ begin
       if DirectoryExists(LIncDir) and (FLogger.Verbosity > 0) then Log('info: [include] present but not required');
     end;
 
-    // doc 规则（可选，可配置相对目录）
+    // doc rules (optional; relative directory configurable)
     LDocRel := Ini.ReadString('doc', 'relative_dir', 'doc');
     LDocRequired := Ini.ReadBool('doc', 'required', False);
     LDocMin := Ini.ReadInteger('doc', 'min_count', 0);
@@ -541,12 +541,12 @@ begin
   LIssues := TStringList.Create;
   try
     Log('== Toolchain Check START');
-    // 按平台尝试若干常见工具
+    // Try a set of common tools per platform
     Ok := False; Line := '';
-    // 构建工具
+    // Build tools
     Check('fpc','-iV', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
     Check('lazbuild','--version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
-    // make 族
+    // make family
     {$IFDEF MSWINDOWS}
     if not Check('mingw32-make','--version', Ok, Line) then
       if not Check('make','--version', Ok, Line) then
@@ -555,7 +555,7 @@ begin
     if not Check('gmake','--version', Ok, Line) then
       if not Check('make','--version', Ok, Line) then LIssues.Add('[MISS] make-family');
     {$ENDIF}
-    // 版本控制/SSL（可选）
+    // Version control / SSL (optional)
     Check('git','--version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
     Check('openssl','version', Ok, Line); if not Ok then LIssues.Add(Line) else if FLogger.Verbosity>0 then Log(Line);
     // Platform-specific compiler frontends (optional)
@@ -735,14 +735,14 @@ begin
     FLastError := 'Source path not found: ' + ASourcePath;
     Exit(False);
   end;
-  // 解析 make 命令（去除内联变量）
+  // Resolve make command (removed inline variables)
   LMake := ResolveMakeCmd;
   if LMake = '' then
   begin
     FLastError := 'Make command not configured';
     Exit(False);
   end;
-  // 组合参数：-C <dir> -jN <targets>
+  // Assemble arguments: -C <dir> -jN <targets>
   if FParallelJobs <= 0 then FParallelJobs := 1;
   if FParallelJobs > 16 then FParallelJobs := 16;
   LJobs := IntToStr(FParallelJobs);
@@ -753,7 +753,7 @@ begin
   LIdx := 3;
   if FCPU_TARGET <> '' then begin LArgs[LIdx] := 'CPU_TARGET=' + FCPU_TARGET; Inc(LIdx); end;
   if FOS_TARGET <> '' then begin LArgs[LIdx] := 'OS_TARGET=' + FOS_TARGET; Inc(LIdx); end;
-  // PREFIX/INSTALL_PREFIX 如设置则带入（Install 时仍会显式覆盖）
+  // Include PREFIX/INSTALL_PREFIX if set (Install still overrides explicitly)
   if FPREFIX <> '' then begin LArgs[LIdx] := 'PREFIX=' + FPREFIX; Inc(LIdx); end;
   if FINSTALL_PREFIX <> '' then begin LArgs[LIdx] := 'INSTALL_PREFIX=' + FINSTALL_PREFIX; Inc(LIdx); end;
   // Cross-compilation: PP (cross-compiler path) and CROSSOPT (cross-compile options)
@@ -953,7 +953,7 @@ begin
   // Prioritize sandbox installation verification (only when install is allowed)
   if FAllowInstall then
   begin
-    // 耗时统计：去除内联变量
+    // Elapsed time tracking (removed inline variables)
     LStart := Now;
     LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
     LBin := IncludeTrailingPathDelimiter(LDest) + 'bin';
@@ -976,7 +976,7 @@ begin
       if DirectoryExists(LBin) then begin Log('sample of sandbox/bin:'); LogDirSample(LBin, 10); end;
       if DirectoryExists(LLib) then begin Log('sample of sandbox/lib:'); LogDirSample(LLib, 10); end;
     end;
-    // 细化：若 bin 存在但为空，或 lib 存在但为空
+    // Refined checks: if bin exists but is empty, or lib exists but is empty
     if DirectoryExists(LBin) and (not DirHasAnyFile(LBin)) then
     begin
       if FStrictResults then begin Log('FAIL: sandbox bin empty under strict mode: ' + LBin); LogTestSummary(AVersion, 'sandbox/bin', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
@@ -997,7 +997,7 @@ begin
     Exit(True);
   end;
 
-  // 回退：校验源码树的关键目录（占位）
+  // Fallback: validate key directories in the source tree (placeholder)
   LSrc := GetSourcePath(AVersion);
   LCompilerPath := LSrc + PathDelim + 'compiler';
   LRTLPath := LSrc + PathDelim + 'rtl';
@@ -1025,28 +1025,28 @@ begin
   if FLogger.Verbosity > 0 then LogEnvSnapshot;
   LIssues := TStringList.Create;
   try
-    // 源码路径检查
+    // Source path check
     LSrc := GetSourcePath(AVersion);
     LSrcOk := DirectoryExists(LSrc);
     if not LSrcOk then LIssues.Add('source not found: ' + LSrc);
 
-    // 工具链严格校验（可选）
+    // Strict toolchain validation (optional)
     if FToolchainStrict then
     begin
-      // 先做 FPC 版本策略校验：不满足直接加入问题
+      // First apply FPC version policy check: if it fails, add an issue immediately
       if not CheckFPCVersionPolicy(AVersion, LStatus, LReason, LMin, LRec, LFpcVer) then
         LIssues.Add(Format('fpc policy FAIL: src=%s current=%s min=%s rec=%s reason=%s',[AVersion, LFpcVer, LMin, LRec, LReason]))
       else if (LStatus <> 'OK') and (FLogger.Verbosity > 0) then
         Log(Format('fpc policy %s: current=%s min=%s rec=%s',[LStatus, LFpcVer, LMin, LRec]));
 
-      // 再做 HostReady 工具链体检
-      LJson := BuildToolchainReportJSON; // 仅构建 JSON；若要写文件，可在外层处理
+      // Then run HostReady toolchain health check
+      LJson := BuildToolchainReportJSON; // Build JSON only; write it at a higher level if needed
       if Pos('"level":"FAIL"', LJson) > 0 then
         LIssues.Add('toolchain check failed');
     end
     else
     begin
-      // 宽松：仅检查 make 存在
+      // Relaxed: only check that make is available
       LHasMake := HasTool('make', ['--version']);
       if not LHasMake then LIssues.Add('make not available');
     end;
@@ -1075,7 +1075,7 @@ begin
         LIssues.Add('sandbox dest not writable: ' + LDestRoot);
     end;
 
-    // 结果
+    // Result
     Result := (LIssues.Count = 0);
     PerfMon.EndOperation('Preflight', Result);
     if Result then

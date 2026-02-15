@@ -5,11 +5,11 @@ unit fpdev.fpc.utils;
 {
   FPC Utils
   
-  共享工具函数模块，提供项目根目录查找、安装作用域检测、
-  归档文件解压、校验和验证等通用功能。
+  Shared utility functions module providing project root discovery, install scope detection,
+  archive extraction, checksum calculation/verification, and other common functionality.
   
-  此模块是消除代码重复的关键，所有模块应使用此处的函数
-  而不是各自实现。
+  This module is key to eliminating code duplication; all modules should use the functions here
+  rather than implementing their own.
 }
 
 interface
@@ -18,36 +18,36 @@ uses
   SysUtils, Classes, fpdev.types, fpdev.fpc.types;
 
 type
-  { TArchiveFormat - 归档文件格式 }
+  { TArchiveFormat - Archive file format }
   TArchiveFormat = (
-    afUnknown,   // 未知格式
-    afZip,       // ZIP 格式
-    afTarGz,     // TAR.GZ 格式
-    afTar        // TAR 格式
+    afUnknown,   // Unknown format
+    afZip,       // ZIP format
+    afTarGz,     // TAR.GZ format
+    afTar        // TAR format
   );
 
-{ 项目根目录查找 - 向上遍历查找 .fpdev 目录 }
+{ Project root lookup - Walk upward to find the .fpdev directory }
 function FindProjectRoot(const AStartDir: string): string;
 
-{ 安装作用域检测 - 根据当前目录判断是项目级还是用户级 }
+{ Install scope detection - Determine whether project-level or user-level based on the current directory }
 function DetectInstallScope(const ACurrentDir: string): TInstallScope;
 
-{ 归档格式检测 - 根据文件扩展名判断格式 }
+{ Archive format detection - Determine the format based on file extension }
 function DetectArchiveFormat(const AFilePath: string): TArchiveFormat;
 
-{ 归档文件解压 - 支持 ZIP 和 TAR.GZ 格式 }
+{ Archive extraction - Supports ZIP and TAR.GZ formats }
 function ExtractArchive(const AArchivePath, ADestPath: string): TOperationResult;
 
-{ ZIP 文件解压 }
+{ ZIP archive extraction }
 function ExtractZip(const AArchivePath, ADestPath: string): TOperationResult;
 
-{ TAR.GZ 文件解压 }
+{ TAR.GZ archive extraction }
 function ExtractTarGz(const AArchivePath, ADestPath: string): TOperationResult;
 
-{ 校验和计算 - 计算文件的 SHA256 }
+{ Checksum calculation - Compute a file's SHA256 }
 function CalculateFileSHA256(const AFilePath: string): string;
 
-{ 校验和验证 - 验证文件的 SHA256 是否匹配 }
+{ Checksum verification - Verify whether a file's SHA256 matches }
 function VerifyFileSHA256(const AFilePath, AExpectedHash: string): Boolean;
 
 implementation
@@ -55,7 +55,7 @@ implementation
 uses
   Process, zipper, fpdev.hash;
 
-{ FindProjectRoot - 向上遍历查找 .fpdev 目录 }
+{ FindProjectRoot - Walk upward to find the .fpdev directory }
 function FindProjectRoot(const AStartDir: string): string;
 var
   Dir, PrevDir: string;
@@ -91,13 +91,13 @@ begin
     PrevDir := Dir;
     Dir := ExtractFileDir(Dir);
 
-    // 防止无限循环（到达根目录）
+    // Prevent an infinite loop (reached filesystem root)
     if Dir = PrevDir then
       Break;
   end;
 end;
 
-{ DetectInstallScope - 检测安装作用域 }
+{ DetectInstallScope - Detect install scope }
 function DetectInstallScope(const ACurrentDir: string): TInstallScope;
 var
   ProjectRoot: string;
@@ -109,7 +109,7 @@ begin
     Result := isProject;
 end;
 
-{ DetectArchiveFormat - 检测归档格式 }
+{ DetectArchiveFormat - Detect archive format }
 function DetectArchiveFormat(const AFilePath: string): TArchiveFormat;
 var
   Ext, LowerPath: string;
@@ -117,14 +117,14 @@ begin
   Result := afUnknown;
   LowerPath := LowerCase(AFilePath);
   
-  // 检查 .tar.gz 或 .tgz
+  // Check for .tar.gz or .tgz
   if (Pos('.tar.gz', LowerPath) > 0) or (Pos('.tgz', LowerPath) > 0) then
   begin
     Result := afTarGz;
     Exit;
   end;
   
-  // 检查扩展名
+  // Check file extension
   Ext := LowerCase(ExtractFileExt(AFilePath));
   
   if Ext = '.zip' then
@@ -133,13 +133,13 @@ begin
     Result := afTar
   else if Ext = '.gz' then
   begin
-    // 可能是 .tar.gz，再检查一次
+    // Might be .tar.gz; check again
     if Pos('.tar', LowerPath) > 0 then
       Result := afTarGz;
   end;
 end;
 
-{ ExtractZip - 解压 ZIP 文件 }
+{ ExtractZip - Extract a ZIP archive }
 function ExtractZip(const AArchivePath, ADestPath: string): TOperationResult;
 var
   Unzipper: TUnZipper;
@@ -171,7 +171,7 @@ begin
   end;
 end;
 
-{ ExtractTarGz - 解压 TAR.GZ 文件 }
+{ ExtractTarGz - Extract a TAR.GZ archive }
 function ExtractTarGz(const AArchivePath, ADestPath: string): TOperationResult;
 var
   Process: TProcess;
@@ -192,14 +192,14 @@ begin
     Process := TProcess.Create(nil);
     try
       {$IFDEF MSWINDOWS}
-      // Windows: 使用 PowerShell 或 tar（Windows 10+ 内置）
+      // Windows: use PowerShell or tar (built into Windows 10+)
       Process.Executable := 'tar';
       Process.Parameters.Add('-xzf');
       Process.Parameters.Add(AArchivePath);
       Process.Parameters.Add('-C');
       Process.Parameters.Add(ADestPath);
       {$ELSE}
-      // Linux/macOS: 使用系统 tar
+      // Linux/macOS: use system tar
       Process.Executable := 'tar';
       Process.Parameters.Add('-xzf');
       Process.Parameters.Add(AArchivePath);
@@ -223,7 +223,7 @@ begin
   end;
 end;
 
-{ ExtractArchive - 统一的归档解压函数 }
+{ ExtractArchive - Unified archive extraction function }
 function ExtractArchive(const AArchivePath, ADestPath: string): TOperationResult;
 var
   Format: TArchiveFormat;
@@ -246,7 +246,7 @@ begin
   end;
 end;
 
-{ CalculateFileSHA256 - 计算文件 SHA256 }
+{ CalculateFileSHA256 - Compute file SHA256 }
 function CalculateFileSHA256(const AFilePath: string): string;
 begin
   Result := '';
@@ -255,7 +255,7 @@ begin
     Exit;
   
   try
-    // 使用现有的 fpdev.hash 模块
+    // Use the existing fpdev.hash module
     Result := SHA256FileHex(AFilePath);
   except
     on E: Exception do
@@ -263,7 +263,7 @@ begin
   end;
 end;
 
-{ VerifyFileSHA256 - 验证文件 SHA256 }
+{ VerifyFileSHA256 - Verify file SHA256 }
 function VerifyFileSHA256(const AFilePath, AExpectedHash: string): Boolean;
 var
   ActualHash: string;
@@ -277,7 +277,7 @@ begin
   if ActualHash = '' then
     Exit;
   
-  // 不区分大小写比较
+  // Case-insensitive comparison
   Result := SameText(ActualHash, AExpectedHash);
 end;
 

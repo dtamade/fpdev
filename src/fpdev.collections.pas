@@ -12,16 +12,16 @@ unit fpdev.collections;
 ```
 # fpdev.collections
 
-容器
+Containers
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thank you.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ Group:685403987  QQ:179033731
 
 }
 
@@ -34,7 +34,7 @@ uses
   sysutils;
 
 ///
-/// 容器内存分配器
+/// Container memory allocator
 ///
 
 type
@@ -47,7 +47,7 @@ type
 
   pallocator_t = ^allocator_t;
 
-{ allocator_t 内存分配器 }
+{ allocator_t memory allocator }
 
  allocator_t  = record
     getMem:      allocator_getMem_t;
@@ -88,16 +88,16 @@ procedure allocator_freeMem(aAllocator: pallocator_t; aPtr: Pointer); {$IFDEF FA
 {**
  * allocator_rtl
  *
- * @desc 获取默认的rtl内存分配器
+ * @desc Get the default RTL memory allocator
  *
- * @return 返回默认的内存分配器
+ * @return Returns the default memory allocator
  *}
 function  allocator_rtl: pallocator_t; inline;
 
 
 type
 
-  { IAllocator 内存分配器接口 }
+  { IAllocator memory allocator interface }
 
   IAllocator = interface
   ['{E7F77971-51EC-4272-A12B-F378E1806083}']
@@ -107,7 +107,7 @@ type
     procedure FreeMem(aPtr: Pointer);
   end;
 
-  { TAllocator 内存分配器 }
+  { TAllocator memory allocator }
 
   TAllocator = class(TInterfacedObject, IAllocator)
   private
@@ -138,88 +138,88 @@ type
   end;
 
 ///
-/// 容器基础
+/// Container base
 ///
 
 type
 
   TCollection = class;
 
-  { ICollection 容器接口 }
+  { ICollection container interface }
 
   ICollection = interface
   ['{4185E60A-B6D6-49B4-A4BD-07F41A706014}']
     {**
      * GetCount
      *
-     * @desc 获取容器元素数量
+     * @desc Get the number of elements in the container
      *
-     * @return 返回容器元素数量
+     * @return Returns the number of elements in the container
      *}
     function  GetCount: SizeUInt;
 
     {**
      * GetData
      *
-     * @desc 获取容器额外数据指针
+     * @desc Get the pointer to the container's extra data
      *
-     * @return 返回容器额外数据指针
+     * @return Returns the pointer to the container's extra data
      *}
     function  GetData: Pointer;
 
     {**
      * SetData
      *
-     * @desc 设置容器额外数据指针
+     * @desc Set the pointer to the container's extra data
      *
      * @params
-     *  - aData 要设置的额外数据指针
+     *  - aData Extra data pointer to set
      *}
     procedure SetData(aData: Pointer);
 
     {**
      * GetAllocator
      *
-     * @desc 获取容器内存分配器
+     * @desc Get the container memory allocator
      *
-     * @return 返回容器内存分配器
+     * @return Returns the container memory allocator
      *}
     function  GetAllocator: TAllocator;
 
     {**
      * IsEmpty
      *
-     * @desc 判断容器是否为空
+     * @desc Check whether the container is empty
      *
-     * @return 返回容器是否为空
+     * @return Returns whether the container is empty
      *}
     function  IsEmpty: Boolean;
 
     {**
      * Clear
      *
-     * @desc 清空容器
+     * @desc Clear the container
      *}
     procedure Clear;
 
     {**
      * Clone
      *
-     * @desc 克隆容器
+     * @desc Clone the container
      *
-     * @return 返回克隆后的容器
+     * @return Returns the cloned container
      *}
     function  Clone: TCollection;
 
     {**
      * Equals
      *
-     * @desc 判断容器是否相等
+     * @desc Check whether the container is equal to the specified container
      *
      * @params
-     *  - aCollection 要比较的容器
+     *  - aCollection Container to compare
      *
-     * @return 返回容器是否相等
+     * @return Returns whether the containers are equal
      *}
     function  Equals(aCollection: TCollection): Boolean;
 
@@ -274,7 +274,7 @@ type
     property  Allocator: TAllocator   read GetAllocator;
   end;
 
-  { TCollection 容器基类 }
+  { TCollection container base class }
 
   TCollection = class(TInterfacedObject, ICollection)
   private

@@ -28,10 +28,10 @@ type
     procedure NotifyConfigChanged;
   end;
 
-  // 工具链类型
+  // Toolchain type
   TToolchainType = (ttRelease, ttDevelopment, ttCustom);
 
-  // 工具链信息
+  // Toolchain information
   TToolchainInfo = record
     ToolchainType: TToolchainType;
     Version: string;
@@ -42,7 +42,7 @@ type
     InstallDate: TDateTime;
   end;
 
-  // Lazarus信息
+  // Lazarus information
   TLazarusInfo = record
     Version: string;
     FPCVersion: string;
@@ -66,7 +66,7 @@ type
     CrossOpt: string;          // -CfVFPV3 -CaEABIHF
   end;
 
-  // FPDev设置
+  // FPDev settings
   TFPDevSettings = record
     AutoUpdate: Boolean;
     ParallelJobs: Integer;
@@ -78,7 +78,7 @@ type
     CustomRepoURL: string;    // Custom repository URL (highest priority)
   end;
 
-  { IToolchainManager - 工具链管理接口 }
+  { IToolchainManager - Toolchain management interface }
   IToolchainManager = interface
     ['{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}']
     function AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
@@ -88,13 +88,13 @@ type
     function GetDefaultToolchain: string;
     function ListToolchains: TStringArray;
 
-    // 序列化接口
+    // Serialization methods
     procedure LoadFromJSON(AToolchains: TJSONObject; const ADefaultToolchain: string);
     procedure SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);
     procedure Clear;
   end;
 
-  { ILazarusManager - Lazarus版本管理接口 }
+  { ILazarusManager - Lazarus version management interface }
   ILazarusManager = interface
     ['{B2C3D4E5-F6A7-8901-BCDE-F12345678901}']
     function AddLazarusVersion(const AName: string; const AInfo: TLazarusInfo): Boolean;
@@ -104,7 +104,7 @@ type
     function GetDefaultLazarusVersion: string;
     function ListLazarusVersions: TStringArray;
 
-    // 序列化接口
+    // Serialization methods
     procedure LoadFromJSON(ALazarus: TJSONObject);
     procedure SaveToJSON(out ALazarus: TJSONObject);
     procedure Clear;
@@ -118,13 +118,13 @@ type
     function GetCrossTarget(const ATarget: string; out AInfo: TCrossTarget): Boolean;
     function ListCrossTargets: TStringArray;
 
-    // 序列化接口
+    // Serialization methods
     procedure LoadFromJSON(ACrossTargets: TJSONObject);
     procedure SaveToJSON(out ACrossTargets: TJSONObject);
     procedure Clear;
   end;
 
-  { IRepositoryManager - 仓库管理接口 }
+  { IRepositoryManager - Repository management interface }
   IRepositoryManager = interface
     ['{D4E5F6A7-B8C9-0123-DEF1-234567890123}']
     function AddRepository(const AName, AURL: string): Boolean;
@@ -134,40 +134,40 @@ type
     function GetDefaultRepository: string;
     function ListRepositories: TStringArray;
 
-    // 序列化接口
+    // Serialization methods
     procedure LoadFromJSON(ARepos: TJSONObject; const ADefaultRepo: string);
     procedure SaveToJSON(out ARepos: TJSONObject; out ADefaultRepo: string);
     procedure Clear;
   end;
 
-  { ISettingsManager - 设置管理接口 }
+  { ISettingsManager - Settings management interface }
   ISettingsManager = interface
     ['{E5F6A7B8-C9D0-1234-EF12-345678901234}']
     function GetSettings: TFPDevSettings;
     function SetSettings(const ASettings: TFPDevSettings): Boolean;
 
-    // 序列化接口
+    // Serialization methods
     procedure LoadFromJSON(ASettings: TJSONObject);
     procedure SaveToJSON(out ASettings: TJSONObject);
   end;
 
-  { IConfigManager - 配置管理总入口接口 }
+  { IConfigManager - Main entry point for configuration management }
   IConfigManager = interface
     ['{F6A7B8C9-D0E1-2345-F123-456789012345}']
-    // 基础配置操作
+    // Basic configuration operations
     function LoadConfig: Boolean;
     function SaveConfig: Boolean;
     function GetConfigPath: string;
     function CreateDefaultConfig: Boolean;
 
-    // 访问子管理器
+    // Access sub-managers
     function GetToolchainManager: IToolchainManager;
     function GetLazarusManager: ILazarusManager;
     function GetCrossTargetManager: ICrossTargetManager;
     function GetRepositoryManager: IRepositoryManager;
     function GetSettingsManager: ISettingsManager;
 
-    // 配置状态
+    // Configuration state
     function IsModified: Boolean;
   end;
 

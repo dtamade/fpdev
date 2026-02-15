@@ -86,7 +86,7 @@ begin
   Result := False;
   if (ALocalPath='') then begin AErr := 'local path is empty'; Exit(False); end;
   if not BasicSourceCheck(AName, ALocalPath, AStrict, AErr) then Exit(False);
-  // 标准沙箱路径
+  // Standard sandbox path
   Dest := IncludeTrailingPathDelimiter(GetSandboxDir)+'sources' + PathDelim + AName + PathDelim + AVersion;
   EnsureDir(Dest);
   // Copy local directory to standard sandbox to avoid direct reference to external paths (more controllable)
@@ -96,7 +96,7 @@ begin
   if not CopyDirRecursive(ALocalPath, Dest) then
   begin AErr := 'copy local dir to sandbox failed'; Exit(False); end;
   ADestPath := Dest;
-  // 写入锁文件（来源为本地目录，sha256 为空）
+  // Write lock file (source is local directory, sha256 is empty)
   WriteLockfile(AName, AVersion, ALocalPath, ADestPath, '');
   Result := True;
 end;
@@ -114,10 +114,10 @@ begin
   Dest := IncludeTrailingPathDelimiter(GetSandboxDir)+'sources' + PathDelim + AName + PathDelim + AVersion;
   EnsureDir(Dest);
   if not ZipExtract(AZipPath, Dest, TmpErr) then begin AErr := 'extract failed: ' + TmpErr; Exit(False); end;
-  if not BasicSourceCheck(AName, Dest, True{严格结构校验}, TmpErr) then
+  if not BasicSourceCheck(AName, Dest, True{strict structure validation}, TmpErr) then
   begin AErr := 'structure check failed: ' + TmpErr; Exit(False); end;
   ADestPath := Dest;
-  // 写入锁文件（来源为 zip）
+  // Write lock file (source is zip)
   WriteLockfile(AName, AVersion, AZipPath, ADestPath, ASha256);
   Result := True;
 end;
@@ -169,7 +169,7 @@ begin
   end
   else if FileExists(BaseDir) then
   begin
-    // 如果是 zip 文件，直接解压到临时目录再处理
+    // If it's a zip file, extract to temp directory first
     if LowerCase(ExtractFileExt(BaseDir)) = '.zip' then
     begin
       LTmpDir := IncludeTrailingPathDelimiter(GetSandboxDir) + 'tmp' +
@@ -207,7 +207,7 @@ begin
         SL.Free;
       end;
       if (Sha='') or (Length(Sha)<>64) then Continue;
-      // 校验并导入缓存
+      // Validate and import cache
       if LowerCase(SHA256FileHex(F)) <> LowerCase(Sha) then Continue;
       Dest := IncludeTrailingPathDelimiter(GetCacheDir)+'toolchain'+PathDelim+ExtractFileName(F);
       EnsureDir(ExtractFileDir(Dest));

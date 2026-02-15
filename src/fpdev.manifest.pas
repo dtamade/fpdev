@@ -13,24 +13,24 @@ const
   MAX_PACKAGE_SIZE = 10737418240; // 10GB in bytes
 
 type
-  { TManifestTarget - 单个平台的二进制包信息 }
+  { TManifestTarget - Binary package information for a single platform }
   TManifestTarget = record
-    URLs: array of string;      // 支持多镜像
-    Hash: string;                // 格式："sha256:abc123..." 或 "sha512:def456..."
-    Size: Int64;                 // 文件大小（字节）
-    Signature: string;           // 可选签名
+    URLs: array of string;      // Supports multiple mirrors
+    Hash: string;                // Format: "sha256:abc123..." or "sha512:def456..."
+    Size: Int64;                 // File size (bytes)
+    Signature: string;           // Optional signature
   end;
 
-  { TManifestPackage - 单个版本的包信息 }
+  { TManifestPackage - Package information for a single version }
   TManifestPackage = record
     Version: string;
     Targets: array of record
-      Platform: string;          // 例如："linux-x86_64"
+      Platform: string;          // e.g. "linux-x86_64"
       Target: TManifestTarget;
     end;
   end;
 
-  { TManifestParser - 解析和验证 manifest 文件 }
+  { TManifestParser - Parses and validates the manifest file }
   TManifestParser = class
   private
     FManifestVersion: string;
@@ -48,28 +48,28 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    { 加载 manifest }
+    { Load manifest }
     function LoadFromFile(const AFile: string): Boolean;
     function LoadFromURL(const AURL: string): Boolean;
     function LoadFromString(const AContent: string): Boolean;
 
-    { 查询包信息 }
+    { Query package information }
     function GetPackage(const AName, AVersion, {%H-} APlatform: string; out APkg: TManifestPackage): Boolean;
     function GetTarget(const AName, AVersion, APlatform: string; out ATarget: TManifestTarget): Boolean;
     function ListVersions(const {%H-} AName: string): TStringArray;
     function ListPlatforms(const AName, AVersion: string): TStringArray;
 
-    { 验证 }
+    { Validate }
     function Validate: Boolean;
 
-    { 属性 }
+    { Properties }
     property ManifestVersion: string read FManifestVersion;
     property Date: string read FDate;
     property Channel: string read FChannel;
     property LastError: string read FLastError;
   end;
 
-  { 辅助函数 }
+  { Helper functions }
   function ParseHashAlgorithm(const AHash: string; out AAlgorithm, ADigest: string): Boolean;
   function ValidateHashFormat(const AHash: string): Boolean;
   function ValidateURL(const AURL: string): Boolean;
@@ -80,7 +80,7 @@ implementation
 uses
   fpdev.utils.fs;
 
-{ 辅助函数实现 }
+{ Helper function implementations }
 
 function ValidateURL(const AURL: string): Boolean;
 begin
@@ -119,11 +119,11 @@ begin
   AAlgorithm := LowerCase(Copy(AHash, 1, ColonPos - 1));
   ADigest := Copy(AHash, ColonPos + 1, Length(AHash));
 
-  // 验证算法名称
+  // Validate algorithm name
   if (AAlgorithm <> 'sha256') and (AAlgorithm <> 'sha512') then
     Exit;
 
-  // 验证摘要格式（十六进制）
+  // Validate digest format (hexadecimal)
   if not ValidateHexDigest(ADigest) then
     Exit;
 
@@ -210,7 +210,7 @@ begin
 
   RootObj := TJSONObject(FJSONData);
 
-  // 验证必需字段：manifest-version
+  // Validate required field: manifest-version
   if RootObj.IndexOfName('manifest-version') < 0 then
   begin
     FLastError := 'Missing required field: manifest-version';
@@ -224,7 +224,7 @@ begin
     Exit;
   end;
 
-  // 验证必需字段：date
+  // Validate required field: date
   if RootObj.IndexOfName('date') < 0 then
   begin
     FLastError := 'Missing required field: date';
@@ -233,10 +233,10 @@ begin
 
   FDate := RootObj.Get('date', '');
 
-  // 可选字段：channel
+  // Optional field: channel
   FChannel := RootObj.Get('channel', '');
 
-  // 验证必需字段：pkg
+  // Validate required field: pkg
   if RootObj.IndexOfName('pkg') < 0 then
   begin
     FLastError := 'Missing required field: pkg';
@@ -252,26 +252,26 @@ var
   URLArray: TJSONArray;
   I: Integer;
 begin
-  // 初始化
+  // Initialize
   Result := Default(TManifestTarget);
   SetLength(Result.URLs, 0);
   Result.Hash := '';
   Result.Size := 0;
   Result.Signature := '';
 
-  // 解析 URL（可以是字符串或数组）
+  // Parse URL (can be a string or an array)
   if ATargetObj.IndexOfName('url') >= 0 then
   begin
     URLValue := ATargetObj.Find('url');
     if URLValue.JSONType = jtString then
     begin
-      // 单个 URL
+      // Single URL
       SetLength(Result.URLs, 1);
       Result.URLs[0] := URLValue.AsString;
     end
     else if URLValue.JSONType = jtArray then
     begin
-      // 多个 URL
+      // Multiple URLs
       URLArray := TJSONArray(URLValue);
       SetLength(Result.URLs, URLArray.Count);
       for I := 0 to URLArray.Count - 1 do
@@ -279,13 +279,13 @@ begin
     end;
   end;
 
-  // 解析 hash
+  // Parse hash
   Result.Hash := ATargetObj.Get('hash', '');
 
-  // 解析 size
+  // Parse size
   Result.Size := ATargetObj.Get('size', Int64(0));
 
-  // 解析 signature（可选）
+  // Parse signature (optional)
   Result.Signature := ATargetObj.Get('signature', '');
 end;
 
@@ -298,14 +298,14 @@ var
 begin
   if AName <> '' then;
 
-  // 初始化
+  // Initialize
   Result.Version := '';
   SetLength(Result.Targets, 0);
 
-  // 解析 version
+  // Parse version
   Result.Version := APkgObj.Get('version', '');
 
-  // 解析 targets
+  // Parse targets
   if APkgObj.IndexOfName('targets') >= 0 then
   begin
     TargetsObj := APkgObj.Objects['targets'];
@@ -376,7 +376,7 @@ begin
   try
     HTTP := TFPHTTPClient.Create(nil);
     try
-      // 初始化 OpenSSL（用于 HTTPS）
+      // Initialize OpenSSL (for HTTPS)
       InitSSLInterface;
 
       Content := HTTP.Get(AURL);
@@ -402,15 +402,15 @@ var
 begin
   Result := False;
 
-  // 解析 JSON
+  // Parse JSON
   if not ParseJSON(AContent) then
     Exit;
 
-  // 验证 manifest
+  // Validate manifest
   if not ValidateManifest then
     Exit;
 
-  // 解析包信息
+  // Parse package information
   RootObj := TJSONObject(FJSONData);
   PkgObj := RootObj.Objects['pkg'];
   if not Assigned(PkgObj) then
@@ -508,31 +508,31 @@ begin
   Result := False;
   FLastError := '';
 
-  // 验证每个包
+  // Validate each package
   for I := 0 to High(FPackages) do
   begin
     Pkg := FPackages[I];
 
-    // 验证版本号
+    // Validate version
     if Pkg.Version = '' then
     begin
       FLastError := 'Package has empty version';
       Exit;
     end;
 
-    // 验证每个目标平台
+    // Validate each target platform
     for J := 0 to High(Pkg.Targets) do
     begin
       Target := Pkg.Targets[J].Target;
 
-      // 验证 URL
+      // Validate URL
       if Length(Target.URLs) = 0 then
       begin
         FLastError := Format('No URLs for platform %s', [Pkg.Targets[J].Platform]);
         Exit;
       end;
 
-      // 验证所有 URL 必须使用 HTTPS
+      // Ensure all URLs use HTTPS
       for K := 0 to High(Target.URLs) do
       begin
         if not ValidateURL(Target.URLs[K]) then
@@ -542,21 +542,21 @@ begin
         end;
       end;
 
-      // 验证 hash
+      // Validate hash
       if not ValidateHashFormat(Target.Hash) then
       begin
         FLastError := Format('Invalid hash format for platform %s: %s', [Pkg.Targets[J].Platform, Target.Hash]);
         Exit;
       end;
 
-      // 验证 size
+      // Validate size
       if Target.Size <= 0 then
       begin
         FLastError := Format('Invalid size for platform %s: %d', [Pkg.Targets[J].Platform, Target.Size]);
         Exit;
       end;
 
-      // 验证 size 不超过最大限制
+      // Validate size does not exceed the maximum limit
       if Target.Size > MAX_PACKAGE_SIZE then
       begin
         FLastError := Format('Size exceeds maximum limit for platform %s: %d bytes (max: %d)', [Pkg.Targets[J].Platform, Target.Size, MAX_PACKAGE_SIZE]);

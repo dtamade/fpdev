@@ -15,17 +15,17 @@ type
     Version: string;
     OS: string;
     Arch: string;
-    URLs: TStringDynArray; // 候选下载地址（含镜像）
-    Sha256: string;        // 可选：完整性校验
+    URLs: TStringDynArray; // Candidate download URLs (including mirrors)
+    Sha256: string;        // Optional: integrity verification
   end;
 
   TManifest = record
     Components: array of TManifestComponent;
   end;
 
-// 解析 JSON 文本为清单；成功返回 True
+// Parse JSON text to manifest; returns True on success
 function ParseManifestJSON(const AText: string; out AM: TManifest): boolean;
-// 根据 name/version/os/arch 查找组件；成功返回 True
+// Find component by name/version/os/arch; returns True on success
 function FindComponent(const AM: TManifest; const AName, AVersion, AOS, AArch: string; out AC: TManifestComponent): boolean;
 
 implementation

@@ -31,13 +31,13 @@ type
 
 // Build a minimal health check report (HostReady scenario): fpc/make/lazbuild/git/openssl
 function BuildToolchainReportJSON: string;
-// 获取当前 fpc 版本（fpc -iV），成功返回 True 并填充版本号
+// Get the current FPC version (fpc -iV); returns True on success and fills the version string
 function GetFPCVersion(out AFPCVersion: string): boolean;
-// 校验 FPC 版本是否满足给定源码版本（如 'main','3.2.2','3.2.'）的策略
-// 返回值：True 表示 >= min（可继续）；AStatus=OK|WARN|FAIL；
+// Check whether the FPC version satisfies the policy for the given source version (e.g. 'main', '3.2.2', '3.2.')
+// Return value: True means >= min (can proceed); AStatus = OK | WARN | FAIL;
 //  - OK  : >= rec
-//  - WARN: >= min 且 < rec
-//  - FAIL: < min 或 fpc 缺失
+//  - WARN: >= min and < rec
+//  - FAIL: < min or FPC missing
 function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;
 
@@ -120,7 +120,7 @@ begin
   // Environment variable takes priority
   P := GetEnvironmentVariable('FPDEV_POLICY_FILE');
   if (P<>'') and LoadPolicyFromFile(P) then Exit(True);
-  // 常见位置
+  // Common locations
   if LoadPolicyFromFile('src'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
   if LoadPolicyFromFile('plays'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
   if LoadPolicyFromFile('fpdev.toolchain.policy.json') then Exit(True);
@@ -307,7 +307,7 @@ end;
 function NormalizeVersion(const S: string): string;
 var i: Integer; ch: Char;
 begin
-  // 仅保留 0-9 和点号，去除尾随标签
+  // Keep only 0-9 and dots; strip any trailing label
   Result := '';
   for i := 1 to Length(S) do
   begin
@@ -318,7 +318,7 @@ begin
 end;
 
 function CmpVersion(const A, B: string): Integer;
-// 返回 -1/0/1：A<B / A=B / A>B
+// Returns -1/0/1: A<B / A=B / A>B
 var
   SA, SB: TStringList;
   i, na, nb, va, vb: Integer;
@@ -329,7 +329,7 @@ begin
     SA.Delimiter := '.'; SA.StrictDelimiter := True; SA.DelimitedText := NormalizeVersion(A);
     SB.Delimiter := '.'; SB.StrictDelimiter := True; SB.DelimitedText := NormalizeVersion(B);
     na := SA.Count; nb := SB.Count;
-    if na<nb then na := nb; // 对齐长度
+    if na<nb then na := nb; // Align lengths
     for i := 0 to na-1 do
     begin
       if i < SA.Count then pa := SA[i] else pa := '0';
@@ -350,7 +350,7 @@ begin
   S := LowerCase(Trim(ASource));
   // Try external policy first (if loaded)
   if GetExternalPolicy(S, AMin, ARec, MatchedKey) then Exit;
-  // 内置保守策略
+  // Built-in conservative policy
   if (S='trunk') or (S='main') or (Pos('3.3.', S)=1) then
   begin AMin:='3.2.2'; ARec:='3.2.2'; Exit; end;
   if (S='3.2.2') then begin AMin:='3.0.4'; ARec:='3.2.0'; Exit; end;

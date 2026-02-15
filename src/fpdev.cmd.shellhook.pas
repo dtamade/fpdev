@@ -31,7 +31,7 @@ uses
   fpdev.command.registry, fpdev.exitcodes;
 
 type
-  { TShellHookCommand - 生成 shell 集成脚本 }
+  { TShellHookCommand - Generate shell integration scripts }
   TShellHookCommand = class(TInterfacedObject, ICommand)
   private
     function GenerateBashHook: string;
@@ -237,7 +237,7 @@ var
 begin
   Result := 0;
 
-  // 检查帮助标志
+  // Check help flag
   for I := 0 to High(AParams) do
   begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
@@ -247,7 +247,7 @@ begin
     end;
   end;
 
-  // 需要 shell 参数
+  // Shell parameter required
   if Length(AParams) = 0 then
   begin
     Ctx.Err.WriteLn('Error: Missing shell type. Usage: fpdev shell-hook <bash|zsh|fish>');

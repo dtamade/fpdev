@@ -12,16 +12,16 @@ unit fpdev.cmd.package;
 ```
 # fpdev.cmd.package
 
-FreePascal 包管理系统
+Free Pascal package management system
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thank you.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ Group:685403987  QQ:179033731
 
 }
 
@@ -78,21 +78,21 @@ type
     constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
-    // 设置
+    // Settings
     procedure SetKeepBuildArtifacts(const AValue: Boolean);
 
     // Query methods (for tests and upper layers)
     function GetAvailablePackageList: TPackageArray;
     function GetInstalledPackageList: TPackageArray;
 
-    // 清理
+    // Cleanup
     function Clean(
       const Scope: string;
       Outp: IOutput = nil;
       Errp: IOutput = nil
     ): Boolean; // 'sandbox' | 'cache' | 'all'
 
-    // 包管理
+    // Package management
     function InstallPackage(
       const APackageName: string;
       const AVersion: string = '';
@@ -104,18 +104,18 @@ type
     function ListPackages(const AShowAll: Boolean = False; Outp: IOutput = nil): Boolean;
     function SearchPackages(const AQuery: string; Outp: IOutput = nil): Boolean;
 
-    // 包信息
+    // Package information
     function ShowPackageInfo(const APackageName: string; Outp: IOutput = nil): Boolean;
     function ShowPackageDependencies(const APackageName: string): Boolean;
     function VerifyPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
 
-    // 仓库管理
+    // Repository management
     function AddRepository(const AName, AURL: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function RemoveRepository(const AName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function UpdateRepositories(Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function ListRepositories(Outp: IOutput = nil): Boolean;
 
-    // 本地包管理
+    // Local package management
     function InstallFromLocal(const APackagePath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function CreatePackage(const APackageName, APath: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
     function PublishPackage(const APackageName: string; Outp: IOutput = nil; Errp: IOutput = nil): Boolean;
@@ -402,7 +402,7 @@ end;
 
 function TPackageManager.ValidatePackage(const APackageName: string): Boolean;
 begin
-  // 简单的包名验证
+  // Simple package name validation
   Result := (APackageName <> '') and (Pos(' ', APackageName) = 0) and (Pos('/', APackageName) = 0);
 end;
 
@@ -413,7 +413,7 @@ var
   J: TJSONData;
   O: TJSONObject;
 begin
-  // 初始化包信息
+  // Initialize package info
   Initialize(Result);
   Result.Name := APackageName;
   Result.Installed := IsPackageInstalled(APackageName);
@@ -421,7 +421,7 @@ begin
   if Result.Installed then
   begin
     Result.InstallPath := GetPackageInstallPath(APackageName);
-    // 尝试读取元数据
+    // Try to read metadata
     MetaPath := IncludeTrailingPathDelimiter(Result.InstallPath) + 'package.json';
     if FileExists(MetaPath) then
     begin
@@ -731,11 +731,11 @@ begin
   try
     InstallPath := GetPackageInstallPath(APackageName);
 
-    // 确保安装目录存在
+    // Ensure the install directory exists
     if not DirectoryExists(InstallPath) then
       EnsureDir(InstallPath);
 
-    // 复制源码到安装目录（后续实现为递归拷贝；当前保留源路径记录）
+    // Copy source to the install directory (to be implemented as a recursive copy later; currently only records the source path)
     Info := GetPackageInfo(APackageName);
     Info.SourcePath := ASourcePath;
 
@@ -744,10 +744,10 @@ begin
       Exit;
     end;
 
-    // 写入元数据（补充构建工具信息）
+    // Write metadata (supplement build tool information)
     Info := GetPackageInfo(APackageName);
     Info.SourcePath := ASourcePath;
-    Info.Version := Info.Version; // 保持占位逻辑
+    Info.Version := Info.Version; // Keep placeholder logic
     Info.Description := Info.Description;
     if not WritePackageMetadata(InstallPath, Info) then
 
@@ -947,7 +947,7 @@ begin
       Exit;
     end;
 
-    // 下载到缓存 zip
+    // Download to cached ZIP
     ZipPath := IncludeTrailingPathDelimiter(GetCacheDir)
       + 'packages'
       + PathDelim
@@ -972,10 +972,10 @@ begin
       Exit;
     end;
 
-    // 解压到临时目录
+    // Extract to temporary directory
     TmpDir := IncludeTrailingPathDelimiter(GetSandboxDir) + 'pkg-' + APackageName + '-' + UseVersion;
     if DirectoryExists(TmpDir) then
-      ; // 可考虑清理
+      ; // Consider cleanup
 
     if not ZipExtract(ZipPath, TmpDir, Err) then
     begin
@@ -1035,7 +1035,7 @@ begin
 
     if Outp <> nil then Outp.WriteLn(_Fmt(MSG_PKG_UNINSTALLING, [APackageName]));
 
-    // 删除安装目录
+    // Delete install directory
     if DirectoryExists(InstallPath) then
     begin
       if not DeleteDirRecursive(InstallPath) then
@@ -1515,7 +1515,7 @@ begin
   end;
 
   try
-    // 从路径提取包名
+    // Extract package name from path
     PackageName := ExtractFileName(APackagePath);
     if PackageName = '' then
       PackageName := 'local_package';

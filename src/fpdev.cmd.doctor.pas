@@ -1,14 +1,14 @@
 unit fpdev.cmd.doctor;
 
 {
-  fpdev doctor 命令
+  fpdev doctor command
 
-  诊断工具链环境，检查常见问题并提供修复建议
-  类似 rustup doctor 和 brew doctor
+  Diagnose toolchain environment, check common issues and provide fix suggestions
+  Similar to rustup doctor and brew doctor
 
-  用法:
-    fpdev doctor              # 运行完整诊断
-    fpdev doctor --quick      # 快速检查（仅关键项）
+  Usage:
+    fpdev doctor              # Run full diagnostics
+    fpdev doctor --quick      # Quick check (critical items only)
 }
 
 {$mode objfpc}{$H+}
@@ -21,7 +21,7 @@ uses
   fpdev.command.registry, fpdev.exitcodes;
 
 type
-  { TDoctorCommand - 诊断工具链环境 }
+  { TDoctorCommand - Diagnose toolchain environment }
   TDoctorCommand = class(TInterfacedObject, ICommand)
   private
     FCtx: IContext;

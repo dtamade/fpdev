@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, zipper, fpdev.utils.fs;
 
-// 解压 ZIP 到目标目录（自动创建目录），成功返回 True
+// Extract ZIP to target directory (auto-create directory), returns True on success
 function ZipExtract(const AArchive, ADestDir: string; out AErr: string): boolean;
 
 implementation

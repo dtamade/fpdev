@@ -28,11 +28,11 @@ type
   { Re-exported for backward compatibility }
 
   { TBuildCache - Build cache management
-    B068: 线程安全说明
+    B068: Thread safety note
     - This class is designed for single-threaded use (normal scenario for command-line tools)
-    - 懒加载标志 FIndexLoaded 和共享对象 FIndexEntries 无同步保护
-    - 并发访问可能导致重复加载或竞态读写
-    - 如需多线程支持，需添加临界区保护 }
+    - Lazy loading flag FIndexLoaded and shared object FIndexEntries have no synchronization protection
+    - Concurrent access may cause duplicate loading or race conditions
+    - If multi-threading support is needed, critical section protection must be added }
   TBuildCache = class
   private
     FCacheDir: string;
@@ -44,7 +44,7 @@ type
     FVerifyOnRestore: Boolean;  // Verify SHA256 on restore (default: True)
     FMaxCacheSizeBytes: Int64;  // Max cache size in bytes (0 = unlimited)
     FIndexEntries: TStringList; // Cache index: version -> JSON entry
-    FIndexLoaded: Boolean;      // 懒加载标志
+    FIndexLoaded: Boolean;      // Lazy loading flag
     function GetCacheFilePath: string;
     function GetEntryCount: Integer;
     procedure LoadEntries;
@@ -176,7 +176,7 @@ begin
   FTTLDays := 30;  // Default: 30 days
   FVerifyOnRestore := True;  // Default: verify on restore
   FMaxCacheSizeBytes := Int64(10) * 1024 * 1024 * 1024;  // Default: 10 GB in bytes
-  FIndexLoaded := False;  // 懒加载：不在构造时加载
+  FIndexLoaded := False;  // Lazy loading: not loaded in constructor
   if DirectoryExists(FCacheDir) then
   begin
     LoadEntries;

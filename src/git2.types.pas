@@ -8,16 +8,16 @@ uses
   SysUtils;
 
 type
-  // 高层抽象的分支类型，避免直接暴露 libgit2 的枚举
+  // High-level abstraction of branch types, avoiding direct exposure of libgit2 enums
   TGitBranchKind = (
     gbLocal,
     gbRemote,
     gbAll
   );
 
-  // 注意: TStringArray 已在 SysUtils 中定义，无需重复定义
+  // Note: TStringArray is already defined in SysUtils, no need to redefine
 
-  // 状态标志（高层抽象，避免直接暴露 libgit2 位掩码）
+  // Status flags (high-level abstraction, avoiding direct exposure of libgit2 bitmasks)
   TGitStatusFlag = (
     gsIndexNew,
     gsIndexModified,
@@ -34,14 +34,14 @@ type
   );
   TGitStatusFlags = set of TGitStatusFlag;
 
-  // 单个状态项
+  // Single status entry
   TGitStatusEntry = record
     Path: string;
     Flags: TGitStatusFlags;
   end;
   TGitStatusEntryArray = array of TGitStatusEntry;
 
-  // 过滤选项
+  // Filter options
   TGitStatusFilter = record
     IncludeUntracked: Boolean;
     IncludeIgnored: Boolean;

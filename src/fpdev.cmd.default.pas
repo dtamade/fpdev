@@ -1,15 +1,15 @@
 unit fpdev.cmd.default;
 
 {
-  fpdev default 命令
+  fpdev default command
 
-  设置全局默认工具链版本，类似 rustup default 和 nvm alias default
+  Set the global default toolchain version, similar to rustup default and nvm alias default
 
-  用法:
-    fpdev default                    # 显示当前默认版本
-    fpdev default fpc 3.2.2          # 设置 FPC 默认版本
-    fpdev default lazarus 3.8        # 设置 Lazarus 默认版本
-    fpdev default --unset fpc        # 清除 FPC 默认版本
+  Usage:
+    fpdev default                    # Show current default versions
+    fpdev default fpc 3.2.2          # Set the default FPC version
+    fpdev default lazarus 3.8        # Set the default Lazarus version
+    fpdev default --unset fpc        # Clear the default FPC version
 }
 
 {$mode objfpc}{$H+}
@@ -22,7 +22,7 @@ uses
   fpdev.command.registry, fpdev.exitcodes;
 
 type
-  { TDefaultCommand - 设置全局默认版本 }
+  { TDefaultCommand - Set global default versions }
   TDefaultCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
@@ -96,7 +96,7 @@ var
 begin
   Result := 0;
 
-  // 检查帮助标志
+  // Check help flags
   for I := 0 to High(AParams) do
   begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
@@ -106,7 +106,7 @@ begin
     end;
   end;
 
-  // 检查 --unset 标志
+  // Check --unset flag
   LUnset := False;
   for I := 0 to High(AParams) do
   begin
@@ -117,11 +117,11 @@ begin
     end;
   end;
 
-  // 获取管理器
+  // Get managers
   LToolchainMgr := Ctx.Config.GetToolchainManager;
   LLazarusMgr := Ctx.Config.GetLazarusManager;
 
-  // 无参数: 显示当前默认值
+  // No args: show current defaults
   if Length(AParams) = 0 then
   begin
     LCurrentFPC := LToolchainMgr.GetDefaultToolchain;
@@ -145,10 +145,10 @@ begin
     Exit(EXIT_OK);
   end;
 
-  // --unset 模式
+  // --unset mode
   if LUnset then
   begin
-    // 找到 --unset 后面的工具名
+    // Find the tool name following --unset
     LTool := '';
     for I := 0 to High(AParams) do
     begin
@@ -186,7 +186,7 @@ begin
     Exit(EXIT_OK);
   end;
 
-  // 设置默认值: fpdev default <tool> <version>
+  // Set default: fpdev default <tool> <version>
   if Length(AParams) < 2 then
   begin
     Ctx.Err.WriteLn('Error: Missing version. Usage: fpdev default <tool> <version>');
@@ -196,7 +196,7 @@ begin
   LTool := LowerCase(AParams[0]);
   LVersion := AParams[1];
 
-  // 解析版本别名
+  // Resolve version alias
   LResolver := TProjectConfigResolver.Create;
   try
     LVersion := LResolver.ResolveVersionAlias(LVersion);
@@ -207,7 +207,7 @@ begin
   case LTool of
     'fpc':
       begin
-        // 设置默认工具链名称 (格式: fpc-<version>)
+        // Set default toolchain name (format: fpc-<version>)
         LToolchainMgr.SetDefaultToolchain('fpc-' + LVersion);
         if Ctx.Config.SaveConfig then
         begin

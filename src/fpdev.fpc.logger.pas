@@ -5,11 +5,11 @@ unit fpdev.fpc.logger;
 {
   FPC Logger
   
-  改进的日志系统，支持：
-  - 日志级别过滤 (Debug, Info, Warn, Error)
-  - 文件追加写入（不重新加载整个文件）
+  Improved logging system with support for:
+  - Log level filtering (Debug, Info, Warn, Error)
+  - Append writes to file (does not reload the entire file)
   - Exception-safe (does not propagate exceptions to caller)
-  - 单例模式
+  - Singleton pattern
 }
 
 interface
@@ -18,15 +18,15 @@ uses
   SysUtils, Classes, SyncObjs;
 
 type
-  { TLogLevel - 日志级别 }
+  { TLogLevel - Log level }
   TLogLevel = (
-    llDebug,   // 调试信息
+    llDebug,   // Debug information
     llInfo,    // General information
-    llWarn,    // 警告
-    llError    // 错误
+    llWarn,    // Warning
+    llError    // Error
   );
 
-  { TLogger - 日志管理器（单例） }
+  { TLogger - Log manager (singleton) }
   TLogger = class
   private
     FLogFile: string;
@@ -45,17 +45,17 @@ type
     constructor Create;
     destructor Destroy; override;
     
-    { 初始化日志文件 }
+    { Initialize log file }
     procedure Initialize(const ALogFile: string);
     
-    { 关闭日志文件 }
+    { Shutdown log file }
     procedure Shutdown;
     
-    { 记录日志 }
+    { Write log entry }
     procedure Log(ALevel: TLogLevel; const AMessage: string);
     procedure Log(ALevel: TLogLevel; const AFormat: string; const AArgs: array of const);
     
-    { 便捷方法 }
+    { Convenience methods }
     procedure Debug(const AMessage: string);
     procedure Debug(const AFormat: string; const AArgs: array of const);
     procedure Info(const AMessage: string);
@@ -65,7 +65,7 @@ type
     procedure Error(const AMessage: string);
     procedure Error(const AFormat: string; const AArgs: array of const);
     
-    { 获取单例实例 }
+    { Get singleton instance }
     class function Instance: TLogger;
     class procedure FreeInstance;
     
@@ -74,7 +74,7 @@ type
     property Enabled: Boolean read FEnabled write FEnabled;
   end;
 
-{ 全局便捷函数 }
+{ Global convenience functions }
 procedure InitLogger(const ALogFile: string);
 procedure ShutdownLogger;
 procedure LogDebug(const AMessage: string);
@@ -109,7 +109,7 @@ procedure TLogger.Initialize(const ALogFile: string);
 begin
   FLock.Enter;
   try
-    // 关闭之前的文件
+    // Close previous file
     if Assigned(FFileStream) then
     begin
       FFileStream.Free;
@@ -122,7 +122,7 @@ begin
       Exit;
     
     try
-      // 确保目录存在
+      // Ensure directory exists
       if not DirectoryExists(ExtractFileDir(FLogFile)) then
         ForceDirectories(ExtractFileDir(FLogFile));
       
@@ -135,7 +135,7 @@ begin
       // Move to end of file
       FFileStream.Seek(0, soEnd);
       
-      // 写入启动标记
+      // Write startup marker
       WriteToFile('=== Logger initialized at ' + DateTimeToStr(Now) + ' ===');
     except
       // Ignore file open errors, disable logging
@@ -155,7 +155,7 @@ begin
       try
         WriteToFile('=== Logger shutdown at ' + DateTimeToStr(Now) + ' ===');
       except
-        // 忽略写入错误
+        // Ignore write errors
       end;
       
       FFileStream.Free;
@@ -283,7 +283,7 @@ begin
   end;
 end;
 
-{ 全局便捷函数 }
+{ Global convenience functions }
 
 procedure InitLogger(const ALogFile: string);
 begin

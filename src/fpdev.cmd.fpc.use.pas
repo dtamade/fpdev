@@ -1,12 +1,12 @@
 unit fpdev.cmd.fpc.use;
 
 {
-  fpdev fpc use 命令
+  fpdev fpc use command
 
-  增强功能:
-  - 智能安装: 版本未安装时提示用户或自动安装
-  - 项目配置支持: 读取 .fpdevrc 中的 auto_install 设置
-  - 版本别名支持: stable, lts, trunk
+  Enhanced features:
+  - Smart installation: Prompt user or auto-install when version is not installed
+  - Project config support: Read auto_install setting from .fpdevrc
+  - Version alias support: stable, lts, trunk
 }
 
 {$mode objfpc}{$H+}
@@ -101,7 +101,7 @@ begin
     Exit(EXIT_OK);
   end;
 
-  // 获取全局默认值
+  // Get global default value
   LGlobalFPC := '';
   if Ctx.Config <> nil then
   begin
@@ -110,7 +110,7 @@ begin
       LGlobalFPC := Copy(LGlobalFPC, 5, Length(LGlobalFPC));
   end;
 
-  // 创建配置解析器
+  // Create config resolver
   LResolver := TProjectConfigResolver.Create(LGlobalFPC, '');
   try
     // No arguments: use project config or global default
@@ -136,10 +136,10 @@ begin
     else
     begin
       LVer := AParams[0];
-      // 解析版本别名
+      // Resolve version alias
       LVer := LResolver.ResolveVersionAlias(LVer);
 
-      // 检查项目配置中的 auto_install 设置
+      // Check auto_install setting in project config
       LResolved := LResolver.ResolveConfig(GetCurrentDir);
       LAutoInstall := LResolved.AutoInstall;
     end;

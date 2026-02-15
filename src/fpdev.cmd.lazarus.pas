@@ -12,16 +12,16 @@ unit fpdev.cmd.lazarus;
 ```
 # fpdev.cmd.lazarus
 
-Lazarus IDE 版本管理命令
+Lazarus IDE version management commands
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thank you.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ Group:685403987  QQ:179033731
 
 }
 
@@ -69,11 +69,11 @@ type
     constructor Create(AConfigManager: IConfigManager);
     destructor Destroy; override;
 
-    // 版本查询
+    // Version queries
     function GetAvailableVersions: TLazarusVersionArray;
     function GetInstalledVersions: TLazarusVersionArray;
 
-    // 版本管理
+    // Version management
     function InstallVersion(
       const AVersion: string;
       const AFPCVersion: string = '';
@@ -95,11 +95,11 @@ type
     function SetDefaultVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function GetCurrentVersion: string;
 
-    // 源码管理
+    // Source management
     function UpdateSources(const AVersion: string = ''): Boolean;
     function CleanSources(const AVersion: string = ''): Boolean;
 
-    // IDE操作
+    // IDE operations
     function ShowVersionInfo(const AVersion: string): Boolean; overload;
     function ShowVersionInfo(const Outp: IOutput; const AVersion: string): Boolean; overload;
     function TestInstallation(const AVersion: string): Boolean; overload;
@@ -135,7 +135,7 @@ begin
     FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
 
-  // 确保安装目录存在
+  // Ensure install directory exists
   if not DirectoryExists(FInstallRoot) then
     EnsureDir(FInstallRoot);
 end;
@@ -212,7 +212,7 @@ begin
     if AllVersions[i].Installed then
       Inc(Count);
 
-  // 创建结果数组
+  // Create result array
   SetLength(Result, Count);
   Count := 0;
 
@@ -251,7 +251,7 @@ begin
     if not DirectoryExists(ExtractFileDir(ATargetDir)) then
       EnsureDir(ExtractFileDir(ATargetDir));
 
-    // 克隆仓库
+    // Clone repository
     Result := Git.Clone(LAZARUS_OFFICIAL_REPO, ATargetDir, GitTag);
 
   finally
@@ -279,13 +279,13 @@ begin
 
   try
 
-    // 确保安装目录存在
+    // Ensure install directory exists
     if not DirectoryExists(AInstallDir) then
       EnsureDir(AInstallDir);
 
     Settings := FConfigManager.GetSettingsManager.GetSettings;
 
-    // 设置FPC路径
+    // Set FPC path
     FPCPath := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + AFPCVersion + PathDelim + 'bin';
 
     {$IFDEF MSWINDOWS}
@@ -402,7 +402,7 @@ begin
   try
     InstallPath := GetVersionInstallPath(AVersion);
 
-    // 确定FPC版本
+    // Determine FPC version
     if AFPCVersion <> '' then
       FPCVer := AFPCVersion
     else
@@ -411,7 +411,7 @@ begin
 
     if AFromSource then
     begin
-      // 从源码安装
+      // Install from source
       SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
 
       if not DownloadSource(AVersion, SourceDir) then
@@ -509,7 +509,7 @@ begin
   try
     InstallPath := GetVersionInstallPath(AVersion);
 
-    // 删除安装目录
+    // Delete install directory
     if DirectoryExists(InstallPath) then
       DeleteDirRecursive(InstallPath);
 
@@ -668,7 +668,7 @@ var
 begin
   Result := False;
 
-  // 确定要更新的版本
+  // Determine which version to update
   if AVersion <> '' then
     UseVersion := AVersion
   else
@@ -679,10 +679,10 @@ begin
     Exit;
   end;
 
-  // 构造源码目录路径
+  // Construct source directory path
   SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
 
-  // 检查源码目录是否存在
+  // Check whether the source directory exists
   if not DirectoryExists(SourceDir) then
   begin
     Exit;
@@ -895,7 +895,7 @@ var
 begin
   Result := False;
 
-  // 确定要启动的版本
+  // Determine which version to launch
   if AVersion <> '' then
     UseVersion := AVersion
   else

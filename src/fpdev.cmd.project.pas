@@ -12,16 +12,16 @@ unit fpdev.cmd.project;
 ```
 # fpdev.cmd.project
 
-FreePascal 项目管理和模板系统
+FreePascal project management and template system
 
 
-## 声明
+## Notice
 
-转发或者用于自己项目请保留本项目的版权声明,谢谢.
+If you redistribute or use this in your own project, please keep this project's copyright notice. Thanks.
 
 fafafaStudio
 Email:dtamade@gmail.com
-QQ群:685403987  QQ:179033731
+QQ group: 685403987  QQ:179033731
 
 }
 
@@ -61,17 +61,17 @@ type
     constructor Create(AConfigManager: IConfigManager); overload;
     destructor Destroy; override;
 
-    // 模板查询
+    // Template queries
     function GetTemplateList: TProjectTemplateArray;
 
-    // 项目创建
+    // Project creation
     function CreateProject(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
     function ListTemplates: Boolean; overload;
     function ListTemplates(const Outp: IOutput): Boolean; overload;
     function ShowTemplateInfo(const ATemplateName: string): Boolean; overload;
     function ShowTemplateInfo(const Outp, Errp: IOutput; const ATemplateName: string): Boolean; overload;
 
-    // 项目管理
+    // Project management
     function BuildProject(const AProjectDir: string; const ATarget: string = ''): Boolean;
     function CleanProject(const AProjectDir: string): Boolean; overload;
     function CleanProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean; overload;
@@ -80,7 +80,7 @@ type
     function RunProject(const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
     function RunProject(const Outp, Errp: IOutput; const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
 
-    // 模板管理
+    // Template management
     function InstallTemplate(const ATemplatePath: string): Boolean; overload;
     function InstallTemplate(const Outp, Errp: IOutput; const ATemplatePath: string): Boolean; overload;
     function RemoveTemplate(const ATemplateName: string): Boolean; overload;
@@ -92,7 +92,7 @@ type
 implementation
 
 const
-  // 内置项目模板
+  // Built-in project templates
   BUILTIN_TEMPLATES: array[0..6] of TProjectTemplate = (
     (Name: 'console'; DisplayName: 'Console Application'; Description: 'Simple console application'; ProjectType: ptConsole; Available: True),
     (Name: 'gui'; DisplayName: 'GUI Application'; Description: 'Lazarus GUI application'; ProjectType: ptGUI; Available: True),
@@ -120,7 +120,7 @@ begin
   Settings := FConfigManager.GetSettingsManager.GetSettings;
   FTemplatesRoot := Settings.InstallRoot + PathDelim + 'templates';
 
-  // 确保模板目录存在
+  // Ensure the templates directory exists
   EnsureDir(FTemplatesRoot);
 
   // Initialize project file generator service
@@ -234,11 +234,11 @@ begin
   end;
 
   try
-    // 确保目标目录存在
+    // Ensure the target directory exists
     if not DirectoryExists(ATargetDir) then
       EnsureDir(ATargetDir);
 
-    // 委托给项目文件生成服务
+    // Delegate to the project file generation service
     Result := FGenerator.GenerateProjectFiles(Template, AProjectName, ATargetDir);
 
   except
@@ -463,7 +463,7 @@ begin
     end
     else
     begin
-      // 查找首个 .lpr（FPC 项目）
+      // Find the first .lpr (FPC project)
       FoundLPR := '';
       if FindFirst(AProjectDir + PathDelim + '*.lpr', faAnyFile, SR) = 0 then
       begin

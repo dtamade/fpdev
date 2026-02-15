@@ -5,7 +5,7 @@ unit fpdev.libgit2;
 
 interface
 
-// 兼容别名：统一改用 libgit2.pas 的声明，避免重复与漂移
+// Compatibility alias: Use libgit2.pas declarations uniformly to avoid duplication and drift
 uses libgit2;
 
 implementation

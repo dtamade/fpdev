@@ -20,12 +20,12 @@ const
   {$ENDIF}
 
 type
-  // 基本类型定义
+  // Basic type definitions
   csize_t = culong;
   git_time_t = cint64;
   git_off_t = cint64;
 
-  // 前向声明
+  // Forward declarations
   git_repository = Pointer;
   git_remote = Pointer;
   git_reference = Pointer;
@@ -48,7 +48,7 @@ type
   end;
   Pgit_oid = ^git_oid;
 
-  // Git时间结构
+  // Git time structure
   git_time = record
     time: git_time_t;
     offset: cint;
@@ -56,7 +56,7 @@ type
   end;
   Pgit_time = ^git_time;
 
-  // Git签名结构
+  // Git signature structure
   git_signature_t = record
     name: PChar;
     email: PChar;
@@ -64,19 +64,19 @@ type
   end;
   Pgit_signature_t = ^git_signature_t;
 
-  // 错误处理
+  // Error handling
   git_error_t = record
     message: PChar;
     klass: cint;
   end;
   Pgit_error_t = ^git_error_t;
 
-  // 回调函数类型
+  // Callback function types
   git_progress_cb = function(const str: PChar; len: csize_t; payload: Pointer): cint; cdecl;
-  // 按 libgit2 定义，checkout 进度回调为 void（procedure）
+  // Per libgit2, the checkout progress callback is void (procedure)
   git_checkout_progress_cb = procedure(const path: PChar; completed_steps, total_steps: csize_t; payload: Pointer); cdecl;
 
-  // 克隆进度结构
+  // Clone progress structure
   git_indexer_progress = record
     total_objects: cuint;
     indexed_objects: cuint;
@@ -88,17 +88,17 @@ type
   end;
   Pgit_indexer_progress = ^git_indexer_progress;
 
-  // 额外回调类型（与网络/克隆相关）
+  // Additional callback types (network/clone related)
   git_credential_acquire_cb = function(out cred: Pointer; const url, username_from_url: PChar; allowed_types: cuint; payload: Pointer): cint; cdecl;
   git_transport_certificate_check_cb = function(cert: Pointer; valid: cint; const host: PChar; payload: Pointer): cint; cdecl;
   git_transfer_progress_cb = function(const stats: Pgit_indexer_progress; payload: Pointer): cint; cdecl;
 
   git_indexer_progress_cb = function(const stats: Pgit_indexer_progress; payload: Pointer): cint; cdecl;
 
-  // 远程/拉取/检出/克隆选项
-  // 注意：这些结构体必须与 libgit2 C 库的实际大小匹配
-  // 使用 _reserved 字节数组确保内存布局正确
-  // 实际大小来自 libgit2 1.7: git_remote_callbacks=120, git_fetch_options=208,
+  // Remote/fetch/checkout/clone options
+  // Note: these records must match the actual size of the libgit2 C structs
+  // Use the _reserved byte arrays to ensure correct memory layout
+  // Sizes are from libgit2 1.7: git_remote_callbacks=120, git_fetch_options=208,
   // git_checkout_options=144, git_clone_options=408
 
   git_remote_callbacks = record
@@ -125,18 +125,18 @@ type
     _reserved: array[0..51] of Byte;   // 408 - 4 - 144 - 208 = 52 bytes padding
   end;
 
-  // 状态标志
+  // Status flags
   git_status_t = cuint;
   git_status_opt_t = cuint;
 
-  // 分支类型
+  // Branch types
   git_branch_t = (
     GIT_BRANCH_LOCAL = 1,
     GIT_BRANCH_REMOTE = 2,
     GIT_BRANCH_ALL = 3
   );
 
-  // 对象类型
+  // Object types
   git_object_t = (
     GIT_OBJECT_ANY = -2,
     GIT_OBJECT_INVALID = -1,
@@ -148,7 +148,7 @@ type
     GIT_OBJECT_REF_DELTA = 7
   );
 
-  // 引用类型
+  // Reference types
   git_reference_t = (
     GIT_REFERENCE_INVALID = 0,
     GIT_REFERENCE_DIRECT = 1,
@@ -156,9 +156,9 @@ type
     GIT_REFERENCE_ALL = 3
   );
 
-// 常量定义
+// Constant definitions
 const
-  // 错误代码
+  // Error codes
   GIT_OK = 0;
   GIT_ERROR = -1;
   GIT_ENOTFOUND = -3;
@@ -190,7 +190,7 @@ const
   GIT_EINDEXDIRTY = -34;
   GIT_EAPPLYFAIL = -35;
 
-  // 状态标志
+  // Status flags
   GIT_STATUS_CURRENT = 0;
   GIT_STATUS_INDEX_NEW = 1 shl 0;
   GIT_STATUS_INDEX_MODIFIED = 1 shl 1;
@@ -206,12 +206,12 @@ const
   GIT_STATUS_IGNORED = 1 shl 14;
   GIT_STATUS_CONFLICTED = 1 shl 15;
 
-// 基本库函数
+// Basic library functions
 function git_libgit2_init: cint; cdecl; external LIBGIT2_LIB;
 function git_libgit2_shutdown: cint; cdecl; external LIBGIT2_LIB;
 function git_libgit2_version(major, minor, rev: Pcint): cint; cdecl; external LIBGIT2_LIB;
 
-// 仓库操作
+// Repository operations
 function git_repository_open(out repo: git_repository; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_repository_init(out repo: git_repository; const path: PChar; is_bare: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_repository_discover(out out_path: PChar; path_size: csize_t; const start_path: PChar; across_fs: cint; const ceiling_dirs: PChar): cint; cdecl; external LIBGIT2_LIB;
@@ -223,17 +223,17 @@ function git_repository_workdir(repo: git_repository): PChar; cdecl; external LI
 function git_repository_set_head(repo: git_repository; const refname: PChar): cint; cdecl; external LIBGIT2_LIB;
 procedure git_repository_free(repo: git_repository); cdecl; external LIBGIT2_LIB;
 
-// 克隆操作
+// Clone operations
 function git_clone(out repo: git_repository; const url: PChar; const local_path: PChar; const options: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
-// 远程操作
+// Remote operations
 function git_remote_lookup(out remote: git_remote; repo: git_repository; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_fetch(remote: git_remote; const refspecs: Pointer; const opts: Pointer; const reflog_message: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_url(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;
 function git_remote_name(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;
 procedure git_remote_free(remote: git_remote); cdecl; external LIBGIT2_LIB;
 
-// 引用操作
+// Reference operations
 function git_reference_lookup(out reference: git_reference; repo: git_repository; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_reference_name(ref: git_reference): PChar; cdecl; external LIBGIT2_LIB;
 function git_reference_target(ref: git_reference): Pgit_oid; cdecl; external LIBGIT2_LIB;
@@ -241,20 +241,20 @@ function git_reference_symbolic_target(ref: git_reference): PChar; cdecl; extern
 function git_reference_type(ref: git_reference): git_reference_t; cdecl; external LIBGIT2_LIB;
 procedure git_reference_free(ref: git_reference); cdecl; external LIBGIT2_LIB;
 
-// 分支操作
+// Branch operations
 function git_branch_create(out ref_out: git_reference; repo: git_repository; const branch_name: PChar; target: git_commit; force: cint): cint; cdecl; external LIBGIT2_LIB;
 function git_branch_delete(branch: git_reference): cint; cdecl; external LIBGIT2_LIB;
 function git_branch_iterator_new(out iter: git_branch_iterator; repo: git_repository; list_flags: git_branch_t): cint; cdecl; external LIBGIT2_LIB;
 function git_branch_next(out ref_out: git_reference; out branch_type: git_branch_t; iter: git_branch_iterator): cint; cdecl; external LIBGIT2_LIB;
 procedure git_branch_iterator_free(iter: git_branch_iterator); cdecl; external LIBGIT2_LIB;
 
-// 对象操作
+// Object operations
 function git_object_lookup(out obj: git_object; repo: git_repository; const id: Pgit_oid; obj_type: git_object_t): cint; cdecl; external LIBGIT2_LIB;
 function git_object_id(obj: git_object): Pgit_oid; cdecl; external LIBGIT2_LIB;
 function git_object_type(obj: git_object): git_object_t; cdecl; external LIBGIT2_LIB;
 procedure git_object_free(obj: git_object); cdecl; external LIBGIT2_LIB;
 
-// 提交操作
+// Commit operations
 function git_commit_lookup(out commit: git_commit; repo: git_repository; const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 function git_commit_message(commit: git_commit): PChar; cdecl; external LIBGIT2_LIB;
 function git_commit_author(commit: git_commit): Pgit_signature_t; cdecl; external LIBGIT2_LIB;
@@ -262,7 +262,7 @@ function git_commit_committer(commit: git_commit): Pgit_signature_t; cdecl; exte
 function git_commit_time(commit: git_commit): git_time_t; cdecl; external LIBGIT2_LIB;
 function git_commit_parentcount(commit: git_commit): cuint; cdecl; external LIBGIT2_LIB;
 
-// OID操作
+// OID operations
 function git_oid_fromstr(out id: git_oid; const str: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_oid_tostr(out str: PChar; size: csize_t; const id: Pgit_oid): PChar; cdecl; external LIBGIT2_LIB;
 function git_oid_fmt(out str: PChar; const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
@@ -270,60 +270,60 @@ function git_oid_cmp(const a: Pgit_oid; const b: Pgit_oid): cint; cdecl; externa
 function git_oid_equal(const a: Pgit_oid; const b: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 function git_oid_iszero(const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 
-// 错误处理
+// Error handling
 function git_error_last: Pgit_error_t; cdecl; external LIBGIT2_LIB;
 procedure git_error_clear; cdecl; external LIBGIT2_LIB;
 function git_error_set_str(error_class: cint; const str: PChar): cint; cdecl; external LIBGIT2_LIB;
 
-// 状态操作
+// Status operations
 function git_status_list_new(out status_list: git_status_list; repo: git_repository; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_status_list_entrycount(status_list: git_status_list): csize_t; cdecl; external LIBGIT2_LIB;
 
-  // 遍历状态（无结构体，使用回调避免布局问题）
+  // Iterate status (no struct; use a callback to avoid layout issues)
   type
     git_status_cb = function(const path: PChar; status_flags: cuint; payload: Pointer): cint; cdecl;
   function git_status_foreach(repo: git_repository; cb: git_status_cb; payload: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
 
 
-// Checkout flags（按位）最小集合
+// Checkout flags (bitwise) minimal set
 const
   GIT_CHECKOUT_NONE              = $00000000;
-  GIT_CHECKOUT_SAFE              = $00000001; // 默认安全
-  GIT_CHECKOUT_FORCE             = $00000002; // 强制覆盖
+  GIT_CHECKOUT_SAFE              = $00000001; // Safe (default)
+  GIT_CHECKOUT_FORCE             = $00000002; // Force overwrite
   GIT_CHECKOUT_RECREATE_MISSING  = $00000200;
 
 
 procedure git_status_list_free(status_list: git_status_list); cdecl; external LIBGIT2_LIB;
 
-// 索引操作
+// Index operations
 function git_repository_index(out index: git_index; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_index_add_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 
-  // Checkout 操作
+  // Checkout operations
   function git_checkout_head(repo: git_repository; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
   function git_checkout_tree(repo: git_repository; tree: git_object; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
 procedure git_index_free(index: git_index); cdecl; external LIBGIT2_LIB;
 
-// 配置操作
+// Configuration operations
 function git_config_open_default(out cfg: git_config): cint; cdecl; external LIBGIT2_LIB;
 function git_config_get_string(out out_value: PChar; cfg: git_config; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_config_set_string(cfg: git_config; const name: PChar; const value: PChar): cint; cdecl; external LIBGIT2_LIB;
 procedure git_config_free(cfg: git_config); cdecl; external LIBGIT2_LIB;
 
-// 选项初始化函数（使用 Pointer 以避免跨单元类型耦合）
+// Option initialization functions (use Pointer to avoid cross-unit type coupling)
 function git_remote_init_callbacks(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_fetch_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_clone_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_checkout_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 
-// 凭据创建（最小集）
+// Credential creation (minimal set)
 function git_credential_default_new(out cred: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_credential_userpass_plaintext_new(out cred: Pointer; const username, password: PChar): cint; cdecl; external LIBGIT2_LIB;
 
-// 签名操作
+// Signature operations
 function git_signature_new(out sig: git_signature; const name: PChar; const email: PChar; time: git_time_t; offset: cint): cint; cdecl; external LIBGIT2_LIB;
 function git_signature_now(out sig: git_signature; const name: PChar; const email: PChar): cint; cdecl; external LIBGIT2_LIB;
 procedure git_signature_free(sig: git_signature); cdecl; external LIBGIT2_LIB;

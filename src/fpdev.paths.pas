@@ -7,12 +7,12 @@ interface
 uses
   SysUtils, fpdev.constants, fpdev.utils;
 
-// 便携模式控制
+// Portable mode control
 function IsPortableMode: Boolean;
 function GetProgramDir: string;
 procedure SetPortableMode(AEnabled: Boolean);
 
-// 路径获取
+// Path retrieval
 function GetDataRoot: string;
 function GetCacheDir: string;
 function GetSandboxDir: string;

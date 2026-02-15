@@ -127,14 +127,14 @@ begin
 
     if RepoArg<>'' then
     begin
-      // 直接 URL 或 名称
+      // Direct URL or name
       if Pos('http', LowerCase(RepoArg))=1 then URL := RepoArg else URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoArg);
       if URL='' then
       begin
         Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoArg]));
         Exit(EXIT_USAGE_ERROR);
       end;
-      // 计算缓存文件
+      // Calculate cache file
       CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
       if not DirectoryExists(CacheDir) then EnsureDir(CacheDir);
       CacheFile := IncludeTrailingPathDelimiter(CacheDir) + SanitizeFileName(URL) + '.json';
@@ -157,7 +157,7 @@ begin
             Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_FAILED, [URL]));
             Exit(EXIT_NOT_FOUND);
           end;
-          // 写缓存
+          // Write cache
           with TStringList.Create do
           try
             Text := S; SaveToFile(CacheFile);
@@ -229,7 +229,7 @@ begin
       end;
     end;
 
-    // 输出
+    // Output
     if AsJson then
     begin
       Ctx.Out.Write('{"versions":[');

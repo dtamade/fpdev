@@ -22,7 +22,7 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    // 基本Git操作
+    // Basic Git operations
     function CloneRepository(const AURL, ATargetDir: string; const ABranch: string = ''): Boolean;
     function UpdateRepository(const ARepoDir: string): Boolean;
     function CheckoutBranch(const ARepoDir, ABranch: string): Boolean;
@@ -33,7 +33,7 @@ type
     function Commit(const ARepoDir, AMessage: string): Boolean;
     function Push(const ARepoDir: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
 
-    // 验证和检查
+    // Validation and checks
     function ValidateGitEnvironment: Boolean;
     function GetGitVersion: string;
   end;
@@ -102,7 +102,7 @@ begin
 
   if not IsGitInstalled then
   begin
-  // WriteLn('错误: Git未安装');  // 调试代码已注释
+  // WriteLn('Error: Git is not installed');  // debug code commented out
     Exit;
   end;
 
@@ -110,7 +110,7 @@ begin
   try
     Process.Executable := 'git';
 
-    // 解析命令参数
+    // Parse command arguments
     CommandParts := ACommand.Split(' ');
     for i := 0 to High(CommandParts) do
       if Trim(CommandParts[i]) <> '' then
@@ -121,21 +121,21 @@ begin
 
     Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
 
-  // WriteLn('执行: git ', ACommand);  // 调试代码已注释
+  // WriteLn('Running: git ', ACommand);  // debug code commented out
     if AWorkingDir <> '' then
-  // WriteLn('工作目录: ', AWorkingDir);  // 调试代码已注释
+  // WriteLn('Working directory: ', AWorkingDir);  // debug code commented out
 
     try
       Process.Execute;
       Result := Process.ExitStatus = 0;
 
       if not Result then
-  // WriteLn('Git命令执行失败，退出代码: ', Process.ExitStatus);  // 调试代码已注释
+  // WriteLn('Git command failed, exit code: ', Process.ExitStatus);  // debug code commented out
 
     except
       on E: Exception do
       begin
-  // WriteLn('执行Git命令时发生异常: ', E.Message);  // 调试代码已注释
+  // WriteLn('Exception while executing Git command: ', E.Message);  // debug code commented out
         Result := False;
       end;
     end;
@@ -188,7 +188,7 @@ begin
   try
     Process.Executable := 'git';
 
-    // 解析命令参数
+    // Parse command arguments
     CommandParts := ACommand.Split(' ');
     for i := 0 to High(CommandParts) do
       if Trim(CommandParts[i]) <> '' then
@@ -230,33 +230,33 @@ var
 begin
   Result := False;
 
-  // WriteLn('正在克隆仓库...');  // 调试代码已注释
-  // WriteLn('URL: ', AURL);  // 调试代码已注释
-  // WriteLn('目标目录: ', ATargetDir);  // 调试代码已注释
+  // WriteLn('Cloning repository...');  // debug code commented out
+  // WriteLn('URL: ', AURL);  // debug code commented out
+  // WriteLn('Target directory: ', ATargetDir);  // debug code commented out
   if ABranch <> '' then
-  // WriteLn('分支: ', ABranch);  // 调试代码已注释
+  // WriteLn('Branch: ', ABranch);  // debug code commented out
 
-  // 确保父目录存在
+  // Ensure parent directory exists
   ParentDir := ExtractFileDir(ATargetDir);
   if not DirectoryExists(ParentDir) then
   begin
-  // WriteLn('创建目录: ', ParentDir);  // 调试代码已注释
+  // WriteLn('Creating directory: ', ParentDir);  // debug code commented out
     if not ForceDirectories(ParentDir) then
     begin
-  // WriteLn('错误: 无法创建目录 ', ParentDir);  // 调试代码已注释
+  // WriteLn('Error: unable to create directory ', ParentDir);  // debug code commented out
       Exit;
     end;
   end;
 
-  // 如果目标目录已存在且是Git仓库，则更新而不是克隆
+  // If the target directory already exists and is a Git repository, update instead of cloning
   if IsGitRepository(ATargetDir) then
   begin
-  // WriteLn('目标目录已存在Git仓库，尝试更新...');  // 调试代码已注释
+  // WriteLn('Target directory already contains a Git repository, trying to update...');  // debug code commented out
     Result := UpdateRepository(ATargetDir);
     Exit;
   end;
 
-  // 构建克隆命令
+  // Build clone command
   Command := 'clone';
   if ABranch <> '' then
     Command := Command + ' --branch ' + ABranch;
@@ -276,13 +276,13 @@ begin
 
   if not IsGitRepository(ARepoDir) then
   begin
-  // WriteLn('错误: ', ARepoDir, ' 不是Git仓库');  // 调试代码已注释
+  // WriteLn('Error: ', ARepoDir, ' is not a Git repository');  // debug code commented out
     Exit;
   end;
 
-  // WriteLn('正在更新仓库: ', ARepoDir);  // 调试代码已注释
+  // WriteLn('Updating repository: ', ARepoDir);  // debug code commented out
 
-  // 执行 git pull
+  // Run git pull
   Result := ExecuteGitCommand('pull', ARepoDir);
 
   if Result then
@@ -297,11 +297,11 @@ begin
 
   if not IsGitRepository(ARepoDir) then
   begin
-  // WriteLn('错误: ', ARepoDir, ' 不是Git仓库');  // 调试代码已注释
+  // WriteLn('Error: ', ARepoDir, ' is not a Git repository');  // debug code commented out
     Exit;
   end;
 
-  // WriteLn('切换到分支: ', ABranch);  // 调试代码已注释
+  // WriteLn('Switch to branch: ', ABranch);  // debug code commented out
   Result := ExecuteGitCommand('checkout ' + ABranch, ARepoDir);
 
   if Result then

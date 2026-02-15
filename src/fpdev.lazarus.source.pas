@@ -27,34 +27,34 @@ type
     constructor Create(const ASourceRoot: string = '');
     destructor Destroy; override;
 
-    // 配置
+    // Configuration
     procedure SetFPCPath(const APath: string);
     procedure SetParallelJobs(AJobs: Integer);
 
-    // 源码管理
+    // Source management
     function CloneLazarusSource(const AVersion: string = 'main'): Boolean;
     function UpdateLazarusSource(const AVersion: string = ''): Boolean;
     function SwitchLazarusVersion(const AVersion: string): Boolean;
     function ListAvailableVersions: TStringArray;
     function ListLocalVersions: TStringArray;
 
-    // 版本信息
+    // Version information
     function GetCurrentVersion: string;
     function IsVersionAvailable(const AVersion: string): Boolean;
     function IsVersionInstalled(const AVersion: string): Boolean;
 
-    // 路径管理
+    // Path management
     function GetLazarusSourcePath(const AVersion: string = ''): string;
     function GetLazarusBuildPath(const AVersion: string = ''): string;
     function GetLazarusExecutablePath(const AVersion: string = ''): string;
 
-    // Lazarus特定功能
+    // Lazarus-specific features
     function BuildLazarus(const AVersion: string = ''): Boolean;
     function LaunchLazarus(const AVersion: string = ''): Boolean;
     function GetLazarusVersion(const AVersion: string = ''): string;
     function InstallLazarusVersion(const AVersion: string): Boolean;
 
-    // 属性
+    // Properties
     property SourceRoot: string read FSourceRoot write FSourceRoot;
     property CurrentVersion: string read GetCurrentVersion;
     property FPCPath: string read FFPCPath write FFPCPath;
@@ -65,7 +65,7 @@ const
   // Lazarus Git repository information - using central constants
   LAZARUS_GIT_URL = LAZARUS_OFFICIAL_REPO;
 
-  // 支持的Lazarus版本分支
+  // Supported Lazarus version branches
   LAZARUS_VERSIONS: array[0..8] of record
     Version: string;
     Branch: string;
@@ -100,7 +100,7 @@ begin
   FFPCPath := '';
   FParallelJobs := 4;
 
-  // 确保源码根目录存在
+  // Ensure the source root directory exists
   if not DirectoryExists(FSourceRoot) then
     EnsureDir(FSourceRoot);
 end;
@@ -141,7 +141,7 @@ var
 begin
   Result := ABranch;
 
-  // 从分支名推断版本
+  // Infer version from branch name
   for i := 0 to High(LAZARUS_VERSIONS) do
   begin
     if SameText(LAZARUS_VERSIONS[i].Branch, ABranch) then
@@ -478,7 +478,7 @@ begin
 
   Result := Version;
 
-  // 查找详细版本信息
+  // Find detailed version information
   for i := 0 to High(LAZARUS_VERSIONS) do
   begin
     if SameText(LAZARUS_VERSIONS[i].Version, Version) then

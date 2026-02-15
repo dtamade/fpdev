@@ -1,14 +1,14 @@
 unit fpdev.cmd.show;
 
 {
-  fpdev show 命令
+  fpdev show command
 
-  显示当前工具链配置概览，类似 rustup show
+  Display an overview of the current toolchain configuration, similar to rustup show
 
-  用法:
-    fpdev show              # 显示完整配置概览
-    fpdev show --active     # 仅显示活跃版本
-    fpdev show --installed  # 仅显示已安装版本
+  Usage:
+    fpdev show              # Show full configuration overview
+    fpdev show --active     # Show only active versions
+    fpdev show --installed  # Show only installed versions
 }
 
 {$mode objfpc}{$H+}
@@ -21,7 +21,7 @@ uses
   fpdev.command.registry, fpdev.exitcodes;
 
 type
-  { TShowCommand - 显示当前配置概览 }
+  { TShowCommand - Display current configuration overview }
   TShowCommand = class(TInterfacedObject, ICommand)
   private
     procedure ShowActiveToolchain(const Ctx: IContext);
@@ -88,7 +88,7 @@ var
   LResolved: TResolvedConfig;
   LGlobalFPC, LGlobalLazarus: string;
 begin
-  // 获取全局默认值
+  // Get global defaults
   LGlobalFPC := '';
   LGlobalLazarus := '';
 
@@ -215,7 +215,7 @@ var
   LProjectConfig: string;
   LResolver: TProjectConfigResolver;
 begin
-  // 显示活跃工具链
+  // Show active toolchain
   ShowActiveToolchain(Ctx);
 
   Ctx.Out.WriteLn('');
@@ -225,7 +225,7 @@ begin
 
   Ctx.Out.WriteLn('');
 
-  // 显示全局默认
+  // Show global defaults
   Ctx.Out.WriteLn('Global defaults');
   Ctx.Out.WriteLn('---------------');
 
@@ -249,7 +249,7 @@ begin
 
   Ctx.Out.WriteLn('');
 
-  // 显示项目配置
+  // Show project configuration
   Ctx.Out.WriteLn('Project configuration');
   Ctx.Out.WriteLn('---------------------');
 
@@ -266,7 +266,7 @@ begin
 
   Ctx.Out.WriteLn('');
 
-  // 显示设置
+  // Show settings
   Ctx.Out.WriteLn('Settings');
   Ctx.Out.WriteLn('--------');
   LSettings := Ctx.Config.GetSettingsManager.GetSettings;
@@ -285,7 +285,7 @@ begin
   LShowActive := False;
   LShowInstalled := False;
 
-  // 解析参数
+  // Parse arguments
   for I := 0 to High(AParams) do
   begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
