@@ -140,6 +140,7 @@ begin
   if (GPolicyFPC=nil) or (GPolicyFPC.Count=0) then Exit(False);
   S := LowerCase(Trim(ASource));
   BestLen := -1;
+  Val := '';
   for i := 0 to GPolicyFPC.Count-1 do
   begin
     Key := LowerCase(Trim(GPolicyFPC.Names[i]));
@@ -255,6 +256,7 @@ function ProbeFirstAvailable(
 ): TToolStatus;
 var i: Integer;
 begin
+  Result := Default(TToolStatus);
   for i := Low(ANames) to High(ANames) do
   begin
     Result := ProbeOne(ANames[i], AArgs);

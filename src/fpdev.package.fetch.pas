@@ -94,9 +94,16 @@ var
   Plan: TPackageDownloadPlan;
   Err: string;
 begin
-  Result := BuildPackageDownloadPlanCore(APackageName, AVersion, ACacheDir, AAvailablePackages, Plan)
-    and Assigned(ADownloadRunner)
-    and ADownloadRunner(Plan.URLs, Plan.ZipPath, Plan.FetchOptions, Err);
+  Result := False;
+  Plan := Default(TPackageDownloadPlan);
+  Err := '';
+  if not Assigned(ADownloadRunner) then
+    Exit;
+
+  if not BuildPackageDownloadPlanCore(APackageName, AVersion, ACacheDir, AAvailablePackages, Plan) then
+    Exit;
+
+  Result := ADownloadRunner(Plan.URLs, Plan.ZipPath, Plan.FetchOptions, Err);
 end;
 
 end.

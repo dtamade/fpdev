@@ -264,7 +264,7 @@ begin
 end;
 
 {$PUSH}{$NOTES OFF} // bits is used via sha256_update
-procedure sha256_final(var ctx: TSHA256Ctx; out digest: array of byte);
+procedure sha256_final(var ctx: TSHA256Ctx; var digest: array of byte);
 var
   bits: array[0..7] of byte;
   idx, padLen: SizeInt;
@@ -305,7 +305,7 @@ end;
 {$POP}
 
 {$PUSH}{$NOTES OFF} // bits is used via sha512_update
-procedure sha512_final(var ctx: TSHA512Ctx; out digest: array of byte);
+procedure sha512_final(var ctx: TSHA512Ctx; var digest: array of byte);
 var
   bits: array[0..15] of byte;
   idx, padLen: SizeInt;
@@ -430,4 +430,3 @@ begin
 end;
 
 end.
-

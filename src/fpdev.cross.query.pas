@@ -95,7 +95,9 @@ function TCrossTargetQuery.IsTargetInstalled(const ATarget: string): Boolean;
 var
   CrossTarget: TCrossTarget;
 begin
-  Result := FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) and CrossTarget.Enabled;
+  Result := False;
+  if FConfigManager.GetCrossTargetManager.GetCrossTarget(ATarget, CrossTarget) then
+    Result := CrossTarget.Enabled;
 end;
 
 function TCrossTargetQuery.ValidateTarget(const ATarget: string): Boolean;

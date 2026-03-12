@@ -23,7 +23,7 @@ uses
 
 procedure ExecuteRootHelpCore(const AParams: TStringArray; const AOut: IOutput);
 begin
-  if Length(AParams) >= 0 then;
+  if AParams <> nil then;
   WriteRootHelpCore(AOut);
 end;
 

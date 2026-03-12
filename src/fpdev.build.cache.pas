@@ -441,17 +441,18 @@ begin
   // Verify integrity before extraction (Fix: add integrity verification)
   if FVerifyOnRestore then
   begin
-    if GetArtifactInfo(AVersion, Info) and (Info.SHA256 <> '') then
-    begin
-      if not VerifyArtifact(ArchivePath, Info.SHA256) then
+    if GetArtifactInfo(AVersion, Info) then
+      if Info.SHA256 <> '' then
       begin
-        WriteLn('Error: Cache integrity verification failed for ', AVersion);
-        WriteLn('  Expected SHA256: ', Info.SHA256);
-        WriteLn('  The cached artifact may be corrupted or tampered with.');
-        Inc(FCacheMisses);
-        Exit;
+        if not VerifyArtifact(ArchivePath, Info.SHA256) then
+        begin
+          WriteLn('Error: Cache integrity verification failed for ', AVersion);
+          WriteLn('  Expected SHA256: ', Info.SHA256);
+          WriteLn('  The cached artifact may be corrupted or tampered with.');
+          Inc(FCacheMisses);
+          Exit;
+        end;
       end;
-    end;
   end;
 
   // Ensure destination directory exists
