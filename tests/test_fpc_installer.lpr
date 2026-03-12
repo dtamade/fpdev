@@ -4,12 +4,12 @@ program test_fpc_installer;
 
 {
   Unit tests for TFPCInstaller
-  
+
   Tests:
   - InstallVersion: Installs FPC version from source or binary
   - UninstallVersion: Uninstalls FPC version
   - GetBinaryDownloadURL: Generates platform-specific download URL
-  
+
   Note: These tests use mock implementations for file system and process runner
   to avoid dependency on real network and file system operations.
 }
@@ -30,12 +30,19 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+function BuildTempRoot(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + IntToStr(GetTickCount64);
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_installer_root_' + IntToStr(GetTickCount64);
+  if TestInstallRoot = '' then
+    TestInstallRoot := BuildTempRoot('test_installer_root_');
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
@@ -127,6 +134,22 @@ begin
   end;
 end;
 
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  AssertTrue(Pos(TempRoot, ExpandFileName(TestInstallRoot)) = 1,
+    'Test install root should live under system temp');
+  AssertTrue(Pos(TempRoot, ExpandFileName(ConfigManager.ConfigPath)) = 1,
+    'Config path should live under system temp');
+end;
+
 procedure ResetMocks;
 begin
   MockFileSystem.Clear;
@@ -198,17 +221,17 @@ begin
 
   ResetMocks;
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock: version is already installed
   MockFileSystem.AddDirectory(InstallDir);
   // Simulate installed version by adding to config
   // Note: This test may need adjustment based on how IsVersionInstalled works
-  
+
   // First install
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
   MockProcessRunner.SetResult('make', 0, 'Build complete', '');
   Installer.InstallVersion('3.2.2', True);
-  
+
   // Second install should fail
   Result := Installer.InstallVersion('3.2.2', True);
 
@@ -227,7 +250,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  
+
   Result := Installer.InstallVersion('invalid_version_xyz', True);
 
   AssertFalse(Result.Success, 'InstallVersion should fail for invalid version');
@@ -247,7 +270,7 @@ begin
 
   ResetMocks;
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock: version is installed
   MockFileSystem.AddDirectory(InstallDir);
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
@@ -257,10 +280,10 @@ begin
   {$ELSE}
   MockProcessRunner.SetResult('rm', 0, '', '');
   {$ENDIF}
-  
+
   // First install
   Installer.InstallVersion('3.2.2', True);
-  
+
   // Then uninstall
   Result := Installer.UninstallVersion('3.2.2');
 
@@ -279,7 +302,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  
+
   // Version is not installed
   Result := Installer.UninstallVersion('9.9.9');
 
@@ -302,10 +325,10 @@ begin
 
   // URL should contain version
   AssertTrue(Pos('3.2.2', URL) > 0, 'URL should contain version');
-  
+
   // URL should be from sourceforge
   AssertTrue(Pos('sourceforge.net', URL) > 0, 'URL should be from sourceforge');
-  
+
   // URL should contain platform info
   {$IFDEF MSWINDOWS}
   AssertTrue((Pos('Win64', URL) > 0) or (Pos('Win32', URL) > 0), 'URL should contain Windows platform');
@@ -344,7 +367,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  
+
   // Test ecVersionInvalid
   Result := Installer.InstallVersion('invalid_version_xyz', True);
   AssertEquals(Ord(ecVersionInvalid), Ord(Result.ErrorCode), 'Invalid version should return ecVersionInvalid');
@@ -363,15 +386,15 @@ begin
 
   ResetMocks;
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock
   MockFileSystem.AddDirectory(InstallDir);
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
   MockProcessRunner.SetResult('make', 0, 'Build complete', '');
-  
+
   // First install
   Installer.InstallVersion('3.2.2', True);
-  
+
   // Second install with Ensure=True should succeed (not fail)
   Result := Installer.InstallVersion('3.2.2', True, '', True);
 
@@ -387,7 +410,9 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TFPDevConfigManager.Create;
+    TestInstallRoot := BuildTempRoot('test_installer_root_');
+    ForceDirectories(TestInstallRoot);
+    ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestInstallRoot) + 'config.json');
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;
@@ -395,6 +420,7 @@ begin
       // Setup test environment
       SetupTestEnvironment;
       try
+        TestTempPathsUseSystemTempRoot;
         // Create version manager
         VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try

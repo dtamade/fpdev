@@ -5,7 +5,7 @@ program test_git_simple;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes;
+  SysUtils, test_pause_control, Classes, test_temp_paths;
 
 // 简化的Git操作类，不依赖libgit2
 type
@@ -58,7 +58,7 @@ var
   TempFile: string;
 begin
   Result := '';
-  TempFile := 'temp_git_output.txt';
+  TempFile := GetTempFileName(GetTempDir(False), 'gitout');
 
   try
     if ExecuteProcess('cmd', ['/c', ACommand + ' > "' + TempFile + '" 2>&1']) = 0 then
@@ -234,6 +234,14 @@ end;
 var
   GitManager: TSimpleGitManager;
   TestDir: string;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestGitEnvironment;
 begin
@@ -259,7 +267,7 @@ begin
   WriteLn('=== 测试仓库操作 ===');
   WriteLn;
 
-  TestDir := 'test_simple_repo';
+  TestDir := ResetTestRepoDir('test_simple_repo');
 
   // 清理已存在的测试目录
   if DirectoryExists(TestDir) then
@@ -317,10 +325,11 @@ procedure CleanupTest;
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('删除测试目录: ', TestDir);
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
+    WriteLn('删除测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -355,7 +364,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

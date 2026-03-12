@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.cross,
+  fpdev.command.intf, fpdev.command.registry, fpdev.cross.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils,
+uses fpdev.command.utils,
   fpdev.cross.search,
   fpdev.config.interfaces;
 
@@ -56,12 +56,19 @@ var
   BinResult: TCrossSearchResult;
   LibPaths: TStringArray;
   CPU, OS: string;
+  I, LPositionalCount: Integer;
+  LParam, LParamLower: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_CROSS_CONFIGURE_DESC));
@@ -74,10 +81,40 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  LTarget := '';
+  LPositionalCount := 0;
+  for I := Low(AParams) to High(AParams) do
+  begin
+    LParam := AParams[I];
+    if LParam = '' then
+      Continue;
+
+    if LParam[1] = '-' then
+    begin
+      LParamLower := LowerCase(LParam);
+      if SameText(LParam, '--auto') or SameText(LParam, '-auto') then
+        Continue;
+      if Pos('--binutils=', LParamLower) = 1 then
+        Continue;
+      if Pos('--libraries=', LParamLower) = 1 then
+        Continue;
+      Ctx.Err.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+
+    Inc(LPositionalCount);
+    if LPositionalCount = 1 then
+      LTarget := LParam
+    else
+    begin
+      Ctx.Err.WriteLn(_(HELP_CROSS_CONFIGURE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end;
+
+  if LPositionalCount < 1 then
     Exit(MissingArgError(Ctx, 'target', _(HELP_CROSS_CONFIGURE_USAGE)));
 
-  LTarget := AParams[0];
   LBinutils := '';
   LLibraries := '';
   GetFlagValue(AParams, 'binutils', LBinutils);

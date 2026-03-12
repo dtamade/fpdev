@@ -12,7 +12,7 @@ FPDev is a modular FreePascal and Lazarus development environment management too
 ├─────────────────────────────────────────────────────────────┤
 │                   Command Processing Layer                  │
 │  ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐ │
-│  │  help   │ version │   fpc   │ lazarus │ package │  cross  │ │
+│  │   fpc   │ lazarus │  cross  │ package │ project │ system  │ │
 │  └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘ │
 ├─────────────────────────────────────────────────────────────┤
 │                   Core Services Layer                       │
@@ -60,46 +60,83 @@ end;
 
 ### 2. Command Processing Framework (fpdev.cmd)
 
-**Responsibility**: Provide a unified command-line processing framework supporting command registration, parsing, and execution.
+**Responsibility**: Provide unified command registration, command-tree dispatch, and CLI context injection.
 
-**Design Pattern**: Command Pattern
+**Design Pattern**: Command pattern + registry dispatch
 
-**Core Class**:
+**Core interfaces and types**:
 ```pascal
-TFPCMD = class
-  procedure Execute; virtual; abstract;
-  procedure AddChild(const aChild: TFPCMD);
-  function Find(const aName: string): TFPCMD;
+IContext = interface
+  function Config: IConfigManager;
+  function Out: IOutput;
+  function Err: IOutput;
+  function Logger: ILogger;
+  procedure SaveIfModified;
+end;
+
+ICommand = interface
+  function Name: string;
+  function Aliases: TStringArray;
+  function FindSub(const AName: string): ICommand;
+  function Execute(const AParams: array of string; const Ctx: IContext): Integer;
+end;
+
+TCommandRegistry = class
+  procedure RegisterPath(const APath: array of string; AFactory: TCommandFactory; const Aliases: array of string);
+  function DispatchPath(const AArgs: array of string; const Ctx: IContext): Integer;
+  function ListChildren(const APath: array of string): TStringArray;
 end;
 ```
+
+**Key implementation files**:
+- `src/fpdev.command.intf.pas`: `ICommand` / `IContext`
+- `src/fpdev.command.tree.pas`: `TCommandNode`
+- `src/fpdev.command.registration.pas`: path registration and alias attachment
+- `src/fpdev.command.registry.pas`: registry facade and dispatch
+- `src/fpdev.command.imports.pas`: imports all command units to trigger `initialization` registration
+- `src/fpdev.cli.bootstrap.pas`: default help / context / registry bootstrap
+- `src/fpdev.cli.runner.pas`: entry-layer orchestration
 
 **Command Hierarchy**:
 ```
 fpdev
-├── help
-├── version
 ├── fpc
-│   ├── install
-│   ├── list
-│   ├── default
-│   └── remove
+│   ├── install / list / use / current / show
+│   ├── test / verify / update / uninstall
+│   ├── policy
+│   │   └── check
+│   └── cache
+│       ├── list / stats / clean / path
 ├── lazarus
-│   ├── install
-│   ├── list
-│   ├── default
-│   └── remove
+│   ├── install / list / use / current / show
+│   ├── run / test / doctor / update / uninstall
+│   └── configure
 ├── cross
-│   ├── add
-│   ├── list
-│   └── remove
+│   ├── list / show / install / uninstall
+│   ├── enable / disable / configure / doctor
+│   └── test / update / clean / build
 ├── package
-│   ├── install
-│   ├── list
-│   └── remove
+│   ├── install / uninstall / update / list / search / info
+│   ├── publish / clean / install-local / deps / why
+│   └── repo
+│       ├── add / list / remove / update
+├── system
+│   ├── help / version / doctor
+│   ├── toolchain
+│   │   ├── check / self-test
+│   ├── repo
+│   ├── config
+│   ├── env
+│   │   ├── data-root / vars / path / export / hook / resolve
+│   ├── index
+│   ├── cache
+│   └── perf
 └── project
-    ├── new
-    ├── build
-    └── clean
+    ├── new / list / info / build / run / test / clean
+    └── template
+        ├── list / install / remove / update
+
+The entry layer keeps only `--portable` as a prelude; root help, version, toolchain checks, and policy checks are exposed through the command tree.
 ```
 
 ### 3. Utility Library (fpdev.utils)

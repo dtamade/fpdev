@@ -4,12 +4,15 @@ program debug_update_repos;
 
 uses
   SysUtils, Classes, fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.pkg.repository;
+  fpdev.pkg.repository, test_temp_paths;
 
 var
   Config: IConfigManager;
   RepoService: TPackageRepositoryService;
   RepoPath, RepoURL: string;
+  TempRoot: string;
+  ConfigPath: string;
+  CacheDir: string;
 begin
   WriteLn('Debug UpdateRepositories');
   WriteLn('========================');
@@ -26,8 +29,12 @@ begin
   {$ENDIF}
   WriteLn('Repository URL: ', RepoURL);
 
+  TempRoot := CreateUniqueTempDir('debug_update_repos');
+  ConfigPath := IncludeTrailingPathDelimiter(TempRoot) + 'config.json';
+  CacheDir := IncludeTrailingPathDelimiter(TempRoot) + 'debug_cache';
+
   // Create config
-  Config := TConfigManager.Create('debug_config.json');
+  Config := TConfigManager.Create(ConfigPath);
   if not Config.LoadConfig then
     Config.CreateDefaultConfig;
 
@@ -35,7 +42,7 @@ begin
   Config.SaveConfig;
 
   // Create repository service
-  RepoService := TPackageRepositoryService.Create(Config, 'debug_cache');
+  RepoService := TPackageRepositoryService.Create(Config, CacheDir);
   try
     WriteLn('Calling UpdateRepositories...');
     if RepoService.UpdateRepositories(nil, nil) then
@@ -44,6 +51,8 @@ begin
       WriteLn('FAILED: UpdateRepositories returned false');
   finally
     RepoService.Free;
+    Config := nil;
+    CleanupTempDir(TempRoot);
   end;
 
   WriteLn('Done');

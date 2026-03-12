@@ -3,8 +3,9 @@ program test_fpc_scoped_install;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.types, fpdev.fpc.types,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.utils;
+  SysUtils, fpdev.fpc.manager, fpdev.types, fpdev.fpc.types,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.utils, fpdev.utils.fs,
+  test_temp_paths;
 
 var
   TestRootDir: string;
@@ -17,9 +18,7 @@ procedure InitTestEnvironment;
 var
   Settings: TFPDevSettings;
 begin
-  // Create test root directory in temp (outside project to avoid .fpdev detection)
-  TestRootDir := GetTempDir + 'test_scoped_install_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_scoped_install');
 
   // Set FPDEV_DATA_ROOT environment variable to override GetDataRoot
   set_env('FPDEV_DATA_ROOT', TestRootDir);
@@ -38,36 +37,16 @@ begin
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
+begin
+  if Assigned(FPCManager) then
   begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
+    FPCManager.Free;
+    FPCManager := nil;
   end;
 
-begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
-
-  if Assigned(FPCManager) then
-    FPCManager.Free;
+  unset_env('FPDEV_DATA_ROOT');
+  CleanupTempDir(TestRootDir);
+  TestRootDir := '';
   // ConfigManager is an interface, no need to Free
 
   WriteLn;
@@ -125,9 +104,12 @@ begin
   try
     Scope := isUser;
     SourceMode := smSource;
-    FillChar(Meta, SizeOf(Meta), 0);
+    Meta := Default(TFPDevMetadata);
+    Meta.Scope := Scope;
+    Meta.SourceMode := SourceMode;
 
-    AssertTrue(True, 'Metadata types defined', 'Types should compile');
+    AssertTrue((Meta.Scope = Scope) and (Meta.SourceMode = SourceMode),
+      'Metadata types defined', 'Types should compile');
   except
     on E: Exception do
       AssertTrue(False, 'Metadata types defined', 'Exception: ' + E.Message);
@@ -163,19 +145,12 @@ begin
     FPCManager := TFPCManager.Create(ConfigManager);
 
     // Expected path for user scope
-    ExpectedPath := TestRootDir + PathDelim + 'fpc' + PathDelim + '3.2.2';
+    ExpectedPath := TestRootDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2';
 
     // Test path resolution
     InstallPath := FPCManager.GetVersionInstallPath('3.2.2');
 
-    // Compare - should be <TestRootDir>/fpc/3.2.2
-    AssertTrue(
-      (Pos(TestRootDir, InstallPath) > 0) and
-      (Pos(PathDelim + 'fpc' + PathDelim + '3.2.2', InstallPath) > 0) and
-      (Pos('.fpdev' + PathDelim + 'toolchains', InstallPath) = 0),
-      'User scope path is correct',
-      'Expected user scope path (<root>/fpc/3.2.2), got: ' + InstallPath
-    );
+    AssertEquals(ExpectedPath, InstallPath, 'User scope path is correct');
 
     FPCManager.Free;
     FPCManager := nil;
@@ -226,13 +201,7 @@ begin
     // Test path resolution
     InstallPath := FPCManager.GetVersionInstallPath('3.2.2');
 
-    // Compare - should contain .fpdev/toolchains/fpc/3.2.2
-    AssertTrue(
-      (Pos(ProjectDir, InstallPath) > 0) and
-      (Pos('.fpdev' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2', InstallPath) > 0),
-      'Project scope path is correct',
-      'Expected project scope path (.fpdev/toolchains/fpc/3.2.2), got: ' + InstallPath
-    );
+    AssertEquals(ExpectedPath, InstallPath, 'Project scope path is correct');
 
     FPCManager.Free;
     FPCManager := nil;
@@ -247,15 +216,12 @@ end;
 // ============================================================================
 procedure TestCustomPrefixInstall;
 var
-  CustomPrefix: string;
   Settings: TFPDevSettings;
 begin
   WriteLn;
   WriteLn('==================================================');
   WriteLn('Test 4: Custom Prefix Installation');
   WriteLn('==================================================');
-
-  CustomPrefix := TestRootDir + PathDelim + 'custom_prefix';
 
   // Setup
   Settings := ConfigManager.GetSettingsManager.GetSettings;
@@ -301,7 +267,7 @@ begin
   FPCManager := TFPCManager.Create(ConfigManager);
 
   // Create metadata
-  FillChar(Meta, SizeOf(Meta), 0);
+  Meta := Default(TFPDevMetadata);
   Meta.Version := '3.2.2';
   Meta.Scope := isUser;
   Meta.SourceMode := smSource;
@@ -348,7 +314,7 @@ begin
   FPCManager := TFPCManager.Create(ConfigManager);
 
   // Create initial metadata with no verification
-  FillChar(Meta, SizeOf(Meta), 0);
+  Meta := Default(TFPDevMetadata);
   Meta.Version := '3.2.2';
   Meta.Scope := isUser;
   Meta.SourceMode := smSource;

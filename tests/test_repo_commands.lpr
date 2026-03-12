@@ -13,7 +13,7 @@ uses
   fpdev.cmd.repo.add,
   fpdev.cmd.repo.list,
   fpdev.cmd.repo.remove,
-  fpdev.cmd.repo.default,
+  fpdev.cmd.repo.use,
   fpdev.cmd.repo.show,
   fpdev.cmd.repo.versions,
   fpdev.cmd.repo.help;
@@ -52,54 +52,54 @@ end;
 
 procedure TestRepoRootRegistered;
 begin
-  Check(HasSubcommand([], 'repo'), 'repo: root registered');
+  Check(HasSubcommand(['system'], 'repo'), 'system repo: root registered');
 end;
 
 { --- Repo Subcommand Tests --- }
 
 procedure TestRepoAddRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'add'), 'repo add: registered');
+  Check(HasSubcommand(['system', 'repo'], 'add'), 'system repo add: registered');
 end;
 
 procedure TestRepoListRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'list'), 'repo list: registered');
+  Check(HasSubcommand(['system', 'repo'], 'list'), 'system repo list: registered');
 end;
 
 procedure TestRepoLsAliasRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'ls'), 'repo ls: alias registered');
+  Check(not HasSubcommand(['system', 'repo'], 'ls'), 'system repo ls alias removed');
 end;
 
 procedure TestRepoRemoveRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'remove'), 'repo remove: registered');
+  Check(HasSubcommand(['system', 'repo'], 'remove'), 'system repo remove: registered');
 end;
 
 procedure TestRepoRmAliasRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'rm'), 'repo rm: alias registered');
+  Check(not HasSubcommand(['system', 'repo'], 'rm'), 'system repo rm alias removed');
 end;
 
-procedure TestRepoDefaultRegistered;
+procedure TestRepoUseRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'default'), 'repo default: registered');
+  Check(HasSubcommand(['system', 'repo'], 'use'), 'system repo use: registered');
 end;
 
 procedure TestRepoShowRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'show'), 'repo show: registered');
+  Check(HasSubcommand(['system', 'repo'], 'show'), 'system repo show: registered');
 end;
 
 procedure TestRepoVersionsRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'versions'), 'repo versions: registered');
+  Check(HasSubcommand(['system', 'repo'], 'versions'), 'system repo versions: registered');
 end;
 
 procedure TestRepoHelpRegistered;
 begin
-  Check(HasSubcommand(['repo'], 'help'), 'repo help: registered');
+  Check(HasSubcommand(['system', 'repo'], 'help'), 'system repo help: registered');
 end;
 
 { --- Count Tests --- }
@@ -108,8 +108,8 @@ procedure TestRepoSubcommandCount;
 var
   Children: TStringArray;
 begin
-  Children := GlobalCommandRegistry.ListChildren(['repo']);
-  Check(Length(Children) >= 9, 'repo: at least 9 subcommands');
+  Children := GlobalCommandRegistry.ListChildren(['system', 'repo']);
+  Check(Length(Children) >= 7, 'system repo: at least 7 subcommands');
 end;
 
 begin
@@ -125,7 +125,7 @@ begin
   TestRepoLsAliasRegistered;
   TestRepoRemoveRegistered;
   TestRepoRmAliasRegistered;
-  TestRepoDefaultRegistered;
+  TestRepoUseRegistered;
   TestRepoShowRegistered;
   TestRepoVersionsRegistered;
   TestRepoHelpRegistered;

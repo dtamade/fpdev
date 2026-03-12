@@ -21,10 +21,10 @@ program test_cmd_env;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation, test_temp_paths,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.cmd.env;
+  fpdev.cmd.env, fpdev.cmd.env.vars, fpdev.cmd.env.path, fpdev.cmd.env.export;
 
 var
   GTestCount: Integer = 0;
@@ -293,17 +293,19 @@ end;
 
 procedure TestVarsOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateEnvCommand;
-
-  Ret := Cmd.Execute(['vars'], Ctx);
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'vars';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Vars returns exit code 0', Ret = 0);
@@ -316,17 +318,19 @@ end;
 
 procedure TestPathOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateEnvCommand;
-
-  Ret := Cmd.Execute(['path'], Ctx);
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'path';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Path returns exit code 0', Ret = 0);
@@ -336,17 +340,21 @@ end;
 
 procedure TestExportBashOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateEnvCommand;
-
-  Ret := Cmd.Execute(['export', '--shell', 'bash'], Ctx);
+  SetLength(Args, 5);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'export';
+  Args[3] := '--shell';
+  Args[4] := 'bash';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Export bash returns exit code 0', Ret = 0);
@@ -357,17 +365,21 @@ end;
 
 procedure TestExportCmdOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateEnvCommand;
-
-  Ret := Cmd.Execute(['export', '--shell', 'cmd'], Ctx);
+  SetLength(Args, 5);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'export';
+  Args[3] := '--shell';
+  Args[4] := 'cmd';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Export cmd returns exit code 0', Ret = 0);
@@ -376,17 +388,21 @@ end;
 
 procedure TestExportPsOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateEnvCommand;
-
-  Ret := Cmd.Execute(['export', '--shell', 'ps'], Ctx);
+  SetLength(Args, 5);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'export';
+  Args[3] := '--shell';
+  Args[4] := 'ps';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Export ps returns exit code 0', Ret = 0);
@@ -413,6 +429,37 @@ begin
   Test('Error mentions unknown', Pos('Unknown', ErrOutput) > 0);
 end;
 
+procedure TestDefaultContextUsesExplicitConfigPath;
+var
+  Ctx: IContext;
+  TempDir: string;
+  ConfigPath: string;
+begin
+  TempDir := CreateUniqueTempDir('test_cmd_env_ctx');
+  try
+    ConfigPath := TempDir + PathDelim + 'config.json';
+    Ctx := TDefaultCommandContext.Create(ConfigPath);
+    Test('Default context accepts explicit config path',
+      ExpandFileName(Ctx.Config.GetConfigPath) = ExpandFileName(ConfigPath));
+  finally
+    CleanupTempDir(TempDir);
+  end;
+end;
+
+procedure TestDefaultContextUsesIsolatedDefaultConfigPath;
+var
+  Ctx: IContext;
+  ConfigPath: string;
+begin
+  Ctx := TDefaultCommandContext.Create;
+  ConfigPath := ExpandFileName(Ctx.Config.GetConfigPath);
+
+  Test('Default context uses system temp root',
+    PathUsesSystemTempRoot(ConfigPath));
+  Test('Default context uses isolated default config path',
+    ConfigPath = ExpandFileName(GetIsolatedDefaultConfigPath));
+end;
+
 procedure TestRegisteredInGlobalRegistry;
 var
   Ctx: IContext;
@@ -420,12 +467,13 @@ var
   Ret: Integer;
 begin
   Ctx := TDefaultCommandContext.Create;
-  SetLength(Args, 2);
-  Args[0] := 'env';
-  Args[1] := 'help';
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'env';
+  Args[2] := 'help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
-  Test('env command registered in GlobalCommandRegistry', Ret = 0);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+  Test('system env command registered in GlobalCommandRegistry', Ret = 0);
 end;
 
 begin
@@ -443,6 +491,8 @@ begin
   TestExportCmdOutput;
   TestExportPsOutput;
   TestUnknownSubcommand;
+  TestDefaultContextUsesExplicitConfigPath;
+  TestDefaultContextUsesIsolatedDefaultConfigPath;
   TestRegisteredInGlobalRegistry;
 
   WriteLn;

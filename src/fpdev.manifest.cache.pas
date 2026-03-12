@@ -10,6 +10,10 @@ uses
 
 const
   MANIFEST_CACHE_TTL_HOURS = 24;  // Cache TTL: 24 hours
+  MANIFEST_RAW_URL_TEMPLATE =
+    'https://raw.githubusercontent.com/dtamade/fpdev-%s/main/manifest.json';
+
+function BuildManifestCacheDirFromInstallRoot(const AInstallRoot: string): string;
 
 type
   { TManifestCache - Manages local caching of manifest files }
@@ -27,7 +31,11 @@ type
     function DownloadManifest(const APackage: string; out AError: string): Boolean;
 
     { Load manifest from cache }
-    function LoadCachedManifest(const APackage: string; out AManifest: TManifestParser; AForceRefresh: Boolean = False): Boolean;
+    function LoadCachedManifest(
+      const APackage: string;
+      out AManifest: TManifestParser;
+      AForceRefresh: Boolean = False
+    ): Boolean;
 
     { Check if cached manifest exists and is valid }
     function HasValidCache(const APackage: string): Boolean;
@@ -43,12 +51,23 @@ uses
 
 { TManifestCache }
 
+function BuildManifestCacheDirFromInstallRoot(const AInstallRoot: string): string;
+var
+  InstallRoot: string;
+begin
+  InstallRoot := ExcludeTrailingPathDelimiter(Trim(AInstallRoot));
+  if InstallRoot = '' then
+    Result := GetCacheDir + PathDelim + 'manifests'
+  else
+    Result := InstallRoot + PathDelim + 'cache' + PathDelim + 'manifests';
+end;
+
 constructor TManifestCache.Create(const ACacheDir: string);
 begin
   inherited Create;
 
   if ACacheDir = '' then
-    FCacheDir := GetCacheDir + PathDelim + 'manifests'
+    FCacheDir := BuildManifestCacheDirFromInstallRoot('')
   else
     FCacheDir := ACacheDir;
 
@@ -91,7 +110,7 @@ begin
   AError := '';
 
   // Construct GitHub raw URL
-  URL := Format('https://raw.githubusercontent.com/dtamade/fpdev-%s/main/manifest.json', [APackage]);
+  URL := Format(MANIFEST_RAW_URL_TEMPLATE, [APackage]);
 
   CachePath := GetCachePath(APackage);
 
@@ -123,7 +142,11 @@ begin
   end;
 end;
 
-function TManifestCache.LoadCachedManifest(const APackage: string; out AManifest: TManifestParser; AForceRefresh: Boolean): Boolean;
+function TManifestCache.LoadCachedManifest(
+  const APackage: string;
+  out AManifest: TManifestParser;
+  AForceRefresh: Boolean
+): Boolean;
 var
   CachePath: string;
   Age: Integer;

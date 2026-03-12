@@ -4,12 +4,230 @@ program test_full_build;
 
 uses
   SysUtils, Classes,
-  fpdev.build.manager, fpdev.build.config, fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.manager, fpdev.build.config, fpdev.build.cache, fpdev.build.cache.types,
+  fpdev.build.pipeline;
 
 procedure EnsureDir(const APath: string);
 begin
   if (APath <> '') and (not DirectoryExists(APath)) then
     ForceDirectories(APath);
+end;
+
+type
+  TPhaseHarness = class
+  private
+    FLog: TStringList;
+    FCalls: TStringList;
+    FCurrentStep: TBuildStep;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function PhasePass(const AVersion: string): Boolean;
+    function PhaseFail(const AVersion: string): Boolean;
+    procedure LogLine(const ALine: string);
+    procedure SetStep(AStep: TBuildStep);
+    property Calls: TStringList read FCalls;
+    property LogLines: TStringList read FLog;
+    property CurrentStep: TBuildStep read FCurrentStep;
+  end;
+
+constructor TPhaseHarness.Create;
+begin
+  inherited Create;
+  FLog := TStringList.Create;
+  FCalls := TStringList.Create;
+  FCurrentStep := bsIdle;
+end;
+
+destructor TPhaseHarness.Destroy;
+begin
+  FCalls.Free;
+  FLog.Free;
+  inherited Destroy;
+end;
+
+function TPhaseHarness.PhasePass(const AVersion: string): Boolean;
+begin
+  FCalls.Add('pass:' + AVersion);
+  Result := True;
+end;
+
+function TPhaseHarness.PhaseFail(const AVersion: string): Boolean;
+begin
+  FCalls.Add('fail:' + AVersion);
+  Result := False;
+end;
+
+procedure TPhaseHarness.LogLine(const ALine: string);
+begin
+  FLog.Add(ALine);
+end;
+
+procedure TPhaseHarness.SetStep(AStep: TBuildStep);
+begin
+  FCurrentStep := AStep;
+end;
+
+procedure TestExecuteBuildPhaseSequenceCoreAbortsAndResetsIdle;
+var
+  Harness: TPhaseHarness;
+  FailedPhase: string;
+  Phases: array[0..1] of TBuildPhaseSpec;
+begin
+  WriteLn('');
+  WriteLn('=== Test: ExecuteBuildPhaseSequenceCore aborts and resets idle ===');
+  Harness := TPhaseHarness.Create;
+  try
+    Phases[0].ApplyBeforeStep := False;
+    Phases[0].BeforeStep := bsIdle;
+    Phases[0].AbortLabel := 'Preflight';
+    Phases[0].Handler := @Harness.PhasePass;
+
+    Phases[1].ApplyBeforeStep := True;
+    Phases[1].BeforeStep := bsVerify;
+    Phases[1].AbortLabel := 'Verify';
+    Phases[1].Handler := @Harness.PhaseFail;
+
+    if ExecuteBuildPhaseSequenceCore(
+      'demo',
+      Phases,
+      @Harness.SetStep,
+      @Harness.LogLine,
+      FailedPhase
+    ) then
+    begin
+      WriteLn('[FAIL] ExecuteBuildPhaseSequenceCore should fail when a phase fails');
+      Halt(1);
+    end;
+
+    if FailedPhase <> 'Verify' then
+    begin
+      WriteLn('[FAIL] FailedPhase should be Verify, got ', FailedPhase);
+      Halt(1);
+    end;
+    if Harness.CurrentStep <> bsIdle then
+    begin
+      WriteLn('[FAIL] Current step should reset to bsIdle after abort');
+      Halt(1);
+    end;
+    if (Harness.LogLines.Count = 0) or
+       (Harness.LogLines[Harness.LogLines.Count - 1] <> '== FullBuild ABORT at Verify') then
+    begin
+      WriteLn('[FAIL] Abort log line missing or incorrect');
+      Halt(1);
+    end;
+    WriteLn('[PASS] ExecuteBuildPhaseSequenceCore aborts and resets idle');
+  finally
+    Harness.Free;
+  end;
+end;
+
+procedure TestExecuteBuildPhaseSequenceCoreRunsAllPhases;
+var
+  Harness: TPhaseHarness;
+  FailedPhase: string;
+  Phases: array[0..1] of TBuildPhaseSpec;
+begin
+  WriteLn('');
+  WriteLn('=== Test: ExecuteBuildPhaseSequenceCore runs all phases ===');
+  Harness := TPhaseHarness.Create;
+  try
+    Phases[0].ApplyBeforeStep := True;
+    Phases[0].BeforeStep := bsCompilerInstall;
+    Phases[0].AbortLabel := 'CompilerInstall';
+    Phases[0].Handler := @Harness.PhasePass;
+
+    Phases[1].ApplyBeforeStep := True;
+    Phases[1].BeforeStep := bsVerify;
+    Phases[1].AbortLabel := 'Verify';
+    Phases[1].Handler := @Harness.PhasePass;
+
+    if not ExecuteBuildPhaseSequenceCore(
+      'demo',
+      Phases,
+      @Harness.SetStep,
+      @Harness.LogLine,
+      FailedPhase
+    ) then
+    begin
+      WriteLn('[FAIL] ExecuteBuildPhaseSequenceCore should succeed when all phases pass');
+      Halt(1);
+    end;
+
+    if FailedPhase <> '' then
+    begin
+      WriteLn('[FAIL] FailedPhase should be empty on success');
+      Halt(1);
+    end;
+    if Harness.Calls.Count <> 2 then
+    begin
+      WriteLn('[FAIL] Both phase handlers should be called');
+      Halt(1);
+    end;
+    if Harness.CurrentStep <> bsVerify then
+    begin
+      WriteLn('[FAIL] Current step should reflect last applied step');
+      Halt(1);
+    end;
+    WriteLn('[PASS] ExecuteBuildPhaseSequenceCore runs all phases');
+  finally
+    Harness.Free;
+  end;
+end;
+
+procedure TestCreateDefaultBuildPhaseSequenceCoreBuildsExpectedPhases;
+var
+  Harness: TPhaseHarness;
+  Phases: TBuildPhaseSpecArray;
+begin
+  WriteLn('');
+  WriteLn('=== Test: CreateDefaultBuildPhaseSequenceCore builds expected phases ===');
+  Harness := TPhaseHarness.Create;
+  try
+    Phases := CreateDefaultBuildPhaseSequenceCore(
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass
+    );
+
+    if Length(Phases) <> 10 then
+    begin
+      WriteLn('[FAIL] Default full-build phase count should be 10, got ', Length(Phases));
+      Halt(1);
+    end;
+    if Phases[0].AbortLabel <> 'Preflight' then
+    begin
+      WriteLn('[FAIL] Phase 0 should be Preflight');
+      Halt(1);
+    end;
+    if not Assigned(Phases[0].Handler) then
+    begin
+      WriteLn('[FAIL] Phase 0 handler should be assigned');
+      Halt(1);
+    end;
+    if (not Phases[2].ApplyBeforeStep) or (Phases[2].BeforeStep <> bsCompilerInstall) or Assigned(Phases[2].Handler) then
+    begin
+      WriteLn('[FAIL] Phase 2 should be compiler-install step transition');
+      Halt(1);
+    end;
+    if (not Phases[8].ApplyBeforeStep) or (Phases[8].BeforeStep <> bsVerify) or Assigned(Phases[8].Handler) then
+    begin
+      WriteLn('[FAIL] Phase 8 should be verify step transition');
+      Halt(1);
+    end;
+    if Phases[9].AbortLabel <> 'TestResults' then
+    begin
+      WriteLn('[FAIL] Final phase should be TestResults');
+      Halt(1);
+    end;
+    WriteLn('[PASS] CreateDefaultBuildPhaseSequenceCore builds expected phases');
+  finally
+    Harness.Free;
+  end;
 end;
 
 procedure TestFullBuildWorkflowSteps;
@@ -302,6 +520,9 @@ begin
     EnsureDir('logs');
 
     // Run tests
+    TestExecuteBuildPhaseSequenceCoreAbortsAndResetsIdle;
+    TestExecuteBuildPhaseSequenceCoreRunsAllPhases;
+    TestCreateDefaultBuildPhaseSequenceCoreBuildsExpectedPhases;
     TestFullBuildWorkflowSteps;
     TestFullBuildIncludesPackages;
     TestFullBuildStateProgression;
@@ -311,7 +532,7 @@ begin
 
     WriteLn('');
     WriteLn('======================');
-    WriteLn('All tests passed (6/6)');
+    WriteLn('All tests passed (8/8)');
     WriteLn('======================');
     WriteLn('');
     WriteLn('Note: FullBuild tests verify workflow integration and state management.');

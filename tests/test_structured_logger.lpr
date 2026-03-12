@@ -3,12 +3,20 @@ program test_structured_logger;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, fpdev.logger.intf, fpdev.logger.structured,
+  Classes, SysUtils, test_temp_paths, fpdev.logger.intf, fpdev.logger.structured,
   fpdev.logger.writer, fpdev.logger.formatter;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GTestLogDir: string = '';
+
+function GetTestLogDir: string;
+begin
+  if GTestLogDir = '' then
+    GTestLogDir := CreateUniqueTempDir('test_logs');
+  Result := GTestLogDir;
+end;
 
 procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
 begin
@@ -93,7 +101,7 @@ begin
   WriteLn('Testing TStructuredLogger creation...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
 
   Logger := TStructuredLogger.Create(Config);
   AssertTrue(Logger <> nil, 'Logger should be created');
@@ -109,7 +117,7 @@ begin
   WriteLn('Testing TStructuredLogger output control...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
 
   Logger := TStructuredLogger.Create(Config);
 
@@ -139,7 +147,7 @@ begin
   WriteLn('Testing TStructuredLogger Info level...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
   Config.ConsoleOutputEnabled := False;  // Disable console for test
 
   Logger := TStructuredLogger.Create(Config);
@@ -161,7 +169,7 @@ begin
   WriteLn('Testing TStructuredLogger Debug level...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
   Config.ConsoleOutputEnabled := False;
 
   Logger := TStructuredLogger.Create(Config);
@@ -183,7 +191,7 @@ begin
   WriteLn('Testing TStructuredLogger Warn level...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
   Config.ConsoleOutputEnabled := False;
 
   Logger := TStructuredLogger.Create(Config);
@@ -205,7 +213,7 @@ begin
   WriteLn('Testing TStructuredLogger Error level...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
   Config.ConsoleOutputEnabled := False;
 
   Logger := TStructuredLogger.Create(Config);
@@ -227,7 +235,7 @@ begin
   WriteLn('Testing TStructuredLogger with custom fields...');
 
   Config := CreateDefaultLoggerConfig;
-  Config.LogDir := 'test_logs';
+  Config.LogDir := GetTestLogDir;
   Config.ConsoleOutputEnabled := False;
 
   Logger := TStructuredLogger.Create(Config);
@@ -264,7 +272,7 @@ var
 begin
   WriteLn('Testing TFileLogWriter creation...');
 
-  Writer := TFileLogWriter.Create('test_logs/test.log');
+  Writer := TFileLogWriter.Create(GetTestLogDir + PathDelim + 'test.log');
   AssertTrue(Writer <> nil, 'FileLogWriter should be created');
 end;
 
@@ -392,11 +400,15 @@ begin
   if TestsFailed > 0 then
   begin
     WriteLn('FAILED: ', TestsFailed, ' test(s) failed');
+    if GTestLogDir <> '' then
+      CleanupTempDir(GTestLogDir);
     Halt(1);
   end
   else
   begin
     WriteLn('SUCCESS: All tests passed');
+    if GTestLogDir <> '' then
+      CleanupTempDir(GTestLogDir);
     Halt(0);
   end;
 end.

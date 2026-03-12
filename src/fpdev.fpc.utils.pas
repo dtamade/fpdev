@@ -71,7 +71,9 @@ begin
   if UserConfigDir <> '' then
     UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + '.fpdev'))
   else
-    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev'));
+    UserConfigDir := ExcludeTrailingPathDelimiter(
+      ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev')
+    );
   {$ELSE}
   UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + '.fpdev'));
   {$ENDIF}
@@ -212,7 +214,7 @@ begin
       
       ExitCode := Process.ExitStatus;
       if ExitCode <> 0 then
-        Result := OperationError(ecExtractionFailed, 
+        Result := OperationError(ecExtractionFailed,
           'TAR.GZ 解压失败，退出码: ' + IntToStr(ExitCode));
     finally
       Process.Free;

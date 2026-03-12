@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.types,
+  fpdev.command.intf, fpdev.config.interfaces, fpdev.fpc.manager, fpdev.types,
   fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes,
   fpdev.paths;
 
@@ -22,7 +22,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.command.utils;
 
 function TFPCInstallCommand.Name: string; begin Result := 'install'; end;
 
@@ -172,7 +172,10 @@ begin
       // Offline mode: cache miss is an error
       Ctx.Err.WriteLn('[FAIL] Cache miss for FPC ' + LVer);
       Ctx.Err.WriteLn('[HINT] Network disabled by --offline flag');
-      Ctx.Err.WriteLn('[HINT] Run without --offline to download, or use ''fpdev fpc cache list'' to see available versions');
+      Ctx.Err.WriteLn(
+        '[HINT] Run without --offline to download, or use ' +
+        '''fpdev fpc cache list'' to see available versions'
+      );
       Exit(EXIT_IO_ERROR);
     end;
 

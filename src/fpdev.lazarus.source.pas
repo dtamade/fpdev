@@ -1,6 +1,8 @@
 unit fpdev.lazarus.source;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
+// acq:allow-hardcoded-constants-file
 
 interface
 

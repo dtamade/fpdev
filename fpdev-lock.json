@@ -1,0 +1,24 @@
+{
+  "name" : "mylib",
+  "version" : "1.0.0",
+  "lockfileVersion" : 1,
+  "packages" : {
+    "" : {
+      "name" : "mylib",
+      "version" : "1.0.0"
+    },
+    "libfoo" : {
+      "version" : "1.2.3",
+      "resolved" : "test_integration_data/libfoo.json",
+      "integrity" : "d06c072ad99438ec32a17296df4cc5815c7de6ace3ab3175f3d912f22efd1183"
+    },
+    "mylib" : {
+      "version" : "1.0.0",
+      "resolved" : "test_integration_data/mylib.json",
+      "integrity" : "b023270b3228bff802cf4e8bbe461568210ada2e43f3feb4f3d53c308d07fc0f",
+      "dependencies" : {
+        "libfoo" : ">=1.2.0"
+      }
+    }
+  }
+}

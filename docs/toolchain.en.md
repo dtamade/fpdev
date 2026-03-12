@@ -5,10 +5,10 @@ This module provides "pure code, zero side-effect" toolchain health checks and F
 ## Quick Start
 
 - Direct health check (JSON):
-  - `fpdev --check-toolchain`
+  - `fpdev system toolchain check`
 - Policy validation (check if FPC version meets source version requirements):
-  - `fpdev --check-policy main`
-  - `fpdev --check-policy 3.2.2`
+  - `fpdev fpc policy check main`
+  - `fpdev fpc policy check 3.2.2`
 
 - Examples:
   - `examples/fpdev.toolchain/buildOrTest.bat` (Windows)
@@ -111,15 +111,15 @@ Notes:
   - Lock files: `.fpdev/locks/`
 
 - Local directory as source
-  - `fpdev --ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
+  - `fpdev system toolchain ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
   - Behavior: structure validation -> copy to `.fpdev/sandbox/sources/fpc-src/3.2.2/` -> write lock file
 
 - Local zip as source
-  - `fpdev --ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
+  - `fpdev system toolchain ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
   - Behavior: SHA-256 verification -> extract -> strict structure validation -> write lock file
 
 - Import offline bundle directory
-  - `fpdev --import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
+  - `fpdev system toolchain import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
   - Behavior: scans the directory for `*.zip + .sha256`, verifies checksums, then imports to `.fpdev/cache/toolchain/`
 
 Notes:

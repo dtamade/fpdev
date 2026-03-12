@@ -5,13 +5,12 @@ unit fpdev.cmd.lazarus.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  // Register lazarus root node (for auto-help listing subcommands)
-  GlobalCommandRegistry.RegisterPath(['lazarus'], nil, []);
+  GlobalCommandRegistry.RegisterSingletonPath(['lazarus'], CreateNamespaceRootShellCommand(['lazarus']), []);
 
 end.
-

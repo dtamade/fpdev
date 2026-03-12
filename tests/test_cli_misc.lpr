@@ -18,28 +18,60 @@ program test_cli_misc;
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
+  fpdev.output.intf,
+  fpdev.cli.global,
   fpdev.exitcodes,
+  fpdev.paths,
   fpdev.cmd.config,
+  fpdev.cmd.config.show,
+  fpdev.cmd.config.get,
+  fpdev.cmd.config.setvalue,
+  fpdev.cmd.config.export,
+  fpdev.cmd.config.import,
   fpdev.cmd.config.list,
   fpdev.cmd.repo.root,
   fpdev.cmd.repo.list,
   fpdev.cmd.repo.add,
   fpdev.cmd.repo.remove,
   fpdev.cmd.repo.show,
-  fpdev.cmd.repo.default,
+  fpdev.cmd.repo.use,
   fpdev.cmd.repo.versions,
   fpdev.cmd.repo.help,
   fpdev.cmd.env,
-  fpdev.cmd.version,
-  fpdev.cmd.help.root,
+  fpdev.cmd.env.data_root,
+  fpdev.cmd.system.help,
+  fpdev.cmd.system.version,
+  fpdev.cmd.system.toolchain.root,
+  fpdev.cmd.system.toolchain.check,
+  fpdev.cmd.system.toolchain.self_test,
+  fpdev.cmd.system.toolchain.fetch,
+  fpdev.cmd.system.toolchain.extract,
+  fpdev.cmd.system.toolchain.ensure_source,
+  fpdev.cmd.system.toolchain.import_bundle,
+  fpdev.cmd.env.vars,
+  fpdev.cmd.env.path,
+  fpdev.cmd.env.export,
   fpdev.cmd.doctor,
   fpdev.cmd.index,
   fpdev.cmd.cache,
   fpdev.cmd.perf,
-  test_cli_helpers;
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
+
+function MakeArgs(const AValues: array of string): TStringArray;
+var
+  I: Integer;
+begin
+  Initialize(Result);
+  SetLength(Result, Length(AValues));
+  for I := 0 to High(AValues) do
+    Result[I] := AValues[I];
+end;
+
+{$I test_cli_internal.inc}
 
 { ===== config ===== }
 
@@ -58,7 +90,7 @@ begin
   try
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('config --help EXIT_OK', Ret = EXIT_OK);
-    // Note: TConfigCommand uses internal FOut, not Ctx.Out
+    Check('config --help writes usage', StdOut.Contains('Usage: fpdev system config'));
   finally Cmd.Free; end;
 end;
 
@@ -71,6 +103,59 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('config no args EXIT_OK', Ret = EXIT_OK);
   finally Cmd.Free; end;
+end;
+
+procedure TestConfigHelpUnexpectedArg;
+var Cmd: TConfigCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TConfigCommand.Create;
+  try
+    Ret := Cmd.Execute(['help', 'extra'], Ctx);
+    Check('config help unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigShowUnexpectedArg;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'config', 'show', 'extra'], Ctx);
+  Check('config show unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+end;
+
+procedure TestConfigGetUnexpectedArg;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'config', 'get', 'mirror', 'extra'], Ctx);
+  Check('config get unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+end;
+
+procedure TestConfigSetUnexpectedArg;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'config', 'set', 'mirror', 'auto', 'extra'], Ctx);
+  Check('config set unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+end;
+
+procedure TestConfigGetUnknownKey;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'config', 'get', 'unknown_key'], Ctx);
+  Check('config get unknown key EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  Check('config get unknown key writes error', StdErr.Contains('Unknown configuration key'));
+end;
+
+procedure TestConfigSetInvalidMirror;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'config', 'set', 'mirror', 'not-a-valid-mirror'], Ctx);
+  Check('config set invalid mirror EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  Check('config set invalid mirror writes error', StdErr.Contains('Invalid mirror value'));
 end;
 
 { ===== config list ===== }
@@ -88,7 +173,7 @@ begin
   Cmd := TConfigListCommand.Create;
   try
     A := Cmd.Aliases;
-    Check('config list: has ls alias', (A <> nil) and (Length(A) > 0) and (A[0] = 'ls'));
+    Check('config list: has no alias', A = nil);
   finally Cmd.Free; end;
 end;
 
@@ -112,6 +197,17 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('config list no args EXIT_OK', Ret = EXIT_OK);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigListUnknownOption;
+var Cmd: TConfigListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TConfigListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('config list unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -146,6 +242,17 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestRepoListUnexpectedArg;
+var Cmd: TRepoListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('repo list unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== repo add ===== }
 
 procedure TestRepoAddName;
@@ -177,6 +284,39 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestRepoAddUnexpectedArg;
+var Cmd: TRepoAddCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoAddCommand.Create;
+  try
+    Ret := Cmd.Execute(['demo', 'https://example.com/repo.json', 'extra'], Ctx);
+    Check('repo add unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoAddDuplicateRepo;
+var
+  Cmd: TRepoAddCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoAddCommand.Create;
+  try
+    Ret := Cmd.Execute(['dup_repo', 'https://example.com/repo-a.json'], Ctx);
+    Check('repo add first add EXIT_OK', Ret = EXIT_OK);
+
+    Ret := Cmd.Execute(['dup_repo', 'https://example.com/repo-b.json'], Ctx);
+    Check('repo add duplicate EXIT_ALREADY_EXISTS', Ret = EXIT_ALREADY_EXISTS);
+    Check('repo add duplicate writes stderr',
+      Pos('exist', LowerCase(StdErr.GetBuffer)) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== repo remove ===== }
 
 procedure TestRepoRemoveName;
@@ -192,7 +332,7 @@ begin
   Cmd := TRepoRemoveCommand.Create;
   try
     A := Cmd.Aliases;
-    Check('repo remove: has rm alias', (A <> nil) and (Length(A) > 0) and (A[0] = 'rm'));
+    Check('repo remove: has no alias', A = nil);
   finally Cmd.Free; end;
 end;
 
@@ -216,6 +356,35 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('repo remove no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
+end;
+
+procedure TestRepoRemoveUnexpectedArg;
+var Cmd: TRepoRemoveCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoRemoveCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_remove', 'extra'], Ctx);
+    Check('repo remove unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoRemoveUnknownRepo;
+var
+  Cmd: TRepoRemoveCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoRemoveCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_remove'], Ctx);
+    Check('repo remove unknown repo EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('repo remove unknown repo writes stderr', Pos('not found', LowerCase(StdErr.GetBuffer)) > 0);
+  finally
+    Cmd.Free;
+  end;
 end;
 
 { ===== repo show ===== }
@@ -249,35 +418,125 @@ begin
   finally Cmd.Free; end;
 end;
 
-{ ===== repo default ===== }
-
-procedure TestRepoDefaultName;
-var Cmd: TRepoDefaultCommand;
-begin
-  Cmd := TRepoDefaultCommand.Create;
-  try Check('repo default: name', Cmd.Name = 'default'); finally Cmd.Free; end;
-end;
-
-procedure TestRepoDefaultHelp;
-var Cmd: TRepoDefaultCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+procedure TestRepoShowUnexpectedArg;
+var Cmd: TRepoShowCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
-  Cmd := TRepoDefaultCommand.Create;
+  Cmd := TRepoShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_show', 'extra'], Ctx);
+    Check('repo show unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoShowUnknownRepo;
+var
+  Cmd: TRepoShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_show'], Ctx);
+    Check('repo show unknown repo EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('repo show unknown repo writes stderr', Pos('not found', LowerCase(StdErr.GetBuffer)) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestRepoShowCurrentRepo;
+var
+  Cmd: TRepoShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not Ctx.Config.GetRepositoryManager.AddRepository('current_repo', 'https://example.com/current.json') then
+  begin
+    Check('repo show current setup add repo', False);
+    Exit;
+  end;
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.DefaultRepo := 'current_repo';
+  if not Ctx.Config.GetSettingsManager.SetSettings(Settings) then
+  begin
+    Check('repo show current setup set default repo', False);
+    Exit;
+  end;
+
+  Cmd := TRepoShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['current'], Ctx);
+    Check('repo show current EXIT_OK', Ret = EXIT_OK);
+    Check('repo show current prints selected repo', Pos('current_repo = https://example.com/current.json', StdOut.GetBuffer) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+{ ===== repo use ===== }
+
+procedure TestRepoUseName;
+var Cmd: TRepoUseCommand;
+begin
+  Cmd := TRepoUseCommand.Create;
+  try Check('repo use: name', Cmd.Name = 'use'); finally Cmd.Free; end;
+end;
+
+procedure TestRepoUseHelp;
+var Cmd: TRepoUseCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoUseCommand.Create;
   try
     Ret := Cmd.Execute(['--help'], Ctx);
-    Check('repo default --help EXIT_OK', Ret = EXIT_OK);
+    Check('repo use --help EXIT_OK', Ret = EXIT_OK);
   finally Cmd.Free; end;
 end;
 
-procedure TestRepoDefaultMissing;
-var Cmd: TRepoDefaultCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+procedure TestRepoUseMissing;
+var Cmd: TRepoUseCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
-  Cmd := TRepoDefaultCommand.Create;
+  Cmd := TRepoUseCommand.Create;
   try
     Ret := Cmd.Execute([], Ctx);
-    Check('repo default no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('repo use no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
+end;
+
+procedure TestRepoUseUnexpectedArg;
+var Cmd: TRepoUseCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_use', 'extra'], Ctx);
+    Check('repo use unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoUseUnknownRepo;
+var
+  Cmd: TRepoUseCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_repo_for_use'], Ctx);
+    Check('repo use unknown repo EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('repo use unknown repo writes stderr', Pos('not found', LowerCase(StdErr.GetBuffer)) > 0);
+  finally
+    Cmd.Free;
+  end;
 end;
 
 { ===== repo versions ===== }
@@ -312,6 +571,81 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestRepoVersionsUnexpectedArg;
+var Cmd: TRepoVersionsCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoVersionsCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('repo versions unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoVersionsUnknownFlag;
+var Cmd: TRepoVersionsCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoVersionsCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('repo versions unknown flag EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoVersionsUnknownRepo;
+var
+  Cmd: TRepoVersionsCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoVersionsCommand.Create;
+  try
+    Ret := Cmd.Execute(['--repo=missing_repo_for_versions'], Ctx);
+    Check('repo versions unknown repo EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('repo versions unknown repo writes stderr', Pos('not found', LowerCase(StdErr.GetBuffer)) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestRepoVersionsParseFailureExitCode;
+var
+  Cmd: TRepoVersionsCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  BadManifestPath: string;
+  SL: TStringList;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  BadManifestPath := GTempDir + PathDelim + 'repo_versions_bad_manifest.json';
+  SL := TStringList.Create;
+  try
+    SL.Text := '{ invalid json';
+    SL.SaveToFile(BadManifestPath);
+  finally
+    SL.Free;
+  end;
+
+  if not Ctx.Config.GetRepositoryManager.AddRepository('bad_manifest_repo', BadManifestPath) then
+  begin
+    Check('repo versions parse fail setup add repo', False);
+    Exit;
+  end;
+
+  Cmd := TRepoVersionsCommand.Create;
+  try
+    Ret := Cmd.Execute(['--repo=bad_manifest_repo'], Ctx);
+    Check('repo versions bad manifest EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('repo versions bad manifest writes stderr', Length(StdErr.GetBuffer) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== repo help ===== }
 
 procedure TestRepoHelpName;
@@ -330,6 +664,17 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('repo help no args EXIT_OK', Ret = EXIT_OK);
     Check('repo help shows commands', StdOut.Contains('repo'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestRepoHelpUnexpectedArg;
+var Cmd: TRepoHelpCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TRepoHelpCommand.Create;
+  try
+    Ret := Cmd.Execute(['add', 'extra'], Ctx);
+    Check('repo help unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -365,45 +710,68 @@ begin
   finally Cmd.Free; end;
 end;
 
-{ ===== version ===== }
-
-procedure TestVersionName;
-var Cmd: TVersionCommand;
-begin
-  Cmd := TVersionCommand.Create;
-  try Check('version: name', Cmd.Name = 'version'); finally Cmd.Free; end;
-end;
-
-procedure TestVersionNoArgs;
-var Cmd: TVersionCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+procedure TestEnvVarsUnexpectedArg;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
-  Cmd := TVersionCommand.Create;
-  try
-    Ret := Cmd.Execute([], Ctx);
-    Check('version no args EXIT_OK', Ret = EXIT_OK);
-    Check('version shows fpdev', StdOut.Contains('fpdev'));
-  finally Cmd.Free; end;
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'env', 'vars', 'extra'], Ctx);
+  Check('env vars unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
 end;
 
-{ ===== help ===== }
-
-procedure TestHelpName;
-var Cmd: THelpCommand;
-begin
-  Cmd := THelpCommand.Create;
-  try Check('help: name', Cmd.Name = 'help'); finally Cmd.Free; end;
-end;
-
-procedure TestHelpNoArgs;
-var Cmd: THelpCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+procedure TestEnvExportUnknownOption;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
-  Cmd := THelpCommand.Create;
-  try
-    Ret := Cmd.Execute([], Ctx);
-    Check('help no args EXIT_OK', Ret = EXIT_OK);
-  finally Cmd.Free; end;
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'env', 'export', '--unknown'], Ctx);
+  Check('env export unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+end;
+
+procedure TestEnvExportMissingShellValue;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'env', 'export', '--shell'], Ctx);
+  Check('env export missing --shell value EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+end;
+
+procedure TestGlobalNormalizeLeadingPortable;
+var
+  Primary: string;
+  Params: TStringArray;
+  DispatchArgs: TStringArray;
+begin
+  NormalizePrimaryAndParams(MakeArgs(['--portable', 'fpc', 'list']), Primary, Params);
+  DispatchArgs := BuildDispatchArgs(Primary, Params);
+  Check('global normalize portable primary', Primary = 'fpc');
+  Check('global normalize portable param count', Length(Params) = 1);
+  Check('global normalize portable first param', Params[0] = 'list');
+  Check('global dispatch args count', Length(DispatchArgs) = 2);
+  Check('global dispatch arg0', DispatchArgs[0] = 'fpc');
+  Check('global dispatch arg1', DispatchArgs[1] = 'list');
+end;
+
+procedure TestGlobalNormalizePortableOnly;
+var
+  Primary: string;
+  Params: TStringArray;
+  DispatchArgs: TStringArray;
+begin
+  NormalizePrimaryAndParams(MakeArgs(['--portable']), Primary, Params);
+  DispatchArgs := BuildDispatchArgs(Primary, Params);
+  Check('global normalize portable-only primary empty', Primary = '');
+  Check('global normalize portable-only params empty', Length(Params) = 0);
+  Check('global normalize portable-only dispatch empty', Length(DispatchArgs) = 0);
+end;
+
+procedure TestApplyPortableModeLeadingPreludeOnly;
+begin
+  SetPortableMode(False);
+  ApplyPortableModeFromArgs(MakeArgs(['--portable', 'fpc', 'list']));
+  Check('apply portable mode handles leading prelude', IsPortableMode);
+
+  SetPortableMode(False);
+  ApplyPortableModeFromArgs(MakeArgs(['fpc', 'list', '--portable']));
+  Check('apply portable mode ignores non-leading portable flag', not IsPortableMode);
 end;
 
 { ===== doctor ===== }
@@ -470,6 +838,17 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestIndexUnexpectedArg;
+var Cmd: TIndexCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TIndexCommand.Create;
+  try
+    Ret := Cmd.Execute(['status', 'extra'], Ctx);
+    Check('index unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== cache ===== }
 
 procedure TestCacheName;
@@ -500,6 +879,14 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('cache no args EXIT_OK', Ret = EXIT_OK);
   finally Cmd.Free; end;
+end;
+
+procedure TestCacheUnexpectedArg;
+var StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Ret := GlobalCommandRegistry.DispatchPath(['system', 'cache', 'stats', 'extra'], Ctx);
+  Check('cache unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
 end;
 
 { ===== perf ===== }
@@ -590,7 +977,8 @@ begin
   Cmd := TPerfSaveCommand.Create;
   try
     Ret := Cmd.Execute([], Ctx);
-    Check('perf save no args returns error', Ret > 0);
+    Check('perf save no args EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('perf save no args writes missing filename error', StdErr.Contains('Missing filename'));
   finally Cmd.Free; end;
 end;
 
@@ -600,36 +988,95 @@ procedure TestTopLevelRegistration;
 var
   Children: TStringArray;
   I: Integer;
-  FoundConfig, FoundRepo, FoundEnv, FoundVersion: Boolean;
-  FoundHelp, FoundDoctor, FoundIndex, FoundCache, FoundPerf: Boolean;
+  FoundRepo, FoundVersion, FoundSystem: Boolean;
+  FoundDefault: Boolean;
+  FoundHelp, FoundDoctor, FoundCache, FoundShow, FoundShellHook, FoundResolveVersion: Boolean;
 begin
   Children := GlobalCommandRegistry.ListChildren([]);
-  FoundConfig := False; FoundRepo := False; FoundEnv := False;
-  FoundVersion := False; FoundHelp := False; FoundDoctor := False;
-  FoundIndex := False; FoundCache := False; FoundPerf := False;
+  FoundRepo := False; FoundVersion := False; FoundSystem := False;
+  FoundDefault := False; FoundHelp := False; FoundDoctor := False;
+  FoundCache := False; FoundShow := False; FoundShellHook := False; FoundResolveVersion := False;
+
+  for I := Low(Children) to High(Children) do
+  begin
+    if Children[I] = 'repo' then FoundRepo := True;
+    if Children[I] = 'system' then FoundSystem := True;
+    if Children[I] = 'version' then FoundVersion := True;
+    if Children[I] = 'default' then FoundDefault := True;
+    if Children[I] = 'help' then FoundHelp := True;
+    if Children[I] = 'doctor' then FoundDoctor := True;
+    if Children[I] = 'cache' then FoundCache := True;
+    if Children[I] = 'show' then FoundShow := True;
+    if Children[I] = 'shell-hook' then FoundShellHook := True;
+    if Children[I] = 'resolve-version' then FoundResolveVersion := True;
+  end;
+
+  Check('repo no longer registered at top level', not FoundRepo);
+  Check('system registered at top level', FoundSystem);
+  Check('version no longer registered at top level', not FoundVersion);
+  Check('default no longer registered at top level', not FoundDefault);
+  Check('help no longer registered at top level', not FoundHelp);
+  Check('doctor no longer registered at top level', not FoundDoctor);
+  Check('cache no longer registered at top level', not FoundCache);
+  Check('show no longer registered at top level', not FoundShow);
+  Check('shell-hook no longer registered at top level', not FoundShellHook);
+  Check('resolve-version no longer registered at top level', not FoundResolveVersion);
+end;
+
+procedure TestSystemRegistration;
+var
+  Children: TStringArray;
+  I: Integer;
+  FoundConfig, FoundEnv, FoundIndex, FoundPerf, FoundRepo, FoundCache, FoundDoctor: Boolean;
+  FoundHook, FoundResolve, FoundVars, FoundPath, FoundExport: Boolean;
+begin
+  Children := GlobalCommandRegistry.ListChildren(['system']);
+  FoundConfig := False;
+  FoundEnv := False;
+  FoundIndex := False;
+  FoundPerf := False;
+  FoundRepo := False;
+  FoundCache := False;
+  FoundDoctor := False;
+  FoundHook := False;
+  FoundResolve := False;
+  FoundVars := False;
+  FoundPath := False;
+  FoundExport := False;
 
   for I := Low(Children) to High(Children) do
   begin
     if Children[I] = 'config' then FoundConfig := True;
-    if Children[I] = 'repo' then FoundRepo := True;
     if Children[I] = 'env' then FoundEnv := True;
-    if Children[I] = 'version' then FoundVersion := True;
-    if Children[I] = 'help' then FoundHelp := True;
-    if Children[I] = 'doctor' then FoundDoctor := True;
     if Children[I] = 'index' then FoundIndex := True;
-    if Children[I] = 'cache' then FoundCache := True;
     if Children[I] = 'perf' then FoundPerf := True;
+    if Children[I] = 'repo' then FoundRepo := True;
+    if Children[I] = 'cache' then FoundCache := True;
+    if Children[I] = 'doctor' then FoundDoctor := True;
   end;
 
-  Check('config registered at top level', FoundConfig);
-  Check('repo registered at top level', FoundRepo);
-  Check('env registered at top level', FoundEnv);
-  Check('version registered at top level', FoundVersion);
-  Check('help registered at top level', FoundHelp);
-  Check('doctor registered at top level', FoundDoctor);
-  Check('index registered at top level', FoundIndex);
-  Check('cache registered at top level', FoundCache);
-  Check('perf registered at top level', FoundPerf);
+  Check('system config registered', FoundConfig);
+  Check('system env registered', FoundEnv);
+  Check('system index registered', FoundIndex);
+  Check('system perf registered', FoundPerf);
+  Check('system repo registered', FoundRepo);
+  Check('system cache registered', FoundCache);
+  Check('system doctor registered', FoundDoctor);
+
+  Children := GlobalCommandRegistry.ListChildren(['system', 'env']);
+  for I := Low(Children) to High(Children) do
+  begin
+    if Children[I] = 'vars' then FoundVars := True;
+    if Children[I] = 'path' then FoundPath := True;
+    if Children[I] = 'export' then FoundExport := True;
+    if Children[I] = 'hook' then FoundHook := True;
+    if Children[I] = 'resolve' then FoundResolve := True;
+  end;
+  Check('system env vars registered', FoundVars);
+  Check('system env path registered', FoundPath);
+  Check('system env export registered', FoundExport);
+  Check('system env hook registered', FoundHook);
+  Check('system env resolve registered', FoundResolve);
 end;
 
 procedure TestRepoRegistration;
@@ -637,11 +1084,11 @@ var
   Children: TStringArray;
   I: Integer;
   FoundList, FoundAdd, FoundRemove, FoundShow: Boolean;
-  FoundDefault, FoundVersions, FoundHelp: Boolean;
+  FoundUse, FoundVersions, FoundHelp: Boolean;
 begin
-  Children := GlobalCommandRegistry.ListChildren(['repo']);
+  Children := GlobalCommandRegistry.ListChildren(['system', 'repo']);
   FoundList := False; FoundAdd := False; FoundRemove := False;
-  FoundShow := False; FoundDefault := False; FoundVersions := False;
+  FoundShow := False; FoundUse := False; FoundVersions := False;
   FoundHelp := False;
 
   for I := Low(Children) to High(Children) do
@@ -650,18 +1097,18 @@ begin
     if Children[I] = 'add' then FoundAdd := True;
     if Children[I] = 'remove' then FoundRemove := True;
     if Children[I] = 'show' then FoundShow := True;
-    if Children[I] = 'default' then FoundDefault := True;
+    if Children[I] = 'use' then FoundUse := True;
     if Children[I] = 'versions' then FoundVersions := True;
     if Children[I] = 'help' then FoundHelp := True;
   end;
 
-  Check('repo list registered', FoundList);
-  Check('repo add registered', FoundAdd);
-  Check('repo remove registered', FoundRemove);
-  Check('repo show registered', FoundShow);
-  Check('repo default registered', FoundDefault);
-  Check('repo versions registered', FoundVersions);
-  Check('repo help registered', FoundHelp);
+  Check('system repo list registered', FoundList);
+  Check('system repo add registered', FoundAdd);
+  Check('system repo remove registered', FoundRemove);
+  Check('system repo show registered', FoundShow);
+  Check('system repo use registered', FoundUse);
+  Check('system repo versions registered', FoundVersions);
+  Check('system repo help registered', FoundHelp);
 end;
 
 procedure TestPerfRegistration;
@@ -670,7 +1117,7 @@ var
   I: Integer;
   FoundReport, FoundSummary, FoundClear, FoundSave: Boolean;
 begin
-  Children := GlobalCommandRegistry.ListChildren(['perf']);
+  Children := GlobalCommandRegistry.ListChildren(['system', 'perf']);
   FoundReport := False; FoundSummary := False; FoundClear := False; FoundSave := False;
 
   for I := Low(Children) to High(Children) do
@@ -692,14 +1139,20 @@ begin
   WriteLn('=== Misc Commands CLI Tests (B200) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_misc_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_misc');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     WriteLn('--- config ---');
     TestConfigName;
     TestConfigHelp;
     TestConfigNoArgs;
+    TestConfigHelpUnexpectedArg;
+    TestConfigShowUnexpectedArg;
+    TestConfigGetUnexpectedArg;
+    TestConfigSetUnexpectedArg;
+    TestConfigGetUnknownKey;
+    TestConfigSetInvalidMirror;
 
     WriteLn('');
     WriteLn('--- config list ---');
@@ -707,18 +1160,22 @@ begin
     TestConfigListAlias;
     TestConfigListHelp;
     TestConfigListNoArgs;
+    TestConfigListUnknownOption;
 
     WriteLn('');
     WriteLn('--- repo list ---');
     TestRepoListName;
     TestRepoListHelp;
     TestRepoListNoArgs;
+    TestRepoListUnexpectedArg;
 
     WriteLn('');
     WriteLn('--- repo add ---');
     TestRepoAddName;
     TestRepoAddHelp;
     TestRepoAddMissingArgs;
+    TestRepoAddUnexpectedArg;
+    TestRepoAddDuplicateRepo;
 
     WriteLn('');
     WriteLn('--- repo remove ---');
@@ -726,45 +1183,58 @@ begin
     TestRepoRemoveAlias;
     TestRepoRemoveHelp;
     TestRepoRemoveMissing;
+    TestRepoRemoveUnexpectedArg;
+    TestRepoRemoveUnknownRepo;
 
     WriteLn('');
     WriteLn('--- repo show ---');
     TestRepoShowName;
     TestRepoShowHelp;
     TestRepoShowMissing;
+    TestRepoShowUnexpectedArg;
+    TestRepoShowUnknownRepo;
+    TestRepoShowCurrentRepo;
 
     WriteLn('');
-    WriteLn('--- repo default ---');
-    TestRepoDefaultName;
-    TestRepoDefaultHelp;
-    TestRepoDefaultMissing;
+    WriteLn('--- repo use ---');
+    TestRepoUseName;
+    TestRepoUseHelp;
+    TestRepoUseMissing;
+    TestRepoUseUnexpectedArg;
+    TestRepoUseUnknownRepo;
 
     WriteLn('');
     WriteLn('--- repo versions ---');
     TestRepoVersionsName;
     TestRepoVersionsHelp;
     TestRepoVersionsNoArgs;
+    TestRepoVersionsUnexpectedArg;
+    TestRepoVersionsUnknownFlag;
+    TestRepoVersionsUnknownRepo;
+    TestRepoVersionsParseFailureExitCode;
 
     WriteLn('');
     WriteLn('--- repo help ---');
     TestRepoHelpName;
     TestRepoHelpNoArgs;
+    TestRepoHelpUnexpectedArg;
 
     WriteLn('');
     WriteLn('--- env ---');
     TestEnvName;
     TestEnvHelp;
     TestEnvNoArgs;
+    TestEnvVarsUnexpectedArg;
+    TestEnvExportUnknownOption;
+    TestEnvExportMissingShellValue;
 
-    WriteLn('');
-    WriteLn('--- version ---');
-    TestVersionName;
-    TestVersionNoArgs;
-
-    WriteLn('');
-    WriteLn('--- help ---');
-    TestHelpName;
-    TestHelpNoArgs;
+    TestGlobalNormalizeLeadingPortable;
+    TestGlobalNormalizePortableOnly;
+    TestApplyPortableModeLeadingPreludeOnly;
+    TestSystemToolchainFetchUsageError;
+    TestSystemToolchainExtractUsageError;
+    TestSystemToolchainEnsureSourceUsageError;
+    TestSystemToolchainImportBundleUsageError;
 
     WriteLn('');
     WriteLn('--- doctor ---');
@@ -777,12 +1247,14 @@ begin
     TestIndexName;
     TestIndexHelp;
     TestIndexNoArgs;
+    TestIndexUnexpectedArg;
 
     WriteLn('');
     WriteLn('--- cache ---');
     TestCacheName;
     TestCacheHelp;
     TestCacheNoArgs;
+    TestCacheUnexpectedArg;
 
     WriteLn('');
     WriteLn('--- perf ---');
@@ -803,11 +1275,7 @@ begin
     TestRepoRegistration;
     TestPerfRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

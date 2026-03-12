@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpjson, fpdev.project.generator;
+uses fpdev.command.utils, fpjson, fpdev.project.generator;
 
 function TProjectListCommand.Name: string; begin Result := 'list'; end;
 function TProjectListCommand.Aliases: TStringArray; begin Result := nil; end;

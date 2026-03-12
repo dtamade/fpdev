@@ -173,27 +173,37 @@ FPDev settings record:
 
 ## Command Processing API (fpdev.cmd)
 
-### TFPCMD Class
+### `ICommand` interface
 
-Base class for command processing, providing the command execution framework.
+The current command system is built around the `ICommand` interface and a command registry, rather than the old inheritance-based command model.
 
 ```pascal
-TFPCMD = class
-private
-  FParams: TStringArray;
-  FChilds: array of TFPCMD;
-public
-  constructor Create(const aParams: array of string);
-  procedure Execute; virtual;
-  procedure AddChild(const aChild: TFPCMD);
-  function Find(const aName: string): TFPCMD;
+ICommand = interface
+  function Name: string;
+  function Aliases: TStringArray;
+  function FindSub(const AName: string): ICommand;
+  function Execute(const AParams: array of string; const Ctx: IContext): Integer;
 end;
 ```
 
-- `Create`: Create command object
-- `Execute`: Execute command (virtual method, needs subclass implementation)
-- `AddChild`: Add sub-command
-- `Find`: Find sub-command
+- `Name`: Returns the command name
+- `Aliases`: Returns command aliases
+- `FindSub`: Looks up a subcommand
+- `Execute`: Runs the command with an `IContext`
+
+### `TCommandRegistry`
+
+```pascal
+TCommandRegistry = class
+  procedure RegisterPath(const APath: array of string; AFactory: TCommandFactory; const Aliases: array of string);
+  function DispatchPath(const AArgs: array of string; const Ctx: IContext): Integer;
+  function ListChildren(const APath: array of string): TStringArray;
+end;
+```
+
+- `RegisterPath`: Registers a command path
+- `DispatchPath`: Dispatches a command by path
+- `ListChildren`: Lists available subcommands under a node
 
 ## Utility Functions API (fpdev.utils)
 
@@ -263,13 +273,11 @@ end;
 
 ```pascal
 var
-  Cmd: TFPCMD;
+  Registry: TCommandRegistry;
+  Ctx: IContext;
 begin
-  Cmd := TFPCMD.Create(['help', 'version']);
-  try
-    Cmd.Execute;
-  finally
-    Cmd.Free;
-  end;
+  Registry := GlobalCommandRegistry;
+  Ctx := TDefaultCommandContext.Create;
+  Registry.DispatchPath(['fpc', 'list'], Ctx);
 end;
 ```

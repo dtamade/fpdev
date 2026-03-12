@@ -22,11 +22,15 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectTemplateInstallCommand.Name: string; begin Result := 'install'; end;
 function TProjectTemplateInstallCommand.Aliases: TStringArray; begin Result := nil; end;
-function TProjectTemplateInstallCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TProjectTemplateInstallCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function ProjectTemplateInstallFactory: ICommand;
 begin

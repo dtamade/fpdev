@@ -3,7 +3,7 @@ program test_lazarus_ide_config;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.lazarus.config;
+  SysUtils, Classes, fpdev.lazarus.config, test_temp_paths;
 
 var
   TestRootDir: string;
@@ -13,41 +13,17 @@ var
 procedure InitTestEnvironment;
 begin
   // Create test root directory in temp
-  TestRootDir := GetTempDir + 'test_lazarus_ide_config_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_lazarus_ide_config');
+  if not PathUsesSystemTempRoot(TestRootDir) then
+    raise Exception.Create('Test root dir should use system temp root');
 
   TestsPassed := 0;
   TestsFailed := 0;
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
+  CleanupTempDir(TestRootDir);
 
   WriteLn;
   WriteLn('========================================');

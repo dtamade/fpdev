@@ -10,6 +10,14 @@ var
   TestFile: string;
   F: TFileStream;
   Hash: string;
+  TempFileSeq: Integer = 0;
+
+function BuildTempHashFile(const AName: string): string;
+begin
+  Inc(TempFileSeq);
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False)) +
+    ChangeFileExt(AName, '') + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(TempFileSeq) + ExtractFileExt(AName);
+end;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -32,8 +40,20 @@ begin
   WriteLn('=== SHA512 Hash Tests ===');
   WriteLn;
 
-  // Test 1: SHA512 of empty string
-  TestFile := GetTempDir + 'test_empty.txt';
+  // Test 1: temp hash file policy
+  TestFile := BuildTempHashFile('test_empty.txt');
+  Assert(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(TestFile)) = 1,
+    'Temp hash file lives under system temp'
+  );
+  Assert(
+    ExpandFileName(TestFile) <> ExpandFileName(BuildTempHashFile('test_empty.txt')),
+    'Temp hash file path is unique per call'
+  );
+
+  // Test 2: SHA512 of empty string
+  TestFile := BuildTempHashFile('test_empty.txt');
   F := TFileStream.Create(TestFile, fmCreate);
   try
     // Empty file
@@ -47,8 +67,8 @@ begin
          'SHA512 of empty file matches expected hash');
   DeleteFile(TestFile);
 
-  // Test 2: SHA512 of "abc"
-  TestFile := GetTempDir + 'test_abc.txt';
+  // Test 3: SHA512 of "abc"
+  TestFile := BuildTempHashFile('test_abc.txt');
   F := TFileStream.Create(TestFile, fmCreate);
   try
     F.Write('abc'[1], 3);
@@ -61,8 +81,8 @@ begin
          'SHA512 of "abc" matches expected hash');
   DeleteFile(TestFile);
 
-  // Test 3: SHA512 of longer text
-  TestFile := GetTempDir + 'test_long.txt';
+  // Test 4: SHA512 of longer text
+  TestFile := BuildTempHashFile('test_long.txt');
   F := TFileStream.Create(TestFile, fmCreate);
   try
     F.Write('The quick brown fox jumps over the lazy dog'[1], 43);
@@ -76,8 +96,8 @@ begin
          'SHA512 of "The quick brown fox..." matches expected hash');
   DeleteFile(TestFile);
 
-  // Test 4: SHA256 still works (regression test)
-  TestFile := GetTempDir + 'test_sha256.txt';
+  // Test 5: SHA256 still works (regression test)
+  TestFile := BuildTempHashFile('test_sha256.txt');
   F := TFileStream.Create(TestFile, fmCreate);
   try
     F.Write('test'[1], 4);

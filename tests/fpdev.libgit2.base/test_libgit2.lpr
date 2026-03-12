@@ -5,10 +5,25 @@ program test_libgit2;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fpdev.git2;
+  SysUtils, test_pause_control, fpdev.git2, test_temp_paths;
 
 var
   GitManager: TGit2Manager;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
+
+function GetTestRepoDir: string;
+begin
+  if GTestRootDir = '' then
+    Exit('');
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestLibGit2Environment;
 begin
@@ -38,18 +53,7 @@ begin
   WriteLn('=== 测试仓库操作 ===');
   WriteLn;
 
-  TestDir := 'test_libgit2_repo';
-
-  // 清理已存在的测试目录
-  if DirectoryExists(TestDir) then
-  begin
-    WriteLn('删除已存在的测试目录...');
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
-  end;
+  TestDir := ResetTestRepoDir('test_libgit2_repo');
 
   // 测试克隆小仓库
   WriteLn('测试克隆GitHub测试仓库...');
@@ -102,15 +106,11 @@ var
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  TestDir := 'test_libgit2_repo';
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('删除测试目录: ', TestDir);
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
+    WriteLn('删除测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -145,7 +145,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

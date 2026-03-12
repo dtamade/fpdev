@@ -1,11 +1,14 @@
 # Package Creation Design
 
+> 状态（2026-03-05）：该文档是历史设计草案。`fpdev package create` 当前不是已注册的公开 CLI 命令。
+> 当前可用流程：准备包目录与元数据后，使用 `fpdev package install-local <path>` 与 `fpdev package publish <name>`。
+
 ## Overview
 This document describes the design for package creation functionality in FPDev.
 
 ## Feature Specification
 
-### Command
+### Command (Historical Proposal)
 ```
 fpdev package create <name> <path>
 

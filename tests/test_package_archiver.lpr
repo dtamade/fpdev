@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpdev.package.archiver;
+  SysUtils, Classes, fpdev.package.archiver, test_temp_paths;
 
 type
   { TPackageArchiverTest }
@@ -40,6 +40,7 @@ type
     procedure TestGenerateSHA256Checksum;
     procedure TestArchiveStructure;
     procedure TestArchiveWithVersion;
+    procedure TestNoSourceFilesErrorCode;
 
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
@@ -53,15 +54,16 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_archiver_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestDataDir := CreateUniqueTempDir('test_archiver_data');
 end;
 
 destructor TPackageArchiverTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    FTestDataDir := '';
+  end;
   inherited Destroy;
 end;
 
@@ -114,35 +116,12 @@ begin
 end;
 
 procedure TPackageArchiverTest.CleanupTestFiles;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
-  end;
-
 begin
-  if DirectoryExists(FTestDataDir) then
-    DeleteDirectory(FTestDataDir);
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    ForceDirectories(FTestDataDir);
+  end;
 end;
 
 procedure TPackageArchiverTest.TestDetectSourceFiles;
@@ -155,8 +134,7 @@ begin
 
   // Clean up first to ensure no leftover files
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create test source files directly in root (non-recursive test)
   CreateTestFile('mylib.pas', 'unit mylib; interface implementation end.');
@@ -185,8 +163,7 @@ begin
 
   // Clean up first to ensure no leftover files
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create nested source files
   CreateTestDirectory('src');
@@ -217,8 +194,7 @@ begin
 
   // Clean up first to ensure no leftover files
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create source files with .inc files directly in root (non-recursive test)
   CreateTestFile('mylib.pas', 'unit mylib;');
@@ -249,8 +225,7 @@ begin
 
   // Clean up first to ensure no leftover files
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create package files with .fpdevignore directly in root (non-recursive test)
   CreateTestFile('mylib.pas', 'unit mylib;');
@@ -291,8 +266,7 @@ begin
 
   // Clean up first
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create package files
   CreateTestFile('mylib.pas', 'unit mylib;');
@@ -324,8 +298,7 @@ begin
 
   // Clean up first
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create package files
   CreateTestFile('mylib.pas', 'unit mylib;');
@@ -358,8 +331,7 @@ begin
 
   // Clean up first
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create package files
   CreateTestDirectory('src');
@@ -396,8 +368,7 @@ begin
 
   // Clean up first
   CleanupTestFiles;
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  ForceDirectories(FTestDataDir);
 
   // Create package files
   CreateTestFile('mylib.pas', 'unit mylib;');
@@ -413,6 +384,33 @@ begin
     // Clean up archive
     if FileExists(ArchivePath) then
       DeleteFile(ArchivePath);
+  finally
+    Archiver.Free;
+  end;
+end;
+
+procedure TPackageArchiverTest.TestNoSourceFilesErrorCode;
+var
+  Archiver: TPackageArchiver;
+  ArchivePath: string;
+begin
+  WriteLn;
+  WriteLn('=== Test: No Source Files Error Code ===');
+
+  // Clean up first
+  CleanupTestFiles;
+  ForceDirectories(FTestDataDir);
+
+  ArchivePath := FTestDataDir + PathDelim + 'empty-1.0.0.tar.gz';
+
+  Archiver := TPackageArchiver.Create(FTestDataDir);
+  try
+    AssertTrue(not Archiver.CreateArchive(ArchivePath),
+      'Should fail when no source files are available');
+    AssertTrue(Archiver.GetLastErrorCode = paecNoSourceFiles,
+      'Should expose paecNoSourceFiles error code');
+    AssertEquals('No source files found to archive', Archiver.GetLastError,
+      'Should keep stable error message for no source files');
   finally
     Archiver.Free;
   end;
@@ -436,6 +434,7 @@ begin
   TestGenerateSHA256Checksum;
   TestArchiveStructure;
   TestArchiveWithVersion;
+  TestNoSourceFilesErrorCode;
 
   WriteLn;
   WriteLn('========================================');

@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TFPCUpdateCommand.Name: string; begin Result := 'update'; end;
 
@@ -41,7 +41,7 @@ var
   LMgr: TFPCManager;
   LVer: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -73,7 +73,7 @@ begin
     begin
       // No version specified, update index only
       Ctx.Out.WriteLn(_(CMD_FPC_UPDATE_INDEX));
-      FPC_UpdateIndex;
+      FPC_UpdateIndex(Ctx.Config.GetConfigPath);
       Ctx.Out.WriteLn(_(CMD_FPC_UPDATE_DONE));
     end;
   finally
@@ -90,4 +90,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['fpc','update'], @FPCUpdateFactory, []);
 
 end.
-

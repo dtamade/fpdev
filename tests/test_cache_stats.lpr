@@ -4,7 +4,7 @@ program test_cache_stats;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
 
 var
   TestsPassed: Integer = 0;
@@ -24,22 +24,54 @@ begin
   end;
 end;
 
-procedure CleanupTestDir(const ADir: string);
-var
-  SR: TSearchRec;
+function MakeTempDir(const APrefix: string): string;
 begin
-  if not DirectoryExists(ADir) then Exit;
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
+  ForceDirectories(Result);
+end;
 
-  // Delete all files in directory
-  if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name <> '.') and (SR.Name <> '..') then
-        DeleteFile(ADir + PathDelim + SR.Name);
-    until FindNext(SR) <> 0;
-    FindClose(SR);
+procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
+begin
+  Assert(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(APath)) = 1,
+    ATestName
+  );
+end;
+
+procedure CleanupTestDir(const ADir: string);
+begin
+  if DirectoryExists(ADir) then
+    DeleteDirRecursive(ADir);
+end;
+
+procedure TestCleanupRemovesNestedDirectories;
+var
+  CacheDir: string;
+  NestedDir: string;
+  NestedFile: string;
+  TestData: TStringList;
+begin
+  WriteLn('=== TestCleanupRemovesNestedDirectories ===');
+
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-cleanup');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Cache stats cleanup temp directory should live under system temp');
+
+  NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
+  NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'artifact.json';
+  ForceDirectories(NestedDir);
+
+  TestData := TStringList.Create;
+  try
+    TestData.Add('{"ok":true}');
+    TestData.SaveToFile(NestedFile);
+  finally
+    TestData.Free;
   end;
-  RemoveDir(ADir);
+
+  CleanupTestDir(CacheDir);
+  Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache stats test directory');
 end;
 
 procedure TestAccessTracking;
@@ -50,14 +82,12 @@ var
 begin
   WriteLn('=== TestAccessTracking ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-stats-access';
-  CleanupTestDir(CacheDir);  // Clean before creating
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-access');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Access tracking temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create cache entry
       Initialize(Info);
       Info.Version := '3.2.0';
       Info.CPU := 'x86_64';
@@ -69,30 +99,24 @@ begin
       Cache.SaveMetadataJSON(Info);
       Cache.RebuildIndex;
 
-      // Test 1: Initial access count should be 0
       Assert(Cache.LookupIndexEntry('3.2.0', Info), 'Should find entry');
       Assert(Info.AccessCount = 0, 'Initial access count should be 0');
 
-      // Test 2: Record access and verify count increases
       Cache.RecordAccess('3.2.0');
       Assert(Cache.LookupIndexEntry('3.2.0', Info), 'Should find entry after access');
       Assert(Info.AccessCount = 1, 'Access count should be 1 after first access');
 
-      // Test 3: Multiple accesses
       Cache.RecordAccess('3.2.0');
       Cache.RecordAccess('3.2.0');
       Assert(Cache.LookupIndexEntry('3.2.0', Info), 'Should find entry after multiple accesses');
       Assert(Info.AccessCount = 3, 'Access count should be 3 after three accesses');
 
-      // Test 4: Last accessed time should be updated
       Assert(Info.LastAccessed > 0, 'LastAccessed should be set');
       Assert(Abs(Info.LastAccessed - Now) < (1 / 1440), 'LastAccessed should be recent (within 1 minute)');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
     CleanupTestDir(CacheDir);
   end;
 end;
@@ -105,12 +129,10 @@ var
 begin
   WriteLn('=== TestAccessPersistence ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-stats-persist';
-  CleanupTestDir(CacheDir);  // Clean before creating
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-persist');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Access persistence temp directory should live under system temp');
 
   try
-    // Create cache and record accesses
     Cache := TBuildCache.Create(CacheDir);
     try
       Initialize(Info);
@@ -131,7 +153,6 @@ begin
       Cache.Free;
     end;
 
-    // Create new cache instance and verify access count persisted
     Cache := TBuildCache.Create(CacheDir);
     try
       Assert(Cache.LookupIndexEntry('3.2.0', Info), 'Should find entry in new instance');
@@ -142,7 +163,6 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
     CleanupTestDir(CacheDir);
   end;
 end;
@@ -156,19 +176,17 @@ var
 begin
   WriteLn('=== TestDetailedStats ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-stats-detailed';
-  CleanupTestDir(CacheDir);  // Clean before creating
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-detailed');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Detailed stats temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create multiple entries with different access patterns
       Initialize(Info);
       Info.Version := '3.2.0';
       Info.CPU := 'x86_64';
       Info.OS := 'linux';
-      Info.ArchiveSize := 10000000;  // 10 MB
+      Info.ArchiveSize := 10000000;
       Info.CreatedAt := Now - 2;
       Info.AccessCount := 0;
       Info.LastAccessed := 0;
@@ -178,7 +196,7 @@ begin
       Info.Version := '3.2.1';
       Info.CPU := 'x86_64';
       Info.OS := 'linux';
-      Info.ArchiveSize := 20000000;  // 20 MB
+      Info.ArchiveSize := 20000000;
       Info.CreatedAt := Now - 1;
       Info.AccessCount := 0;
       Info.LastAccessed := 0;
@@ -188,7 +206,7 @@ begin
       Info.Version := '3.2.2';
       Info.CPU := 'x86_64';
       Info.OS := 'linux';
-      Info.ArchiveSize := 30000000;  // 30 MB
+      Info.ArchiveSize := 30000000;
       Info.CreatedAt := Now;
       Info.AccessCount := 0;
       Info.LastAccessed := 0;
@@ -196,34 +214,25 @@ begin
 
       Cache.RebuildIndex;
 
-      // Record different access patterns
-      Cache.RecordAccess('3.2.0');  // 1 access
-      Cache.RecordAccess('3.2.1');  // 3 accesses
+      Cache.RecordAccess('3.2.0');
       Cache.RecordAccess('3.2.1');
       Cache.RecordAccess('3.2.1');
-      Cache.RecordAccess('3.2.2');  // 2 accesses
+      Cache.RecordAccess('3.2.1');
+      Cache.RecordAccess('3.2.2');
       Cache.RecordAccess('3.2.2');
 
-      // Get detailed statistics
       Stats := Cache.GetDetailedStats;
 
-      // Test basic stats
       Assert(Stats.TotalEntries = 3, 'Total entries should be 3');
       Assert(Stats.TotalSize = 60000000, 'Total size should be 60 MB');
-
-      // Test access stats
       Assert(Stats.TotalAccesses = 6, 'Total accesses should be 6');
       Assert(Stats.MostAccessedVersion = '3.2.1', 'Most accessed version should be 3.2.1');
       Assert(Stats.MostAccessedCount = 3, 'Most accessed count should be 3');
-
-      // Test average size
       Assert(Stats.AverageEntrySize = 20000000, 'Average entry size should be 20 MB');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
     CleanupTestDir(CacheDir);
   end;
 end;
@@ -237,14 +246,12 @@ var
 begin
   WriteLn('=== TestLRUByAccess ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-stats-lru';
-  CleanupTestDir(CacheDir);  // Clean before creating
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-lru');
+  AssertPathIsUnderSystemTemp(CacheDir, 'LRU temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create entries
       Initialize(Info);
       Info.Version := '3.2.0';
       Info.CPU := 'x86_64';
@@ -277,27 +284,21 @@ begin
 
       Cache.RebuildIndex;
 
-      // Access 3.2.0 and 3.2.2, but not 3.2.1
       Cache.RecordAccess('3.2.0');
-      Sleep(100);  // Small delay to ensure different timestamps
+      Sleep(100);
       Cache.RecordAccess('3.2.2');
 
-      // Get least recently used version
       LRUVersion := Cache.GetLeastRecentlyUsed;
       Assert(LRUVersion = '3.2.1', 'LRU version should be 3.2.1 (never accessed)');
 
-      // Now access 3.2.1
       Cache.RecordAccess('3.2.1');
 
-      // LRU should now be 3.2.0 (accessed first)
       LRUVersion := Cache.GetLeastRecentlyUsed;
       Assert(LRUVersion = '3.2.0', 'LRU version should be 3.2.0 (accessed earliest)');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
     CleanupTestDir(CacheDir);
   end;
 end;
@@ -311,14 +312,12 @@ var
 begin
   WriteLn('=== TestStatsReport ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-stats-report';
-  CleanupTestDir(CacheDir);  // Clean before creating
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-stats-report');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Stats report temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create entries
       Initialize(Info);
       Info.Version := '3.2.0';
       Info.CPU := 'x86_64';
@@ -333,19 +332,15 @@ begin
       Cache.RecordAccess('3.2.0');
       Cache.RecordAccess('3.2.0');
 
-      // Get formatted report
       Report := Cache.GetStatsReport;
 
-      // Verify report contains key information
       Assert(Pos('entries', LowerCase(Report)) > 0, 'Report should mention entries');
       Assert(Pos('3.2.0', Report) > 0, 'Report should mention version');
       Assert(Pos('access', LowerCase(Report)) > 0, 'Report should mention access');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
     CleanupTestDir(CacheDir);
   end;
 end;
@@ -355,6 +350,7 @@ begin
   WriteLn('Running Cache Statistics Tests...');
   WriteLn;
 
+  TestCleanupRemovesNestedDirectories;
   TestAccessTracking;
   TestAccessPersistence;
   TestDetailedStats;

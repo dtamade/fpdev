@@ -1,6 +1,7 @@
 unit fpdev.fpc.mocks;
 
 {$mode objfpc}{$H+}
+// acq:allow-hardcoded-constants-file
 
 {
   FPC Mock Implementations

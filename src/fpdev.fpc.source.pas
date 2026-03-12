@@ -1,6 +1,7 @@
 unit fpdev.fpc.source;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 
@@ -37,7 +38,11 @@ type
     function GetSourcePath(const AVersion: string): string;
     function GetVersionFromBranch(const ABranch: string): string;
     function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
-    function ExecuteCommand(const AProgram: string; const AArgs: array of string; const AWorkingDir: string = ''): Boolean;
+    function ExecuteCommand(
+      const AProgram: string;
+      const AArgs: array of string;
+      const AWorkingDir: string = ''
+    ): Boolean;
     function IsValidSourceDirectory(const APath: string): Boolean;
 
     // Bootstrap compiler management - private helpers
@@ -216,7 +221,11 @@ begin
   end;
 end;
 
-function TFPCSourceManager.ExecuteCommand(const AProgram: string; const AArgs: array of string; const AWorkingDir: string): Boolean;
+function TFPCSourceManager.ExecuteCommand(
+  const AProgram: string;
+  const AArgs: array of string;
+  const AWorkingDir: string
+): Boolean;
 var
   ExitCode: Integer;
   OldDir: string;
@@ -261,7 +270,10 @@ begin
   if LVersion = '' then LVersion := FCurrentVersion;
   if LVersion = '' then LVersion := 'main';
   Result := Repo.UpdateFPCSource(LVersion);
-  if Result then WriteLn('[OK] FPC source updated successfully (fetch)') else WriteLn('[FAIL] FPC source update failed (fetch)');
+  if Result then
+    WriteLn('[OK] FPC source updated successfully (fetch)')
+  else
+    WriteLn('[FAIL] FPC source update failed (fetch)');
 end;
 
 function TFPCSourceManager.SwitchFPCVersion(const AVersion: string): Boolean;

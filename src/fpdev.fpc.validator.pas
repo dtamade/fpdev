@@ -34,7 +34,9 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.utils.process;
+  fpdev.types,
+  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.utils.process,
+  fpdev.fpc.runtimeflow, fpdev.paths, fpdev.constants, fpdev.fpc.utils;
 
 type
   { TVerificationResult - Result of installation verification }
@@ -61,6 +63,8 @@ type
 
     { Gets the FPC executable path for a given version. }
     function GetFPCExecutablePath(const AVersion: string): string;
+    function LookupToolchainInfo(const AVersion: string; out AInfo: TToolchainInfo): Boolean;
+    function ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
 
   public
     constructor Create(AConfigManager: IConfigManager);
@@ -92,7 +96,21 @@ type
 implementation
 
 uses
-  fpdev.i18n, fpdev.i18n.strings;
+  fpdev.i18n.strings;
+
+procedure WritePlainToolchainInfo(const AOut: IOutput; const AInfo: TToolchainInfo);
+begin
+  if AOut <> nil then
+  begin
+    AOut.WriteLn('Install Date: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', AInfo.InstallDate));
+    AOut.WriteLn('Source URL: ' + AInfo.SourceURL);
+  end;
+end;
+
+{$IFDEF MSWINDOWS}
+const
+  WINDOWS_CMD_SWITCH = '/c';
+{$ENDIF}
 
 { TFPCValidator }
 
@@ -117,14 +135,33 @@ begin
 end;
 
 function TFPCValidator.GetVersionInstallPath(const AVersion: string): string;
+var
+  Scope: TInstallScope;
+  ProjectRoot: string;
 begin
-  // Default to user scope installation path
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  // Resolve based on current scope.
+  Scope := fpdev.fpc.utils.DetectInstallScope(GetCurrentDir);
+  if Scope = isProject then
+  begin
+    ProjectRoot := fpdev.fpc.utils.FindProjectRoot(GetCurrentDir);
+    if ProjectRoot <> '' then
+    begin
+      Result := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim +
+        'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
+      Exit;
+    end;
+  end;
+
+  // User scope: toolchains under InstallRoot.
+  Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
 end;
 
 function TFPCValidator.GetFPCExecutablePath(const AVersion: string): string;
 var
   InstallPath: string;
+  RootDir: string;
+  LegacyInstallPath: string;
+  LegacyExe: string;
 begin
   InstallPath := GetVersionInstallPath(AVersion);
   {$IFDEF MSWINDOWS}
@@ -132,6 +169,23 @@ begin
   {$ELSE}
   Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
+
+  if FileExists(Result) then
+    Exit;
+
+  // Legacy fallback: <root>/fpc/<version>/bin/fpc(.exe)
+  RootDir := ExtractFileDir(ExtractFileDir(ExtractFileDir(InstallPath)));
+  if RootDir <> '' then
+  begin
+    LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + AVersion;
+    {$IFDEF MSWINDOWS}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    if FileExists(LegacyExe) then
+      Result := LegacyExe;
+  end;
 end;
 
 function TFPCValidator.IsVersionInstalled(const AVersion: string): Boolean;
@@ -140,6 +194,16 @@ var
 begin
   FPCExe := GetFPCExecutablePath(AVersion);
   Result := FileExists(FPCExe);
+end;
+
+function TFPCValidator.LookupToolchainInfo(const AVersion: string; out AInfo: TToolchainInfo): Boolean;
+begin
+  Result := FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, AInfo);
+end;
+
+function TFPCValidator.ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
+begin
+  Result := TProcessExecutor.Execute(AExecutable, ['-i'], '');
 end;
 
 function TFPCValidator.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
@@ -266,7 +330,9 @@ begin
     LResult := TProcessExecutor.Execute(AFPCExe, ['-o' + HelloExe, HelloPas], '');
     if not LResult.Success then
     begin
-      VerifResult.ErrorMessage := 'Smoke test: Failed to compile hello.pas (exit code: ' + IntToStr(LResult.ExitCode) + ')';
+      VerifResult.ErrorMessage :=
+        'Smoke test: Failed to compile hello.pas (exit code: ' +
+        IntToStr(LResult.ExitCode) + ')';
       Exit(False);
     end;
 
@@ -283,7 +349,11 @@ begin
       {$IFDEF MSWINDOWS}
       // On Windows, check if a .bat file exists (mock environment)
       if FileExists(ChangeFileExt(HelloExe, '.bat')) then
-        LResult := TProcessExecutor.Execute('cmd.exe', ['/c', ChangeFileExt(HelloExe, '.bat')], '')
+        LResult := TProcessExecutor.Execute(
+          'cmd.exe',
+          [WINDOWS_CMD_SWITCH, ChangeFileExt(HelloExe, '.bat')],
+          ''
+        )
       else
         LResult := TProcessExecutor.Execute(HelloExe, [], '');
       {$ELSE}
@@ -305,7 +375,9 @@ begin
 
       if Output <> 'Hello, World!' then
       begin
-        VerifResult.ErrorMessage := 'Smoke test: Unexpected output. Expected ''Hello, World!'', got: ''' + Output + '''';
+        VerifResult.ErrorMessage :=
+          'Smoke test: Unexpected output. Expected ''Hello, World!'', got: ''' +
+          Output + '''';
         Exit(False);
       end;
 
@@ -336,97 +408,18 @@ begin
 end;
 
 function TFPCValidator.TestInstallation(const AVersion: string; Outp: IOutput; Errp: IOutput): Boolean;
-var
-  LResult: TProcessResult;
-  FPCExe: string;
 begin
-  Result := False;
-
-  if not IsVersionInstalled(AVersion) then
-  begin
-    if Errp <> nil then
-      Errp.WriteLn(_Fmt(CMD_FPC_USE_NOT_FOUND, [AVersion]));
-    Exit;
-  end;
-
-  try
-    FPCExe := GetFPCExecutablePath(AVersion);
-
-    if Outp <> nil then
-      Outp.WriteLn(_Fmt(CMD_FPC_DOCTOR_CHECKING, [AVersion]));
-
-    LResult := TProcessExecutor.Execute(FPCExe, ['-i'], '');
-    Result := LResult.Success;
-    if Result then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_(CMD_FPC_DOCTOR_OK));
-    end
-    else
-    begin
-      if Errp <> nil then
-        Errp.WriteLn(_Fmt(CMD_FPC_DOCTOR_ISSUES, [1]))
-      else if Outp <> nil then
-        Outp.WriteLn(_Fmt(CMD_FPC_DOCTOR_ISSUES, [1]));
-    end;
-
-  except
-    on E: Exception do
-    begin
-      if Errp <> nil then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteFPCTestInstallationCore(
+    AVersion, Outp, Errp, @IsVersionInstalled, @GetVersionInstallPath, @ExecuteInstalledFPCInfo
+  );
 end;
 
 function TFPCValidator.ShowVersionInfo(const AVersion: string; Outp: IOutput): Boolean;
-var
-  ToolchainInfo: TToolchainInfo;
-  InstallPath: string;
-  LOut: IOutput;
 begin
-  Result := False;
-  Initialize(ToolchainInfo);
-
-  // Use provided output or create default
-  LOut := Outp;
-
-  try
-    if IsVersionInstalled(AVersion) then
-    begin
-      InstallPath := GetVersionInstallPath(AVersion);
-      if InstallPath = '' then
-      begin
-        if LOut <> nil then
-          LOut.WriteLn(_(MSG_ERROR) + ': Install path not found');
-        Exit;
-      end;
-
-      if FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, ToolchainInfo) then
-      begin
-        if LOut <> nil then
-        begin
-          LOut.WriteLn('Install Date: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', ToolchainInfo.InstallDate));
-          LOut.WriteLn('Source URL: ' + ToolchainInfo.SourceURL);
-        end;
-      end;
-    end else
-    begin
-      if LOut <> nil then
-        LOut.WriteLn(_Fmt(ERR_NOT_INSTALLED, ['FPC ' + AVersion]));
-    end;
-
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      if LOut <> nil then
-        LOut.WriteLn(_(MSG_ERROR) + ': ShowVersionInfo failed - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteFPCShowVersionInfoCore(
+    AVersion, Outp, Outp, nil, @IsVersionInstalled, @GetVersionInstallPath,
+    @LookupToolchainInfo, @WritePlainToolchainInfo
+  );
 end;
 
 end.

@@ -25,7 +25,7 @@ program test_perf_monitor_integration;
 
 uses
   SysUtils, Classes, DateUtils, fpjson, jsonparser,
-  fpdev.perf.monitor;
+  fpdev.perf.monitor, test_temp_paths;
 
 var
   GTestCount: Integer = 0;
@@ -438,8 +438,8 @@ begin
   WriteLn('=== Performance Monitor Integration Tests ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_perf_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_perf');
+  Test('Temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     // Group 1: Build pipeline simulation
@@ -492,11 +492,7 @@ begin
     TestSummaryFormat;
   finally
     // Cleanup
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'perf_report.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   WriteLn('');

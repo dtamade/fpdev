@@ -7,14 +7,17 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes,
-  fpdev.config;
+  SysUtils, test_pause_control, Classes,
+  test_config_isolation,
+  fpdev.config, fpdev.config.interfaces, fpdev.config.managers, fpdev.utils.fs,
+  test_temp_paths;
 
 type
   { TConfigManagementTest }
   TConfigManagementTest = class
   private
     FTestConfigPath: string;
+    FTestConfigRoot: string;
     FConfigManager: TFPDevConfigManager;
     FTestsPassed: Integer;
     FTestsFailed: Integer;
@@ -30,6 +33,7 @@ type
     
     // 测试方法
     procedure TestConfigCreation;
+    procedure TestDefaultConfigPathOverride;
     procedure TestToolchainManagement;
     procedure TestLazarusVersionManagement;
     procedure TestCrossTargetManagement;
@@ -49,19 +53,21 @@ begin
   inherited Create;
   FTestsPassed := 0;
   FTestsFailed := 0;
-  
+
+  FTestConfigRoot := CreateUniqueTempDir('fpdev-config-management');
+
   // 创建临时测试配置文件路径
-  FTestConfigPath := 'test_config.json';
+  FTestConfigPath := IncludeTrailingPathDelimiter(FTestConfigRoot) + 'config.json';
   FConfigManager := TFPDevConfigManager.Create(FTestConfigPath);
 end;
 
 destructor TConfigManagementTest.Destroy;
 begin
-  // 清理测试文件
-  if FileExists(FTestConfigPath) then
-    DeleteFile(FTestConfigPath);
-    
   FConfigManager.Free;
+
+  if (FTestConfigRoot <> '') and DirectoryExists(FTestConfigRoot) then
+    CleanupTempDir(FTestConfigRoot);
+
   inherited Destroy;
 end;
 
@@ -93,6 +99,7 @@ begin
   FTestsFailed := 0;
   
   TestConfigCreation;
+  TestDefaultConfigPathOverride;
   TestToolchainManagement;
   TestLazarusVersionManagement;
   TestCrossTargetManagement;
@@ -117,6 +124,11 @@ begin
   WriteLn('--- Testing Config Creation ---');
   
   try
+    AssertTrue(
+      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+        ExpandFileName(FTestConfigPath)) = 1,
+      'Config path should live under system temp'
+    );
     AssertTrue(FConfigManager.CreateDefaultConfig, 'Should create default config');
     AssertTrue(FileExists(FTestConfigPath), 'Config file should exist');
     AssertTrue(FConfigManager.LoadConfig, 'Should load config');
@@ -128,6 +140,30 @@ begin
       AssertTrue(False, 'Exception: ' + E.Message);
   end;
   
+  WriteLn;
+end;
+
+procedure TConfigManagementTest.TestDefaultConfigPathOverride;
+var
+  OverrideDir: string;
+  OverridePath: string;
+  Config: IConfigManager;
+begin
+  WriteLn('--- Testing Default Config Path Override ---');
+
+  OverrideDir := CreateUniqueTempDir('fpdev-config-override');
+  OverridePath := IncludeTrailingPathDelimiter(OverrideDir) + 'config.json';
+
+  try
+    SetDefaultConfigPathOverride(OverridePath);
+    Config := CreateIsolatedConfigManager;
+    AssertEquals(ExpandFileName(OverridePath), ExpandFileName(Config.GetConfigPath),
+      'Default config path override should apply to empty constructor path');
+  finally
+    ClearDefaultConfigPathOverride;
+    CleanupTempDir(OverrideDir);
+  end;
+
   WriteLn;
 end;
 
@@ -342,12 +378,5 @@ begin
     end;
   end;
   
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  if (ParamStr(1) = '--pause') or (GetEnvironmentVariable('FPDEV_DEMO_PAUSE') <> '') then
-  begin
-    WriteLn('Press Enter to continue... (--pause or FPDEV_DEMO_PAUSE)');
-    ReadLn;
-  end;
-  {$ENDIF}
+  PauseIfRequested('Press Enter to continue... (--pause or FPDEV_DEMO_PAUSE)');
 end.

@@ -8,14 +8,14 @@ This guide will help you set up FPDev and create your first project in just 5 mi
 
 Make sure you have completed [installation](INSTALLATION.md) and can run:
 ```bash
-fpdev --version
+fpdev system version
 ```
 
 ## 🎯 Step 1: Verify Installation
 
 ```bash
 # Show help information
-fpdev help
+fpdev system help
 
 # List available FPC versions
 fpdev fpc list --all
@@ -33,7 +33,7 @@ fpdev lazarus list --all
 fpdev fpc install 3.2.2 --from-source
 
 # Set as default version
-fpdev fpc default 3.2.2
+fpdev fpc use 3.2.2
 
 # Verify installation
 fpdev fpc current
@@ -48,7 +48,7 @@ fpdev fpc current
 fpdev lazarus install 3.0 --from-source
 
 # Set as default version
-fpdev lazarus default 3.0
+fpdev lazarus use 3.0
 
 # Verify installation
 fpdev lazarus current
@@ -186,7 +186,7 @@ fpdev project build . win64
 ```bash
 fpdev fpc install <version> [--from-source]    # Install version
 fpdev fpc list [--all]                         # List versions
-fpdev fpc default <version>                    # Set default version
+fpdev fpc use <version>                        # Switch to a version
 fpdev fpc current                              # Current version
 fpdev fpc uninstall <version>                  # Uninstall version
 ```
@@ -194,9 +194,9 @@ fpdev fpc uninstall <version>                  # Uninstall version
 ### Lazarus Management
 ```bash
 fpdev lazarus install <version> [--from-source]  # Install version
-fpdev lazarus launch [version]                   # Launch IDE
+fpdev lazarus run [version]                      # Launch IDE
 fpdev lazarus list [--all]                       # List versions
-fpdev lazarus default <version>                  # Set default version
+fpdev lazarus use <version>                    # Switch to a version
 ```
 
 ### Project Management
@@ -253,7 +253,7 @@ FPDev creates configuration files in these locations:
 export FPDEV_PARALLEL_JOBS=8
 
 # Enable source caching (speed up repeated installations)
-fpdev config set cache.sources true
+fpdev system config set keep_sources true
 ```
 
 ### Network Optimization
@@ -264,7 +264,7 @@ export HTTP_PROXY=http://proxy.example.com:8080
 export HTTPS_PROXY=http://proxy.example.com:8080
 
 # Use mirror source (for users in China)
-fpdev config set mirror.fpc https://mirrors.tuna.tsinghua.edu.cn/freepascal
+fpdev system config set mirror gitee
 ```
 
 ## 🐛 Common Issues
@@ -276,10 +276,10 @@ A: Check the following:
 3. View detailed error information: `fpdev fpc install 3.2.2 --from-source --verbose`
 
 ### Q: How to switch FPC versions?
-A: Use `fpdev fpc default <version>` command
+A: Use `fpdev fpc use <version>` command
 
 ### Q: How to launch a specific Lazarus version?
-A: Use `fpdev lazarus launch <version>` command
+A: Use `fpdev lazarus run <version>` command
 
 ### Q: Project build failed?
 A: Ensure:
@@ -300,7 +300,7 @@ Now that you've mastered the basics of FPDev, you can:
 
 1. **Use Tab completion**: Most shells support command completion
 2. **View help**: Add `--help` after any command for detailed help
-3. **Stay updated**: Periodically check for new versions `fpdev version --check`
+3. **Stay updated**: Use `fpdev system version` to check your local version, and review release notes regularly
 4. **Backup config**: Important projects should backup `.fpdev` directory
 
 ---

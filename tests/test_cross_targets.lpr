@@ -4,7 +4,7 @@ program test_cross_targets;
 
 uses
   SysUtils, Classes, jsonparser,
-  fpdev.cross.targets;
+  fpdev.cross.targets, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -391,12 +391,13 @@ procedure TestLoadFromFile;
 var
   Reg: TCrossTargetRegistry;
   Def: TCrossTargetDef;
-  TmpFile: string;
+  TempDir, TmpFile: string;
   SL: TStringList;
 begin
+  TempDir := CreateUniqueTempDir('fpdev_test_targets');
   Reg := TCrossTargetRegistry.Create;
   try
-    TmpFile := GetTempDir(False) + 'fpdev_test_targets_' + IntToStr(GetProcessID) + '.json';
+    TmpFile := TempDir + PathDelim + 'targets.json';
     SL := TStringList.Create;
     try
       SL.Add('[{"name":"file-target","displayName":"From File",' +
@@ -411,9 +412,9 @@ begin
     Check(Reg.GetTarget('file-target', Def), 'LoadFromFile: target found');
     Check(Def.CPU = 'avr', 'LoadFromFile: CPU correct');
 
-    DeleteFile(TmpFile);
   finally
     Reg.Free;
+    CleanupTempDir(TempDir);
   end;
 end;
 

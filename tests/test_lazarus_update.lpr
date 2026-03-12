@@ -3,7 +3,8 @@ program test_lazarus_update;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2;
+  SysUtils, test_config_isolation, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2,
+  test_temp_paths;
 
 var
   TestRootDir: string;
@@ -18,12 +19,12 @@ var
   SettingsMgr: ISettingsManager;
 begin
   // Create test root directory in temp
-  TestRootDir := GetTempDir + 'test_lazarus_update_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_lazarus_update');
+  if not PathUsesSystemTempRoot(TestRootDir) then
+    raise Exception.Create('Test root dir should use system temp root');
 
   // Initialize config manager
-  ConfigManager := TConfigManager.Create('');
-  ConfigManager.LoadConfig;
+  ConfigManager := CreateIsolatedConfigManager;
 
   // Override install root to test directory
   SettingsMgr := ConfigManager.GetSettingsManager;
@@ -39,36 +40,12 @@ begin
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
-
   if Assigned(LazarusManager) then
     LazarusManager.Free;
+  ConfigManager := nil;
+
+  CleanupTempDir(TestRootDir);
 
   WriteLn;
   WriteLn('========================================');
@@ -94,6 +71,37 @@ end;
 procedure AssertFalse(const Condition: Boolean; const TestName, Message: string);
 begin
   AssertTrue(not Condition, TestName, Message);
+end;
+
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Config Manager Uses Isolated Config Path');
+  WriteLn('==================================================');
+
+  try
+    ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+    TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+    ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+    AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+      'Config path uses system temp root',
+      'Expected config path under temp root "' + TempRoot + '", got "' + ConfigPath + '"');
+
+    AssertTrue(ConfigPath = ExpectedPath,
+      'Config path uses isolated default override',
+      'Expected config path "' + ExpectedPath + '", got "' + ConfigPath + '"');
+  except
+    on E: Exception do
+      AssertTrue(False, 'Config path isolation check',
+        'Exception: ' + E.Message);
+  end;
 end;
 
 // ============================================================================
@@ -255,6 +263,7 @@ begin
     InitTestEnvironment;
     try
       // Run all tests
+      TestConfigManagerUsesIsolatedDefaultConfigPath;
       TestUpdatePullsLatestSource;
       TestUpdateHandlesConflicts;
       TestUpdateTriggersRebuildNotification;

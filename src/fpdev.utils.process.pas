@@ -72,6 +72,15 @@ type
 
 implementation
 
+const
+  {$IFDEF MSWINDOWS}
+  SHELL_EXECUTABLE = 'cmd.exe';
+  SHELL_COMMAND_ARG = '/c';
+  {$ELSE}
+  SHELL_EXECUTABLE = '/bin/sh';
+  SHELL_COMMAND_ARG = '-c';
+  {$ENDIF}
+
 class function TProcessExecutor.ReadStream(AStream: TStream): string;
 const
   BUFFER_SIZE = 4096;
@@ -413,11 +422,11 @@ end;
 class function TProcessExecutor.Shell(const ACommand: string;
   const AWorkDir: string): TProcessResult;
 begin
-  {$IFDEF MSWINDOWS}
-  Result := Execute('cmd.exe', ['/c', ACommand], AWorkDir);
-  {$ELSE}
-  Result := Execute('/bin/sh', ['-c', ACommand], AWorkDir);
-  {$ENDIF}
+  Result := Execute(
+    SHELL_EXECUTABLE,
+    [SHELL_COMMAND_ARG, ACommand],
+    AWorkDir
+  );
 end;
 
 class function TProcessExecutor.FindExecutable(const AName: string): string;

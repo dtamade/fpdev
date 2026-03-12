@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
   fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -22,7 +22,17 @@ type
 implementation
 
 uses
-  fpdev.cmd.utils, fpdev.manifest.cache, fpdev.manifest;
+  fpdev.command.utils, fpdev.manifest.cache, fpdev.manifest;
+
+function ResolveManifestCacheDir(const Ctx: IContext): string;
+var
+  InstallRoot: string;
+begin
+  InstallRoot := '';
+  if (Ctx <> nil) and (Ctx.Config <> nil) then
+    InstallRoot := Ctx.Config.GetSettingsManager.GetSettings.InstallRoot;
+  Result := BuildManifestCacheDirFromInstallRoot(InstallRoot);
+end;
 
 function TFPCUpdateManifestCommand.Name: string;
 begin
@@ -48,12 +58,18 @@ var
   Err: string;
   Versions: TStringArray;
   I: Integer;
+  Param: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc update-manifest [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc update-manifest [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Download and cache the latest FPC manifest from remote repository.');
@@ -64,11 +80,22 @@ begin
     Exit(EXIT_OK);
   end;
 
-  ForceRefresh := HasFlag(AParams, 'force');
+  ForceRefresh := False;
+  for I := Low(AParams) to High(AParams) do
+  begin
+    Param := AParams[I];
+    if SameText(Param, '--force') then
+      ForceRefresh := True
+    else
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc update-manifest [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end;
 
   Ctx.Out.WriteLn('Updating FPC manifest...');
 
-  Cache := TManifestCache.Create('');
+  Cache := TManifestCache.Create(ResolveManifestCacheDir(Ctx));
   try
     // Download manifest
     if ForceRefresh then

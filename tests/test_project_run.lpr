@@ -4,12 +4,17 @@ program test_project_run;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, fpdev.cmd.project, fpdev.config;
+  SysUtils, Classes, Process, test_temp_paths, fpdev.cmd.project, fpdev.config;
 
 var
   TestProjectDir: string;
   ConfigManager: TFPDevConfigManager;
   ProjectManager: TProjectManager;
+
+function BuildTempProjectDir(const APrefix: string): string;
+begin
+  Result := CreateUniqueTempDir(APrefix);
+end;
 
 procedure SetupTestEnvironment;
 var
@@ -19,7 +24,8 @@ var
   CompileExitCode: Integer;
 begin
   // Create temporary test project directory
-  TestProjectDir := 'test_run_temp_' + IntToStr(GetTickCount64);
+  if TestProjectDir = '' then
+    TestProjectDir := BuildTempProjectDir('test_run_temp_');
   ForceDirectories(TestProjectDir);
 
   // Create a simple test executable
@@ -75,28 +81,38 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-var
-  SR: TSearchRec;
-  FilePath: string;
 begin
-  // Clean up test directory
-  if DirectoryExists(TestProjectDir) then
+  if (TestProjectDir <> '') and DirectoryExists(TestProjectDir) then
   begin
-    if FindFirst(TestProjectDir + PathDelim + '*.*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := TestProjectDir + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) = 0 then
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(TestProjectDir);
+    CleanupTempDir(TestProjectDir);
     WriteLn('[Teardown] Removed test directory: ', TestProjectDir);
+    TestProjectDir := '';
   end;
+end;
+
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('TEST: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  if Pos(TempRoot, ExpandFileName(TestProjectDir)) <> 1 then
+  begin
+    WriteLn('FAIL: Test project dir should live under system temp');
+    Halt(1);
+  end;
+
+  if Pos(TempRoot, ExpandFileName(ConfigManager.ConfigPath)) <> 1 then
+  begin
+    WriteLn('FAIL: Config path should live under system temp');
+    Halt(1);
+  end;
+
+  WriteLn('PASS: Temp project/config paths are isolated under system temp');
 end;
 
 procedure TestRunExecutable;
@@ -201,7 +217,7 @@ begin
   WriteLn('==================================================');
 
   // Create empty directory
-  EmptyDir := 'test_no_exe_' + IntToStr(GetTickCount64);
+  EmptyDir := BuildTempProjectDir('test_no_exe_');
   ForceDirectories(EmptyDir);
 
   try
@@ -216,7 +232,7 @@ begin
 
     WriteLn('PASS: RunProject correctly handles missing executable');
   finally
-    RemoveDir(EmptyDir);
+    CleanupTempDir(EmptyDir);
   end;
 end;
 
@@ -228,7 +244,9 @@ begin
 
   try
     // Initialize managers
-    ConfigManager := TFPDevConfigManager.Create;
+    TestProjectDir := BuildTempProjectDir('test_run_temp_');
+    ForceDirectories(TestProjectDir);
+    ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestProjectDir) + 'config.json');
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;
@@ -238,6 +256,7 @@ begin
         // Setup test environment
         SetupTestEnvironment;
         try
+          TestTempPathsUseSystemTempRoot;
           // Test 1: Run executable
           TestRunExecutable;
 

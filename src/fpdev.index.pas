@@ -119,6 +119,10 @@ type
 
 implementation
 
+const
+  URL_PATH_SEPARATOR = '/';
+  GITEE_RAW_SEGMENT = '/raw/';
+
 { Helper Functions }
 
 function GetPlatformIdentifier: string;
@@ -209,14 +213,17 @@ begin
   if Pos('github.com', RepoPath) > 0 then
   begin
     RepoPath := StringReplace(RepoPath, 'github.com', 'raw.githubusercontent.com', []);
-    Result := RepoPath + '/' + ABranch + '/' + AFilePath;
+    Result := RepoPath + URL_PATH_SEPARATOR + ABranch +
+      URL_PATH_SEPARATOR + AFilePath;
   end
   else if Pos('gitee.com', RepoPath) > 0 then
   begin
-    Result := RepoPath + '/raw/' + ABranch + '/' + AFilePath;
+    Result := RepoPath + GITEE_RAW_SEGMENT + ABranch +
+      URL_PATH_SEPARATOR + AFilePath;
   end
   else
-    Result := RepoPath + '/' + ABranch + '/' + AFilePath;
+    Result := RepoPath + URL_PATH_SEPARATOR + ABranch +
+      URL_PATH_SEPARATOR + AFilePath;
 end;
 
 function TFPDevIndex.FetchJSON(const AURL: string): TJSONObject;

@@ -3,10 +3,10 @@ program test_cmd_cross_build;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.cmd.cross.build;
+  fpdev.cmd.cross.build, test_temp_paths;
 
 var
   GTestCount: Integer = 0;
@@ -351,7 +351,7 @@ var
   Ret: Integer;
   ErrOutput, SrcRoot, SrcTree: string;
 begin
-  SrcRoot := GetTempDir + 'fpdev_test_cross_build_src_' + IntToStr(GetTickCount64);
+  SrcRoot := CreateUniqueTempDir('fpdev_test_cross_build_src');
   SrcTree := SrcRoot + PathDelim + 'fpc-main';
   ForceDirectories(SrcTree);
 
@@ -368,6 +368,7 @@ begin
     Test('Non-dry-run missing Makefile mentions source tree path', Pos(SrcTree, ErrOutput) > 0);
   finally
     Cmd.Free;
+    CleanupTempDir(SrcRoot);
   end;
 end;
 
@@ -383,7 +384,7 @@ begin
   Args[1] := 'build';
   Args[2] := 'help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Test('cross build command registered in GlobalCommandRegistry', Ret = 0);
 end;
 

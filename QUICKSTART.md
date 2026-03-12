@@ -7,7 +7,7 @@
 确保您已经完成了安装，并且可以运行：
 
 ```bash
-fpdev --version
+fpdev system version
 ```
 
 如果尚未安装，请参考 [完整安装指南](docs/INSTALLATION.md)。

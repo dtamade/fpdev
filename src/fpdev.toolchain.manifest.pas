@@ -26,7 +26,11 @@ type
 // Parse JSON text to manifest; returns True on success
 function ParseManifestJSON(const AText: string; out AM: TManifest): boolean;
 // Find component by name/version/os/arch; returns True on success
-function FindComponent(const AM: TManifest; const AName, AVersion, AOS, AArch: string; out AC: TManifestComponent): boolean;
+function FindComponent(
+  const AM: TManifest;
+  const AName, AVersion, AOS, AArch: string;
+  out AC: TManifestComponent
+): boolean;
 
 implementation
 
@@ -84,7 +88,11 @@ begin
   end;
 end;
 
-function FindComponent(const AM: TManifest; const AName, AVersion, AOS, AArch: string; out AC: TManifestComponent): boolean;
+function FindComponent(
+  const AM: TManifest;
+  const AName, AVersion, AOS, AArch: string;
+  out AC: TManifestComponent
+): boolean;
 var
   i: Integer;
   C: TManifestComponent;
@@ -106,4 +114,3 @@ begin
 end;
 
 end.
-

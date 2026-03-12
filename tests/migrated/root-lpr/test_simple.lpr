@@ -3,7 +3,7 @@ program test_simple;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils,
+  SysUtils, test_pause_control,
   fpdev.cmd.project;
 
 begin
@@ -18,6 +18,5 @@ begin
     end;
   end;
   
-  WriteLn('Press Enter to continue...');
-  ReadLn;
+  PauseIfRequested('Press Enter to continue...');
 end.

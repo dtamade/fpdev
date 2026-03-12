@@ -26,7 +26,7 @@ program test_fpc_extract_nested;
 
 uses
   SysUtils, Classes,
-  fpdev.output.intf, fpdev.fpc.installer.extract, fpdev.utils.process;
+  fpdev.output.intf, fpdev.fpc.installer.extract, fpdev.utils.process, test_temp_paths;
 
 var
   GTestCount: Integer = 0;
@@ -162,13 +162,6 @@ function MakeTempDir(const ASuffix: string): string;
 begin
   Result := GTempRoot + PathDelim + ASuffix;
   ForceDirectories(Result);
-end;
-
-{ Helper: recursively delete a directory tree }
-procedure DeleteDirRecursive(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    TProcessExecutor.Execute('rm', ['-rf', ADir], '');
 end;
 
 { Helper: create a file with content }
@@ -460,8 +453,8 @@ begin
   WriteLn;
 
   // Create temp root
-  GTempRoot := GetTempDir + 'fpdev_test_extract_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempRoot);
+  GTempRoot := CreateUniqueTempDir('fpdev_test_extract');
+  Test('Temp root uses system temp root', PathUsesSystemTempRoot(GTempRoot));
 
   try
     // Group 1: FindBinaryArchive
@@ -501,7 +494,7 @@ begin
     TestExtractPipeline_MissingBaseArchive;
   finally
     // Cleanup
-    DeleteDirRecursive(GTempRoot);
+    CleanupTempDir(GTempRoot);
   end;
 
   WriteLn('');

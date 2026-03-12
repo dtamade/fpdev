@@ -137,7 +137,7 @@ fpdev fpc instal 3.2.2
 - [ ] AC-6.x tests pass on Linux
 - [ ] No Chinese characters in terminal output
 - [ ] Exit codes are correct (0 for success, non-zero for failure)
-- [ ] `fpdev --help` shows all commands
+- [ ] `fpdev system help` shows all commands
 - [ ] `fpdev fpc --help` shows all subcommands
 
 ### Stretch Goals (Post-MVP)

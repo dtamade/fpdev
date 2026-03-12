@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
   fpdev.package.types, fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -20,10 +20,10 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpjson;
+uses fpdev.command.utils, fpjson;
 
 function TPackageListCommand.Name: string; begin Result := 'list'; end;
-function TPackageListCommand.Aliases: TStringArray; begin Result := nil; SetLength(Result,1); Result[0] := 'ls'; end;
+function TPackageListCommand.Aliases: TStringArray; begin Result := nil; end;
 function TPackageListCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
 function PackageListFactory: ICommand;
@@ -56,9 +56,10 @@ var
   LPackages: TPackageArray;
   LJson: TJSONObject;
   LArr: TJSONArray;
+  UnknownOption: string;
   I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -69,13 +70,24 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_ALL));
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
   ShowAll := HasFlag(AParams, 'all') or HasFlag(AParams, 'a');
   LJsonOutput := HasFlag(AParams, 'json');
+  if FindUnknownOption(AParams, ['--all', '-a', '--json'], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  for I := 0 to High(AParams) do
+    if (AParams[I] <> '') and (AParams[I][1] <> '-') then
+    begin
+      Ctx.Err.WriteLn(_(HELP_PACKAGE_LIST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
@@ -113,6 +125,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['package','list'], @PackageListFactory, ['ls']);
+  GlobalCommandRegistry.RegisterPath(['package','list'], @PackageListFactory, []);
 
 end.

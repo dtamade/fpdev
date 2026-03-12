@@ -5,7 +5,7 @@ program test_cli_helpers_verify;
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.output.intf,
-  fpdev.exitcodes, test_cli_helpers;
+  fpdev.exitcodes, test_cli_helpers, test_temp_paths;
 
 var
   StdOut, StdErr: TStringOutput;
@@ -16,8 +16,7 @@ begin
   WriteLn('=== CLI Helpers Verification Tests ===');
   WriteLn;
 
-  TempDir := GetTempDir + 'fpdev_test_cli_helpers_' + IntToStr(GetTickCount64);
-  ForceDirectories(TempDir);
+  TempDir := CreateUniqueTempDir('fpdev_test_cli_helpers');
 
   try
     // Group 1: TStringOutput basics
@@ -91,11 +90,7 @@ begin
     Check('GPassCount > 0', GPassCount > 0);
     Check('GFailCount = 0 so far', GFailCount = 0);
   finally
-    if DirectoryExists(TempDir) then
-    begin
-      DeleteFile(TempDir + PathDelim + 'config.json');
-      RemoveDir(TempDir);
-    end;
+    CleanupTempDir(TempDir);
   end;
 
   Halt(PrintTestSummary);

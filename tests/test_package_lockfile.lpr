@@ -4,11 +4,18 @@ program test_package_lockfile;
 
 uses
   SysUtils, Classes,
-  fpdev.package.lockfile;
+  fpdev.package.lockfile,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GTempRoot: string = '';
+
+function BuildLockFilePath(const AFileName: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GTempRoot) + AFileName;
+end;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -27,10 +34,12 @@ end;
 procedure TestCreateLockFile;
 var
   LockFile: TPackageLockFile;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('test-lock.json');
+  TempFile := BuildLockFilePath('test-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
-    Assert(LockFile.LockFilePath = 'test-lock.json', 'Create lock file with path');
+    Assert(LockFile.LockFilePath = TempFile, 'Create lock file with path');
     Assert(LockFile.ProjectName = '', 'Initial project name is empty');
     Assert(LockFile.ProjectVersion = '', 'Initial project version is empty');
   finally
@@ -41,8 +50,10 @@ end;
 procedure TestSetProjectInfo;
 var
   LockFile: TPackageLockFile;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('test-lock.json');
+  TempFile := BuildLockFilePath('test-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
     LockFile.SetProjectInfo('myproject', '1.0.0');
     Assert(LockFile.ProjectName = 'myproject', 'Set project name');
@@ -56,15 +67,17 @@ procedure TestAddPackage;
 var
   LockFile: TPackageLockFile;
   Deps: TStringList;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('test-lock.json');
+  TempFile := BuildLockFilePath('test-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
     Deps := TStringList.Create;
     try
       Deps.Add('libbar=>=2.0.0');
-      
+
       LockFile.AddPackage('libfoo', '1.2.3', '/path/to/libfoo-1.2.3.tar.gz', 'sha256-abc123', Deps);
-      
+
       Assert(LockFile.HasPackage('libfoo'), 'Package added successfully');
       Assert(LockFile.GetPackageVersion('libfoo') = '1.2.3', 'Package version correct');
     finally
@@ -81,13 +94,12 @@ var
   Deps: TStringList;
   TempFile: string;
 begin
-  TempFile := 'test-temp-lock.json';
-  
-  // Save
+  TempFile := BuildLockFilePath('test-temp-lock.json');
+
   LockFile := TPackageLockFile.Create(TempFile);
   try
     LockFile.SetProjectInfo('testproject', '2.0.0');
-    
+
     Deps := TStringList.Create;
     try
       Deps.Add('libbar=>=2.0.0');
@@ -95,13 +107,12 @@ begin
     finally
       Deps.Free;
     end;
-    
+
     Assert(LockFile.Save, 'Save lock file');
   finally
     LockFile.Free;
   end;
-  
-  // Load
+
   LockFile := TPackageLockFile.Create(TempFile);
   try
     Assert(LockFile.Load, 'Load lock file');
@@ -112,10 +123,6 @@ begin
   finally
     LockFile.Free;
   end;
-  
-  // Cleanup
-  if FileExists(TempFile) then
-    DeleteFile(TempFile);
 end;
 
 procedure TestGetPackageNames;
@@ -123,14 +130,16 @@ var
   LockFile: TPackageLockFile;
   Deps: TStringList;
   Names: TStringList;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('test-lock.json');
+  TempFile := BuildLockFilePath('test-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
     Deps := TStringList.Create;
     try
       LockFile.AddPackage('libfoo', '1.0.0', '/path/foo.tar.gz', 'sha256-1', Deps);
       LockFile.AddPackage('libbar', '2.0.0', '/path/bar.tar.gz', 'sha256-2', Deps);
-      
+
       Names := LockFile.GetPackageNames;
       try
         Assert(Names.Count = 2, 'Get package names count');
@@ -151,14 +160,16 @@ procedure TestClearPackages;
 var
   LockFile: TPackageLockFile;
   Deps: TStringList;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('test-lock.json');
+  TempFile := BuildLockFilePath('test-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
     Deps := TStringList.Create;
     try
       LockFile.AddPackage('libfoo', '1.0.0', '/path/foo.tar.gz', 'sha256-1', Deps);
       Assert(LockFile.HasPackage('libfoo'), 'Package added before clear');
-      
+
       LockFile.Clear;
       Assert(not LockFile.HasPackage('libfoo'), 'Package removed after clear');
     finally
@@ -172,8 +183,10 @@ end;
 procedure TestLoadNonExistentFile;
 var
   LockFile: TPackageLockFile;
+  TempFile: string;
 begin
-  LockFile := TPackageLockFile.Create('nonexistent-lock.json');
+  TempFile := BuildLockFilePath('nonexistent-lock.json');
+  LockFile := TPackageLockFile.Create(TempFile);
   try
     Assert(not LockFile.Load, 'Load nonexistent file fails');
     Assert(LockFile.GetLastError <> '', 'Error message set');
@@ -188,12 +201,12 @@ var
   Deps: TStringList;
   TempFile: string;
 begin
-  TempFile := 'test-deps-lock.json';
-  
+  TempFile := BuildLockFilePath('test-deps-lock.json');
+
   LockFile := TPackageLockFile.Create(TempFile);
   try
     LockFile.SetProjectInfo('depstest', '1.0.0');
-    
+
     Deps := TStringList.Create;
     try
       Deps.Add('libbar=>=2.0.0');
@@ -202,13 +215,12 @@ begin
     finally
       Deps.Free;
     end;
-    
+
     Assert(LockFile.Save, 'Save lock file with dependencies');
   finally
     LockFile.Free;
   end;
-  
-  // Verify dependencies persisted
+
   LockFile := TPackageLockFile.Create(TempFile);
   try
     Assert(LockFile.Load, 'Load lock file with dependencies');
@@ -216,16 +228,13 @@ begin
   finally
     LockFile.Free;
   end;
-  
-  // Cleanup
-  if FileExists(TempFile) then
-    DeleteFile(TempFile);
 end;
 
 begin
+  GTempRoot := CreateUniqueTempDir('test_package_lockfile');
   WriteLn('=== TPackageLockFile Tests ===');
   WriteLn;
-  
+
   TestCreateLockFile;
   TestSetProjectInfo;
   TestAddPackage;
@@ -234,12 +243,14 @@ begin
   TestClearPackages;
   TestLoadNonExistentFile;
   TestPackageWithDependencies;
-  
+
   WriteLn;
   WriteLn('=== Test Summary ===');
   WriteLn('Passed: ', TestsPassed);
   WriteLn('Failed: ', TestsFailed);
-  
+
+  CleanupTempDir(GTempRoot);
+
   if TestsFailed > 0 then
     Halt(1);
 end.

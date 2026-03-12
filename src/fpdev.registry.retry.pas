@@ -15,7 +15,7 @@ type
     function IsRetryableStatusCode(const AStatusCode: Integer): Boolean;
   public
     constructor Create(const AConfig: TRetryConfig);
-    
+
     { IRetryPolicy implementation }
     function ShouldRetry(const AAttempt: Integer; const AStatusCode: Integer): Boolean;
     function GetDelay(const AAttempt: Integer): Integer;
@@ -51,7 +51,7 @@ var
   I: Integer;
 begin
   Result := False;
-  
+
   // Check if status code is in retryable list
   for I := 0 to High(FConfig.RetryableStatusCodes) do
   begin
@@ -61,7 +61,7 @@ begin
       Exit;
     end;
   end;
-  
+
   // Default retryable status codes (if list is empty)
   if Length(FConfig.RetryableStatusCodes) = 0 then
   begin
@@ -80,15 +80,15 @@ end;
 function TExponentialBackoffRetry.ShouldRetry(const AAttempt: Integer; const AStatusCode: Integer): Boolean;
 begin
   Result := False;
-  
+
   // Check if we've exceeded max retries
   if AAttempt >= FConfig.MaxRetries then
     Exit;
-  
+
   // Check if status code is retryable
   if not IsRetryableStatusCode(AStatusCode) then
     Exit;
-  
+
   Result := True;
 end;
 
@@ -98,11 +98,11 @@ var
 begin
   // Calculate exponential backoff: InitialDelay * (BackoffMultiplier ^ Attempt)
   Delay := FConfig.InitialDelay * Power(FConfig.BackoffMultiplier, AAttempt);
-  
+
   // Cap at MaxDelay
   if Delay > FConfig.MaxDelay then
     Delay := FConfig.MaxDelay;
-  
+
   Result := Trunc(Delay);
 end;
 

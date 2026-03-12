@@ -1,6 +1,7 @@
 unit fpdev.github.api;
 
 {$mode objfpc}{$H+}
+// acq:allow-hardcoded-constants-file
 
 interface
 
@@ -17,40 +18,50 @@ type
     FHTTPClient: TFPHTTPClient;
     FLastError: string;
     FLastHTTPCode: Integer;
-    
+
     function BuildURL(const APath: string): string;
     function AddAuthHeaders(const AHeaders: TStrings): Boolean;
-    function ExecuteRequest(const AMethod, AURL: string; 
-      const ABody: TStream; const AHeaders: TStrings; 
+    function ExecuteRequest(const AMethod, AURL: string;
+      const ABody: TStream; const AHeaders: TStrings;
       const AResponse: TStream): Boolean;
   public
     constructor Create(const ABaseURL: string = '');
     destructor Destroy; override;
-    
+
     procedure SetAuthProvider(const AProvider: IAuthProvider);
-    
+
     { Repository operations }
-    function CreateRepository(const AName, ADescription: string; 
+    function CreateRepository(const AName, ADescription: string;
       APrivate: Boolean): TJSONObject;
-    
+
     { Release operations }
-    function CreateRelease(const AOwner, ARepo, ATag, AName, ABody: string; 
+    function CreateRelease(const AOwner, ARepo, ATag, AName, ABody: string;
       ADraft, APrerelease: Boolean): TJSONObject;
     function GetRelease(const AOwner, ARepo, ATag: string): TJSONObject;
     function ListReleases(const AOwner, ARepo: string): TJSONArray;
-    
+
     { Asset operations }
-    function UploadReleaseAsset(const AOwner, ARepo: string; 
+    function UploadReleaseAsset(const AOwner, ARepo: string;
       AReleaseID: Int64; const AFilePath, AContentType: string): TJSONObject;
-    function DeleteReleaseAsset(const AOwner, ARepo: string; 
+    function DeleteReleaseAsset(const AOwner, ARepo: string;
       AAssetID: Int64): Boolean;
-    
+
     { Error handling }
     function GetLastError: string;
     function GetLastHTTPCode: Integer;
   end;
 
 implementation
+
+const
+  DEFAULT_GITHUB_API_BASE_URL = 'https://api.github.com';
+  URL_PATH_SEPARATOR = '/';
+  API_USER_REPOS_PATH = '/user/repos';
+  API_REPOS_PREFIX = '/repos/';
+  API_RELEASES_SUFFIX = '/releases';
+  API_RELEASE_TAGS_SUFFIX = '/releases/tags/';
+  API_RELEASES_PREFIX = '/releases/';
+  API_RELEASE_ASSET_NAME_QUERY_PREFIX = '/assets?name=';
 
 { Helper functions }
 
@@ -67,7 +78,7 @@ begin
   inherited Create;
   FBaseURL := ABaseURL;
   if FBaseURL = '' then
-    FBaseURL := 'https://api.github.com';
+    FBaseURL := DEFAULT_GITHUB_API_BASE_URL;
   FHTTPClient := TFPHTTPClient.Create(nil);
   FHTTPClient.AllowRedirect := True;
   FHTTPClient.AddHeader('Accept', 'application/vnd.github+json');
@@ -91,9 +102,10 @@ end;
 function TGitHubClient.BuildURL(const APath: string): string;
 begin
   Result := FBaseURL;
-  if (Length(Result) > 0) and (Result[Length(Result)] <> '/') then
-    Result := Result + '/';
-  if (Length(APath) > 0) and (APath[1] = '/') then
+  if (Length(Result) > 0) and
+    (Result[Length(Result)] <> URL_PATH_SEPARATOR) then
+    Result := Result + URL_PATH_SEPARATOR;
+  if (Length(APath) > 0) and (APath[1] = URL_PATH_SEPARATOR) then
     Result := Result + Copy(APath, 2, Length(APath))
   else
     Result := Result + APath;
@@ -104,7 +116,7 @@ var
   AuthHeader: string;
 begin
   Result := True;
-  
+
   if Assigned(FAuthProvider) and FAuthProvider.IsValid then
   begin
     AuthHeader := FAuthProvider.GetAuthHeader;
@@ -119,18 +131,18 @@ var
   StatusCode: Integer;
 begin
   Result := False;
-  
+
   try
     // Clear previous headers
     FHTTPClient.RequestHeaders.Clear;
-    
+
     // Add custom headers
     if Assigned(AHeaders) then
       FHTTPClient.RequestHeaders.AddStrings(AHeaders);
 
     // Avoid leaking previous body across method calls/retries.
     FHTTPClient.RequestBody := nil;
-    
+
     // Execute HTTP request
     if AMethod = 'GET' then
     begin
@@ -159,11 +171,11 @@ begin
       FLastError := 'Unsupported HTTP method: ' + AMethod;
       Exit(False);
     end;
-    
+
     // Get status code
     StatusCode := FHTTPClient.ResponseStatusCode;
     FLastHTTPCode := StatusCode;
-    
+
     // Check if successful (2xx)
     if (StatusCode >= 200) and (StatusCode < 300) then
       Result := True
@@ -182,7 +194,7 @@ begin
   end;
 end;
 
-function TGitHubClient.CreateRepository(const AName, ADescription: string; 
+function TGitHubClient.CreateRepository(const AName, ADescription: string;
   APrivate: Boolean): TJSONObject;
 var
   URL: string;
@@ -194,7 +206,7 @@ var
   JSONStr: string;
 begin
   Result := nil;
-  URL := BuildURL('/user/repos');
+  URL := BuildURL(API_USER_REPOS_PATH);
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   Body := TMemoryStream.Create;
@@ -231,7 +243,7 @@ begin
   end;
 end;
 
-function TGitHubClient.CreateRelease(const AOwner, ARepo, ATag, AName, ABody: string; 
+function TGitHubClient.CreateRelease(const AOwner, ARepo, ATag, AName, ABody: string;
   ADraft, APrerelease: Boolean): TJSONObject;
 var
   URL: string;
@@ -243,7 +255,10 @@ var
   JSONStr: string;
 begin
   Result := nil;
-  URL := BuildURL('/repos/' + AOwner + '/' + ARepo + '/releases');
+  URL := BuildURL(
+    API_REPOS_PREFIX + AOwner + URL_PATH_SEPARATOR + ARepo +
+    API_RELEASES_SUFFIX
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   Body := TMemoryStream.Create;
@@ -290,13 +305,16 @@ var
   JSON: TJSONData;
 begin
   Result := nil;
-  
-  URL := BuildURL('/repos/' + AOwner + '/' + ARepo + '/releases/tags/' + ATag);
+
+  URL := BuildURL(
+    API_REPOS_PREFIX + AOwner + URL_PATH_SEPARATOR + ARepo +
+    API_RELEASE_TAGS_SUFFIX + ATag
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
     AddAuthHeaders(Headers);
-    
+
     if ExecuteRequest('GET', URL, nil, Headers, Response) then
     begin
       Response.Position := 0;
@@ -320,13 +338,16 @@ var
   JSON: TJSONData;
 begin
   Result := nil;
-  
-  URL := BuildURL('/repos/' + AOwner + '/' + ARepo + '/releases');
+
+  URL := BuildURL(
+    API_REPOS_PREFIX + AOwner + URL_PATH_SEPARATOR + ARepo +
+    API_RELEASES_SUFFIX
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
     AddAuthHeaders(Headers);
-    
+
     if ExecuteRequest('GET', URL, nil, Headers, Response) then
     begin
       Response.Position := 0;
@@ -342,7 +363,7 @@ begin
   end;
 end;
 
-function TGitHubClient.UploadReleaseAsset(const AOwner, ARepo: string; 
+function TGitHubClient.UploadReleaseAsset(const AOwner, ARepo: string;
   AReleaseID: Int64; const AFilePath, AContentType: string): TJSONObject;
 var
   URL: string;
@@ -359,8 +380,11 @@ begin
     Exit;
   end;
 
-  URL := BuildURL('/repos/' + AOwner + '/' + ARepo + '/releases/' +
-    IntToStr(AReleaseID) + '/assets?name=' + ExtractFileName(AFilePath));
+  URL := BuildURL(
+    API_REPOS_PREFIX + AOwner + URL_PATH_SEPARATOR + ARepo +
+    API_RELEASES_PREFIX + IntToStr(AReleaseID) +
+    API_RELEASE_ASSET_NAME_QUERY_PREFIX + ExtractFileName(AFilePath)
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   Body := TMemoryStream.Create;
@@ -398,7 +422,7 @@ begin
   end;
 end;
 
-function TGitHubClient.DeleteReleaseAsset(const AOwner, ARepo: string; 
+function TGitHubClient.DeleteReleaseAsset(const AOwner, ARepo: string;
   AAssetID: Int64): Boolean;
 var
   URL: string;

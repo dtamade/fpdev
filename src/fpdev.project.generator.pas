@@ -51,6 +51,10 @@ implementation
 uses
   fpdev.i18n, fpdev.i18n.strings;
 
+const
+  LIB_EXPORT_PLACEHOLDER_COMMENT = '// Export your functions here';
+  LIB_EXPORT_SAMPLE_SIGNATURE = '// function MyExportedFunction: Integer; cdecl;';
+
 { TProjectTemplateGenerator }
 
 procedure TProjectTemplateGenerator.WriteReadmeFile(const ATargetDir, AProjectName, ADescription: string);
@@ -285,8 +289,8 @@ begin
   WriteLn(MainFile, 'uses');
   WriteLn(MainFile, '  SysUtils;');
   WriteLn(MainFile, '');
-  WriteLn(MainFile, '// Export your functions here');
-  WriteLn(MainFile, '// function MyExportedFunction: Integer; cdecl;');
+  WriteLn(MainFile, LIB_EXPORT_PLACEHOLDER_COMMENT);
+  WriteLn(MainFile, LIB_EXPORT_SAMPLE_SIGNATURE);
   WriteLn(MainFile, '');
   WriteLn(MainFile, 'exports');
   WriteLn(MainFile, '  // MyExportedFunction;');
@@ -347,7 +351,7 @@ begin
   except
     on E: Exception do
     begin
-      WriteLn(_Fmt(CMD_PROJECT_GENERATE_ERROR, [E.Message]));
+      WriteLn(_Fmt(CMD_PROJECT_GENERATE_ERROR, [E.Message])); // acq:allow-debug-output
       Result := False;
     end;
   end;

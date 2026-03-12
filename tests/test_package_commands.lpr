@@ -67,7 +67,7 @@ end;
 
 procedure TestPackagePkgAliasRegistered;
 begin
-  Check(HasSubcommand([], 'pkg'), 'pkg: alias registered');
+  Check(not HasSubcommand([], 'pkg'), 'pkg alias removed');
 end;
 
 { --- Package Subcommand Tests --- }
@@ -166,7 +166,7 @@ var
   Children: TStringArray;
 begin
   Children := GlobalCommandRegistry.ListChildren(['package']);
-  Check(Length(Children) >= 14, 'package: at least 14 subcommands');
+  Check(Length(Children) = 13, 'package: exactly 13 subcommands');
 end;
 
 procedure TestPackageRepoSubcommandCount;

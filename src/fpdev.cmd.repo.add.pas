@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TRepoAddCommand.Name: string; begin Result := 'add'; end;
 function TRepoAddCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -30,7 +30,7 @@ function TRepoAddCommand.Execute(const AParams: array of string; const Ctx: ICon
 var
   RepoName, URL: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -43,7 +43,7 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 2 then
+  if Length(AParams) <> 2 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
     Exit(EXIT_USAGE_ERROR);
@@ -54,6 +54,11 @@ begin
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_ADD_USAGE));
     Exit(EXIT_USAGE_ERROR);
+  end;
+  if Ctx.Config.GetRepositoryManager.HasRepository(RepoName) then
+  begin
+    Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _(MSG_ALREADY_EXISTS) + ': ' + RepoName);
+    Exit(EXIT_ALREADY_EXISTS);
   end;
   if Ctx.Config.GetRepositoryManager.AddRepository(RepoName, URL) then
   begin
@@ -70,10 +75,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['repo','add'], @RepoAddFactory, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'repo', 'add'], @RepoAddFactory, []);
 
 end.
-
-
-
-

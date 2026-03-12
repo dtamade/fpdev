@@ -4,11 +4,11 @@ unit fpdev.fpc.activator;
 
 {
   FPC Activator
-  
+
   This module handles FPC version activation for different scopes.
   It creates activation scripts and updates IDE settings.
   Uses dependency injection for testability.
-  
+
   NOTE: All shared types are in fpdev.fpc.types.pas
   NOTE: Uses fpdev.fpc.utils for FindProjectRoot
 }

@@ -14,7 +14,7 @@
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
 lazbuild -B fpdev.lpi
-./bin/fpdev --help
+./bin/fpdev system help
 ```
 
 ### Q: 需要哪些依赖？

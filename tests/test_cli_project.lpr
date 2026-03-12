@@ -27,7 +27,7 @@ uses
   fpdev.cmd.project.list,
   fpdev.cmd.project.info,
   fpdev.cmd.project.help,
-  test_cli_helpers;
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
@@ -288,6 +288,17 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestHelpUnexpectedArg;
+var Cmd: TProjectHelpCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectHelpCommand.Create;
+  try
+    Ret := Cmd.Execute(['new', 'extra'], Ctx);
+    Check('help unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== Registration ===== }
 
 procedure TestProjectRegistration;
@@ -329,8 +340,8 @@ begin
   WriteLn('=== Project Commands CLI Tests (B199) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_proj_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_proj');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     WriteLn('--- new ---');
@@ -379,16 +390,13 @@ begin
     WriteLn('--- help ---');
     TestHelpName;
     TestHelpNoArgs;
+    TestHelpUnexpectedArg;
 
     WriteLn('');
     WriteLn('--- Registration ---');
     TestProjectRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

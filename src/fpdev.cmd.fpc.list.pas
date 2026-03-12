@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.fpc.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils, fpjson, fpdev.output.json, fpdev.fpc.version;
+uses fpdev.command.registry, fpdev.command.utils, fpjson, fpdev.output.json, fpdev.fpc.version;
 
 function TFPCListCommand.Name: string; begin Result := 'list'; end;
 
@@ -120,4 +120,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['fpc','list'], @FPCListFactory, []);
 
 end.
-

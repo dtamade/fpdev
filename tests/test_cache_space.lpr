@@ -4,7 +4,7 @@ program test_cache_space;
 
 uses
   SysUtils, Classes,
-  fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
 
 var
   TestsPassed: Integer = 0;
@@ -24,6 +24,56 @@ begin
   end;
 end;
 
+function MakeTempDir(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
+  ForceDirectories(Result);
+end;
+
+procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
+begin
+  Assert(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(APath)) = 1,
+    ATestName
+  );
+end;
+
+procedure CleanupTestDir(const ADir: string);
+begin
+  if DirectoryExists(ADir) then
+    DeleteDirRecursive(ADir);
+end;
+
+procedure TestCleanupRemovesNestedDirectories;
+var
+  CacheDir: string;
+  NestedDir: string;
+  NestedFile: string;
+  TestData: TStringList;
+begin
+  WriteLn('=== TestCleanupRemovesNestedDirectories ===');
+
+  CacheDir := MakeTempDir('fpdev-test-cache-space-cleanup');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Cache space cleanup temp directory should live under system temp');
+
+  NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
+  NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'artifact.bin';
+  ForceDirectories(NestedDir);
+
+  TestData := TStringList.Create;
+  try
+    TestData.Add('artifact');
+    TestData.SaveToFile(NestedFile);
+  finally
+    TestData.Free;
+  end;
+
+  CleanupTestDir(CacheDir);
+  Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache space test directory');
+end;
+
 procedure TestSpaceLimitConfiguration;
 var
   Cache: TBuildCache;
@@ -31,30 +81,22 @@ var
 begin
   WriteLn('=== TestSpaceLimitConfiguration ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-space-config-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-space-config');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Space limit temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Test 1: Default limit is 10 GB
       Assert(Cache.GetMaxCacheSizeGB = 10, 'Default max cache size should be 10 GB');
-
-      // Test 2: Custom limit can be set
       Cache.SetMaxCacheSizeGB(20);
       Assert(Cache.GetMaxCacheSizeGB = 20, 'Custom max cache size should be 20 GB');
-
-      // Test 3: Limit=0 means unlimited
       Cache.SetMaxCacheSizeGB(0);
       Assert(Cache.GetMaxCacheSizeGB = 0, 'Max cache size=0 should mean unlimited');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -69,79 +111,64 @@ var
 begin
   WriteLn('=== TestLRUCleanup ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-lru-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-lru');
+  AssertPathIsUnderSystemTemp(CacheDir, 'LRU cleanup temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Set very small cache limit (1 MB = 0.001 GB)
-      Cache.SetMaxCacheSizeGB(0);  // Start with unlimited
-      Cache.SetMaxCacheSizeMB(1);  // 1 MB limit
+      Cache.SetMaxCacheSizeGB(0);
+      Cache.SetMaxCacheSizeMB(1);
 
-      // Create three test archives (each ~500KB)
       TestData := TStringList.Create;
       try
-        // Fill with data to make ~500KB (need more lines due to compression)
         for i := 1 to 15000 do
           TestData.Add('Line ' + IntToStr(i) + ' with some test data to make it larger');
 
-        // Create first archive (oldest)
         TestFile1 := CacheDir + PathDelim + 'fpc-3.2.0-x86_64-linux.tar.gz';
         TestData.SaveToFile(TestFile1);
-        Sleep(100);  // Ensure different timestamps
+        Sleep(100);
 
-        // Create metadata for first archive
         Initialize(Info);
         Info.Version := '3.2.0';
-        Info.CreatedAt := Now - 2;  // 2 days ago
+        Info.CreatedAt := Now - 2;
         Info.ArchivePath := TestFile1;
         Cache.SaveArtifactMetadata(Info);
 
-        // Create second archive (middle)
         TestFile2 := CacheDir + PathDelim + 'fpc-3.2.1-x86_64-linux.tar.gz';
         TestData.SaveToFile(TestFile2);
         Sleep(100);
 
         Initialize(Info);
         Info.Version := '3.2.1';
-        Info.CreatedAt := Now - 1;  // 1 day ago
+        Info.CreatedAt := Now - 1;
         Info.ArchivePath := TestFile2;
         Cache.SaveArtifactMetadata(Info);
 
-        // Create third archive (newest)
         TestFile3 := CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.tar.gz';
         TestData.SaveToFile(TestFile3);
 
         Initialize(Info);
         Info.Version := '3.2.2';
-        Info.CreatedAt := Now;  // Now
+        Info.CreatedAt := Now;
         Info.ArchivePath := TestFile3;
         Cache.SaveArtifactMetadata(Info);
-
       finally
         TestData.Free;
       end;
 
-      // Test 1: All files exist before cleanup
       Assert(FileExists(TestFile1) and FileExists(TestFile2) and FileExists(TestFile3),
         'All test files should exist before cleanup');
 
-      // Test 2: Cleanup removes oldest entries first (LRU)
       Cache.CleanupLRU;
-
-      // After cleanup with 1MB limit, only the newest file should remain
       Assert(not FileExists(TestFile1), 'Oldest file should be removed');
       Assert(not FileExists(TestFile2), 'Middle file should be removed');
       Assert(FileExists(TestFile3), 'Newest file should remain');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -155,16 +182,14 @@ var
 begin
   WriteLn('=== TestUnlimitedCache ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-unlimited-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-unlimited');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Unlimited cache temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Set unlimited cache (0 = unlimited)
       Cache.SetMaxCacheSizeGB(0);
 
-      // Create large test files
       TestData := TStringList.Create;
       try
         for i := 1 to 10000 do
@@ -179,18 +204,14 @@ begin
         TestData.Free;
       end;
 
-      // Test: With unlimited cache, cleanup should not remove anything
       Cache.CleanupLRU;
       Assert(FileExists(TestFile1) and FileExists(TestFile2),
         'With unlimited cache, no files should be removed');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -199,6 +220,7 @@ begin
   WriteLn('Running Cache Space Management Tests...');
   WriteLn;
 
+  TestCleanupRemovesNestedDirectories;
   TestSpaceLimitConfiguration;
   TestLRUCleanup;
   TestUnlimitedCache;

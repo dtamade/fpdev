@@ -4,12 +4,42 @@ program test_project_test;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, fpdev.cmd.project, fpdev.config;
+  SysUtils, Classes, Process, test_temp_paths, fpdev.cmd.project, fpdev.config;
 
 var
+  TempRootDir: string;
   TestProjectDir: string;
+  FailingProjectDir: string;
+  TestConfigPath: string;
   ConfigManager: TFPDevConfigManager;
   ProjectManager: TProjectManager;
+
+procedure AssertTrue(ACondition: Boolean; const AMessage: string);
+begin
+  if not ACondition then
+  begin
+    WriteLn('失败: ', AMessage);
+    Halt(1);
+  end;
+end;
+
+procedure AssertUsesSystemTemp(const APath, ALabel: string);
+var
+  ExpandedPath: string;
+  TempPrefix: string;
+begin
+  ExpandedPath := ExpandFileName(APath);
+  TempPrefix := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  AssertTrue(Pos(TempPrefix, ExpandedPath) = 1,
+    ALabel + ' should live under system temp: ' + ExpandedPath);
+end;
+
+procedure SetupSuiteEnvironment;
+begin
+  TempRootDir := CreateUniqueTempDir('fpdev-project-test');
+  TestConfigPath := IncludeTrailingPathDelimiter(TempRootDir) + 'config.json';
+  AssertUsesSystemTemp(TempRootDir, 'suite temp root');
+end;
 
 procedure SetupTestEnvironment;
 var
@@ -19,8 +49,9 @@ var
   CompileExitCode: Integer;
 begin
   // 创建临时测试项目目录
-  TestProjectDir := 'test_testcmd_temp_' + IntToStr(GetTickCount64);
+  TestProjectDir := IncludeTrailingPathDelimiter(TempRootDir) + 'project-pass';
   ForceDirectories(TestProjectDir);
+  AssertUsesSystemTemp(TestProjectDir, 'passing project dir');
 
   // 创建一个简单的测试程序（模拟FPCUnit风格）
   AssignFile(TestProgram, TestProjectDir + PathDelim + 'test_example.lpr');
@@ -91,15 +122,15 @@ procedure SetupFailingTestEnvironment;
 var
   TestProgram: TextFile;
   ExeName: string;
-  FailDir: string;
   P: TProcess;
   CompileExitCode: Integer;
 begin
   // 创建一个会失败的测试项目
-  FailDir := 'test_fail_temp_' + IntToStr(GetTickCount64);
-  ForceDirectories(FailDir);
+  FailingProjectDir := IncludeTrailingPathDelimiter(TempRootDir) + 'project-fail';
+  ForceDirectories(FailingProjectDir);
+  AssertUsesSystemTemp(FailingProjectDir, 'failing project dir');
 
-  AssignFile(TestProgram, FailDir + PathDelim + 'test_failing.lpr');
+  AssignFile(TestProgram, FailingProjectDir + PathDelim + 'test_failing.lpr');
   Rewrite(TestProgram);
   WriteLn(TestProgram, 'program test_failing;');
   WriteLn(TestProgram, '{$mode objfpc}{$H+}');
@@ -112,16 +143,16 @@ begin
   CloseFile(TestProgram);
 
   {$IFDEF MSWINDOWS}
-  ExeName := FailDir + PathDelim + 'test_failing.exe';
+  ExeName := FailingProjectDir + PathDelim + 'test_failing.exe';
   {$ELSE}
-  ExeName := FailDir + PathDelim + 'test_failing';
+  ExeName := FailingProjectDir + PathDelim + 'test_failing';
   {$ENDIF}
 
   P := TProcess.Create(nil);
   try
     P.Executable := 'fpc';
     P.Parameters.Add('-o' + ExeName);
-    P.Parameters.Add(FailDir + PathDelim + 'test_failing.lpr');
+    P.Parameters.Add(FailingProjectDir + PathDelim + 'test_failing.lpr');
     P.Options := [poWaitOnExit];
     try
       P.Execute;
@@ -139,53 +170,12 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-var
-  SR: TSearchRec;
-  FilePath: string;
-  Dirs: array of string;
-  i: Integer;
 begin
-  // 收集所有临时目录
-  SetLength(Dirs, 0);
-  if DirectoryExists(TestProjectDir) then
+  if (TempRootDir <> '') and DirectoryExists(TempRootDir) then
   begin
-    SetLength(Dirs, Length(Dirs) + 1);
-    Dirs[High(Dirs)] := TestProjectDir;
-  end;
-
-  // 查找其他临时目录
-  if FindFirst('test_fail_temp_*', faDirectory, SR) = 0 then
-  begin
-    repeat
-      if (SR.Attr and faDirectory) <> 0 then
-      begin
-        SetLength(Dirs, Length(Dirs) + 1);
-        Dirs[High(Dirs)] := SR.Name;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-
-  // 清理所有临时目录
-  for i := 0 to High(Dirs) do
-  begin
-    if DirectoryExists(Dirs[i]) then
-    begin
-      if FindFirst(Dirs[i] + PathDelim + '*.*', faAnyFile, SR) = 0 then
-      begin
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := Dirs[i] + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) = 0 then
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-      RemoveDir(Dirs[i]);
-      WriteLn('[Teardown] 已删除测试目录: ', Dirs[i]);
-    end;
+    CleanupTempDir(TempRootDir);
+    WriteLn('[Teardown] 已删除测试目录: ', TempRootDir);
+    TempRootDir := '';
   end;
 end;
 
@@ -227,7 +217,6 @@ end;
 procedure TestHandleFailingTests;
 var
   Success: Boolean;
-  FailDir: string;
   ExeName: string;
 begin
   WriteLn;
@@ -236,13 +225,12 @@ begin
   WriteLn('==================================================');
 
   // 设置失败测试环境
-  FailDir := 'test_fail_temp_' + IntToStr(GetTickCount64);
   SetupFailingTestEnvironment;
 
   {$IFDEF MSWINDOWS}
-  ExeName := FailDir + PathDelim + 'test_failing.exe';
+  ExeName := FailingProjectDir + PathDelim + 'test_failing.exe';
   {$ELSE}
-  ExeName := FailDir + PathDelim + 'test_failing';
+  ExeName := FailingProjectDir + PathDelim + 'test_failing';
   {$ENDIF}
 
   if not FileExists(ExeName) then
@@ -252,7 +240,7 @@ begin
   end;
 
   // 执行测试（应该失败）
-  Success := ProjectManager.TestProject(FailDir);
+  Success := ProjectManager.TestProject(FailingProjectDir);
 
   if Success then
   begin
@@ -295,8 +283,9 @@ begin
   WriteLn('==================================================');
 
   // 创建空目录
-  EmptyDir := 'test_notest_' + IntToStr(GetTickCount64);
+  EmptyDir := IncludeTrailingPathDelimiter(TempRootDir) + 'project-empty';
   ForceDirectories(EmptyDir);
+  AssertUsesSystemTemp(EmptyDir, 'empty project dir');
 
   try
     // 执行测试
@@ -321,8 +310,9 @@ begin
   WriteLn;
 
   try
+    SetupSuiteEnvironment;
     // 初始化管理器
-    ConfigManager := TFPDevConfigManager.Create;
+    ConfigManager := TFPDevConfigManager.Create(TestConfigPath);
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;

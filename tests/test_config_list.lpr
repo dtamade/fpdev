@@ -18,7 +18,7 @@ program test_config_list;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
   fpdev.cmd.config.list;
@@ -233,8 +233,7 @@ var
 begin
   Cmd := CreateConfigListCommand;
   Aliases := Cmd.Aliases;
-  Test('Has aliases', Length(Aliases) > 0);
-  Test('Alias is "ls"', (Length(Aliases) > 0) and (Aliases[0] = 'ls'));
+  Test('Has no aliases', Aliases = nil);
 end;
 
 procedure TestFindSubReturnsNil;
@@ -296,13 +295,14 @@ var
   Ret: Integer;
 begin
   Ctx := TDefaultCommandContext.Create;
-  SetLength(Args, 3);
-  Args[0] := 'config';
-  Args[1] := 'list';
-  Args[2] := '--help';
+  SetLength(Args, 4);
+  Args[0] := 'system';
+  Args[1] := 'config';
+  Args[2] := 'list';
+  Args[3] := '--help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
-  Test('config list command registered in GlobalCommandRegistry', Ret = 0);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+  Test('system config list command registered in GlobalCommandRegistry', Ret = 0);
 end;
 
 procedure TestAliasRegistration;
@@ -312,13 +312,14 @@ var
   Ret: Integer;
 begin
   Ctx := TDefaultCommandContext.Create;
-  SetLength(Args, 3);
-  Args[0] := 'config';
-  Args[1] := 'ls';  // alias
-  Args[2] := '--help';
+  SetLength(Args, 4);
+  Args[0] := 'system';
+  Args[1] := 'config';
+  Args[2] := 'ls';
+  Args[3] := '--help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
-  Test('config ls alias works in GlobalCommandRegistry', Ret = 0);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+  Test('system config ls alias removed', Ret <> 0);
 end;
 
 begin

@@ -4,7 +4,7 @@ program test_lazarus_source;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fpdev.lazarus.source;
+  SysUtils, test_pause_control, fpdev.lazarus.source;
 
 var
   LazarusManager: TLazarusSourceManager;
@@ -219,7 +219,5 @@ begin
     end;
   end;
   
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

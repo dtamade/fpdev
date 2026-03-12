@@ -6,10 +6,10 @@ unit fpdev.cmd.config.list;
 ================================================================================
 
   Provides commands for listing all installed toolchains:
-  - fpdev config list           - List all installed FPC and Lazarus versions
-  - fpdev config list --fpc     - List only FPC versions
-  - fpdev config list --lazarus - List only Lazarus versions
-  - fpdev config list --active  - Show only the active (default) versions
+  - fpdev system config list           - List all installed FPC and Lazarus versions
+  - fpdev system config list --fpc     - List only FPC versions
+  - fpdev system config list --lazarus - List only Lazarus versions
+  - fpdev system config list --active  - Show only the active (default) versions
 
   Author: fafafaStudio
   Email: dtamade@gmail.com
@@ -35,7 +35,7 @@ type
     FShowLazarus: Boolean;
     FShowActiveOnly: Boolean;
 
-    procedure ParseOptions(const AParams: array of string);
+    function ParseOptions(const AParams: array of string; const Ctx: IContext): Boolean;
     procedure ListFPCVersions(const Ctx: IContext);
     procedure ListLazarusVersions(const Ctx: IContext);
     procedure ShowHelp(const Ctx: IContext);
@@ -65,8 +65,6 @@ end;
 function TConfigListCommand.Aliases: TStringArray;
 begin
   Result := nil;
-  SetLength(Result, 1);
-  Result[0] := 'ls';
 end;
 
 function TConfigListCommand.FindSub(const AName: string): ICommand;
@@ -75,11 +73,12 @@ begin
   Result := nil;
 end;
 
-procedure TConfigListCommand.ParseOptions(const AParams: array of string);
+function TConfigListCommand.ParseOptions(const AParams: array of string; const Ctx: IContext): Boolean;
 var
   I: Integer;
   Param: string;
 begin
+  Result := False;
   FShowFPC := False;
   FShowLazarus := False;
   FShowActiveOnly := False;
@@ -92,7 +91,12 @@ begin
     else if (Param = '--lazarus') or (Param = '-l') then
       FShowLazarus := True
     else if (Param = '--active') or (Param = '-a') then
-      FShowActiveOnly := True;
+      FShowActiveOnly := True
+    else
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev system config list [options]');
+      Exit;
+    end;
   end;
 
   // If no filter specified, show both
@@ -101,6 +105,7 @@ begin
     FShowFPC := True;
     FShowLazarus := True;
   end;
+  Result := True;
 end;
 
 procedure TConfigListCommand.ListFPCVersions(const Ctx: IContext);
@@ -191,7 +196,7 @@ end;
 
 procedure TConfigListCommand.ShowHelp(const Ctx: IContext);
 begin
-  Ctx.Out.WriteLn('Usage: fpdev config list [options]');
+  Ctx.Out.WriteLn('Usage: fpdev system config list [options]');
   Ctx.Out.WriteLn('');
   Ctx.Out.WriteLn('List installed FPC and Lazarus toolchains.');
   Ctx.Out.WriteLn('');
@@ -202,9 +207,9 @@ begin
   Ctx.Out.WriteLn('  --help, -h      Show this help');
   Ctx.Out.WriteLn('');
   Ctx.Out.WriteLn('Examples:');
-  Ctx.Out.WriteLn('  fpdev config list');
-  Ctx.Out.WriteLn('  fpdev config list --fpc');
-  Ctx.Out.WriteLn('  fpdev config list --active');
+  Ctx.Out.WriteLn('  fpdev system config list');
+  Ctx.Out.WriteLn('  fpdev system config list --fpc');
+  Ctx.Out.WriteLn('  fpdev system config list --active');
 end;
 
 function TConfigListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
@@ -228,7 +233,11 @@ begin
   FConfigManager.LoadConfig;
 
   // Parse options
-  ParseOptions(AParams);
+  if not ParseOptions(AParams, Ctx) then
+  begin
+    Result := EXIT_USAGE_ERROR;
+    Exit;
+  end;
 
   // List toolchains
   if FShowFPC then
@@ -242,6 +251,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['config', 'list'], @CreateConfigListCommand, ['ls']);
+  GlobalCommandRegistry.RegisterPath(['system', 'config', 'list'], @CreateConfigListCommand, []);
 
 end.

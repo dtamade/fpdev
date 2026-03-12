@@ -3,8 +3,8 @@ program test_fpc_use;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config, fpdev.fpc.activation,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, fpdev.types;
+  SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config, fpdev.fpc.activation,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, fpdev.types, test_temp_paths;
 
 var
   TestRootDir: string;
@@ -16,49 +16,24 @@ var
 procedure InitTestEnvironment;
 begin
   // Create test root directory in temp (outside project to avoid .fpdev detection)
-  TestRootDir := GetTempDir + 'test_fpc_use_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_fpc_use');
+  if not PathUsesSystemTempRoot(TestRootDir) then
+    raise Exception.Create('Test root dir should use system temp root');
 
   // Initialize config manager
-  ConfigManager := TConfigManager.Create('');
-  ConfigManager.LoadConfig;
+  ConfigManager := CreateIsolatedConfigManager;
 
   TestsPassed := 0;
   TestsFailed := 0;
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
-
   if Assigned(FPCManager) then
     FPCManager.Free;
-  // ConfigManager is an interface, no need to Free
+  ConfigManager := nil;
+
+  CleanupTempDir(TestRootDir);
 
   WriteLn;
   WriteLn('========================================');
@@ -94,6 +69,37 @@ begin
     WriteLn('  Expected: "', Expected, '"');
     WriteLn('  Actual:   "', Actual, '"');
     Inc(TestsFailed);
+  end;
+end;
+
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Config Manager Uses Isolated Config Path');
+  WriteLn('==================================================');
+
+  try
+    ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+    TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+    ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+    AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+      'Config path uses system temp root',
+      'Expected config path under temp root "' + TempRoot + '", got "' + ConfigPath + '"');
+
+    AssertTrue(ConfigPath = ExpectedPath,
+      'Config path uses isolated default override',
+      'Expected config path "' + ExpectedPath + '", got "' + ConfigPath + '"');
+  except
+    on E: Exception do
+      AssertTrue(False, 'Config path isolation check',
+        'Exception: ' + E.Message);
   end;
 end;
 
@@ -286,6 +292,7 @@ end;
 procedure TestUserScopeActivation;
 var
   UserDir: string;
+  InstallPath: string;
   ActivResult: TActivationResult;
   SavedDir: string;
   Settings: TFPDevSettings;
@@ -310,8 +317,9 @@ begin
     FPCManager := TFPCManager.Create(ConfigManager);
 
     // Create mock FPC installation in user scope location
+    InstallPath := BuildFPCInstallDirFromInstallRoot(Settings.InstallRoot, '3.2.2');
     CreateMockFPCInstallation(
-      GetToolchainsDir + PathDelim + 'fpc' + PathDelim + '3.2.2',
+      InstallPath,
       '3.2.2'
     );
 
@@ -468,6 +476,7 @@ begin
     InitTestEnvironment;
     try
       // Run all tests
+      TestConfigManagerUsesIsolatedDefaultConfigPath;
       TestActivationTypesExist;
       TestProjectScopeActivation;
       TestActivationScriptContent;

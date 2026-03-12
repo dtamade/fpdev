@@ -6,7 +6,6 @@ interface
 
 uses
   SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces,
-  fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -21,7 +20,9 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses
+  fpdev.command.registry, fpdev.command.utils,
+  fpdev.doctor.runtime;
 
 function TLazarusDoctorCommand.Name: string; begin Result := 'doctor'; end;
 
@@ -33,80 +34,37 @@ begin
   if AName <> '' then;  // Unused parameter
 end;
 
-function RunToolVersion(const AExe: string; const AArg: string; out AOut: string): Boolean;
-var
-  LResult: TProcessResult;
-begin
-  AOut := '';
-  if AArg <> '' then
-    LResult := TProcessExecutor.Execute(AExe, [AArg], '')
-  else
-    LResult := TProcessExecutor.Execute(AExe, [], '');
-
-  if LResult.Success then
-  begin
-    AOut := LResult.StdOut;
-    Result := True;
-  end
-  else
-  begin
-    AOut := LResult.ErrorMessage;
-    Result := False;
-  end;
-end;
-
-function CheckWriteableDir(const ADir: string; out AErr: string): Boolean;
-var
-  LPath, LTest: string;
-  LSL: TStringList;
-begin
-  Result := False;
-  AErr := '';
-  LPath := IncludeTrailingPathDelimiter(ADir);
-  try
-    if not DirectoryExists(LPath) then EnsureDir(LPath);
-    if not DirectoryExists(LPath) then
-    begin
-      AErr := 'Cannot create directory';
-      Exit(False);
-    end;
-    LTest := LPath + '.fpdev_write_test.tmp';
-    LSL := TStringList.Create;
-    try
-      LSL.Text := 'ok';
-      LSL.SaveToFile(LTest);
-      Result := FileExists(LTest);
-      DeleteFile(LTest);
-    finally
-      LSL.Free;
-    end;
-  except
-    on E: Exception do
-    begin
-      AErr := E.Message;
-      Result := False;
-    end;
-  end;
-end;
-
 function TLazarusDoctorCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LOut, LErr: string;
   LOk: Boolean;
   LRoot: string;
   LSettings: TFPDevSettings;
+  LIssueCount: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
+  LIssueCount := 0;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_DOCTOR_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_LAZARUS_DOCTOR_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_DOCTOR_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_DOCTOR_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if Length(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_DOCTOR_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   Ctx.Out.WriteLn(_(MSG_CHECKING_LAZARUS_ENV));
@@ -117,35 +75,41 @@ begin
   LRoot := LSettings.InstallRoot;
   if LRoot = '' then
     LRoot := IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data';
-  LOk := CheckWriteableDir(LRoot, LErr);
+  LOk := CheckDoctorWriteableDirCore(LRoot, LErr);
   if LOk then
     Ctx.Out.WriteLn(_Fmt(MSG_DOCTOR_WRITE_OK, [LRoot]))
   else
+  begin
     Ctx.Out.WriteLn(_Fmt(MSG_DOCTOR_WRITE_FAIL, [LRoot, LErr]));
+    Inc(LIssueCount);
+  end;
 
   // 2) git
-  LOk := RunToolVersion('git', '--version', LOut);
+  LOk := RunDoctorToolVersionCore('git', '--version', LOut);
   if LOk then
     Ctx.Out.WriteLn(_Fmt(MSG_DOCTOR_GIT_OK, [Trim(LOut)]))
   else
     Ctx.Out.WriteLn(_(MSG_DOCTOR_GIT_FAIL));
 
   // 3) make
-  LOk := RunToolVersion('make', '--version', LOut);
+  LOk := RunDoctorToolVersionCore('make', '--version', LOut);
   if LOk then
     Ctx.Out.WriteLn(_Fmt(MSG_DOCTOR_MAKE_OK, [Copy(Trim(LOut), 1, 80) + '...']))
   else
     Ctx.Out.WriteLn(_(MSG_DOCTOR_MAKE_FAIL));
 
   // 4) FPC compiler (required for building Lazarus)
-  LOk := RunToolVersion('fpc', '-i', LOut);
+  LOk := RunDoctorToolVersionCore('fpc', '-i', LOut);
   if LOk then
     Ctx.Out.WriteLn(_(MSG_DOCTOR_FPC_OK))
   else
+  begin
     Ctx.Out.WriteLn(_(MSG_DOCTOR_FPC_FAIL));
+    Inc(LIssueCount);
+  end;
 
   // 5) lazbuild (if Lazarus is already installed)
-  LOk := RunToolVersion('lazbuild', '--version', LOut);
+  LOk := RunDoctorToolVersionCore('lazbuild', '--version', LOut);
   if LOk then
     Ctx.Out.WriteLn(_Fmt(MSG_DOCTOR_LAZBUILD_OK, [Trim(LOut)]))
   else
@@ -153,12 +117,12 @@ begin
 
   // 6) Check for X11/GTK on Linux
   {$IFDEF LINUX}
-  LOk := RunToolVersion('pkg-config', '--exists gtk+-2.0', LOut);
+  LOk := RunDoctorToolVersionCore('pkg-config', '--exists gtk+-2.0', LOut);
   if LOk then
     Ctx.Out.WriteLn(_(MSG_DOCTOR_GTK2_OK))
   else
   begin
-    LOk := RunToolVersion('pkg-config', '--exists gtk+-3.0', LOut);
+    LOk := RunDoctorToolVersionCore('pkg-config', '--exists gtk+-3.0', LOut);
     if LOk then
       Ctx.Out.WriteLn(_(MSG_DOCTOR_GTK3_OK))
     else
@@ -168,6 +132,8 @@ begin
 
   Ctx.Out.WriteLn('');
   Ctx.Out.WriteLn(_(MSG_DOCTOR_COMPLETE));
+  if LIssueCount > 0 then
+    Result := EXIT_ERROR;
 end;
 
 function LazarusDoctorFactory: ICommand;

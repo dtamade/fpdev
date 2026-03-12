@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
-  fpdev.utils;
+  fpdev.utils, fpdev.utils.fs, test_temp_paths;
 
 type
   { TUtilsTest }
@@ -32,6 +32,8 @@ type
     procedure RunAllTests;
 
     // Test methods
+    procedure TestTempDirUsesSystemTempAndUniqueSuffix;
+    procedure TestTempDirCleanupRemovesNestedDirectories;
     procedure TestExePath;
     procedure TestCwd;
     procedure TestChdir;
@@ -67,20 +69,15 @@ begin
   inherited Create;
   FTestsPassed := 0;
   FTestsFailed := 0;
-  FTempDir := GetTempDir + 'fpdev_test_utils' + PathDelim;
+  FTempDir := IncludeTrailingPathDelimiter(CreateUniqueTempDir('fpdev_test_utils'));
   if not DirectoryExists(FTempDir) then
     ForceDirectories(FTempDir);
 end;
 
 destructor TUtilsTest.Destroy;
 begin
-  // Cleanup temp directory
   if DirectoryExists(FTempDir) then
-  begin
-    // Simple cleanup - delete test files
-    DeleteFile(FTempDir + 'test_write.txt');
-    RemoveDir(FTempDir);
-  end;
+    CleanupTempDir(ExcludeTrailingPathDelimiter(FTempDir));
   inherited Destroy;
 end;
 
@@ -156,6 +153,8 @@ begin
   WriteLn('=== fpdev.utils Test Suite ===');
   WriteLn('');
 
+  TestTempDirUsesSystemTempAndUniqueSuffix;
+  TestTempDirCleanupRemovesNestedDirectories;
   TestExePath;
   TestCwd;
   TestChdir;
@@ -185,6 +184,67 @@ begin
   WriteLn('Passed: ', FTestsPassed);
   WriteLn('Failed: ', FTestsFailed);
   WriteLn('Total:  ', FTestsPassed + FTestsFailed);
+end;
+
+procedure TUtilsTest.TestTempDirUsesSystemTempAndUniqueSuffix;
+var
+  Other: TUtilsTest;
+begin
+  WriteLn('-- TestTempDirUsesSystemTempAndUniqueSuffix --');
+
+  AssertTrue(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(FTempDir)) = 1,
+    'temp dir should live under system temp'
+  );
+
+  Other := TUtilsTest.Create;
+  try
+    AssertTrue(
+      ExpandFileName(FTempDir) <> ExpandFileName(Other.FTempDir),
+      'temp dir should be unique per test instance'
+    );
+  finally
+    Other.Free;
+    if not DirectoryExists(FTempDir) then
+      ForceDirectories(FTempDir);
+  end;
+end;
+
+procedure TUtilsTest.TestTempDirCleanupRemovesNestedDirectories;
+var
+  Other: TUtilsTest;
+  OtherDir: string;
+  NestedDir: string;
+  NestedFile: string;
+  TestData: TStringList;
+begin
+  WriteLn('-- TestTempDirCleanupRemovesNestedDirectories --');
+
+  Other := TUtilsTest.Create;
+  try
+    OtherDir := Other.FTempDir;
+    NestedDir := IncludeTrailingPathDelimiter(OtherDir) + 'nested' + PathDelim + 'deep';
+    NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'test.txt';
+    ForceDirectories(NestedDir);
+
+    TestData := TStringList.Create;
+    try
+      TestData.Add('temp');
+      TestData.SaveToFile(NestedFile);
+    finally
+      TestData.Free;
+    end;
+  finally
+    Other.Free;
+  end;
+
+  AssertFalse(DirectoryExists(OtherDir), 'destructor should remove nested temp directories');
+
+  if DirectoryExists(OtherDir) then
+    CleanupTempDir(ExcludeTrailingPathDelimiter(OtherDir));
+  if not DirectoryExists(FTempDir) then
+    ForceDirectories(FTempDir);
 end;
 
 procedure TUtilsTest.TestExePath;

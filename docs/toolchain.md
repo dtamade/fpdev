@@ -5,10 +5,10 @@
 ## 快速开始
 
 - 直接体检（JSON）：
-  - `fpdev --check-toolchain`
+  - `fpdev system toolchain check`
 - 策略校验（FPC 版本是否满足源码版本要求）：
-  - `fpdev --check-policy main`
-  - `fpdev --check-policy 3.2.2`
+  - `fpdev fpc policy check main`
+  - `fpdev fpc policy check 3.2.2`
 
 - 示例：
   - `examples/fpdev.toolchain/buildOrTest.bat`（Windows）
@@ -113,15 +113,15 @@
   - 锁文件：`.fpdev/locks/`
 
 - 本地目录作为源码来源
-  - `fpdev --ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
+  - `fpdev system toolchain ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
   - 行为：结构校验 → 复制到 `.fpdev/sandbox/sources/fpc-src/3.2.2/` → 写锁文件
 
 - 本地 zip 作为源码来源
-  - `fpdev --ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
+  - `fpdev system toolchain ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
   - 行为：SHA-256 校验 → 解压 → 严格结构校验 → 写锁文件
 
 - 导入离线捆绑包目录
-  - `fpdev --import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
+  - `fpdev system toolchain import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
   - 行为：扫描该目录 `*.zip + .sha256`，校验通过后导入 `.fpdev/cache/toolchain/`
 
 说明：

@@ -6,9 +6,9 @@ unit fpdev.cmd.perf;
 ================================================================================
 
   Provides CLI commands for performance monitoring:
-  - fpdev perf report: Show performance report for last operation
-  - fpdev perf clear: Clear performance data
-  - fpdev perf summary: Show summary of operations
+  - fpdev system perf report: Show performance report for last operation
+  - fpdev system perf clear: Clear performance data
+  - fpdev system perf summary: Show summary of operations
 
   Author: FPDev Team
 ================================================================================
@@ -21,8 +21,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.output.intf, fpdev.output.console,
-  fpdev.perf.monitor;
+  fpdev.output.intf, fpdev.output.console;
 
 type
   { TPerfReportCommand - Show performance report }
@@ -78,6 +77,10 @@ function CreatePerfSaveCommand: ICommand;
 
 implementation
 
+uses
+  fpdev.help.details.system,
+  fpdev.perf.commandflow;
+
 function CreatePerfCommand: ICommand;
 begin
   Result := TPerfCommand.Create;
@@ -123,23 +126,14 @@ end;
 
 function TPerfCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LO: IOutput;
+  Outp: IOutput;
 begin
   Result := 0;
-  if Length(AParams) > 0 then; // Suppress unused parameter hint
-  LO := Ctx.Out;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-
-  LO.WriteLn('fpdev perf - Performance Monitoring');
-  LO.WriteLn('');
-  LO.WriteLn('Usage:');
-  LO.WriteLn('  fpdev perf report   - Show JSON performance report');
-  LO.WriteLn('  fpdev perf summary  - Show human-readable summary');
-  LO.WriteLn('  fpdev perf clear    - Clear all performance data');
-  LO.WriteLn('  fpdev perf save <file> - Save report to JSON file');
-  LO.WriteLn('');
-  LO.WriteLn('Performance data is collected during build operations.');
+  if Length(AParams) > 0 then;
+  Outp := Ctx.Out;
+  if Outp = nil then
+    Outp := TConsoleOutput.Create(False) as IOutput;
+  WriteSystemPerfHelpCore(Outp);
 end;
 
 { TPerfReportCommand }
@@ -161,25 +155,8 @@ begin
 end;
 
 function TPerfReportCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
-var
-  LO: IOutput;
-  Report: string;
 begin
-  Result := 0;
-  if Length(AParams) > 0 then; // Suppress unused hint
-
-  LO := Ctx.Out;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-
-  Report := PerfMon.GetReport;
-  if Report = '[]' then
-  begin
-    LO.WriteLn('No performance data available.');
-    LO.WriteLn('Run a build operation first (e.g., fpdev fpc install).');
-  end
-  else
-    LO.WriteLn(Report);
+  Result := ExecutePerfReportCore(AParams, Ctx);
 end;
 
 { TPerfSummaryCommand }
@@ -201,25 +178,8 @@ begin
 end;
 
 function TPerfSummaryCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
-var
-  LO: IOutput;
-  Summary: string;
 begin
-  Result := 0;
-  if Length(AParams) > 0 then; // Suppress unused hint
-
-  LO := Ctx.Out;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-
-  Summary := PerfMon.GetSummary;
-  if Pos('Total', Summary) = 0 then
-  begin
-    LO.WriteLn('No performance data available.');
-    LO.WriteLn('Run a build operation first (e.g., fpdev fpc install).');
-  end
-  else
-    LO.WriteLn(Summary);
+  Result := ExecutePerfSummaryCore(AParams, Ctx);
 end;
 
 { TPerfClearCommand }
@@ -241,18 +201,8 @@ begin
 end;
 
 function TPerfClearCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
-var
-  LO: IOutput;
 begin
-  Result := 0;
-  if Length(AParams) > 0 then; // Suppress unused hint
-
-  LO := Ctx.Out;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-
-  PerfMon.Clear;
-  LO.WriteLn('Performance data cleared.');
+  Result := ExecutePerfClearCore(AParams, Ctx);
 end;
 
 { TPerfSaveCommand }
@@ -274,45 +224,15 @@ begin
 end;
 
 function TPerfSaveCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
-var
-  LO, LE: IOutput;
-  FileName: string;
 begin
-  Result := 0;
-
-  LO := Ctx.Out;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-  LE := Ctx.Err;
-  if LE = nil then
-    LE := TConsoleOutput.Create(True) as IOutput;
-
-  if Length(AParams) < 1 then
-  begin
-    LE.WriteLn('Error: Missing filename');
-    LE.WriteLn('Usage: fpdev perf save <filename>');
-    Result := 1;
-    Exit;
-  end;
-
-  FileName := AParams[0];
-  try
-    PerfMon.SaveReport(FileName);
-    LO.WriteLn('Performance report saved to: ' + FileName);
-  except
-    on E: Exception do
-    begin
-      LE.WriteLn('Error saving report: ' + E.Message);
-      Result := 1;
-    end;
-  end;
+  Result := ExecutePerfSaveCore(AParams, Ctx);
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['perf'], @CreatePerfCommand, []);
-  GlobalCommandRegistry.RegisterPath(['perf', 'report'], @CreatePerfReportCommand, []);
-  GlobalCommandRegistry.RegisterPath(['perf', 'summary'], @CreatePerfSummaryCommand, []);
-  GlobalCommandRegistry.RegisterPath(['perf', 'clear'], @CreatePerfClearCommand, []);
-  GlobalCommandRegistry.RegisterPath(['perf', 'save'], @CreatePerfSaveCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'perf'], @CreatePerfCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'perf', 'report'], @CreatePerfReportCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'perf', 'summary'], @CreatePerfSummaryCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'perf', 'clear'], @CreatePerfClearCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'perf', 'save'], @CreatePerfSaveCommand, []);
 
 end.

@@ -17,7 +17,11 @@ program test_cli_lazarus;
 
 uses
   SysUtils, Classes,
+  {$IFDEF UNIX}
+  BaseUnix,
+  {$ENDIF}
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
   fpdev.exitcodes,
   fpdev.cmd.lazarus,             // Register 'lazarus' root
   fpdev.cmd.lazarus.install,
@@ -31,7 +35,7 @@ uses
   fpdev.cmd.lazarus.uninstall,
   fpdev.cmd.lazarus.update,
   fpdev.cmd.lazarus.test,
-  test_cli_helpers;
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
@@ -65,6 +69,17 @@ begin
   try
     Ret := Cmd.Execute(['-h'], Ctx);
     Check('install -h EXIT_OK', Ret = EXIT_OK);
+  finally Cmd.Free; end;
+end;
+
+procedure TestInstallHelpUnexpectedArg;
+var Cmd: TLazInstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('install help unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -114,6 +129,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestListUnexpectedArg;
+var Cmd: TLazListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('list unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestListUnknownOption;
+var Cmd: TLazListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('list unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== use ===== }
 
 procedure TestUseName;
@@ -129,7 +166,7 @@ begin
   Cmd := TLazUseCommand.Create;
   try
     A := Cmd.Aliases;
-    Check('use: has default alias', (A <> nil) and (Length(A) > 0) and (A[0] = 'default'));
+    Check('use: has no alias', A = nil);
   finally Cmd.Free; end;
 end;
 
@@ -154,6 +191,28 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('use no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
     Check('use no args shows error', StdErr.Contains('version'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestUseUnexpectedArg;
+var Cmd: TLazUseCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['invalid-version', 'extra'], Ctx);
+    Check('use unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUseUnknownOption;
+var Cmd: TLazUseCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('use unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -202,6 +261,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestCurrentUnexpectedArg;
+var Cmd: TLazCurrentCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('current unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestCurrentUnknownOption;
+var Cmd: TLazCurrentCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('current unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== show ===== }
 
 procedure TestShowName;
@@ -234,6 +315,48 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestShowUnsupportedVersion;
+var
+  Cmd: TLazShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['99.99.99'], Ctx);
+    Check('show unsupported version EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('show unsupported version writes stderr', StdErr.Contains('Unsupported Lazarus version'));
+    Check('show unsupported version does not write error to stdout',
+      not StdOut.Contains('Unsupported Lazarus version'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestShowUnexpectedArg;
+var Cmd: TLazShowCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['invalid-version', 'extra'], Ctx);
+    Check('show unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestShowUnknownOption;
+var Cmd: TLazShowCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('show unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== configure ===== }
 
 procedure TestConfigureName;
@@ -263,6 +386,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('configure no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigureUnexpectedArg;
+var Cmd: TLazConfigureCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['invalid-version', 'extra'], Ctx);
+    Check('configure unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigureUnknownOption;
+var Cmd: TLazConfigureCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('configure unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -299,6 +444,70 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestDoctorUnexpectedArg;
+var Cmd: TLazarusDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazarusDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('doctor unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDoctorUnknownOption;
+var Cmd: TLazarusDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazarusDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('doctor unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDoctorUnwritableInstallRoot;
+var
+  Cmd: TLazarusDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+  ReadOnlyRoot: string;
+begin
+  {$IFDEF UNIX}
+  ReadOnlyRoot := GTempDir + PathDelim + 'lazarus_doctor_ro';
+  ForceDirectories(ReadOnlyRoot);
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := ReadOnlyRoot;
+  if not Ctx.Config.GetSettingsManager.SetSettings(Settings) then
+  begin
+    Check('doctor unwritable setup: set install root', False);
+    Exit;
+  end;
+
+  if fpchmod(ReadOnlyRoot, &555) <> 0 then
+  begin
+    Check('doctor unwritable setup: chmod readonly', False);
+    Exit;
+  end;
+
+  Cmd := TLazarusDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('doctor unwritable install root returns EXIT_ERROR', Ret = EXIT_ERROR);
+  finally
+    Cmd.Free;
+    fpchmod(ReadOnlyRoot, &755);
+    RemoveDir(ReadOnlyRoot);
+  end;
+  {$ELSE}
+  Check('doctor unwritable install root skipped on non-UNIX', True);
+  {$ENDIF}
+end;
+
 { ===== run ===== }
 
 procedure TestRunName;
@@ -317,6 +526,28 @@ begin
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('run --help EXIT_OK', Ret = EXIT_OK);
     Check('run --help shows usage', StdOut.Contains('run'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestRunUnexpectedArg;
+var Cmd: TLazRunCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazRunCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.0', 'extra'], Ctx);
+    Check('run unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestRunUnknownOption;
+var Cmd: TLazRunCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazRunCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('run unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -352,6 +583,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestUninstallUnexpectedArg;
+var Cmd: TLazUninstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['invalid-version', 'extra'], Ctx);
+    Check('uninstall unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUninstallUnknownOption;
+var Cmd: TLazUninstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('uninstall unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== update ===== }
 
 procedure TestUpdateName;
@@ -370,6 +623,28 @@ begin
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('update --help EXIT_OK', Ret = EXIT_OK);
     Check('update --help shows usage', StdOut.Contains('update'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestUpdateUnexpectedArg;
+var Cmd: TLazUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.0', 'extra'], Ctx);
+    Check('update unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUpdateUnknownOption;
+var Cmd: TLazUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('update unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -402,6 +677,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('test no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestTestUnexpectedArg;
+var Cmd: TLazTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['invalid-version', 'extra'], Ctx);
+    Check('test unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestTestUnknownOption;
+var Cmd: TLazTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('test unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -453,14 +750,15 @@ begin
   WriteLn('=== Lazarus Commands CLI Tests (B191-B192) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_lazarus_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_lazarus');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     WriteLn('--- install ---');
     TestInstallName;
     TestInstallHelp;
     TestInstallHelpShort;
+    TestInstallHelpUnexpectedArg;
     TestInstallMissingVersion;
 
     WriteLn('');
@@ -468,6 +766,8 @@ begin
     TestListName;
     TestListHelp;
     TestListJsonOutput;
+    TestListUnexpectedArg;
+    TestListUnknownOption;
 
     WriteLn('');
     WriteLn('--- use ---');
@@ -475,6 +775,8 @@ begin
     TestUseAlias;
     TestUseHelp;
     TestUseMissingVersion;
+    TestUseUnexpectedArg;
+    TestUseUnknownOption;
 
     WriteLn('');
     WriteLn('--- current ---');
@@ -482,56 +784,70 @@ begin
     TestCurrentHelp;
     TestCurrentNoArgs;
     TestCurrentJsonOutput;
+    TestCurrentUnexpectedArg;
+    TestCurrentUnknownOption;
 
     WriteLn('');
     WriteLn('--- show ---');
     TestShowName;
     TestShowHelp;
     TestShowMissingVersion;
+    TestShowUnsupportedVersion;
+    TestShowUnexpectedArg;
+    TestShowUnknownOption;
 
     WriteLn('');
     WriteLn('--- configure ---');
     TestConfigureName;
     TestConfigureHelp;
     TestConfigureMissingVersion;
+    TestConfigureUnexpectedArg;
+    TestConfigureUnknownOption;
 
     WriteLn('');
     WriteLn('--- doctor ---');
     TestDoctorName;
     TestDoctorHelp;
     TestDoctorExecution;
+    TestDoctorUnexpectedArg;
+    TestDoctorUnknownOption;
+    TestDoctorUnwritableInstallRoot;
 
     WriteLn('');
     WriteLn('--- run ---');
     TestRunName;
     TestRunHelp;
+    TestRunUnexpectedArg;
+    TestRunUnknownOption;
 
     WriteLn('');
     WriteLn('--- uninstall ---');
     TestUninstallName;
     TestUninstallHelp;
     TestUninstallMissingVersion;
+    TestUninstallUnexpectedArg;
+    TestUninstallUnknownOption;
 
     WriteLn('');
     WriteLn('--- update ---');
     TestUpdateName;
     TestUpdateHelp;
+    TestUpdateUnexpectedArg;
+    TestUpdateUnknownOption;
 
     WriteLn('');
     WriteLn('--- test ---');
     TestTestName;
     TestTestHelp;
     TestTestMissingVersion;
+    TestTestUnexpectedArg;
+    TestTestUnknownOption;
 
     WriteLn('');
     WriteLn('--- Registration ---');
     TestLazarusRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

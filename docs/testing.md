@@ -216,16 +216,15 @@ end;
 
 ## Test Coverage
 
-Current test coverage (as of 2026-01-31):
+<!-- TEST-INVENTORY-COVERAGE:BEGIN -->
+Current discoverable test-program inventory:
 
-| Module | Tests | Status |
-|--------|-------|--------|
-| Configuration Management | 15 | ✅ 100% passing |
-| Git Integration | 12 | ✅ 100% passing |
-| Build Manager | 8 | ✅ 100% passing |
-| Build Interfaces | 9 | ✅ 100% passing |
-| Git2 Status | 6 | ✅ 100% passing |
-| **Total** | **50+** | **✅ 100% passing** |
+- Discoverable `test_*.lpr` programs: 255
+- Shared discovery rules: CI and `scripts/run_all_tests.sh` use the same inventory source
+- Default exclusions: `examples`, `fpdev.git2.adapter`, `fpdev.libgit2.base`, `fpdev.core.misc`, `migrated`
+- Sync command: `python3 scripts/update_test_stats.py --write`
+- Verification command: `python3 scripts/update_test_stats.py --check`
+<!-- TEST-INVENTORY-COVERAGE:END -->
 
 ## Continuous Integration
 
@@ -300,6 +299,8 @@ export LD_LIBRARY_PATH=3rd/libgit2:$LD_LIBRARY_PATH
 
 ---
 
-**Last Updated**: 2026-01-31  
-**Test Framework**: fpcunit  
-**Test Coverage**: 50+ tests, 100% passing
+**Last Updated**: 2026-03-08
+**Test Framework**: fpcunit
+<!-- TEST-INVENTORY-FOOTER:BEGIN -->
+**Test Inventory**: 255 discoverable test programs (same rules as CI)
+<!-- TEST-INVENTORY-FOOTER:END -->

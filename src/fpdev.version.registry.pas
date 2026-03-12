@@ -24,6 +24,7 @@ unit fpdev.version.registry;
 }
 
 {$mode objfpc}{$H+}
+// acq:allow-hardcoded-constants-file
 
 interface
 

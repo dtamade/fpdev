@@ -1,6 +1,7 @@
 unit fpdev.build.cache;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 {
   TBuildCache - Build cache management service
@@ -113,6 +114,7 @@ type
     function GetMaxCacheSizeGB: Integer;
     procedure SetMaxCacheSizeMB(ASizeMB: Integer);
     procedure SaveArtifactMetadata(const AInfo: TArtifactInfo);
+    function LoadCleanupInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
     procedure CleanupLRU;
 
     { JSON metadata format (Phase 2) }
@@ -142,13 +144,37 @@ type
 implementation
 
 uses
+  fpdev.build.cache.access,
+  fpdev.build.cache.cleanupinfo,
+  fpdev.build.cache.artifactmeta,
+  fpdev.build.cache.entryquery,
+  fpdev.build.cache.sizelimit,
+  fpdev.build.cache.cachestats,
+  fpdev.build.cache.sourcepath,
+  fpdev.build.cache.jsonpath,
+  fpdev.build.cache.jsonsave,
+  fpdev.build.cache.jsoninfo,
+  fpdev.build.cache.migrationbackup,
+  fpdev.build.cache.deletefiles,
+  fpdev.build.cache.sourceinfo,
+  fpdev.build.cache.expiredscan,
+  fpdev.build.cache.binarypresence,
+  fpdev.build.cache.binaryinfo,
+  fpdev.build.cache.binaryrestore,
+  fpdev.build.cache.binarysave,
+  fpdev.build.cache.cleanup,
+  fpdev.build.cache.cleanupscan,
+  fpdev.build.cache.detailedstats,
   fpdev.build.cache.entries,
   fpdev.build.cache.entryio,
+  fpdev.build.cache.indexcollect,
   fpdev.build.cache.fileops,
   fpdev.build.cache.indexio,
   fpdev.build.cache.indexjson,
+  fpdev.build.cache.indexflow,
   fpdev.build.cache.indexstats,
   fpdev.build.cache.key,
+  fpdev.build.cache.lru,
   fpdev.build.cache.metajson,
   fpdev.build.cache.oldmeta,
   fpdev.build.cache.rebuildscan,
@@ -213,12 +239,14 @@ end;
 
 function TBuildCache.GetArtifactArchivePath(const AVersion: string): string;
 begin
-  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.tar.gz';
+  Result := BuildCacheGetSourceArchivePath(FCacheDirWithDelim,
+    GetArtifactKey(AVersion));
 end;
 
 function TBuildCache.GetArtifactMetaPath(const AVersion: string): string;
 begin
-  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.meta';
+  Result := BuildCacheGetSourceMetaPath(FCacheDirWithDelim,
+    GetArtifactKey(AVersion));
 end;
 
 function TBuildCache.RunCommand(const ACmd: string; const AArgs: array of string; const AWorkDir: string): Boolean;
@@ -300,15 +328,12 @@ end;
 function TBuildCache.NeedsRebuild(const AVersion: string; AStep: TBuildStep): Boolean;
 var
   Idx: Integer;
-  CachedStatus: Integer;
 begin
-  Result := True;
   Idx := FindEntry(AVersion);
-  if Idx < 0 then Exit;
-
-  CachedStatus := BuildCacheParseStatus(FEntries[Idx]);
-  if CachedStatus >= 0 then
-    Result := CachedStatus < Ord(AStep);
+  if Idx < 0 then
+    Result := BuildCacheNeedsRebuildFromEntryLine('', Ord(AStep))
+  else
+    Result := BuildCacheNeedsRebuildFromEntryLine(FEntries[Idx], Ord(AStep));
 end;
 
 function TBuildCache.GetRevision(const AVersion: string): string;
@@ -318,22 +343,12 @@ begin
   Result := '';
   Idx := FindEntry(AVersion);
   if Idx >= 0 then
-    Result := BuildCacheParseRevision(FEntries[Idx]);
+    Result := BuildCacheGetRevisionFromEntryLine(FEntries[Idx]);
 end;
 
 function TBuildCache.GetCacheStats: string;
-var
-  Total: Integer;
-  HitRate: Double;
 begin
-  Total := FCacheHits + FCacheMisses;
-  if Total > 0 then
-    HitRate := (FCacheHits * 100.0) / Total
-  else
-    HitRate := 0;
-
-  Result := Format('Cache: %d entries, %d hits, %d misses (%.1f%% hit rate)',
-    [FEntries.Count, FCacheHits, FCacheMisses, HitRate]);
+  Result := BuildCacheFormatCacheStats(FEntries.Count, FCacheHits, FCacheMisses);
 end;
 
 procedure TBuildCache.ClearStats;
@@ -346,16 +361,14 @@ end;
 
 function TBuildCache.HasArtifacts(const AVersion: string): Boolean;
 var
-  SourceArchive, BinaryMetaPath: string;
+  ArtifactKey: string;
+  BinaryMetaPath: string;
+  SourceArchive: string;
 begin
-  // Check for both source and binary artifacts
+  ArtifactKey := GetArtifactKey(AVersion);
   SourceArchive := GetArtifactArchivePath(AVersion);
-  BinaryMetaPath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary.meta';
-
-  // For binary artifacts, check if metadata file exists (more reliable than checking archive)
-  // The metadata file contains the actual file extension (.tar or .tar.gz)
-  Result := FileExists(SourceArchive) or FileExists(BinaryMetaPath);
+  BinaryMetaPath := BuildCacheGetBinaryMetaPath(FCacheDirWithDelim, ArtifactKey);
+  Result := BuildCacheHasArtifactFiles(SourceArchive, BinaryMetaPath);
 end;
 
 function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
@@ -465,7 +478,8 @@ end;
 
 function TBuildCache.GetArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
-  MetaPath, ArchivePath: string;
+  ArchivePath: string;
+  MetaPath: string;
   OldInfo: TOldMetaArtifactInfo;
 begin
   Result := False;
@@ -477,32 +491,18 @@ begin
   if not BuildCacheLoadOldMeta(MetaPath, OldInfo) then
     Exit;
 
-  // Copy from old format to TArtifactInfo
-  AInfo.Version := OldInfo.Version;
-  AInfo.CPU := OldInfo.CPU;
-  AInfo.OS := OldInfo.OS;
-  AInfo.SourcePath := OldInfo.SourcePath;
-  AInfo.ArchiveSize := OldInfo.ArchiveSize;
-  AInfo.CreatedAt := OldInfo.CreatedAt;
-  AInfo.ArchivePath := ArchivePath;
-
+  AInfo := BuildCacheCreateSourceArtifactInfo(ArchivePath, OldInfo);
   Result := AInfo.Version <> '';
 end;
 
 function TBuildCache.DeleteArtifacts(const AVersion: string): Boolean;
 var
-  ArchivePath, MetaPath: string;
+  ArchivePath: string;
+  MetaPath: string;
 begin
-  Result := True;
-
   ArchivePath := GetArtifactArchivePath(AVersion);
   MetaPath := GetArtifactMetaPath(AVersion);
-
-  if FileExists(ArchivePath) then
-    Result := DeleteFile(ArchivePath);
-
-  if FileExists(MetaPath) then
-    Result := Result and DeleteFile(MetaPath);
+  Result := BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath);
 end;
 
 function TBuildCache.GetTotalCacheSize: Int64;
@@ -519,96 +519,59 @@ end;
 
 function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string; const ASHA256: string = ''): Boolean;
 var
-  ArchivePath, MetaPath: string;
-  SR: TSearchRec;
-  SHA256Hash: string;
-  FileExt: string;
   ArchiveSize: Int64;
+  FileExt: string;
+  Paths: TBuildCacheBinaryArtifactPaths;
+  SHA256Hash: string;
 begin
   Result := False;
 
   if not FileExists(ADownloadedFile) then
     Exit;
 
-  // Ensure cache directory exists
   ForceDirectories(FCacheDir);
 
-  // Generate binary artifact paths (with -binary suffix)
-  // Preserve original file extension (.tar or .tar.gz)
-  // Handle compound extensions like .tar.gz
-  FileExt := ExtractFileExt(ADownloadedFile);
-  if (FileExt = '.gz') and (LowerCase(ExtractFileExt(ChangeFileExt(ADownloadedFile, ''))) = '.tar') then
-    FileExt := '.tar.gz';
+  FileExt := BuildCacheResolveBinaryFileExt(ADownloadedFile);
+  Paths := BuildCacheBuildBinaryArtifactPaths(FCacheDirWithDelim,
+    GetArtifactKey(AVersion), FileExt);
 
-  ArchivePath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary' + FileExt;
-  MetaPath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary.meta';
-
-  // Copy downloaded file to cache
   try
-    if not FileCopy(ADownloadedFile, ArchivePath) then
+    if not FileCopy(ADownloadedFile, Paths.ArchivePath) then
       Exit;
   except
     on E: Exception do
-    begin
-      // Silent failure - file copy error
       Exit;
-    end;
   end;
 
-  // Get archive size
-  ArchiveSize := 0;
-  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-  begin
-    try
-      ArchiveSize := SR.Size;
-    finally
-      FindClose(SR);
-    end;
-  end;
+  ArchiveSize := BuildCacheReadBinaryArchiveSize(Paths.ArchivePath);
+  SHA256Hash := BuildCacheResolveBinarySHA256(ASHA256, Paths.ArchivePath);
 
-  // Use provided SHA256 hash or calculate from file
-  if ASHA256 <> '' then
-    SHA256Hash := ASHA256
-  else
-    SHA256Hash := BuildCacheCalculateSHA256(ArchivePath);
-
-  // Write metadata file using helper
-  BuildCacheSaveBinaryMeta(MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
+  BuildCacheSaveBinaryMeta(Paths.MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
     SHA256Hash, FileExt, ArchiveSize);
   Result := True;
 end;
 
 function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
 var
-  ArchivePath: string;
   Info: TArtifactInfo;
-  FileExt: string;
-  TarFlags: string;
+  Plan: TBuildCacheBinaryRestorePlan;
 begin
   Result := False;
 
-  // Get file extension from metadata to find the correct archive file
   if not GetBinaryArtifactInfo(AVersion, Info) then
     Exit;
 
-  FileExt := Info.FileExt;
-  if FileExt = '' then
-    FileExt := '.tar.gz';  // Default fallback
+  Plan := BuildCacheBuildBinaryRestorePlan(FCacheDirWithDelim,
+    GetArtifactKey(AVersion), Info.FileExt);
 
-  ArchivePath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary' + FileExt;
-
-  if not FileExists(ArchivePath) then
+  if not FileExists(Plan.ArchivePath) then
     Exit;
 
-  // Verify integrity before extraction (Fix: add integrity verification)
   if FVerifyOnRestore then
   begin
     if Info.SHA256 <> '' then
     begin
-      if not VerifyArtifact(ArchivePath, Info.SHA256) then
+      if not VerifyArtifact(Plan.ArchivePath, Info.SHA256) then
       begin
         WriteLn('Error: Cache integrity verification failed for ', AVersion);
         WriteLn('  Expected SHA256: ', Info.SHA256);
@@ -619,28 +582,17 @@ begin
     end;
   end;
 
-  // Ensure destination directory exists
   ForceDirectories(ADestPath);
 
-  // Determine tar flags based on file extension
-  if (FileExt = '.tar.gz') or (FileExt = '.tgz') then
-    TarFlags := '-xzf'  // Gzipped tar
-  else if FileExt = '.tar' then
-    TarFlags := '-xf'   // Plain tar
-  else
-    TarFlags := '-xzf'; // Default to gzipped
-
-  // Extract archive (strip top-level directory to extract directly into target)
   {$IFDEF MSWINDOWS}
   if not RunCommand('tar', ['--version'], '') then
   begin
-    // Try 7z as fallback
-    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, ArchivePath], '');
+    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, Plan.ArchivePath], '');
   end
   else
-    Result := RunCommand('tar', [TarFlags, ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
+    Result := RunCommand('tar', [Plan.TarFlags, Plan.ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
   {$ELSE}
-  Result := RunCommand('tar', [TarFlags, ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
+  Result := RunCommand('tar', [Plan.TarFlags, Plan.ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
   {$ENDIF}
 
   if Result then
@@ -651,30 +603,21 @@ end;
 
 function TBuildCache.GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
-  MetaPath: string;
+  ArtifactKey: string;
   BinaryInfo: TBinaryMetaArtifactInfo;
+  MetaPath: string;
 begin
   Result := False;
   Initialize(AInfo);
 
-  MetaPath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary.meta';
+  ArtifactKey := GetArtifactKey(AVersion);
+  MetaPath := BuildCacheGetBinaryMetaPath(FCacheDirWithDelim, ArtifactKey);
 
   if not BuildCacheLoadBinaryMeta(MetaPath, BinaryInfo) then
     Exit;
 
-  // Copy from binary format to TArtifactInfo
-  AInfo.Version := BinaryInfo.Version;
-  AInfo.CPU := BinaryInfo.CPU;
-  AInfo.OS := BinaryInfo.OS;
-  AInfo.SourceType := BinaryInfo.SourceType;
-  AInfo.SHA256 := BinaryInfo.SHA256;
-  AInfo.FileExt := BinaryInfo.FileExt;
-  AInfo.ArchiveSize := BinaryInfo.ArchiveSize;
-  AInfo.CreatedAt := BinaryInfo.CreatedAt;
-  AInfo.ArchivePath := FCacheDirWithDelim +
-    GetArtifactKey(AVersion) + '-binary' + BinaryInfo.FileExt;
-
+  AInfo := BuildCacheCreateBinaryArtifactInfo(FCacheDirWithDelim,
+    ArtifactKey, BinaryInfo);
   Result := AInfo.Version <> '';
 end;
 
@@ -697,35 +640,13 @@ end;
 
 procedure TBuildCache.CleanExpired;
 var
-  SR: TSearchRec;
   Version: string;
-  Info: TArtifactInfo;
+  Versions: SysUtils.TStringArray;
 begin
-  if not DirectoryExists(FCacheDir) then
-    Exit;
-
-  // Scan all .meta files
-  if FindFirst(FCacheDirWithDelim + '*.meta', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      // Extract version from filename using helper
-      Version := BuildCacheExtractVersionFromFilename(SR.Name);
-
-      if Version <> '' then
-      begin
-        // Get artifact info and check if expired
-        if GetArtifactInfo(Version, Info) or GetBinaryArtifactInfo(Version, Info) then
-        begin
-          if IsExpired(Info) then
-          begin
-            // Delete expired artifact
-            DeleteArtifacts(Version);
-          end;
-        end;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
+  Versions := BuildCacheCollectExpiredVersions(FCacheDirWithDelim,
+    @LoadCleanupInfo, @IsExpired);
+  for Version in Versions do
+    DeleteArtifacts(Version);
 end;
 
 { Cache Verification Methods }
@@ -761,142 +682,56 @@ end;
 
 procedure TBuildCache.SetMaxCacheSizeGB(ASizeGB: Integer);
 begin
-  if ASizeGB = 0 then
-    FMaxCacheSizeBytes := 0  // Unlimited
-  else
-    FMaxCacheSizeBytes := Int64(ASizeGB) * 1024 * 1024 * 1024;
+  FMaxCacheSizeBytes := BuildCacheSizeGBToBytes(ASizeGB);
 end;
 
 function TBuildCache.GetMaxCacheSizeGB: Integer;
 begin
-  if FMaxCacheSizeBytes = 0 then
-    Result := 0  // Unlimited
-  else
-    Result := FMaxCacheSizeBytes div (1024 * 1024 * 1024);
+  Result := BuildCacheBytesToSizeGB(FMaxCacheSizeBytes);
 end;
 
 procedure TBuildCache.SetMaxCacheSizeMB(ASizeMB: Integer);
 begin
-  if ASizeMB = 0 then
-    FMaxCacheSizeBytes := 0  // Unlimited
-  else
-    FMaxCacheSizeBytes := Int64(ASizeMB) * 1024 * 1024;
+  FMaxCacheSizeBytes := BuildCacheSizeMBToBytes(ASizeMB);
+end;
+
+function TBuildCache.LoadCleanupInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+begin
+  Result := BuildCacheLoadCleanupArtifactInfo(AVersion,
+    @GetArtifactInfo, @GetBinaryArtifactInfo, AInfo);
 end;
 
 procedure TBuildCache.SaveArtifactMetadata(const AInfo: TArtifactInfo);
 var
   MetaPath: string;
-  MetaFile: TStringList;
 begin
   MetaPath := GetArtifactMetaPath(AInfo.Version);
-
-  MetaFile := TStringList.Create;
-  try
-    MetaFile.Add('version=' + AInfo.Version);
-    MetaFile.Add('cpu=' + GetCurrentCPU);
-    MetaFile.Add('os=' + GetCurrentOS);
-    MetaFile.Add('archive_path=' + AInfo.ArchivePath);
-    MetaFile.Add('created_at=' + FormatDateTime('yyyy-mm-dd hh:nn:ss', AInfo.CreatedAt));
-
-    MetaFile.SaveToFile(MetaPath);
-  finally
-    MetaFile.Free;
-  end;
+  BuildCacheSaveArtifactMeta(MetaPath, AInfo.Version, GetCurrentCPU, GetCurrentOS,
+    AInfo.ArchivePath, AInfo.CreatedAt);
 end;
 
 procedure TBuildCache.CleanupLRU;
 var
-  SR: TSearchRec;
-  Entries: array of TArtifactInfo;
-  Count: Integer;
-  TotalSize, MaxSize: Int64;
-  i, j: Integer;
-  OldestEntry: TArtifactInfo;
-  OldestIndex: Integer;
-  Version, MetaPath: string;
-  TempInfo: TArtifactInfo;
+  Entries: TBuildCacheArtifactInfoArray;
+  Victims: TStringArray;
+  Index: Integer;
+  MetaPath: string;
 begin
-  // If unlimited cache (0 = unlimited), do nothing
   if FMaxCacheSizeBytes = 0 then
     Exit;
 
   if not DirectoryExists(FCacheDir) then
     Exit;
 
-  // Collect all cache entries
-  Entries := nil;
-  Count := 0;
-  SetLength(Entries, 100);  // Initial capacity
-
-  if FindFirst(FCacheDirWithDelim + '*.tar.gz', faAnyFile, SR) = 0 then
+  Entries := BuildCacheCollectCleanupEntries(FCacheDirWithDelim, @LoadCleanupInfo);
+  Victims := BuildCacheSelectCleanupVictims(Entries, FMaxCacheSizeBytes);
+  for Index := 0 to High(Victims) do
   begin
-    repeat
-      if Count >= Length(Entries) then
-        SetLength(Entries, Length(Entries) * 2);
-
-      Initialize(Entries[Count]);
-      Entries[Count].ArchivePath := FCacheDirWithDelim + SR.Name;
-      Entries[Count].ArchiveSize := SR.Size;
-
-      // Extract version from filename using helper
-      Version := BuildCacheExtractVersionFromFilename(SR.Name);
-      if Version <> '' then
-      begin
-        Entries[Count].Version := Version;
-
-        // Try to get CreatedAt from metadata, fallback to file time
-        if GetArtifactInfo(Version, TempInfo) or GetBinaryArtifactInfo(Version, TempInfo) then
-          Entries[Count].CreatedAt := TempInfo.CreatedAt
-        else
-          Entries[Count].CreatedAt := SR.TimeStamp;
-      end
-      else
-        Entries[Count].CreatedAt := SR.TimeStamp;
-
-      Inc(Count);
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-
-  SetLength(Entries, Count);
-
-  // Calculate total size
-  TotalSize := 0;
-  for i := 0 to Count - 1 do
-    TotalSize := TotalSize + Entries[i].ArchiveSize;
-
-  MaxSize := FMaxCacheSizeBytes;
-
-  // Remove oldest entries until under limit
-  while (TotalSize > MaxSize) and (Count > 0) do
-  begin
-    // Find oldest entry
-    OldestIndex := 0;
-    OldestEntry := Entries[0];
-    for i := 1 to Count - 1 do
-    begin
-      if Entries[i].CreatedAt < OldestEntry.CreatedAt then
-      begin
-        OldestEntry := Entries[i];
-        OldestIndex := i;
-      end;
-    end;
-
-    // Delete oldest entry
-    if FileExists(OldestEntry.ArchivePath) then
-      DeleteFile(OldestEntry.ArchivePath);
-
-    // Delete metadata file
-    MetaPath := ChangeFileExt(OldestEntry.ArchivePath, '.meta');
+    if FileExists(Victims[Index]) then
+      DeleteFile(Victims[Index]);
+    MetaPath := ChangeFileExt(Victims[Index], '.meta');
     if FileExists(MetaPath) then
       DeleteFile(MetaPath);
-
-    TotalSize := TotalSize - OldestEntry.ArchiveSize;
-
-    // Remove from array
-    for j := OldestIndex to Count - 2 do
-      Entries[j] := Entries[j + 1];
-    Dec(Count);
   end;
 end;
 
@@ -904,7 +739,7 @@ end;
 
 function TBuildCache.GetJSONMetaPath(const AVersion: string): string;
 begin
-  Result := FCacheDirWithDelim + GetArtifactKey(AVersion) + '.json';
+  Result := BuildCacheGetJSONMetaPath(FCacheDirWithDelim, GetArtifactKey(AVersion));
 end;
 
 function TBuildCache.HasMetadataJSON(const AVersion: string): Boolean;
@@ -913,13 +748,16 @@ begin
 end;
 
 procedure TBuildCache.SaveMetadataJSON(const AInfo: TArtifactInfo);
+var
+  HelperInfo: TMetaJSONArtifactInfo;
 begin
+  HelperInfo := BuildCacheCreateMetaJSONArtifactInfo(AInfo);
   BuildCacheSaveMetadataJSON(
-    GetJSONMetaPath(AInfo.Version),
-    AInfo.Version, AInfo.CPU, AInfo.OS, AInfo.ArchivePath,
-    AInfo.ArchiveSize, AInfo.CreatedAt,
-    AInfo.SourceType, AInfo.SHA256, AInfo.DownloadURL, AInfo.SourcePath,
-    AInfo.AccessCount, AInfo.LastAccessed
+    GetJSONMetaPath(HelperInfo.Version),
+    HelperInfo.Version, HelperInfo.CPU, HelperInfo.OS, HelperInfo.ArchivePath,
+    HelperInfo.ArchiveSize, HelperInfo.CreatedAt,
+    HelperInfo.SourceType, HelperInfo.SHA256, HelperInfo.DownloadURL, HelperInfo.SourcePath,
+    HelperInfo.AccessCount, HelperInfo.LastAccessed
   );
 end;
 
@@ -929,54 +767,30 @@ var
 begin
   Result := BuildCacheLoadMetadataJSON(GetJSONMetaPath(AVersion), HelperInfo);
   if Result then
-  begin
-    AInfo.Version := HelperInfo.Version;
-    AInfo.CPU := HelperInfo.CPU;
-    AInfo.OS := HelperInfo.OS;
-    AInfo.ArchivePath := HelperInfo.ArchivePath;
-    AInfo.ArchiveSize := HelperInfo.ArchiveSize;
-    AInfo.CreatedAt := HelperInfo.CreatedAt;
-    AInfo.SourceType := HelperInfo.SourceType;
-    AInfo.SHA256 := HelperInfo.SHA256;
-    AInfo.DownloadURL := HelperInfo.DownloadURL;
-    AInfo.SourcePath := HelperInfo.SourcePath;
-    AInfo.AccessCount := HelperInfo.AccessCount;
-    AInfo.LastAccessed := HelperInfo.LastAccessed;
-  end
+    AInfo := BuildCacheCreateJSONArtifactInfo(HelperInfo)
   else
     Initialize(AInfo);
 end;
 
 function TBuildCache.MigrateMetadataToJSON(const AVersion: string): Boolean;
 var
-  OldMetaPath, BackupPath: string;
   Info: TArtifactInfo;
+  OldMetaPath: string;
 begin
   Result := False;
 
-  // Check if old .meta file exists
   OldMetaPath := GetArtifactMetaPath(AVersion);
   if not FileExists(OldMetaPath) then
     Exit;
 
-  // Read old format using existing GetArtifactInfo
   if not GetArtifactInfo(AVersion, Info) then
     Exit;
 
-  // Save in new JSON format
   SaveMetadataJSON(Info);
-
-  // Verify JSON was created
   if not HasMetadataJSON(AVersion) then
     Exit;
 
-  // Backup old .meta file
-  BackupPath := OldMetaPath + '.bak';
-  if FileExists(BackupPath) then
-    DeleteFile(BackupPath);
-  RenameFile(OldMetaPath, BackupPath);
-
-  Result := True;
+  Result := BuildCacheFinalizeMetaMigration(OldMetaPath);
 end;
 
 { Cache Index Methods }
@@ -1011,9 +825,9 @@ end;
 
 procedure TBuildCache.RebuildIndex;
 var
+  Index: Integer;
+  Infos: TBuildCacheRebuildInfoArray;
   Versions: SysUtils.TStringArray;
-  Info: TArtifactInfo;
-  i: Integer;
 begin
   // B065: Clear and mark as loaded, prevent UpdateIndexEntry from backfilling old index
   FIndexEntries.Clear;
@@ -1023,11 +837,9 @@ begin
     Exit;
 
   Versions := BuildCacheListMetadataVersions(FCacheDirWithDelim);
-  for i := 0 to High(Versions) do
-  begin
-    if LoadMetadataJSON(Versions[i], Info) then
-      UpdateIndexEntry(Info);
-  end;
+  Infos := BuildCacheCollectRebuildInfos(Versions, @LoadMetadataJSON);
+  for Index := 0 to High(Infos) do
+    UpdateIndexEntry(Infos[Index]);
 
   SaveIndex;
 end;
@@ -1041,238 +853,70 @@ end;
 function TBuildCache.LookupIndexEntry(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 var
   EntryJSON: string;
-  JSONObj: TJSONObject;
-  DateStr: string;
-  LastAccessedStr: string;
 begin
-  Result := False;
-  Initialize(AInfo);
   EnsureIndexLoaded;
 
   EntryJSON := BuildCacheGetIndexEntryJSON(FIndexEntries, AVersion);
   if EntryJSON = '' then
-    Exit;
-
-  try
-    if not BuildCacheParseIndexEntryJSON(EntryJSON, JSONObj) then
-      Exit;
-
-    try
-      AInfo.Version := JSONObj.Get('version', '');
-      AInfo.CPU := JSONObj.Get('cpu', '');
-      AInfo.OS := JSONObj.Get('os', '');
-      AInfo.ArchivePath := JSONObj.Get('archive_path', '');
-      AInfo.ArchiveSize := JSONObj.Get('archive_size', Int64(0));
-      AInfo.SourceType := JSONObj.Get('source_type', '');
-      AInfo.SHA256 := JSONObj.Get('sha256', '');
-      AInfo.DownloadURL := JSONObj.Get('download_url', '');
-      AInfo.SourcePath := JSONObj.Get('source_path', '');
-      AInfo.AccessCount := JSONObj.Get('access_count', 0);
-
-      BuildCacheGetNormalizedIndexDates(JSONObj, DateStr, LastAccessedStr);
-
-      if DateStr <> '' then
-        AInfo.CreatedAt := BuildCacheParseDateTimeString(DateStr);
-
-      if LastAccessedStr <> '' then
-        AInfo.LastAccessed := BuildCacheParseDateTimeString(LastAccessedStr)
-      else
-        AInfo.LastAccessed := 0;
-
-      Result := AInfo.Version <> '';
-    finally
-      JSONObj.Free;
-    end;
-  except
-    Result := False;
+  begin
+    Initialize(AInfo);
+    Exit(False);
   end;
+
+  Result := BuildCacheLookupIndexArtifactInfo(EntryJSON, AInfo);
 end;
 
 procedure TBuildCache.UpdateIndexEntry(const AInfo: TArtifactInfo);
-var
-  Idx: Integer;
-  EntryStr: string;
 begin
   EnsureIndexLoaded;
-  EntryStr := BuildCacheBuildIndexEntryJSON(
-    AInfo.Version,
-    AInfo.CPU,
-    AInfo.OS,
-    AInfo.ArchivePath,
-    AInfo.ArchiveSize,
-    AInfo.SourceType,
-    AInfo.SHA256,
-    AInfo.DownloadURL,
-    AInfo.SourcePath,
-    AInfo.AccessCount,
-    AInfo.CreatedAt,
-    AInfo.LastAccessed);
-
-  // For sorted list, we need to delete and re-add
-  Idx := FIndexEntries.IndexOfName(AInfo.Version);
-  if Idx >= 0 then
-    FIndexEntries.Delete(Idx);
-  FIndexEntries.Add(EntryStr);
+  BuildCacheUpsertIndexEntry(FIndexEntries, AInfo);
 end;
 
 procedure TBuildCache.RemoveIndexEntry(const AVersion: string);
-var
-  Idx: Integer;
 begin
   EnsureIndexLoaded;
-  Idx := FIndexEntries.IndexOfName(AVersion);
-  if Idx >= 0 then
-    FIndexEntries.Delete(Idx);
+  BuildCacheRemoveIndexEntryVersion(FIndexEntries, AVersion);
 end;
 
 function TBuildCache.GetIndexStatistics: TCacheIndexStats;
 var
-  i: Integer;
-  Info: TArtifactInfo;
+  Infos: TBuildCacheIndexInfoArray;
 begin
   EnsureIndexLoaded;
-  Initialize(Result);
-  Result.TotalEntries := FIndexEntries.Count;
-
-  BuildCacheIndexStatsInit(Result.TotalSize, Result.OldestDate, Result.NewestDate,
-    Result.OldestVersion, Result.NewestVersion);
-
-  for i := 0 to FIndexEntries.Count - 1 do
-  begin
-    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
-      BuildCacheIndexStatsAccumulate(Info.Version, Info.ArchiveSize, Info.CreatedAt,
-        Result.TotalSize, Result.OldestDate, Result.NewestDate,
-        Result.OldestVersion, Result.NewestVersion);
-  end;
-
-  BuildCacheIndexStatsFinalize(Result.TotalEntries, Result.OldestDate, Result.NewestDate);
+  Infos := BuildCacheCollectIndexInfos(FIndexEntries, @LookupIndexEntry);
+  Result := BuildCacheCalculateIndexStats(Infos, FIndexEntries.Count);
 end;
 
 { Phase 3: Statistics Enhancement Methods }
 
 procedure TBuildCache.RecordAccess(const AVersion: string);
-var
-  Info: TArtifactInfo;
 begin
-  if not LookupIndexEntry(AVersion, Info) then
-    Exit;
-
-  // Update access count and last accessed time
-  Inc(Info.AccessCount);
-  Info.LastAccessed := Now;
-
-  // Update index entry
-  UpdateIndexEntry(Info);
-
-  // Save to JSON metadata file
-  SaveMetadataJSON(Info);
-
-  // Save index
-  SaveIndex;
+  BuildCacheRecordIndexAccessCore(
+    AVersion,
+    Now,
+    @LookupIndexEntry,
+    @UpdateIndexEntry,
+    @SaveMetadataJSON,
+    @SaveIndex
+  );
 end;
 
 function TBuildCache.GetDetailedStats: TCacheDetailedStats;
 var
-  i: Integer;
-  Info: TArtifactInfo;
+  Infos: TBuildCacheIndexInfoArray;
 begin
   EnsureIndexLoaded;
-  Initialize(Result);
-  Result.TotalEntries := FIndexEntries.Count;
-  Result.TotalSize := 0;
-  Result.TotalAccesses := 0;
-  Result.MostAccessedCount := -1;
-  Result.LeastAccessedCount := MaxInt;
-
-  for i := 0 to FIndexEntries.Count - 1 do
-  begin
-    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
-    begin
-      Result.TotalSize := Result.TotalSize + Info.ArchiveSize;
-      Result.TotalAccesses := Result.TotalAccesses + Info.AccessCount;
-
-      if Info.AccessCount > Result.MostAccessedCount then
-      begin
-        Result.MostAccessedCount := Info.AccessCount;
-        Result.MostAccessedVersion := Info.Version;
-      end;
-
-      if Info.AccessCount < Result.LeastAccessedCount then
-      begin
-        Result.LeastAccessedCount := Info.AccessCount;
-        Result.LeastAccessedVersion := Info.Version;
-      end;
-    end;
-  end;
-
-  // Calculate average entry size
-  if Result.TotalEntries > 0 then
-    Result.AverageEntrySize := Result.TotalSize div Result.TotalEntries
-  else
-    Result.AverageEntrySize := 0;
-
-  // Reset counts if no entries found
-  if Result.TotalEntries = 0 then
-  begin
-    Result.MostAccessedCount := 0;
-    Result.LeastAccessedCount := 0;
-  end;
+  Infos := BuildCacheCollectIndexInfos(FIndexEntries, @LookupIndexEntry);
+  Result := BuildCacheGetDetailedStatsCore(Infos);
 end;
 
 function TBuildCache.GetLeastRecentlyUsed: string;
 var
-  i: Integer;
-  Info: TArtifactInfo;
-  OldestTime: TDateTime;
-  LRUVersion: string;
-  HasNeverAccessed: Boolean;
+  Infos: TBuildCacheIndexInfoArray;
 begin
   EnsureIndexLoaded;
-  Result := '';
-  OldestTime := MaxDateTime;
-  LRUVersion := '';
-  HasNeverAccessed := False;
-
-  // First pass: find any never-accessed entries (they are the true LRU)
-  for i := 0 to FIndexEntries.Count - 1 do
-  begin
-    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
-    begin
-      if Info.LastAccessed = 0 then
-      begin
-        // Never accessed - use CreatedAt to compare among never-accessed entries
-        if (not HasNeverAccessed) or (Info.CreatedAt < OldestTime) then
-        begin
-          OldestTime := Info.CreatedAt;
-          LRUVersion := Info.Version;
-          HasNeverAccessed := True;
-        end;
-      end;
-    end;
-  end;
-
-  // If we found never-accessed entries, return the oldest one
-  if HasNeverAccessed then
-  begin
-    Result := LRUVersion;
-    Exit;
-  end;
-
-  // Second pass: all entries have been accessed, find the one with oldest LastAccessed
-  OldestTime := MaxDateTime;
-  for i := 0 to FIndexEntries.Count - 1 do
-  begin
-    if LookupIndexEntry(FIndexEntries.Names[i], Info) then
-    begin
-      if Info.LastAccessed < OldestTime then
-      begin
-        OldestTime := Info.LastAccessed;
-        LRUVersion := Info.Version;
-      end;
-    end;
-  end;
-
-  Result := LRUVersion;
+  Infos := BuildCacheCollectIndexInfos(FIndexEntries, @LookupIndexEntry);
+  Result := BuildCacheSelectLeastRecentlyUsed(Infos);
 end;
 
 function TBuildCache.GetStatsReport: string;

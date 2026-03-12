@@ -79,7 +79,7 @@ end;
 
 procedure TestLazarusDefaultAliasRegistered;
 begin
-  Check(HasSubcommand(['lazarus'], 'default'), 'lazarus default: alias registered');
+  Check(not HasSubcommand(['lazarus'], 'default'), 'lazarus default alias removed');
 end;
 
 procedure TestLazarusRunRegistered;
@@ -134,7 +134,7 @@ var
   Children: TStringArray;
 begin
   Children := GlobalCommandRegistry.ListChildren(['lazarus']);
-  Check(Length(Children) >= 13, 'lazarus: at least 13 subcommands');
+  Check(Length(Children) >= 12, 'lazarus: at least 12 subcommands');
 end;
 
 begin

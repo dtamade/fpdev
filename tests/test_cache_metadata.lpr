@@ -4,7 +4,7 @@ program test_cache_metadata;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
 
 var
   TestsPassed: Integer = 0;
@@ -24,6 +24,56 @@ begin
   end;
 end;
 
+function MakeTempDir(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
+  ForceDirectories(Result);
+end;
+
+procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
+begin
+  Assert(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(APath)) = 1,
+    ATestName
+  );
+end;
+
+procedure CleanupTestDir(const ADir: string);
+begin
+  if DirectoryExists(ADir) then
+    DeleteDirRecursive(ADir);
+end;
+
+procedure TestCleanupRemovesNestedDirectories;
+var
+  CacheDir: string;
+  NestedDir: string;
+  NestedFile: string;
+  TestData: TStringList;
+begin
+  WriteLn('=== TestCleanupRemovesNestedDirectories ===');
+
+  CacheDir := MakeTempDir('fpdev-test-cache-metadata-cleanup');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Cache metadata cleanup temp directory should live under system temp');
+
+  NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
+  NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'metadata.json';
+  ForceDirectories(NestedDir);
+
+  TestData := TStringList.Create;
+  try
+    TestData.Add('{"version":"3.2.2"}');
+    TestData.SaveToFile(NestedFile);
+  finally
+    TestData.Free;
+  end;
+
+  CleanupTestDir(CacheDir);
+  Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache metadata test directory');
+end;
+
 procedure TestJSONMetadataWrite;
 var
   Cache: TBuildCache;
@@ -33,13 +83,12 @@ var
 begin
   WriteLn('=== TestJSONMetadataWrite ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-json-write-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-json-write');
+  AssertPathIsUnderSystemTemp(CacheDir, 'JSON write temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create artifact info
       Initialize(Info);
       Info.Version := '3.2.2';
       Info.CPU := 'x86_64';
@@ -51,14 +100,11 @@ begin
       Info.SHA256 := 'abc123def456';
       Info.DownloadURL := 'https://example.com/fpc.tar.gz';
 
-      // Save metadata in JSON format
       Cache.SaveMetadataJSON(Info);
 
-      // Verify JSON file was created
       MetaPath := CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.json';
       Assert(FileExists(MetaPath), 'JSON metadata file should be created');
 
-      // Read and verify JSON structure
       MetaContent := TStringList.Create;
       try
         MetaContent.LoadFromFile(MetaPath);
@@ -73,17 +119,11 @@ begin
       finally
         MetaContent.Free;
       end;
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-    begin
-      DeleteFile(CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.json');
-      RemoveDir(CacheDir);
-    end;
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -97,11 +137,10 @@ var
 begin
   WriteLn('=== TestJSONMetadataRead ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-json-read-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-json-read');
+  AssertPathIsUnderSystemTemp(CacheDir, 'JSON read temp directory should live under system temp');
 
   try
-    // Create JSON metadata file manually
     MetaPath := CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.json';
     TestTime := EncodeDateTime(2026, 1, 16, 10, 30, 0, 0);
 
@@ -127,10 +166,7 @@ begin
 
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Read metadata from JSON
       Assert(Cache.LoadMetadataJSON('3.2.2', Info), 'Should successfully load JSON metadata');
-
-      // Verify all fields were parsed correctly
       Assert(Info.Version = '3.2.2', 'Version should be parsed correctly');
       Assert(Info.CPU = 'x86_64', 'CPU should be parsed correctly');
       Assert(Info.OS = 'linux', 'OS should be parsed correctly');
@@ -138,20 +174,12 @@ begin
       Assert(Info.SourceType = 'binary', 'SourceType should be parsed correctly');
       Assert(Info.SHA256 = 'deadbeef123456', 'SHA256 should be parsed correctly');
       Assert(Info.DownloadURL = 'https://example.com/fpc.tar.gz', 'DownloadURL should be parsed correctly');
-
-      // Verify date parsing (allow 1 second tolerance)
       Assert(Abs(Info.CreatedAt - TestTime) < (1 / 86400), 'CreatedAt should be parsed correctly');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-    begin
-      DeleteFile(MetaPath);
-      RemoveDir(CacheDir);
-    end;
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -164,11 +192,10 @@ var
 begin
   WriteLn('=== TestBackwardCompatibility ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-compat-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-compat');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Backward compatibility temp directory should live under system temp');
 
   try
-    // Create old-format .meta file (key=value format)
     OldMetaPath := CacheDir + PathDelim + 'fpc-3.2.0-x86_64-linux.meta';
     MetaContent := TStringList.Create;
     try
@@ -185,27 +212,15 @@ begin
 
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Test 1: Old format should still be readable via GetArtifactInfo
       Assert(Cache.GetArtifactInfo('3.2.0', Info), 'Should read old .meta format');
       Assert(Info.Version = '3.2.0', 'Version from old format should be correct');
       Assert(Info.ArchiveSize = 55555555, 'ArchiveSize from old format should be correct');
-
-      // Test 2: HasMetadataJSON should return false for old format
       Assert(not Cache.HasMetadataJSON('3.2.0'), 'Old format should not be detected as JSON');
-
-      // Test 3: HasMetadataJSON should return true after migration
-      // (Migration would be triggered by MigrateToJSON method)
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-    begin
-      DeleteFile(OldMetaPath);
-      RemoveDir(CacheDir);
-    end;
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -218,11 +233,10 @@ var
 begin
   WriteLn('=== TestMetadataMigration ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-migrate-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-migrate');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Metadata migration temp directory should live under system temp');
 
   try
-    // Create old-format .meta file
     OldMetaPath := CacheDir + PathDelim + 'fpc-3.2.1-x86_64-linux.meta';
     MetaContent := TStringList.Create;
     try
@@ -239,36 +253,19 @@ begin
 
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Test 1: Migrate old format to JSON
       Assert(Cache.MigrateMetadataToJSON('3.2.1'), 'Migration should succeed');
-
-      // Test 2: JSON file should exist after migration
       NewMetaPath := CacheDir + PathDelim + 'fpc-3.2.1-x86_64-linux.json';
       Assert(FileExists(NewMetaPath), 'JSON file should exist after migration');
-
-      // Test 3: Old .meta file should be backed up
       Assert(FileExists(OldMetaPath + '.bak'), 'Old .meta should be backed up');
-
-      // Test 4: Data integrity - read migrated JSON and verify
       Assert(Cache.LoadMetadataJSON('3.2.1', Info), 'Should load migrated JSON');
       Assert(Info.Version = '3.2.1', 'Migrated version should be correct');
       Assert(Info.ArchiveSize = 66666666, 'Migrated archive_size should be correct');
-
-      // Test 5: HasMetadataJSON should return true after migration
       Assert(Cache.HasMetadataJSON('3.2.1'), 'Should detect JSON after migration');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-    begin
-      DeleteFile(OldMetaPath);
-      DeleteFile(OldMetaPath + '.bak');
-      DeleteFile(CacheDir + PathDelim + 'fpc-3.2.1-x86_64-linux.json');
-      RemoveDir(CacheDir);
-    end;
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -281,13 +278,12 @@ var
 begin
   WriteLn('=== TestJSONRoundTrip ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-roundtrip-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-roundtrip');
+  AssertPathIsUnderSystemTemp(CacheDir, 'JSON round-trip temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create artifact info with all fields
       TestTime := EncodeDateTime(2026, 1, 16, 14, 30, 45, 0);
       Initialize(InfoIn);
       InfoIn.Version := '3.2.3';
@@ -301,13 +297,8 @@ begin
       InfoIn.DownloadURL := 'https://roundtrip.example.com/fpc.tar.gz';
       InfoIn.SourcePath := '/opt/fpc/3.2.3';
 
-      // Save to JSON
       Cache.SaveMetadataJSON(InfoIn);
-
-      // Load from JSON
       Assert(Cache.LoadMetadataJSON('3.2.3', InfoOut), 'Should load saved JSON');
-
-      // Verify round-trip integrity
       Assert(InfoOut.Version = InfoIn.Version, 'Version should survive round-trip');
       Assert(InfoOut.CPU = InfoIn.CPU, 'CPU should survive round-trip');
       Assert(InfoOut.OS = InfoIn.OS, 'OS should survive round-trip');
@@ -316,17 +307,11 @@ begin
       Assert(InfoOut.SHA256 = InfoIn.SHA256, 'SHA256 should survive round-trip');
       Assert(InfoOut.DownloadURL = InfoIn.DownloadURL, 'DownloadURL should survive round-trip');
       Assert(Abs(InfoOut.CreatedAt - InfoIn.CreatedAt) < (1 / 86400), 'CreatedAt should survive round-trip');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-    begin
-      DeleteFile(CacheDir + PathDelim + 'fpc-3.2.3-aarch64-darwin.json');
-      RemoveDir(CacheDir);
-    end;
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -335,6 +320,7 @@ begin
   WriteLn('Running Cache JSON Metadata Tests...');
   WriteLn;
 
+  TestCleanupRemovesNestedDirectories;
   TestJSONMetadataWrite;
   TestJSONMetadataRead;
   TestBackwardCompatibility;

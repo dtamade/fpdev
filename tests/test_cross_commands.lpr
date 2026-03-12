@@ -94,7 +94,7 @@ end;
 
 procedure TestCrossAliasXRegistered;
 begin
-  Check(HasSubcommand([], 'x'), 'x: alias registered');
+  Check(not HasSubcommand([], 'x'), 'x alias removed');
 end;
 
 { --- Count Tests --- }

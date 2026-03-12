@@ -7,7 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, Process, fpjson, jsonparser, fpdev.cmd.package.test;
+  SysUtils, Classes, Process, fpjson, jsonparser, fpdev.package.testing,
+  test_temp_paths;
 
 type
   { TPackageTestTest }
@@ -55,15 +56,24 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_package_test_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestDataDir := CreateUniqueTempDir('test_package_test_data');
+  FTempDir := '';
 end;
 
 destructor TPackageTestTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTempDir <> '' then
+  begin
+    CleanupTempDir(FTempDir);
+    FTempDir := '';
+  end;
+
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    FTestDataDir := '';
+  end;
+
   inherited Destroy;
 end;
 
@@ -146,44 +156,23 @@ begin
 end;
 
 procedure TPackageTestTest.CleanupTestFiles;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
+begin
+  if FTestDataDir <> '' then
   begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
+    CleanupTempDir(FTestDataDir);
+    ForceDirectories(FTestDataDir);
   end;
 
-begin
-  if DirectoryExists(FTestDataDir) then
-    DeleteDirectory(FTestDataDir);
-
-  // Clean up temp directory if it exists
-  if (FTempDir <> '') and DirectoryExists(FTempDir) then
-    DeleteDirectory(FTempDir);
+  if FTempDir <> '' then
+  begin
+    CleanupTempDir(FTempDir);
+    FTempDir := '';
+  end;
 end;
 
 procedure TPackageTestTest.TestExtractPackageToTempDir;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
   ArchivePath: string;
   ExtractedDir: string;
 begin
@@ -199,7 +188,7 @@ begin
   CreateTestArchive('testpkg-1.0.0.tar.gz');
   ArchivePath := FTestDataDir + PathDelim + 'testpkg-1.0.0.tar.gz';
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     ExtractedDir := Cmd.ExtractToTempDir(ArchivePath);
     AssertTrue(ExtractedDir <> '', 'Should return extracted directory path');
@@ -214,7 +203,7 @@ end;
 
 procedure TPackageTestTest.TestExtractInvalidArchive;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
   InvalidPath: string;
   ExtractedDir: string;
 begin
@@ -230,7 +219,7 @@ begin
   CreateTestFile('invalid.tar.gz', 'This is not a valid tar.gz file');
   InvalidPath := FTestDataDir + PathDelim + 'invalid.tar.gz';
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     ExtractedDir := Cmd.ExtractToTempDir(InvalidPath);
     AssertTrue(ExtractedDir = '', 'Should return empty string for invalid archive');
@@ -284,7 +273,7 @@ end;
 
 procedure TPackageTestTest.TestInstallDependencies;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
   RegistryDir: string;
   F: TextFile;
 begin
@@ -316,7 +305,7 @@ begin
   Write(F, '{"name":"libfoo","version":"1.0.0"}');
   CloseFile(F);
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     Cmd.RegistryPath := RegistryDir;
     AssertTrue(Cmd.InstallDependencies(FTestDataDir), 'Should install package dependencies');
@@ -327,7 +316,7 @@ end;
 
 procedure TPackageTestTest.TestRunTestScript;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
 begin
   WriteLn;
   WriteLn('=== Test: Run Test Script ===');
@@ -341,7 +330,7 @@ begin
   CreateTestFile('package.json',
     '{"name":"testpkg","version":"1.0.0","scripts":{"test":"echo Test passed"}}');
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     AssertTrue(Cmd.RunTests(FTestDataDir), 'Should run test script from package.json');
   finally
@@ -351,7 +340,7 @@ end;
 
 procedure TPackageTestTest.TestCleanupTempDir;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
   F: TextFile;
   TestFile: string;
 begin
@@ -359,8 +348,7 @@ begin
   WriteLn('=== Test: Cleanup Temp Dir ===');
 
   // Create a temporary directory
-  FTempDir := GetTempDir + 'fpdev-test-' + IntToStr(Random(99999));
-  ForceDirectories(FTempDir);
+  FTempDir := CreateUniqueTempDir('fpdev-test-package-cleanup');
 
   // Create some test files in temp dir (directly, not using CreateTestFile)
   TestFile := FTempDir + PathDelim + 'test.txt';
@@ -374,7 +362,7 @@ begin
 
   AssertTrue(DirectoryExists(FTempDir), 'Temp directory should exist before cleanup');
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     AssertTrue(Cmd.CleanupTempDir(FTempDir), 'Should cleanup temporary directory');
     AssertTrue(not DirectoryExists(FTempDir), 'Temp directory should not exist after cleanup');
@@ -388,7 +376,7 @@ end;
 
 procedure TPackageTestTest.TestTestFailureHandling;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
 begin
   WriteLn;
   WriteLn('=== Test: Test Failure Handling ===');
@@ -402,7 +390,7 @@ begin
   CreateTestFile('package.json',
     '{"name":"testpkg","version":"1.0.0","scripts":{"test":"exit 1"}}');
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     AssertTrue(not Cmd.RunTests(FTestDataDir), 'Should return false for failing test');
     AssertTrue(Cmd.GetLastError <> '', 'Should set error message for failing test');
@@ -413,7 +401,7 @@ end;
 
 procedure TPackageTestTest.TestMissingTestScript;
 var
-  Cmd: TPackageTestCommand;
+  Cmd: TPackageTestRunner;
 begin
   WriteLn;
   WriteLn('=== Test: Missing Test Script ===');
@@ -427,7 +415,7 @@ begin
   CreateTestFile('package.json',
     '{"name":"testpkg","version":"1.0.0"}');
 
-  Cmd := TPackageTestCommand.Create;
+  Cmd := TPackageTestRunner.Create;
   try
     AssertTrue(not Cmd.RunTests(FTestDataDir), 'Should return false for missing test script');
     AssertTrue(Cmd.GetLastError <> '', 'Should set error message for missing test script');

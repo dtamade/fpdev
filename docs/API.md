@@ -173,27 +173,37 @@ FPDev设置记录：
 
 ## 命令处理 API (fpdev.cmd)
 
-### TFPCMD 类
+### `ICommand` 接口
 
-命令处理的基类，提供命令执行框架。
+当前命令系统通过 `ICommand` 接口和命令注册表工作，而不是旧的类继承式命令模型。
 
 ```pascal
-TFPCMD = class
-private
-  FParams: TStringArray;
-  FChilds: array of TFPCMD;
-public
-  constructor Create(const aParams: array of string);
-  procedure Execute; virtual;
-  procedure AddChild(const aChild: TFPCMD);
-  function Find(const aName: string): TFPCMD;
+ICommand = interface
+  function Name: string;
+  function Aliases: TStringArray;
+  function FindSub(const AName: string): ICommand;
+  function Execute(const AParams: array of string; const Ctx: IContext): Integer;
 end;
 ```
 
-- `Create`: 创建命令对象
-- `Execute`: 执行命令（虚方法，需要子类实现）
-- `AddChild`: 添加子命令
-- `Find`: 查找子命令
+- `Name`: 返回命令名
+- `Aliases`: 返回命令别名
+- `FindSub`: 查找子命令
+- `Execute`: 在给定 `IContext` 下执行命令
+
+### `TCommandRegistry`
+
+```pascal
+TCommandRegistry = class
+  procedure RegisterPath(const APath: array of string; AFactory: TCommandFactory; const Aliases: array of string);
+  function DispatchPath(const AArgs: array of string; const Ctx: IContext): Integer;
+  function ListChildren(const APath: array of string): TStringArray;
+end;
+```
+
+- `RegisterPath`: 注册命令路径
+- `DispatchPath`: 按路径分发命令
+- `ListChildren`: 列出某个命令节点下的可用子命令
 
 ## 工具函数 API (fpdev.utils)
 
@@ -263,13 +273,11 @@ end;
 
 ```pascal
 var
-  Cmd: TFPCMD;
+  Registry: TCommandRegistry;
+  Ctx: IContext;
 begin
-  Cmd := TFPCMD.Create(['help', 'version']);
-  try
-    Cmd.Execute;
-  finally
-    Cmd.Free;
-  end;
+  Registry := GlobalCommandRegistry;
+  Ctx := TDefaultCommandContext.Create;
+  Registry.DispatchPath(['fpc', 'list'], Ctx);
 end;
 ```

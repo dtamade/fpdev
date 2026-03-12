@@ -22,7 +22,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectTemplateRemoveCommand.Name: string; begin Result := 'remove'; end;
 function TProjectTemplateRemoveCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -73,6 +73,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['project','template','remove'], @ProjectTemplateRemoveFactory, ['rm']);
+  GlobalCommandRegistry.RegisterPath(['project','template','remove'], @ProjectTemplateRemoveFactory, []);
 
 end.

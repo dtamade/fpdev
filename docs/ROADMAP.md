@@ -155,14 +155,14 @@ Following the TODO-FPC-v1.md philosophy:
   - **Implemented**: Phase 3.1
   - **Tests**: 8/8 passing (test_dependency_resolver.lpr)
 
-- [x] **Package verification** ✅ COMPLETE (`fpdev.cmd.package.validate.pas`)
+- [x] **Package verification** ✅ COMPLETE (`fpdev.package.validation.pas`)
   - Impact: MEDIUM - Security and integrity
   - Complexity: MEDIUM - Checksum verification + signature checks
   - Dependencies: Package metadata
   - **Implemented**: Week 9
   - **Tests**: 22/22 passing (test_package_validate.lpr)
 
-- [x] **Create package functionality** ✅ COMPLETE (`fpdev.cmd.package.create.pas`)
+- [x] **Create package functionality** ✅ COMPLETE (`fpdev.package.creation.pas`)
   - Impact: MEDIUM - Package authoring
   - Complexity: MEDIUM - Metadata generation + archive creation
   - Dependencies: None
@@ -337,12 +337,13 @@ Following the TODO-FPC-v1.md philosophy:
 - **Implementation**: TCrossToolchainDownloader with manifest management, platform detection, retry logic, SHA256 verification
 - **Priority**: 🔵 LOW
 
-#### 3.3 Package Authoring ✅ COMPLETE
-- [x] Implement `fpdev package create`
+#### 3.3 Package Authoring Core ✅ COMPLETE
 - [x] Design package metadata schema
-- [x] Add archive creation logic
+- [x] Add archive creation and validation logic
+- [x] Implement package publish/test/validate workflows
+- **CLI Contract (2026-03-05)**: `fpdev package create` is not a registered public command.
 - **Tests**: Week 9 - 53/53 passing, Week 10 - 109/109 passing
-- **Implementation**: TPackageArchiver, TPackageTestCommand, TPackageValidator, TPackagePublishCommand, TPackageSearchCommand
+- **Implementation**: TPackageArchiver, TPackageTestRunner, TPackageValidator, TPackagePublishCommand, TPackageSearchCommand
 - **Priority**: 🔵 LOW
 
 #### 3.4 Lazarus IDE Integration ✅ COMPLETE

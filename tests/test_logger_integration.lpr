@@ -3,7 +3,7 @@ program test_logger_integration;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, DateUtils,
+  Classes, SysUtils, DateUtils, test_temp_paths,
   fpdev.logger.intf,
   fpdev.logger.structured,
   fpdev.logger.rotator,
@@ -25,32 +25,6 @@ begin
     Inc(TestsFailed);
     WriteLn('[FAIL] ', TestName);
   end;
-end;
-
-procedure CleanupTestDir(const ADir: string);
-var
-  SR: TSearchRec;
-  FilePath: string;
-begin
-  if not DirectoryExists(ADir) then
-    Exit;
-
-  if FindFirst(ADir + PathDelim + '*.*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name <> '.') and (SR.Name <> '..') then
-      begin
-        FilePath := ADir + PathDelim + SR.Name;
-        if (SR.Attr and faDirectory) <> 0 then
-          RemoveDir(FilePath)
-        else
-          DeleteFile(FilePath);
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-
-  RemoveDir(ADir);
 end;
 
 function CreateTestContext(const ASource: string): TLogContext;
@@ -76,7 +50,7 @@ var
 begin
   WriteLn('=== Test 1: Logger + Rotator Integration ===');
 
-  LogDir := 'test_logger_integration_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_logger_integration');
   LogFile := LogDir + PathDelim + 'app.log';
 
   try
@@ -122,7 +96,7 @@ begin
     Assert(FileExists(LogFile), 'New log file should exist after rotation');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -143,7 +117,7 @@ var
 begin
   WriteLn('=== Test 2: Full Logging Pipeline (Logger + Rotator + Archiver) ===');
 
-  LogDir := 'test_full_pipeline_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_full_pipeline');
   ArchiveDir := LogDir + PathDelim + 'archive';
   LogFile := LogDir + PathDelim + 'app.log';
 
@@ -203,7 +177,7 @@ begin
            'At least one archived file should exist');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -220,7 +194,7 @@ var
 begin
   WriteLn('=== Test 3: Multiple Rotation Cycles ===');
 
-  LogDir := 'test_multi_rotation_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_multi_rotation');
   LogFile := LogDir + PathDelim + 'app.log';
 
   try
@@ -265,7 +239,7 @@ begin
     Assert(not FileExists(LogFile + '.4'), 'Fourth rotated file should not exist (MaxFiles=3)');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -282,7 +256,7 @@ var
 begin
   WriteLn('=== Test 4: Log Levels with Rotation ===');
 
-  LogDir := 'test_levels_rotation_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_levels_rotation');
   LogFile := LogDir + PathDelim + 'app.log';
 
   try
@@ -327,7 +301,7 @@ begin
     Assert(FileExists(LogFile + '.1'), 'Rotated log file should exist');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -350,7 +324,7 @@ var
 begin
   WriteLn('=== Test 5: Archive Cleanup ===');
 
-  LogDir := 'test_archive_cleanup_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_archive_cleanup');
   ArchiveDir := LogDir + PathDelim + 'archive';
   LogFile := LogDir + PathDelim + 'app.log';
 
@@ -406,7 +380,7 @@ begin
     Assert(not FileExists(OldArchive), 'Old archive should be deleted after cleanup');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -422,7 +396,7 @@ var
 begin
   WriteLn('=== Test 6: Concurrent Logging (Stress Test) ===');
 
-  LogDir := 'test_concurrent_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_concurrent');
   LogFile := LogDir + PathDelim + 'app.log';
 
   try
@@ -451,7 +425,7 @@ begin
     Assert(FileExists(LogFile), 'Log file should exist after stress test');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 
@@ -466,7 +440,7 @@ var
 begin
   WriteLn('=== Test 7: File and Console Output Toggle ===');
 
-  LogDir := 'test_output_toggle_' + IntToStr(Random(100000000));
+  LogDir := CreateUniqueTempDir('test_output_toggle');
   LogFile := LogDir + PathDelim + 'app.log';
 
   try
@@ -502,7 +476,7 @@ begin
     Assert(Logger.IsConsoleOutputEnabled, 'Console output should be re-enabled');
 
   finally
-    CleanupTestDir(LogDir);
+    CleanupTempDir(LogDir);
   end;
 end;
 

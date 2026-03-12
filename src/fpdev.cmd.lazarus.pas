@@ -33,8 +33,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.output.intf, fpdev.output.console, fpdev.config.interfaces,
-  fpdev.lazarus.source, fpdev.lazarus.config, fpdev.utils.fs, fpdev.utils.process,
-  fpdev.utils.git,
+  fpdev.lazarus.source, fpdev.lazarus.config, fpdev.utils, fpdev.utils.fs,
+  fpdev.utils.process, fpdev.utils.git,
   fpdev.i18n, fpdev.i18n.strings;
 
 type
@@ -64,6 +64,8 @@ type
     function GetVersionInstallPath(const AVersion: string): string;
     function IsVersionInstalled(const AVersion: string): Boolean;
     function GetCompatibleFPCVersion(const ALazarusVersion: string): string;
+    function CleanSourceArtifacts(const ASourceDir: string): Integer;
+    function LaunchLazarusExecutable(const AExecutable: string): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager);
@@ -113,7 +115,7 @@ type
 implementation
 
 uses
-  fpdev.version.registry, fpdev.constants;
+  fpdev.version.registry, fpdev.constants, fpdev.lazarus.commandflow;
 
 { TLazarusManager }
 
@@ -361,6 +363,16 @@ begin
   end;
 end;
 
+function TLazarusManager.CleanSourceArtifacts(const ASourceDir: string): Integer;
+begin
+  Result := CleanBuildArtifacts(ASourceDir, nil, True);
+end;
+
+function TLazarusManager.LaunchLazarusExecutable(const AExecutable: string): Boolean;
+begin
+  Result := TProcessExecutor.Launch(AExecutable, [], '');
+end;
+
 function TLazarusManager.InstallVersion(
   const AVersion: string;
   const AFPCVersion: string;
@@ -379,12 +391,9 @@ function TLazarusManager.InstallVersion(
   const AConfigure: Boolean
 ): Boolean;
 var
-  InstallPath, SourceDir: string;
-  FPCVer: string;
+  InstallPlan: TLazarusInstallPlan;
 begin
   Result := False;
-
-  if Outp = nil then;  // Unused parameter  // Unused parameter
 
   if not ValidateVersion(AVersion) then
   begin
@@ -400,82 +409,24 @@ begin
   end;
 
   try
-    InstallPath := GetVersionInstallPath(AVersion);
+    InstallPlan := CreateLazarusInstallPlanCore(
+      FInstallRoot,
+      AVersion,
+      AFPCVersion,
+      GetCompatibleFPCVersion(AVersion),
+      AFromSource,
+      AConfigure
+    );
 
-    // Determine FPC version
-    if AFPCVersion <> '' then
-      FPCVer := AFPCVersion
-    else
-      FPCVer := GetCompatibleFPCVersion(AVersion);
-
-
-    if AFromSource then
-    begin
-      // Install from source
-      SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
-
-      if not DownloadSource(AVersion, SourceDir) then
-      begin
-        if Errp <> nil then
-          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED));
-        Exit;
-      end;
-
-      if not BuildFromSource(SourceDir, InstallPath, FPCVer) then
-      begin
-        if Errp <> nil then
-          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_BUILD_FAILED));
-        Exit;
-      end;
-
-      Result := SetupEnvironment(AVersion);
-      if (not Result) and (Errp <> nil) then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_ENV_SETUP_FAILED));
-
-    end else
-    begin
-      // Binary path fallback: use source build flow for now.
-      // This removes hard-stop behavior while keeping installation functional.
-      if Outp <> nil then
-        Outp.WriteLn(_(MSG_WARNING) + ': binary package path unavailable, fallback to source build');
-
-      SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
-
-      if not DownloadSource(AVersion, SourceDir) then
-      begin
-        if Errp <> nil then
-          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED));
-        Exit;
-      end;
-
-      if not BuildFromSource(SourceDir, InstallPath, FPCVer) then
-      begin
-        if Errp <> nil then
-          Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_SOURCE_BUILD_FAILED));
-        Exit;
-      end;
-
-      Result := SetupEnvironment(AVersion);
-      if (not Result) and (Errp <> nil) then
-        Errp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_ENV_SETUP_FAILED));
-    end;
-
-    // Auto-configure IDE after successful installation
-    if Result and AConfigure then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn('');
-      if not ConfigureIDE(Outp, Errp, AVersion) then
-      begin
-        // Configuration failure is non-fatal, just warn
-        if Errp <> nil then
-          Errp.WriteLn(
-            _(MSG_WARNING) +
-            ': IDE configuration incomplete, run "fpdev lazarus configure ' +
-            AVersion + '" manually'
-          );
-      end;
-    end;
+    Result := ExecuteLazarusInstallPlanCore(
+      InstallPlan,
+      Outp,
+      Errp,
+      @DownloadSource,
+      @BuildFromSource,
+      @SetupEnvironment,
+      @ConfigureIDE
+    );
 
   except
     on E: Exception do
@@ -662,60 +613,24 @@ end;
 
 function TLazarusManager.UpdateSources(const AVersion: string): Boolean;
 var
-  SourceDir: string;
-  UseVersion: string;
+  SourcePlan: TLazarusSourcePlan;
   Git: TGitOperations;
 begin
   Result := False;
 
-  // Determine which version to update
-  if AVersion <> '' then
-    UseVersion := AVersion
-  else
-    UseVersion := GetCurrentVersion;
-
-  if UseVersion = '' then
-  begin
+  SourcePlan := CreateLazarusSourcePlanCore(FInstallRoot, AVersion, GetCurrentVersion);
+  if (SourcePlan.Version = '') or (not DirectoryExists(SourcePlan.SourceDir)) then
     Exit;
-  end;
-
-  // Construct source directory path
-  SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
-
-  // Check whether the source directory exists
-  if not DirectoryExists(SourceDir) then
-  begin
-    Exit;
-  end;
 
   Git := TGitOperations.Create;
   try
-    // Check Git backend availability
-    if Git.Backend = gbNone then
-      Exit;
-
-    // Check if it's a valid git repository
-    if not Git.IsRepository(SourceDir) then
-    begin
-      Exit;
-    end;
-
-    // If no remote configured, repository is already up-to-date (local only)
-    if not Git.HasRemote(SourceDir) then
-    begin
-      // Repository exists but has no remote
-      // This still counts as success since source directory exists and is a git repo
-      Result := True;
-      Exit;
-    end;
-
-    // Execute git pull to update sources
-    Result := Git.Pull(SourceDir);
-
-    // Even if pull fails, if the repository exists it's not critical
-    if not Result then
-      Result := True;
-
+    Result := ExecuteLazarusUpdatePlanCore(
+      SourcePlan,
+      Git.Backend <> gbNone,
+      @Git.IsRepository,
+      @Git.HasRemote,
+      @Git.Pull
+    );
   finally
     Git.Free;
   end;
@@ -723,41 +638,17 @@ end;
 
 function TLazarusManager.CleanSources(const AVersion: string): Boolean;
 var
-  SourceDir: string;
-  UseVersion: string;
+  SourcePlan: TLazarusSourcePlan;
   LOut: IOutput;
 begin
   LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
-  // Determine version to clean
-  if AVersion <> '' then
-    UseVersion := AVersion
-  else
-    UseVersion := GetCurrentVersion;
-
-  if UseVersion = '' then
+  SourcePlan := CreateLazarusSourcePlanCore(FInstallRoot, AVersion, GetCurrentVersion);
+  if (SourcePlan.Version = '') or (not DirectoryExists(SourcePlan.SourceDir)) then
     Exit;
 
-  // Construct source directory path
-  SourceDir := FInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
-
-  // Validate source directory exists
-  if not DirectoryExists(SourceDir) then
-    Exit;
-
-  try
-    // Use shared cleanup function (includes platform executables)
-    CleanBuildArtifacts(SourceDir, nil, True);
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      LOut.WriteLn('CleanSources error: ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteLazarusCleanPlanCore(SourcePlan, LOut, @CleanSourceArtifacts);
 end;
 
 function TLazarusManager.ShowVersionInfo(const AVersion: string): Boolean;
@@ -889,56 +780,18 @@ end;
 
 function TLazarusManager.LaunchIDE(const Outp: IOutput; const AVersion: string): Boolean;
 var
-  LazarusExe: string;
-  InstallPath: string;
-  UseVersion: string;
+  LaunchPlan: TLazarusLaunchPlan;
 begin
   Result := False;
 
-  // Determine which version to launch
-  if AVersion <> '' then
-    UseVersion := AVersion
-  else
-    UseVersion := GetCurrentVersion;
-
-  if UseVersion = '' then
-  begin
-    if Outp <> nil then
-      Outp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_RUN_NO_VERSION));
-    Exit;
-  end;
-
-  if not IsVersionInstalled(UseVersion) then
-  begin
-    if Outp <> nil then
-      Outp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_LAZARUS_RUN_NOT_INSTALLED, [UseVersion]));
-    Exit;
-  end;
-
   try
-    InstallPath := GetVersionInstallPath(UseVersion);
-    {$IFDEF MSWINDOWS}
-    LazarusExe := InstallPath + PathDelim + 'lazarus.exe';
-    {$ELSE}
-    LazarusExe := InstallPath + PathDelim + 'lazarus';
-    {$ENDIF}
-
-    if Outp <> nil then
-      Outp.WriteLn(_Fmt(CMD_LAZARUS_RUN_START, [UseVersion]));
-
-    // Launch IDE using unified process executor (non-blocking)
-    if TProcessExecutor.Launch(LazarusExe, [], '') then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_Fmt(CMD_LAZARUS_RUN_LAUNCHED, [UseVersion]));
-      Result := True;
-    end
-    else
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_LAZARUS_RUN_FAILED));
-    end;
-
+    LaunchPlan := CreateLazarusLaunchPlanCore(FInstallRoot, AVersion, GetCurrentVersion);
+    Result := ExecuteLazarusLaunchPlanCore(
+      LaunchPlan,
+      Outp,
+      @IsVersionInstalled,
+      @LaunchLazarusExecutable
+    );
   except
     on E: Exception do
     begin
@@ -956,16 +809,10 @@ end;
 
 function TLazarusManager.ConfigureIDE(const Outp, Errp: IOutput; const AVersion: string): Boolean;
 var
-  InstallPath: string;
-  ConfigDir: string;
-  ConfigRoot: string;
-  ConfigDirName: string;
+  ConfigurePlan: TLazarusConfigurePlan;
   IDEConfig: TLazarusIDEConfig;
-  FPCVersion: string;
-  FPCPath: string;
   Settings: TFPDevSettings;
   LO, LE: IOutput;
-  BackupPath: string;
 begin
   Result := False;
 
@@ -983,98 +830,20 @@ begin
   end;
 
   try
-    InstallPath := GetVersionInstallPath(AVersion);
-    FPCVersion := GetCompatibleFPCVersion(AVersion);
     Settings := FConfigManager.GetSettingsManager.GetSettings;
+    ConfigurePlan := CreateLazarusConfigurePlanCore(
+      AVersion,
+      GetVersionInstallPath(AVersion),
+      Settings.InstallRoot,
+      GetCompatibleFPCVersion(AVersion),
+      get_env('FPDEV_LAZARUS_CONFIG_ROOT'),
+      GetEnvironmentVariable('HOME'),
+      GetEnvironmentVariable('APPDATA')
+    );
 
-    // Determine config directory
-    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
-    {$IFDEF MSWINDOWS}
-    ConfigDirName := 'lazarus-' + AVersion;
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + ConfigDirName
-    else
-      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + ConfigDirName;
-    {$ELSE}
-    ConfigDirName := '.lazarus-' + AVersion;
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + ConfigDirName
-    else
-      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + ConfigDirName;
-    {$ENDIF}
-
-    LO.WriteLn(_Fmt(MSG_LAZARUS_CONFIGURING, [AVersion]));
-    LO.WriteLn(_Fmt(MSG_LAZARUS_INSTALL_PATH, [InstallPath]));
-    LO.WriteLn(_Fmt(MSG_LAZARUS_CONFIG_DIR, [ConfigDir]));
-
-    IDEConfig := TLazarusIDEConfig.Create(ConfigDir);
+    IDEConfig := TLazarusIDEConfig.Create(ConfigurePlan.ConfigDir);
     try
-      // Backup existing configuration before making changes
-      BackupPath := IDEConfig.BackupConfig;
-      if BackupPath <> '' then
-        LO.WriteLn('Configuration backed up to: ' + BackupPath);
-
-      // Set FPC compiler path
-      FPCPath := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + FPCVersion +
-                 PathDelim + 'bin' + PathDelim + 'fpc';
-      {$IFDEF MSWINDOWS}
-      FPCPath := FPCPath + '.exe';
-      {$ENDIF}
-
-      if FileExists(FPCPath) then
-      begin
-        if IDEConfig.SetCompilerPath(FPCPath) then
-          LO.WriteLn(_Fmt(MSG_LAZARUS_COMPILER_SET, [FPCPath]))
-        else
-          LE.WriteLn(_(MSG_LAZARUS_COMPILER_WARN));
-      end
-      else
-        LE.WriteLn(_Fmt(MSG_LAZARUS_FPC_NOT_FOUND, [FPCPath]));
-
-      // Set Lazarus directory
-      if IDEConfig.SetLibraryPath(InstallPath) then
-        LO.WriteLn(_Fmt(MSG_LAZARUS_DIR_SET, [InstallPath]))
-      else
-        LE.WriteLn(_(MSG_LAZARUS_DIR_WARN));
-
-      // Set FPC source path if available
-      if DirectoryExists(
-        Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion
-      ) then
-      begin
-        if IDEConfig.SetFPCSourcePath(
-          Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + FPCVersion
-        ) then
-          LO.WriteLn(_(MSG_LAZARUS_FPC_SRC_SET));
-      end;
-
-      // Set make path
-      {$IFDEF MSWINDOWS}
-      if IDEConfig.SetMakePath('make.exe') then
-        LO.WriteLn(_Fmt(MSG_LAZARUS_MAKE_SET, ['make.exe']));
-      {$ELSE}
-      if IDEConfig.SetMakePath(UNIX_MAKE_PATH) then
-        LO.WriteLn(_Fmt(MSG_LAZARUS_MAKE_SET, [UNIX_MAKE_PATH]));
-      {$ENDIF}
-
-      // Validate configuration
-      if IDEConfig.ValidateConfig then
-      begin
-        LO.WriteLn('');
-        LO.WriteLn(_(CMD_LAZARUS_CONFIG_DONE));
-        LO.WriteLn('');
-        LO.WriteLn(_(MSG_LAZARUS_CONFIG_SUMMARY));
-        LO.WriteLn(IDEConfig.GetConfigSummary);
-        Result := True;
-      end
-      else
-      begin
-        LO.WriteLn('');
-        LE.WriteLn(_(MSG_WARNING) + ': ' + _(CMD_LAZARUS_CONFIG_INCOMPLETE));
-        LE.WriteLn(_(CMD_LAZARUS_CONFIG_VERIFY));
-        Result := True;  // Still return true as we did configure what we could
-      end;
-
+      Result := ApplyLazarusConfigurePlanCore(ConfigurePlan, LO, LE, IDEConfig);
     finally
       IDEConfig.Free;
     end;

@@ -18,10 +18,10 @@ program test_cmd_cache;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.cmd.cache;
+  fpdev.cmd.cache, fpdev.cmd.cache.status, fpdev.cmd.cache.stats, fpdev.cmd.cache.path;
 
 var
   GTestCount: Integer = 0;
@@ -267,17 +267,19 @@ end;
 
 procedure TestStatusOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateCacheCommand;
-
-  Ret := Cmd.Execute(['status'], Ctx);
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'cache';
+  Args[2] := 'status';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Status returns exit code 0', Ret = 0);
@@ -290,17 +292,19 @@ end;
 
 procedure TestPathOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateCacheCommand;
-
-  Ret := Cmd.Execute(['path'], Ctx);
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'cache';
+  Args[2] := 'path';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Path returns exit code 0', Ret = 0);
@@ -354,14 +358,32 @@ var
   Ctx: IContext;
   Args: TStringArray;
   Ret: Integer;
+  Children: TStringArray;
+  I: Integer;
+  HasStatus, HasStats, HasPath: Boolean;
 begin
   Ctx := TDefaultCommandContext.Create;
-  SetLength(Args, 2);
-  Args[0] := 'cache';
-  Args[1] := 'help';
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'cache';
+  Args[2] := 'help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
-  Test('cache command registered in GlobalCommandRegistry', Ret = 0);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+  Test('system cache command registered in GlobalCommandRegistry', Ret = 0);
+
+  Children := GlobalCommandRegistry.ListChildren(['system', 'cache']);
+  HasStatus := False;
+  HasStats := False;
+  HasPath := False;
+  for I := Low(Children) to High(Children) do
+  begin
+    if Children[I] = 'status' then HasStatus := True;
+    if Children[I] = 'stats' then HasStats := True;
+    if Children[I] = 'path' then HasPath := True;
+  end;
+  Test('system cache status subcommand registered', HasStatus);
+  Test('system cache stats subcommand registered', HasStats);
+  Test('system cache path subcommand registered', HasPath);
 end;
 
 begin

@@ -6,8 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes, fpdev.version.registry;
 
 type
   { TFPCShowCommand }
@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TFPCShowCommand.Name: string; begin Result := 'show'; end;
 
@@ -41,7 +41,7 @@ var
   LVer: string;
   LMgr: TFPCManager;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -63,6 +63,12 @@ begin
   LVer := AParams[0];
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
+    if not TVersionRegistry.Instance.IsFPCVersionValid(LVer) then
+    begin
+      Ctx.Err.WriteLn(_Fmt(CMD_FPC_UNSUPPORTED_VERSION, [LVer]));
+      Exit(EXIT_NOT_FOUND);
+    end;
+
     if LMgr.ShowVersionInfo(Ctx.Out, LVer) then
       Exit(EXIT_OK);
     Result := EXIT_ERROR;

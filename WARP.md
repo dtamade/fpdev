@@ -195,8 +195,8 @@ lazbuild fpdev.lpi
 fpc fpdev.lpr
 
 # 4. 运行主程序
-.\bin\fpdev.exe --help  # Windows
-./bin/fpdev --help      # Linux/macOS
+.\bin\fpdev.exe system help  # Windows
+./bin/fpdev system help      # Linux/macOS
 ```
 
 ### 运行测试

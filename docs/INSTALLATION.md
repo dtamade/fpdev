@@ -71,7 +71,7 @@ brew install git wget
 
 3. 验证安装:
    ```cmd
-   fpdev --version
+   fpdev system version
    ```
 
 #### Linux
@@ -94,7 +94,7 @@ brew install git wget
 
 2. 验证安装:
    ```bash
-   fpdev --version
+   fpdev system version
    ```
 
 #### macOS
@@ -129,7 +129,7 @@ cd src
 fpc -FE../bin fpdev.lpr
 
 # 验证
-../bin/fpdev --version
+../bin/fpdev system version
 ```
 
 ### 方法三：包管理器安装 (计划中)
@@ -152,8 +152,8 @@ sudo apt install fpdev
 
 ### 初始配置
 ```bash
-# 创建默认配置
-fpdev help
+# 创建默认配置并写出配置文件
+fpdev system config show
 
 # 查看配置文件位置
 # Windows: %USERPROFILE%\.fpdev\config.json
@@ -183,10 +183,10 @@ git config --global http.proxy http://proxy.example.com:8080
 ### 基本功能测试
 ```bash
 # 检查版本
-fpdev --version
+fpdev system version
 
 # 查看帮助
-fpdev help
+fpdev system help
 
 # 列出可用的 FPC 版本
 fpdev fpc list --all
@@ -315,8 +315,7 @@ export FPDEV_HOME=/fast/ssd/fpdev
 ### 网络优化
 ```bash
 # 使用镜像源 (中国用户)
-fpdev config set mirror.fpc https://mirrors.tuna.tsinghua.edu.cn/freepascal
-fpdev config set mirror.lazarus https://mirrors.tuna.tsinghua.edu.cn/lazarus
+fpdev system config set mirror gitee
 ```
 
 ---

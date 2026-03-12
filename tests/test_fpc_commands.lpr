@@ -90,7 +90,7 @@ end;
 
 procedure TestFpcDefaultAliasRegistered;
 begin
-  Check(HasSubcommand(['fpc'], 'default'), 'fpc default: alias registered');
+  Check(not HasSubcommand(['fpc'], 'default'), 'fpc default alias removed');
 end;
 
 procedure TestFpcDoctorRegistered;
@@ -172,7 +172,7 @@ var
   Children: TStringArray;
 begin
   Children := GlobalCommandRegistry.ListChildren(['fpc']);
-  Check(Length(Children) >= 15, 'fpc: at least 15 subcommands');
+  Check(Length(Children) >= 14, 'fpc: at least 14 subcommands');
 end;
 
 procedure TestFpcCacheSubcommandCount;

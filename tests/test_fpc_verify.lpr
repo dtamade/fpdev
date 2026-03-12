@@ -3,8 +3,8 @@ program test_fpc_verify;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, fpdev.cmd.fpc, fpdev.config, fpdev.fpc.validator,
-  fpdev.config.interfaces, fpdev.config.managers;
+  SysUtils, test_config_isolation, Classes, Process, fpdev.fpc.manager, fpdev.config, fpdev.fpc.validator,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, test_temp_paths;
 
 var
   TestInstallRoot: string;
@@ -21,16 +21,15 @@ var
   CompileProcess: TProcess;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_install_root_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestInstallRoot);
+  TestInstallRoot := CreateUniqueTempDir('test_install_root');
 
   // Setup config manager to use test directory
   Settings := ConfigManager.GetSettingsManager.GetSettings;
   Settings.InstallRoot := TestInstallRoot;
   ConfigManager.GetSettingsManager.SetSettings(Settings);
 
-  // Create FPC install structure: InstallRoot/fpc/3.2.2/bin
-  TestFPCInstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
+  // Create FPC install structure: InstallRoot/toolchains/fpc/3.2.2/bin
+  TestFPCInstallDir := BuildFPCInstallDirFromInstallRoot(TestInstallRoot, '3.2.2');
   ForceDirectories(TestFPCInstallDir + PathDelim + 'bin');
   ForceDirectories(TestFPCInstallDir + PathDelim + 'units');
 
@@ -74,37 +73,45 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
   // Cleanup test install root directory
   if DirectoryExists(TestInstallRoot) then
   begin
-    DeleteDirectory(TestInstallRoot);
+    CleanupTempDir(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
   end;
+end;
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Config manager uses isolated config path');
+  WriteLn('==================================================');
+
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  if Pos(TempRoot, ConfigPath) <> 1 then
+  begin
+    WriteLn('Failed: Expected config path under temp root ', TempRoot);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  if ConfigPath <> ExpectedPath then
+  begin
+    WriteLn('Failed: Expected isolated config path ', ExpectedPath);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  WriteLn('Passed: Config manager uses isolated temp config path');
 end;
 
 procedure TestVerifyExistingInstallation;
@@ -253,9 +260,9 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TConfigManager.Create('');
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+    ConfigManager := CreateIsolatedConfigManager;
+
+    TestConfigManagerUsesIsolatedDefaultConfigPath;
 
     // Setup test environment (before creating FPCManager)
     SetupTestEnvironment;

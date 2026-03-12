@@ -23,7 +23,7 @@ program test_fpc_doctor_enhanced;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, fpdev.utils.fs, test_temp_paths,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.logger.intf, fpdev.exitcodes,
@@ -34,6 +34,11 @@ var
   GTestCount: Integer = 0;
   GPassCount: Integer = 0;
   GFailCount: Integer = 0;
+
+function BuildTempConfigDir: string;
+begin
+  Result := CreateUniqueTempDir('fpdev_test_doctor');
+end;
 
 procedure Test(const AName: string; ACondition: Boolean);
 begin
@@ -472,10 +477,12 @@ begin
   WriteLn('=== FPC Doctor Enhanced Tests ===');
   WriteLn;
 
-  GTempConfigDir := GetTempDir + 'fpdev_test_doctor_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempConfigDir);
+  GTempConfigDir := BuildTempConfigDir;
 
   try
+    Test('Temp config dir uses system temp root',
+      PathUsesSystemTempRoot(GTempConfigDir));
+
     // Group 1: Command basics
     WriteLn('--- Command Basics ---');
     TestCommandName;
@@ -517,11 +524,7 @@ begin
     WriteLn('--- Command Registration ---');
     TestCommandRegistration;
   finally
-    if DirectoryExists(GTempConfigDir) then
-    begin
-      DeleteFile(GTempConfigDir + PathDelim + 'config.json');
-      RemoveDir(GTempConfigDir);
-    end;
+    CleanupTempDir(GTempConfigDir);
   end;
 
   WriteLn('');

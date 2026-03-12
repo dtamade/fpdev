@@ -8,7 +8,7 @@ program test_fpc_install_integration;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, fpdev.utils.fs,
   fpdev.fpc.binary, fpdev.fpc.verify, fpdev.platform,
   fpdev.fpc.mirrors, fpdev.http.download, fpdev.archive.extract,
   fpdev.build.cache;
@@ -16,6 +16,12 @@ uses
 var
   TestsPassed, TestsFailed: Integer;
   TestCacheDir: string;
+
+function BuildTempCacheDir: string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'fpdev_test_cache_' + IntToStr(GetTickCount64) + PathDelim;
+end;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -246,10 +252,13 @@ begin
   TestsFailed := 0;
 
   // Create temporary cache directory for testing
-  TestCacheDir := GetTempDir + 'fpdev_test_cache_' + IntToStr(Random(10000)) + PathDelim;
+  TestCacheDir := BuildTempCacheDir;
   ForceDirectories(TestCacheDir);
 
   try
+    Assert(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(TestCacheDir)) = 1, 'Test cache dir uses system temp root');
+
     WriteLn('=== FPC Installation Integration Tests (Minimal Fix) ===');
     WriteLn;
 
@@ -283,6 +292,6 @@ begin
   finally
     // Cleanup
     if DirectoryExists(TestCacheDir) then
-      RemoveDir(TestCacheDir);
+      DeleteDirRecursive(TestCacheDir);
   end;
 end.

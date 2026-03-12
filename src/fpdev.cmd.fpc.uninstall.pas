@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TFPCUninstallCommand.Name: string; begin Result := 'uninstall'; end;
 function TFPCUninstallCommand.Aliases: TStringArray; begin Result := nil; end;

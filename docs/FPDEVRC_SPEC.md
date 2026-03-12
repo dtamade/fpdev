@@ -84,13 +84,14 @@ lazarus = "lts"
 
 ## 配置优先级
 
-fpdev 按以下优先级解析配置（从高到低）：
+fpdev 当前按以下优先级解析配置（从高到低）：
 
 1. **环境变量** - `FPDEV_FPC_VERSION`, `FPDEV_LAZARUS_VERSION`
-2. **命令行参数** - `--fpc-version`, `--lazarus-version`
-3. **项目配置** - `.fpdevrc` 或 `fpdev.toml`
-4. **全局默认** - `~/.fpdev/config.json` 中的 `default_toolchain`
-5. **系统默认** - 硬编码的 `DEFAULT_FPC_VERSION`
+2. **项目配置** - `.fpdevrc` 或 `fpdev.toml`
+3. **全局默认** - `~/.fpdev/config.json` 中的 `default_toolchain`
+4. **系统默认** - 硬编码的 `DEFAULT_FPC_VERSION`
+
+当前 CLI 还没有公开 `--fpc-version`、`--lazarus-version` 这样的全局参数，所以这里不把它们算进实际优先级。
 
 ## Shell 集成
 
@@ -100,34 +101,33 @@ fpdev 按以下优先级解析配置（从高到低）：
 
 **Bash** (`~/.bashrc`):
 ```bash
-eval "$(fpdev shell-hook bash)"
+eval "$(fpdev system env hook bash)"
 ```
 
 **Zsh** (`~/.zshrc`):
 ```zsh
-eval "$(fpdev shell-hook zsh)"
+eval "$(fpdev system env hook zsh)"
 ```
 
 **Fish** (`~/.config/fish/config.fish`):
 ```fish
-fpdev shell-hook fish | source
+fpdev system env hook fish | source
 ```
 
 ### 手动切换
 
 ```bash
-# 使用项目配置
-fpdev use
+# 设置当前 FPC 版本
+fpdev fpc use 3.2.2
 
-# 使用指定版本
-fpdev use 3.2.2
+# 确保版本存在后再切换
+fpdev fpc use 3.2.2 --ensure
 
-# 临时覆盖（仅当前 shell）
-fpdev override 3.0.4
-
-# 清除覆盖
-fpdev override --unset
+# 设置当前 Lazarus 版本
+fpdev lazarus use 3.8
 ```
+
+当前 CLI 没有公开顶层 `fpdev use` 或 `fpdev override` 命令。如果你需要临时覆盖，优先使用环境变量或显式的 `fpc` / `lazarus` 子命令。
 
 ## 示例场景
 

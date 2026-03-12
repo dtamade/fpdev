@@ -43,6 +43,11 @@ implementation
 uses
   fphttpclient, openssl;
 
+const
+  URL_SCHEME_HTTP = 'http://';
+  URL_SCHEME_HTTPS = 'https://';
+  CHAR_FORWARD_SLASH = '/';
+
 { TPackageRepositoryService }
 
 constructor TPackageRepositoryService.Create(AConfigManager: IConfigManager; const APackageRegistry: string);
@@ -88,7 +93,8 @@ begin
         Free;
       end;
     end
-    else if (Pos('http://', LowerCase(AUrl)) = 1) or (Pos('https://', LowerCase(AUrl)) = 1) then
+    else if (Pos(URL_SCHEME_HTTP, LowerCase(AUrl)) = 1) or
+      (Pos(URL_SCHEME_HTTPS, LowerCase(AUrl)) = 1) then
     begin
       Cli := TFPHTTPClient.Create(nil);
       try
@@ -206,14 +212,19 @@ begin
             LocalFile := Copy(RepoURL, 8, MaxInt);
             {$IFDEF MSWINDOWS}
             // Windows: file:///C:/... -> C:/...
-            while (Length(LocalFile) > 0) and ((LocalFile[1] = '/') or (LocalFile[1] = '\')) do
+            while (Length(LocalFile) > 0) and
+              ((LocalFile[1] = CHAR_FORWARD_SLASH) or (LocalFile[1] = '\')) do
               Delete(LocalFile, 1, 1);
             {$ELSE}
             // Unix: file:///home/... -> /home/... (keep one leading slash)
-            while (Length(LocalFile) > 1) and (LocalFile[1] = '/') and (LocalFile[2] = '/') do
+            while (Length(LocalFile) > 1) and
+              (LocalFile[1] = CHAR_FORWARD_SLASH) and
+              (LocalFile[2] = CHAR_FORWARD_SLASH) do
               Delete(LocalFile, 1, 1);
             {$ENDIF}
-            LocalFile := StringReplace(LocalFile, '/', PathDelim, [rfReplaceAll]);
+            LocalFile := StringReplace(
+              LocalFile, CHAR_FORWARD_SLASH, PathDelim, [rfReplaceAll]
+            );
             if FileExists(LocalFile) then
               SL.LoadFromFile(LocalFile)
             else

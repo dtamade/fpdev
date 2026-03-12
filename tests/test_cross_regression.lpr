@@ -90,7 +90,7 @@ end;
 
 procedure TestAliasRegistered;
 begin
-  Check(HasSubcommand([], 'x'), 'Regression: x alias registered');
+  Check(not HasSubcommand([], 'x'), 'Regression: x alias removed');
 end;
 
 { === Original 7 Sub-Commands (pre-M7) === }
@@ -160,20 +160,6 @@ var
 begin
   Cnt := GetSubcommandCount(['cross']);
   Check(Cnt >= 11, 'Regression: at least 11 cross sub-commands (got ' + IntToStr(Cnt) + ')');
-end;
-
-{ === Alias resolution via ListChildren === }
-
-procedure TestAliasListChildren;
-var
-  AliasChildren: TStringArray;
-begin
-  // Alias 'x' is registered but ListChildren doesn't follow alias targets.
-  // This is by design - aliases resolve during Dispatch, not ListChildren.
-  // Just verify it doesn't crash.
-  AliasChildren := GlobalCommandRegistry.ListChildren(['x']);
-  Check(Length(AliasChildren) >= 0,
-    'Regression: alias x ListChildren does not crash');
 end;
 
 { === M7 core units compile alongside cmd units === }
@@ -287,9 +273,8 @@ begin
   TestTestRegistered;
 
   WriteLn;
-  WriteLn('--- Count & Alias Verification ---');
+  WriteLn('--- Count Verification ---');
   TestSubcommandCount;
-  TestAliasListChildren;
 
   WriteLn;
   WriteLn('--- M7 Core Unit Compatibility ---');

@@ -5,11 +5,12 @@ unit fpdev.cmd.project.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['project'], nil, ['proj']);
+  GlobalCommandRegistry.RegisterSingletonPath(['project'], CreateNamespaceRootShellCommand(['project']), []);
 
 end.

@@ -84,13 +84,14 @@ lazarus = "lts"
 
 ## Configuration Priority
 
-fpdev resolves configuration in the following priority order (highest to lowest):
+fpdev currently resolves configuration in the following priority order (highest to lowest):
 
 1. **Environment variables** - `FPDEV_FPC_VERSION`, `FPDEV_LAZARUS_VERSION`
-2. **Command-line arguments** - `--fpc-version`, `--lazarus-version`
-3. **Project configuration** - `.fpdevrc` or `fpdev.toml`
-4. **Global default** - `default_toolchain` in `~/.fpdev/config.json`
-5. **System default** - Hardcoded `DEFAULT_FPC_VERSION`
+2. **Project configuration** - `.fpdevrc` or `fpdev.toml`
+3. **Global default** - `default_toolchain` in `~/.fpdev/config.json`
+4. **System default** - Hardcoded `DEFAULT_FPC_VERSION`
+
+The current CLI does not expose public `--fpc-version` or `--lazarus-version` global switches, so they are not part of the actual runtime priority yet.
 
 ## Shell Integration
 
@@ -100,34 +101,33 @@ After enabling the shell hook, entering a directory containing `.fpdevrc` will a
 
 **Bash** (`~/.bashrc`):
 ```bash
-eval "$(fpdev shell-hook bash)"
+eval "$(fpdev system env hook bash)"
 ```
 
 **Zsh** (`~/.zshrc`):
 ```zsh
-eval "$(fpdev shell-hook zsh)"
+eval "$(fpdev system env hook zsh)"
 ```
 
 **Fish** (`~/.config/fish/config.fish`):
 ```fish
-fpdev shell-hook fish | source
+fpdev system env hook fish | source
 ```
 
 ### Manual Switching
 
 ```bash
-# Use project configuration
-fpdev use
+# Set the active FPC version
+fpdev fpc use 3.2.2
 
-# Use a specific version
-fpdev use 3.2.2
+# Ensure the version exists before switching
+fpdev fpc use 3.2.2 --ensure
 
-# Temporary override (current shell only)
-fpdev override 3.0.4
-
-# Clear override
-fpdev override --unset
+# Set the active Lazarus version
+fpdev lazarus use 3.8
 ```
+
+The current CLI does not expose top-level `fpdev use` or `fpdev override` commands. For temporary overrides, use environment variables or the explicit `fpc` / `lazarus` subcommands.
 
 ## Example Scenarios
 

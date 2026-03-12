@@ -66,7 +66,7 @@ fpdev fpc uninstall 3.2.2
 
 ```bash
 # 设置默认版本
-fpdev fpc default 3.2.2
+fpdev fpc use 3.2.2
 
 # 查看版本信息
 fpdev fpc info 3.2.2
@@ -166,7 +166,7 @@ FPC 版本信息存储在配置文件中：
 
 3. **版本冲突**
    - 使用 `fpdev fpc list` 检查已安装版本
-   - 使用 `fpdev fpc default` 切换版本
+   - 使用 `fpdev fpc use` 切换版本
 
 ### 日志和诊断
 

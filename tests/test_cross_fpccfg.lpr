@@ -5,7 +5,7 @@ program test_cross_fpccfg;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces,
-  fpdev.cross.fpccfg;
+  fpdev.cross.fpccfg, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -407,9 +407,10 @@ procedure TestFileIO_SaveAndLoad;
 var
   Mgr1, Mgr2: TFPCCfgManager;
   Target: TCrossTarget;
-  TmpFile: string;
+  TempDir, TmpFile: string;
 begin
-  TmpFile := GetTempDir + 'test_fpccfg_' + IntToStr(GetProcessID) + '.cfg';
+  TempDir := CreateUniqueTempDir('test_fpccfg');
+  TmpFile := TempDir + PathDelim + 'test_fpccfg.cfg';
   try
     // Save
     Mgr1 := TFPCCfgManager.Create(TmpFile);
@@ -435,8 +436,7 @@ begin
       Mgr2.Free;
     end;
   finally
-    if FileExists(TmpFile) then
-      DeleteFile(TmpFile);
+    CleanupTempDir(TempDir);
   end;
 end;
 

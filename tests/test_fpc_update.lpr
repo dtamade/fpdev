@@ -4,7 +4,7 @@ program test_fpc_update;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config.interfaces, fpdev.config.managers, Process;
+  SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config.interfaces, fpdev.config.managers, Process;
 
 var
   TestInstallRoot: string;
@@ -18,7 +18,8 @@ var
   SettingsMgr: ISettingsManager;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_install_root_' + IntToStr(GetTickCount64);
+  TestInstallRoot := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'test_install_root_' + IntToStr(GetTickCount64);
   ForceDirectories(TestInstallRoot);
 
   // Set configuration manager to use test directory
@@ -65,6 +66,38 @@ begin
     DeleteDirectory(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
   end;
+end;
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Config manager uses isolated config path');
+  WriteLn('==================================================');
+
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  if Pos(TempRoot, ConfigPath) <> 1 then
+  begin
+    WriteLn('Failed: Expected config path under temp root ', TempRoot);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  if ConfigPath <> ExpectedPath then
+  begin
+    WriteLn('Failed: Expected isolated config path ', ExpectedPath);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  WriteLn('Passed: Config manager uses isolated temp config path');
 end;
 
 procedure TestUpdateNonExistentDirectory;
@@ -243,9 +276,9 @@ begin
 
   try
     // Initialize configuration manager
-    ConfigManager := TConfigManager.Create('');
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+    ConfigManager := CreateIsolatedConfigManager;
+
+    TestConfigManagerUsesIsolatedDefaultConfigPath;
 
     // Setup test environment (before creating FPCManager)
     SetupTestEnvironment;

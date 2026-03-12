@@ -99,7 +99,8 @@ type
     // Status: Returns simplified path string array (without flags)
     // StatusEntries: Returns entry array with flags. Filter meanings:
     //   - WorkingTreeOnly: Working tree changes only
-    //   - IndexOnly: Index/staging area changes only (IndexOnly takes priority when mutually exclusive with WorkingTreeOnly)
+    //   - IndexOnly: Index/staging area changes only
+    //                (takes priority when mutually exclusive with WorkingTreeOnly)
     //   - IncludeUntracked: Whether to include untracked files
     //   - IncludeIgnored: Whether to include ignored files (affected by .gitignore)
     function Status: TStringArray;
@@ -237,6 +238,10 @@ function GitTimeToString(const ATime: TGitTime): string;
 
 implementation
 
+const
+  GIT_REF_NAME_DELIMITER = '/';
+  GIT_VERSION_UNKNOWN = '0.0.0';
+
 type
   PStatusListPayload = ^TStatusListPayload;
   TStatusListPayload = record
@@ -272,8 +277,20 @@ function AcceptStatus(AFlags: cuint; const Filter: TGitStatusFilter): Boolean;
 var
   LHasIndex, LHasWt, LIsUntracked, LIsIgnored: Boolean;
 begin
-  LHasIndex := (AFlags and (GIT_STATUS_INDEX_NEW or GIT_STATUS_INDEX_MODIFIED or GIT_STATUS_INDEX_DELETED or GIT_STATUS_INDEX_RENAMED or GIT_STATUS_INDEX_TYPECHANGE)) <> 0;
-  LHasWt := (AFlags and (GIT_STATUS_WT_NEW or GIT_STATUS_WT_MODIFIED or GIT_STATUS_WT_DELETED or GIT_STATUS_WT_RENAMED or GIT_STATUS_WT_TYPECHANGE)) <> 0;
+  LHasIndex := (AFlags and (
+    GIT_STATUS_INDEX_NEW or
+    GIT_STATUS_INDEX_MODIFIED or
+    GIT_STATUS_INDEX_DELETED or
+    GIT_STATUS_INDEX_RENAMED or
+    GIT_STATUS_INDEX_TYPECHANGE
+  )) <> 0;
+  LHasWt := (AFlags and (
+    GIT_STATUS_WT_NEW or
+    GIT_STATUS_WT_MODIFIED or
+    GIT_STATUS_WT_DELETED or
+    GIT_STATUS_WT_RENAMED or
+    GIT_STATUS_WT_TYPECHANGE
+  )) <> 0;
   LIsUntracked := (AFlags and GIT_STATUS_WT_NEW) <> 0;
   LIsIgnored := (AFlags and GIT_STATUS_IGNORED) <> 0;
   if Filter.IndexOnly and not LHasIndex then Exit(False);
@@ -751,12 +768,18 @@ begin
   if FType = GIT_REFERENCE_DIRECT then
   begin
     FOID.Data := git_reference_target(AHandle)^;
-    FShortName := Copy(FName, LastDelimiter('/', FName) + 1, MaxInt);
+    FShortName := Copy(
+      FName, LastDelimiter(GIT_REF_NAME_DELIMITER, FName) + 1, MaxInt
+    );
   end
   else
   begin
     FSymbolicTarget := string(git_reference_symbolic_target(AHandle));
-    FShortName := Copy(FSymbolicTarget, LastDelimiter('/', FSymbolicTarget) + 1, MaxInt);
+    FShortName := Copy(
+      FSymbolicTarget,
+      LastDelimiter(GIT_REF_NAME_DELIMITER, FSymbolicTarget) + 1,
+      MaxInt
+    );
   end;
 end;
 
@@ -950,7 +973,7 @@ begin
   if git_libgit2_version(@Major, @Minor, @Rev) = GIT_OK then
     Result := Format('%d.%d.%d', [Major, Minor, Rev])
   else
-    Result := '0.0.0';
+    Result := GIT_VERSION_UNKNOWN;
 end;
 
 constructor TGit2Manager.Create;
@@ -995,13 +1018,144 @@ begin
   if rc <> GIT_OK then
     Result := nil;
 end;
-function TGit2Manager.IsRepository(const APath: string): Boolean; begin Result := FManager.IsRepository(APath); end;
-function TGit2Manager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean; var R: TGitRepository; begin Result := False; R := FManager.CloneRepository(AURL, ATargetDir); try Result := Assigned(R); if Result and (ABranch <> '') then Result := R.CheckoutBranch(ABranch) and Result; finally if Assigned(R) then R.Free; end; end;
-function TGit2Manager.UpdateRepository(const ARepoPath: string): Boolean; var R: TGitRepository; begin Result := False; if not IsRepository(ARepoPath) then Exit; R := FManager.OpenRepository(ARepoPath); if not Assigned(R) then Exit; try Result := R.Fetch('origin'); finally R.Free; end; end;
-function TGit2Manager.GetCurrentBranch(ARepo: git_repository): string; var Ref: git_reference; Target: PChar; FullName: string; begin Result := ''; if not Assigned(ARepo) then Exit; if git_repository_head(Ref, ARepo) = GIT_OK then begin try Target := git_reference_symbolic_target(Ref); if Assigned(Target) then FullName := string(Target) else FullName := string(git_reference_name(Ref)); if Pos('refs/heads/', FullName) = 1 then Result := Copy(FullName, 12, Length(FullName)) else Result := FullName; finally git_reference_free(Ref); end; end; end;
-function TGit2Manager.CheckoutBranch(ARepo: git_repository; const ABranch: string): Boolean; var RepoObj: TGitRepository; begin Result := False; if not FInitialized then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Result := RepoObj.CheckoutBranch(ABranch); finally RepoObj.Free; end; end;
-function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray; var RepoObj: TGitRepository; Branches: TStringArray; i: Integer; begin Result := nil; if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Branches := RepoObj.ListBranches(GIT_BRANCH_ALL); SetLength(Result, Length(Branches)); for i := 0 to High(Branches) do Result[i] := Branches[i]; finally RepoObj.Free; end; end;
-function TGit2Manager.GetLastCommitHash(ARepo: git_repository): string; var RepoObj: TGitRepository; Commit: TGitCommit; begin Result := ''; if not FInitialized then Exit; if not Assigned(ARepo) then Exit; RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo))); try Commit := RepoObj.GetLastCommit; try Result := GitOIDToString(Commit.OID); finally Commit.Free; end; finally RepoObj.Free; end; end;
+
+function TGit2Manager.IsRepository(const APath: string): Boolean;
+begin
+  Result := FManager.IsRepository(APath);
+end;
+
+function TGit2Manager.CloneRepository(
+  const AURL, ATargetDir: string;
+  const ABranch: string
+): Boolean;
+var
+  R: TGitRepository;
+begin
+  Result := False;
+  R := FManager.CloneRepository(AURL, ATargetDir);
+  try
+    Result := Assigned(R);
+    if Result and (ABranch <> '') then
+      Result := R.CheckoutBranch(ABranch) and Result;
+  finally
+    if Assigned(R) then
+      R.Free;
+  end;
+end;
+
+function TGit2Manager.UpdateRepository(const ARepoPath: string): Boolean;
+var
+  R: TGitRepository;
+begin
+  Result := False;
+  if not IsRepository(ARepoPath) then
+    Exit;
+
+  R := FManager.OpenRepository(ARepoPath);
+  if not Assigned(R) then
+    Exit;
+
+  try
+    Result := R.Fetch('origin');
+  finally
+    R.Free;
+  end;
+end;
+
+function TGit2Manager.GetCurrentBranch(ARepo: git_repository): string;
+var
+  Ref: git_reference;
+  Target: PChar;
+  FullName: string;
+begin
+  Result := '';
+  if not Assigned(ARepo) then
+    Exit;
+
+  if git_repository_head(Ref, ARepo) = GIT_OK then
+  begin
+    try
+      Target := git_reference_symbolic_target(Ref);
+      if Assigned(Target) then
+        FullName := string(Target)
+      else
+        FullName := string(git_reference_name(Ref));
+
+      if Pos('refs/heads/', FullName) = 1 then
+        Result := Copy(FullName, 12, Length(FullName))
+      else
+        Result := FullName;
+    finally
+      git_reference_free(Ref);
+    end;
+  end;
+end;
+
+function TGit2Manager.CheckoutBranch(
+  ARepo: git_repository;
+  const ABranch: string
+): Boolean;
+var
+  RepoObj: TGitRepository;
+begin
+  Result := False;
+  if not FInitialized then
+    Exit;
+
+  RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo)));
+  try
+    Result := RepoObj.CheckoutBranch(ABranch);
+  finally
+    RepoObj.Free;
+  end;
+end;
+
+function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray;
+var
+  RepoObj: TGitRepository;
+  Branches: TStringArray;
+  i: Integer;
+begin
+  Result := nil;
+  if not FInitialized then
+    Exit;
+  if not Assigned(ARepo) then
+    Exit;
+
+  RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo)));
+  try
+    Branches := RepoObj.ListBranches(GIT_BRANCH_ALL);
+    SetLength(Result, Length(Branches));
+    for i := 0 to High(Branches) do
+      Result[i] := Branches[i];
+  finally
+    RepoObj.Free;
+  end;
+end;
+
+function TGit2Manager.GetLastCommitHash(ARepo: git_repository): string;
+var
+  RepoObj: TGitRepository;
+  Commit: TGitCommit;
+begin
+  Result := '';
+  if not FInitialized then
+    Exit;
+  if not Assigned(ARepo) then
+    Exit;
+
+  RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo)));
+  try
+    Commit := RepoObj.GetLastCommit;
+    try
+      Result := GitOIDToString(Commit.OID);
+    finally
+      Commit.Free;
+    end;
+  finally
+    RepoObj.Free;
+  end;
+end;
 
 function CreateGitOIDFromString(const AHashString: string): TGitOID;
 begin

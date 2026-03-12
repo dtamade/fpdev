@@ -28,6 +28,12 @@ type
 
 const
   FPC_GIT_URL = FPC_OFFICIAL_REPO;  // Use central constant
+  {$IFDEF MSWINDOWS}
+  WINDOWS_CMD_EXECUTABLE = 'cmd';
+  WINDOWS_CMD_SWITCH_EXECUTE = '/c';
+  WINDOWS_CMD_SWITCH_RECURSIVE = '/s';
+  WINDOWS_CMD_SWITCH_QUIET = '/q';
+  {$ENDIF}
 
 implementation
 
@@ -83,7 +89,16 @@ begin
   if DirectoryExists(LSourcePath) and (not IsValidSourceDirectory(LSourcePath)) then
   begin
     {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', LSourcePath]);
+    ExecuteProcess(
+      WINDOWS_CMD_EXECUTABLE,
+      [
+        WINDOWS_CMD_SWITCH_EXECUTE,
+        'rmdir',
+        WINDOWS_CMD_SWITCH_RECURSIVE,
+        WINDOWS_CMD_SWITCH_QUIET,
+        LSourcePath
+      ]
+    );
     {$ELSE}
     ExecuteProcess('rm', ['-rf', LSourcePath]);
     {$ENDIF}

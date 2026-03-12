@@ -77,7 +77,7 @@ Phase 6 focused on four priority levels:
 |-------|-------------|--------|
 | B236 | Add fpdev cross clean command | Done |
 | B237 | Add fpdev cross update command | Done |
-| B238 | Add fpdev config export/import commands | Done |
+| B238 | Add fpdev system config export/import commands | Done |
 | B239-B241 | Build cache, packages build, cross test | Verified already complete |
 | B242 | Regression verification | Done (170/170) |
 

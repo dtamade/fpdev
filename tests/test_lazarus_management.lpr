@@ -7,8 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes,
-  fpdev.config;
+  SysUtils, test_pause_control, Classes,
+  fpdev.config, test_temp_paths;
 
 type
   { TLazarusManagementTest }
@@ -48,18 +48,17 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
   
-  // 创建临时测试配置文件路径
-  FTestConfigPath := 'test_lazarus_config.json';
+  FTestConfigPath := CreateUniqueTempDir('test_lazarus_management')
+    + PathDelim + 'test_lazarus_config.json';
   FConfigManager := TFPDevConfigManager.Create(FTestConfigPath);
 end;
 
 destructor TLazarusManagementTest.Destroy;
 begin
-  // 清理测试文件
-  if FileExists(FTestConfigPath) then
-    DeleteFile(FTestConfigPath);
-    
   FConfigManager.Free;
+  if FTestConfigPath <> '' then
+    CleanupTempDir(ExtractFileDir(FTestConfigPath));
+  FTestConfigPath := '';
   inherited Destroy;
 end;
 
@@ -313,9 +312,5 @@ begin
     end;
   end;
   
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  WriteLn('Press Enter to continue...');
-  ReadLn;
-  {$ENDIF}
+  PauseIfRequested('Press Enter to continue...');
 end.

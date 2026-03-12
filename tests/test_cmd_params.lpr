@@ -7,7 +7,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils,
-  fpdev.cmd.params;
+  fpdev.command.params;
 
 var
   Passed, Failed: Integer;
@@ -199,7 +199,7 @@ begin
   Failed := 0;
 
   WriteLn('');
-  WriteLn('=== fpdev.cmd.params Test Suite ===');
+  WriteLn('=== fpdev.command.params Test Suite ===');
   WriteLn('');
 
   TestHasFlag_DoubleDash;

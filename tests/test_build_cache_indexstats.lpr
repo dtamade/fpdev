@@ -3,7 +3,9 @@ program test_build_cache_indexstats;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, DateUtils, fpdev.build.cache.indexstats;
+  SysUtils, DateUtils,
+  fpdev.build.cache.types,
+  fpdev.build.cache.indexstats;
 
 var
   TestsPassed: Integer = 0;
@@ -86,6 +88,40 @@ begin
   Check(NewestDate = 0, 'Finalize: NewestDate reset to 0 with no entries');
 end;
 
+
+procedure TestCalculateStats;
+var
+  Infos: array of TArtifactInfo;
+  Stats: TCacheIndexStats;
+begin
+  SetLength(Infos, 2);
+  Infos[0].Version := '3.2.0';
+  Infos[0].ArchiveSize := 1000;
+  Infos[0].CreatedAt := EncodeDate(2026, 1, 1);
+
+  Infos[1].Version := '3.2.1';
+  Infos[1].ArchiveSize := 2000;
+  Infos[1].CreatedAt := EncodeDate(2026, 1, 2);
+
+  Stats := BuildCacheCalculateIndexStats(Infos, 3);
+  Check(Stats.TotalEntries = 3, 'Calculate: TotalEntries preserves raw index count');
+  Check(Stats.TotalSize = 3000, 'Calculate: TotalSize aggregates successful infos');
+  Check(Stats.OldestVersion = '3.2.0', 'Calculate: OldestVersion is selected');
+  Check(Stats.NewestVersion = '3.2.1', 'Calculate: NewestVersion is selected');
+end;
+
+procedure TestCalculateStatsEmptyInput;
+var
+  Infos: array of TArtifactInfo;
+  Stats: TCacheIndexStats;
+begin
+  SetLength(Infos, 0);
+  Stats := BuildCacheCalculateIndexStats(Infos, 0);
+  Check(Stats.TotalEntries = 0, 'CalculateEmpty: TotalEntries = 0');
+  Check(Stats.OldestDate = 0, 'CalculateEmpty: OldestDate reset to 0');
+  Check(Stats.NewestDate = 0, 'CalculateEmpty: NewestDate reset to 0');
+end;
+
 begin
   WriteLn('=== Build Cache IndexStats Unit Tests ===');
   WriteLn;
@@ -93,6 +129,8 @@ begin
   TestInit;
   TestAccumulate;
   TestFinalize;
+  TestCalculateStats;
+  TestCalculateStatsEmptyInput;
 
   WriteLn;
   WriteLn('=== Summary ===');

@@ -88,6 +88,10 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Improved GitHub homepage experience: 4/10 → 8/10
   - Reduced new user onboarding time: 30 minutes → 5 minutes
 
+- **Package CLI Contract Clarification (2026-03-05)**
+  - Clarified docs/help contract that `fpdev package create` is not a registered public CLI command
+  - Canonical package flow remains `package install-local`, `package publish`, `package deps`, `package why`
+
 - **fpdev.cmd.cross.pas Refactoring**
   - Migrated from legacy TCrossManifest to modern TCrossToolchainDownloader
   - DownloadBinutils() now uses TCrossToolchainDownloader.DownloadBinutils()
@@ -394,7 +398,8 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - `fpdev package update <package>`: Update package
   - `fpdev package clean`: Clean package cache
   - `fpdev package install-local <path>`: Install from local
-  - `fpdev package create <name>`: Create new package
+  - `fpdev package deps [name]`: Show dependency tree
+  - `fpdev package why <name>`: Explain dependency path
   - `fpdev package publish <name>`: Publish package
   - `fpdev package repo add <name> <url>`: Add repository
   - `fpdev package repo list`: List repositories
@@ -528,4 +533,3 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - fpc.cfg lightweight validation: requires existence and non-empty when configured.
 
 [0.1.0]: https://example.com/compare/initial...v0.1.0
-

@@ -6,9 +6,9 @@ unit fpdev.cmd.config;
 ================================================================================
 
   Provides commands for managing fpdev configuration:
-  - fpdev config show          - Show current configuration
-  - fpdev config set <key> <value> - Set a configuration value
-  - fpdev config get <key>     - Get a configuration value
+  - fpdev system config show           - Show current configuration
+  - fpdev system config set <key> <value> - Set a configuration value
+  - fpdev system config get <key>      - Get a configuration value
 
   Supported configuration keys:
   - mirror: 'auto', 'github', 'gitee', or custom URL
@@ -29,31 +29,16 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.output.intf, fpdev.paths, fpdev.exitcodes;
+  fpdev.output.intf, fpdev.exitcodes;
 
 type
-  { TConfigCommand - Main config command handler }
   TConfigCommand = class(TInterfacedObject, ICommand)
   private
-    FConfigManager: IConfigManager;
-    FOut: IOutput;
-    FErr: IOutput;
-
-    procedure ShowConfig;
-    procedure ShowHelp;
-    procedure GetConfigValue(const AKey: string);
-    procedure SetConfigValue(const AKey, AValue: string);
-    procedure ExportConfig(const AFilePath: string);
-    procedure ImportConfig(const AFilePath: string);
-
+    procedure ShowHelp(const Ctx: IContext);
   public
-    constructor Create(AOut: IOutput = nil; AErr: IOutput = nil);
-
-    // ICommand interface
     function Name: string;
     function Aliases: TStringArray;
-    function FindSub(const {%H-} AName: string): ICommand;
+    function FindSub(const AName: string): ICommand;
     function Execute(const AParams: array of string; const Ctx: IContext): Integer;
     function GetHelp: string;
   end;
@@ -63,27 +48,12 @@ function CreateConfigCommand: ICommand;
 implementation
 
 uses
-  fpdev.output.console, fpjson, jsonparser;
+  fpdev.command.namespacehelp,
+  fpdev.config.commandflow;
 
 function CreateConfigCommand: ICommand;
 begin
   Result := TConfigCommand.Create;
-end;
-
-{ TConfigCommand }
-
-constructor TConfigCommand.Create(AOut: IOutput; AErr: IOutput);
-begin
-  inherited Create;
-  if Assigned(AOut) then
-    FOut := AOut
-  else
-    FOut := TConsoleOutput.Create;
-
-  if Assigned(AErr) then
-    FErr := AErr
-  else
-    FErr := TConsoleOutput.Create;
 end;
 
 function TConfigCommand.Name: string;
@@ -93,304 +63,29 @@ end;
 
 function TConfigCommand.Aliases: TStringArray;
 begin
-  Result := nil;  // No aliases
+  Result := nil;
 end;
 
-function TConfigCommand.FindSub(const {%H-} AName: string): ICommand;
+function TConfigCommand.FindSub(const AName: string): ICommand;
 begin
   if AName <> '' then;
-  Result := nil;  // No subcommands - handled internally
+  Result := nil;
 end;
 
-procedure TConfigCommand.ShowHelp;
+procedure TConfigCommand.ShowHelp(const Ctx: IContext);
 begin
-  FOut.WriteLn('Usage: fpdev config <command> [options]');
-  FOut.WriteLn('');
-  FOut.WriteLn('Commands:');
-  FOut.WriteLn('  show                    Show current configuration');
-  FOut.WriteLn('  get <key>               Get a configuration value');
-  FOut.WriteLn('  set <key> <value>       Set a configuration value');
-  FOut.WriteLn('  export <file>           Export configuration to file');
-  FOut.WriteLn('  import <file>           Import configuration from file');
-  FOut.WriteLn('');
-  FOut.WriteLn('Configuration keys:');
-  FOut.WriteLn('  mirror                  Mirror source: auto, github, gitee, or custom URL');
-  FOut.WriteLn('  custom_repo_url         Custom repository URL (overrides mirror)');
-  FOut.WriteLn('  parallel_jobs           Number of parallel build jobs');
-  FOut.WriteLn('  auto_update             Enable auto-update: true/false');
-  FOut.WriteLn('  keep_sources            Keep source files: true/false');
-  FOut.WriteLn('');
-  FOut.WriteLn('Examples:');
-  FOut.WriteLn('  fpdev config show');
-  FOut.WriteLn('  fpdev config set mirror gitee');
-  FOut.WriteLn('  fpdev config set mirror github');
-  FOut.WriteLn('  fpdev config set custom_repo_url https://my-server.com/fpdev-repo.git');
-  FOut.WriteLn('  fpdev config get mirror');
-  FOut.WriteLn('  fpdev config export ~/fpdev-backup.json');
-  FOut.WriteLn('  fpdev config import ~/fpdev-backup.json');
-end;
-
-procedure TConfigCommand.ShowConfig;
-var
-  Settings: TFPDevSettings;
-begin
-  FConfigManager := TConfigManager.Create(GetConfigPath);
-  FConfigManager.LoadConfig;
-
-  Settings := FConfigManager.GetSettingsManager.GetSettings;
-
-  FOut.WriteLn('FPDev Configuration');
-  FOut.WriteLn('===================');
-  FOut.WriteLn('');
-  FOut.WriteLn('Mirror Settings:');
-  FOut.WriteLn('  mirror:           ' + Settings.Mirror);
-  FOut.WriteLn('  custom_repo_url:  ' + Settings.CustomRepoURL);
-  FOut.WriteLn('');
-  FOut.WriteLn('Build Settings:');
-  FOut.WriteLn('  parallel_jobs:    ' + IntToStr(Settings.ParallelJobs));
-  FOut.WriteLn('  keep_sources:     ' + BoolToStr(Settings.KeepSources, 'true', 'false'));
-  FOut.WriteLn('');
-  FOut.WriteLn('Update Settings:');
-  FOut.WriteLn('  auto_update:      ' + BoolToStr(Settings.AutoUpdate, 'true', 'false'));
-  FOut.WriteLn('');
-  FOut.WriteLn('Paths:');
-  FOut.WriteLn('  config_file:      ' + GetConfigPath);
-  FOut.WriteLn('  install_root:     ' + Settings.InstallRoot);
-  FOut.WriteLn('  toolchains_dir:   ' + GetToolchainsDir);
-  FOut.WriteLn('  resources_dir:    ' + GetDataRoot + PathDelim + 'resources');
-end;
-
-procedure TConfigCommand.GetConfigValue(const AKey: string);
-var
-  Settings: TFPDevSettings;
-  Value: string;
-begin
-  FConfigManager := TConfigManager.Create(GetConfigPath);
-  FConfigManager.LoadConfig;
-
-  Settings := FConfigManager.GetSettingsManager.GetSettings;
-  Value := '';
-
-  if SameText(AKey, 'mirror') then
-    Value := Settings.Mirror
-  else if SameText(AKey, 'custom_repo_url') then
-    Value := Settings.CustomRepoURL
-  else if SameText(AKey, 'parallel_jobs') then
-    Value := IntToStr(Settings.ParallelJobs)
-  else if SameText(AKey, 'auto_update') then
-    Value := BoolToStr(Settings.AutoUpdate, 'true', 'false')
-  else if SameText(AKey, 'keep_sources') then
-    Value := BoolToStr(Settings.KeepSources, 'true', 'false')
-  else if SameText(AKey, 'install_root') then
-    Value := Settings.InstallRoot
-  else if SameText(AKey, 'default_repo') then
-    Value := Settings.DefaultRepo
-  else
-  begin
-    FErr.WriteLn('Error: Unknown configuration key: ' + AKey);
-    FErr.WriteLn('Run "fpdev config show" to see available keys.');
-    Exit;
-  end;
-
-  FOut.WriteLn(Value);
-end;
-
-procedure TConfigCommand.SetConfigValue(const AKey, AValue: string);
-var
-  Settings: TFPDevSettings;
-begin
-  FConfigManager := TConfigManager.Create(GetConfigPath);
-  FConfigManager.LoadConfig;
-
-  Settings := FConfigManager.GetSettingsManager.GetSettings;
-
-  if SameText(AKey, 'mirror') then
-  begin
-    // Validate mirror value
-    if not (SameText(AValue, 'auto') or SameText(AValue, 'github') or
-            SameText(AValue, 'gitee') or (Pos('://', AValue) > 0)) then
-    begin
-      FErr.WriteLn('Error: Invalid mirror value: ' + AValue);
-      FErr.WriteLn('Valid values: auto, github, gitee, or a custom URL');
-      Exit;
-    end;
-    Settings.Mirror := AValue;
-  end
-  else if SameText(AKey, 'custom_repo_url') then
-  begin
-    Settings.CustomRepoURL := AValue;
-  end
-  else if SameText(AKey, 'parallel_jobs') then
-  begin
-    Settings.ParallelJobs := StrToIntDef(AValue, 2);
-    if Settings.ParallelJobs < 1 then
-      Settings.ParallelJobs := 1;
-  end
-  else if SameText(AKey, 'auto_update') then
-  begin
-    Settings.AutoUpdate := SameText(AValue, 'true') or SameText(AValue, '1') or
-                           SameText(AValue, 'yes') or SameText(AValue, 'on');
-  end
-  else if SameText(AKey, 'keep_sources') then
-  begin
-    Settings.KeepSources := SameText(AValue, 'true') or SameText(AValue, '1') or
-                            SameText(AValue, 'yes') or SameText(AValue, 'on');
-  end
-  else if SameText(AKey, 'install_root') then
-  begin
-    Settings.InstallRoot := AValue;
-  end
-  else
-  begin
-    FErr.WriteLn('Error: Unknown or read-only configuration key: ' + AKey);
-    FErr.WriteLn('Run "fpdev config show" to see available keys.');
-    Exit;
-  end;
-
-  FConfigManager.GetSettingsManager.SetSettings(Settings);
-  FConfigManager.SaveConfig;
-
-  FOut.WriteLn('Configuration updated: ' + AKey + ' = ' + AValue);
-end;
-
-procedure TConfigCommand.ExportConfig(const AFilePath: string);
-var
-  SrcPath: string;
-  SL: TStringList;
-begin
-  SrcPath := GetConfigPath;
-  if not FileExists(SrcPath) then
-  begin
-    FErr.WriteLn('Error: Configuration file not found: ' + SrcPath);
-    Exit;
-  end;
-
-  SL := TStringList.Create;
-  try
-    SL.LoadFromFile(SrcPath);
-    SL.SaveToFile(AFilePath);
-    FOut.WriteLn('Configuration exported to: ' + AFilePath);
-  finally
-    SL.Free;
-  end;
-end;
-
-procedure TConfigCommand.ImportConfig(const AFilePath: string);
-var
-  DestPath: string;
-  SL: TStringList;
-  J: TJSONData;
-begin
-  if not FileExists(AFilePath) then
-  begin
-    FErr.WriteLn('Error: File not found: ' + AFilePath);
-    Exit;
-  end;
-
-  // Validate JSON before importing
-  SL := TStringList.Create;
-  try
-    SL.LoadFromFile(AFilePath);
-    try
-      J := GetJSON(SL.Text);
-      J.Free;
-    except
-      on E: Exception do
-      begin
-        FErr.WriteLn('Error: Invalid JSON format: ' + E.Message);
-        Exit;
-      end;
-    end;
-
-    DestPath := GetConfigPath;
-    SL.SaveToFile(DestPath);
-    FOut.WriteLn('Configuration imported from: ' + AFilePath);
-  finally
-    SL.Free;
-  end;
+  WriteConfigHelp(Ctx);
 end;
 
 function TConfigCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
-var
-  SubCommand: string;
 begin
-  Result := 0;
-
-  // Use Ctx.Out/Err if available (replaces constructor-injected FOut/FErr)
-  if Assigned(Ctx) then
-  begin
-    if Assigned(Ctx.Out) then
-      FOut := Ctx.Out;
-    if Assigned(Ctx.Err) then
-      FErr := Ctx.Err;
-  end;
-
-  if Length(AParams) = 0 then
-  begin
-    ShowHelp;
-    Exit;
-  end;
-
-  SubCommand := LowerCase(AParams[0]);
-
-  if (SubCommand = 'help') or (SubCommand = '-h') or (SubCommand = '--help') then
-  begin
-    ShowHelp;
-  end
-  else if SubCommand = 'show' then
-  begin
-    ShowConfig;
-  end
-  else if SubCommand = 'get' then
-  begin
-    if Length(AParams) < 2 then
-    begin
-      FErr.WriteLn('Error: Missing key argument');
-      FErr.WriteLn('Usage: fpdev config get <key>');
-      Result := EXIT_USAGE_ERROR;
-      Exit;
-    end;
-    GetConfigValue(AParams[1]);
-  end
-  else if SubCommand = 'set' then
-  begin
-    if Length(AParams) < 3 then
-    begin
-      FErr.WriteLn('Error: Missing key or value argument');
-      FErr.WriteLn('Usage: fpdev config set <key> <value>');
-      Result := EXIT_USAGE_ERROR;
-      Exit;
-    end;
-    SetConfigValue(AParams[1], AParams[2]);
-  end
-  else if SubCommand = 'export' then
-  begin
-    if Length(AParams) < 2 then
-    begin
-      FErr.WriteLn('Error: Missing file path argument');
-      FErr.WriteLn('Usage: fpdev config export <file>');
-      Result := EXIT_USAGE_ERROR;
-      Exit;
-    end;
-    ExportConfig(AParams[1]);
-  end
-  else if SubCommand = 'import' then
-  begin
-    if Length(AParams) < 2 then
-    begin
-      FErr.WriteLn('Error: Missing file path argument');
-      FErr.WriteLn('Usage: fpdev config import <file>');
-      Result := EXIT_USAGE_ERROR;
-      Exit;
-    end;
-    ImportConfig(AParams[1]);
-  end
-  else
-  begin
-    FErr.WriteLn('Error: Unknown subcommand: ' + SubCommand);
-    ShowHelp;
-    Result := EXIT_USAGE_ERROR;
-  end;
+  Result := ExecuteNamespaceRootCommandCore(
+    AParams,
+    Ctx,
+    'Usage: fpdev system config help',
+    @ShowHelp,
+    @ShowHelp
+  );
 end;
 
 function TConfigCommand.GetHelp: string;
@@ -399,6 +94,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['config'], @CreateConfigCommand, []);
+  GlobalCommandRegistry.RegisterPath(['system','config'], @CreateConfigCommand, []);
 
 end.

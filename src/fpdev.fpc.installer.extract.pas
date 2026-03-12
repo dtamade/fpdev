@@ -15,7 +15,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.output.intf, fpdev.utils.process;
+  fpdev.output.intf, fpdev.utils.process, fpdev.utils.fs;
 
 type
   { TFPCExtractResult }
@@ -252,7 +252,7 @@ begin
   end;
 
   // Cleanup inner temp dir
-  TProcessExecutor.Execute('rm', ['-rf', InnerDir], '');
+  DeleteDirRecursive(InnerDir);
 
   Result.Success := True;
   Result.ExtractedDir := AInstallPath;

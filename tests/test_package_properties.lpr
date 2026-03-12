@@ -4,14 +4,14 @@ program test_package_properties;
 
 {
   Property-Based Tests for Package Management
-  
+
   Property 1: Dependency Resolution Completeness
   Property 4: Package Verification Round-Trip
   Property 5: Checksum Verification Correctness
   Property 6: Package Creation Round-Trip
   Property 7: Build Artifact Exclusion
   Property 9: Error Result Consistency
-  
+
   Validates: Requirements 1.1, 1.2, 1.5, 2.1, 2.2, 2.3, 2.5, 3.1, 3.3, 3.4, 3.6, 6.2
 }
 
@@ -87,32 +87,33 @@ end;
 { Helper: Create test package index }
 function CreateTestPackageIndex: TPackageArray;
 begin
+  Result := nil;
   SetLength(Result, 5);
-  
+
   // Package A - no dependencies (leaf)
   Result[0].Name := 'pkgA';
   Result[0].Version := '1.0.0';
   SetLength(Result[0].Dependencies, 0);
-  
+
   // Package B - depends on A
   Result[1].Name := 'pkgB';
   Result[1].Version := '2.0.0';
   SetLength(Result[1].Dependencies, 1);
   Result[1].Dependencies[0] := 'pkgA:>=1.0.0';
-  
+
   // Package C - depends on A and B
   Result[2].Name := 'pkgC';
   Result[2].Version := '1.5.0';
   SetLength(Result[2].Dependencies, 2);
   Result[2].Dependencies[0] := 'pkgA:>=1.0.0';
   Result[2].Dependencies[1] := 'pkgB:>=1.0.0';
-  
+
   // Package D - depends on C (transitive: D -> C -> A, B -> A)
   Result[3].Name := 'pkgD';
   Result[3].Version := '3.0.0';
   SetLength(Result[3].Dependencies, 1);
   Result[3].Dependencies[0] := 'pkgC:>=1.0.0';
-  
+
   // Package E - no dependencies (isolated)
   Result[4].Name := 'pkgE';
   Result[4].Version := '1.0.0';
@@ -143,14 +144,14 @@ begin
   WriteLn('');
   WriteLn('=== Property 1: Dependency Resolution Completeness ===');
   WriteLn('For any valid package, all transitive dependencies are included');
-  
+
   Index := CreateTestPackageIndex;
-  
+
   // Test with multiple root packages
   for i := 0 to High(Index) do
   begin
     Graph := BuildDependencyGraph(Index[i].Name, Index);
-    
+
     // Verify: all dependencies of each node are also in the graph
     AllDepsIncluded := True;
     for j := 0 to High(Graph) do
@@ -162,7 +163,7 @@ begin
         begin
           DepName := DepParts[0];
           DepFound := False;
-          
+
           // Check if dependency is in graph
           for m := 0 to High(Graph) do
           begin
@@ -172,7 +173,7 @@ begin
               Break;
             end;
           end;
-          
+
           if not DepFound then
           begin
             AllDepsIncluded := False;
@@ -181,17 +182,17 @@ begin
         end;
       end;
     end;
-    
+
     Assert(AllDepsIncluded, 'All deps included for ' + Index[i].Name);
   end;
-  
+
   // Test topological sort produces valid order
   Graph := BuildDependencyGraph('pkgD', Index);
   SortedOrder := TopologicalSortDependencies(Graph);
-  
+
   // Verify: sorted order contains all nodes
   Assert(Length(SortedOrder) = Length(Graph), 'Topo sort includes all nodes');
-  
+
   // Verify: no duplicates in sorted order
   HasDuplicates := False;
   for i := 0 to High(SortedOrder) do
@@ -207,7 +208,7 @@ begin
     if HasDuplicates then Break;
   end;
   Assert(not HasDuplicates, 'Topo sort has no duplicates');
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 1: Dependency Resolution Completeness verified');
@@ -235,20 +236,20 @@ begin
   WriteLn('');
   WriteLn('=== Property 4: Package Verification Round-Trip ===');
   WriteLn('For any valid installed package, verification returns success');
-  
+
   // Define test packages
   TestPackages[0].Name := 'testpkg1';
   TestPackages[0].Version := '1.0.0';
   TestPackages[0].HasLpk := True;
-  
+
   TestPackages[1].Name := 'testpkg2';
   TestPackages[1].Version := '2.3.4';
   TestPackages[1].HasLpk := False;  // Has Makefile instead
-  
+
   TestPackages[2].Name := 'testpkg3';
   TestPackages[2].Version := '0.1.0-alpha';
   TestPackages[2].HasLpk := True;
-  
+
   for i := 0 to High(TestPackages) do
   begin
     // Create test package directory
@@ -256,18 +257,18 @@ begin
     try
       // Create package.json
       MetaPath := IncludeTrailingPathDelimiter(TestDir) + 'package.json';
-      CreateTestFile(MetaPath, 
+      CreateTestFile(MetaPath,
         '{"name":"' + TestPackages[i].Name + '","version":"' + TestPackages[i].Version + '","description":"Test package"}');
-      
+
       // Create required file (.lpk or Makefile)
       if TestPackages[i].HasLpk then
         CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'test.lpk', '<?xml version="1.0"?><CONFIG></CONFIG>')
       else
         CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'Makefile', 'all:\n\techo "build"');
-      
+
       // Verify the package
       VerifyResult := VerifyInstalledPackage(TestDir);
-      
+
       // Check results
       Assert(VerifyResult.Status = vsValid, 'Verify ' + TestPackages[i].Name + ' - status valid');
       Assert(VerifyResult.PackageName = TestPackages[i].Name, 'Verify ' + TestPackages[i].Name + ' - name matches');
@@ -277,7 +278,7 @@ begin
       RemoveDirRecursive(TestDir);
     end;
   end;
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 4: Package Verification Round-Trip verified');
@@ -303,50 +304,50 @@ begin
   WriteLn('');
   WriteLn('=== Property 5: Checksum Verification Correctness ===');
   WriteLn('For any file, checksum verification correctly identifies matches');
-  
+
   // Define test contents
   TestContents[0] := 'Hello, World!';
   TestContents[1] := 'This is a test file with some content.';
   TestContents[2] := '{"name":"test","version":"1.0.0"}';
   TestContents[3] := 'Line1'#10'Line2'#10'Line3';
   TestContents[4] := '';  // Empty file
-  
+
   TestDir := CreateTempDir('checksum');
   try
     for i := 0 to High(TestContents) do
     begin
       TestFile := IncludeTrailingPathDelimiter(TestDir) + 'test' + IntToStr(i) + '.txt';
       CreateTestFile(TestFile, TestContents[i]);
-      
+
       // Compute actual hash
       ComputedHash := SHA256FileHex(TestFile);
-      
+
       // Test 1: Correct hash should verify
-      Assert(VerifyPackageChecksum(TestFile, ComputedHash), 
+      Assert(VerifyPackageChecksum(TestFile, ComputedHash),
         'Checksum match for content ' + IntToStr(i));
-      
+
       // Test 2: Wrong hash should not verify
       WrongHash := StringOfChar('0', 64);  // All zeros
-      Assert(not VerifyPackageChecksum(TestFile, WrongHash), 
+      Assert(not VerifyPackageChecksum(TestFile, WrongHash),
         'Checksum mismatch detected for content ' + IntToStr(i));
-      
+
       // Test 3: Invalid hash length should not verify
-      Assert(not VerifyPackageChecksum(TestFile, 'abc123'), 
+      Assert(not VerifyPackageChecksum(TestFile, 'abc123'),
         'Invalid hash length rejected for content ' + IntToStr(i));
-      
+
       // Test 4: Empty hash should not verify
-      Assert(not VerifyPackageChecksum(TestFile, ''), 
+      Assert(not VerifyPackageChecksum(TestFile, ''),
         'Empty hash rejected for content ' + IntToStr(i));
     end;
-    
+
     // Test 5: Non-existent file should not verify
-    Assert(not VerifyPackageChecksum(TestDir + '/nonexistent.txt', ComputedHash), 
+    Assert(not VerifyPackageChecksum(TestDir + '/nonexistent.txt', ComputedHash),
       'Non-existent file rejected');
-    
+
   finally
     RemoveDirRecursive(TestDir);
   end;
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 5: Checksum Verification Correctness verified');
@@ -378,33 +379,35 @@ begin
   WriteLn('');
   WriteLn('=== Property 6: Package Creation Round-Trip ===');
   WriteLn('Creating a package preserves source files (excluding build artifacts)');
-  
+  Options := Default(TPackageCreationOptions);
+  Err := '';
+
   // Define source files
   SourceFiles[0].Name := 'main.pas';
   SourceFiles[0].Content := 'program main; begin end.';
-  
+
   SourceFiles[1].Name := 'unit1.pas';
   SourceFiles[1].Content := 'unit unit1; interface implementation end.';
-  
+
   SourceFiles[2].Name := 'test.lpk';
   SourceFiles[2].Content := '<?xml version="1.0"?><CONFIG></CONFIG>';
-  
+
   SourceFiles[3].Name := 'README.md';
   SourceFiles[3].Content := '# Test Package';
-  
+
   SourceDir := CreateTempDir('pkg_source');
   OutputDir := CreateTempDir('pkg_output');
   try
     // Create source files
     for i := 0 to High(SourceFiles) do
-      CreateTestFile(IncludeTrailingPathDelimiter(SourceDir) + SourceFiles[i].Name, 
+      CreateTestFile(IncludeTrailingPathDelimiter(SourceDir) + SourceFiles[i].Name,
                      SourceFiles[i].Content);
-    
+
     // Create some build artifacts that should be excluded
     CreateTestFile(IncludeTrailingPathDelimiter(SourceDir) + 'main.o', 'binary');
     CreateTestFile(IncludeTrailingPathDelimiter(SourceDir) + 'unit1.ppu', 'binary');
     CreateTestFile(IncludeTrailingPathDelimiter(SourceDir) + 'main.exe', 'binary');
-    
+
     // Collect source files
     SetLength(Options.ExcludePatterns, 0);
     Files := CollectPackageSourceFiles(SourceDir, Options.ExcludePatterns);
@@ -435,29 +438,29 @@ begin
       end;
     end;
     Assert(SourceCount = Length(SourceFiles), 'All source files included');
-    
+
     // Generate metadata
-    FillChar(Options, SizeOf(Options), 0);
+    Options := Default(TPackageCreationOptions);
     Options.Name := 'testpkg';
     Options.Version := '1.0.0';
     Options.SourcePath := SourceDir;
-    
+
     MetaJson := GeneratePackageMetadataJson(Options);
     Assert(MetaJson <> '', 'Metadata JSON generated');
     Assert(Pos('"name":"testpkg"', MetaJson) > 0, 'Metadata contains name');
     Assert(Pos('"version":"1.0.0"', MetaJson) > 0, 'Metadata contains version');
-    
+
     // Create ZIP archive
     OutputPath := IncludeTrailingPathDelimiter(OutputDir) + 'testpkg-1.0.0.zip';
-    Assert(CreatePackageZipArchive(SourceDir, Files, OutputPath, Err), 
+    Assert(CreatePackageZipArchive(SourceDir, Files, OutputPath, Err),
       'ZIP archive created: ' + Err);
     Assert(FileExists(OutputPath), 'ZIP file exists');
-    
+
   finally
     RemoveDirRecursive(SourceDir);
     RemoveDirRecursive(OutputDir);
   end;
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 6: Package Creation Round-Trip verified');
@@ -485,7 +488,8 @@ begin
   WriteLn('');
   WriteLn('=== Property 7: Build Artifact Exclusion ===');
   WriteLn('Build artifacts (.o, .ppu, .exe, .dll, etc.) are excluded');
-  
+  ExcludePatterns := nil;
+
   // Define build artifacts to test
   BuildArtifacts[0] := 'main.o';
   BuildArtifacts[1] := 'unit1.ppu';
@@ -496,26 +500,26 @@ begin
   BuildArtifacts[6] := 'delphi.dcu';
   BuildArtifacts[7] := 'package.bpl';
   BuildArtifacts[8] := 'design.dcp';
-  
+
   // Define source files that should be included
   SourceFiles[0] := 'main.pas';
   SourceFiles[1] := 'unit1.pas';
   SourceFiles[2] := 'test.lpk';
   SourceFiles[3] := 'README.txt';
-  
+
   TestDir := CreateTempDir('artifacts');
   try
     // Create all files
     for i := 0 to High(BuildArtifacts) do
       CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + BuildArtifacts[i], 'binary content');
-    
+
     for i := 0 to High(SourceFiles) do
       CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + SourceFiles[i], 'source content');
-    
+
     // Collect files
     SetLength(ExcludePatterns, 0);
     Files := CollectPackageSourceFiles(TestDir, ExcludePatterns);
-    
+
     // Verify: no build artifacts in collected files
     HasArtifact := False;
     for i := 0 to High(Files) do
@@ -527,7 +531,7 @@ begin
       end;
     end;
     Assert(not HasArtifact, 'No build artifacts in collected files');
-    
+
     // Verify: all source files are included
     SourceCount := 0;
     for i := 0 to High(SourceFiles) do
@@ -542,18 +546,18 @@ begin
       end;
     end;
     Assert(SourceCount = Length(SourceFiles), 'All source files included');
-    
+
     // Test IsBuildArtifact function directly
     for i := 0 to High(BuildArtifacts) do
       Assert(IsBuildArtifact(BuildArtifacts[i]), 'IsBuildArtifact(' + BuildArtifacts[i] + ')');
-    
+
     for i := 0 to High(SourceFiles) do
       Assert(not IsBuildArtifact(SourceFiles[i]), 'Not artifact: ' + SourceFiles[i]);
-    
+
   finally
     RemoveDirRecursive(TestDir);
   end;
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 7: Build Artifact Exclusion verified');
@@ -576,7 +580,7 @@ begin
   WriteLn('');
   WriteLn('=== Property 9: Error Result Consistency ===');
   WriteLn('Failed operations have Success=False, non-empty ErrorMessage, valid ErrorCode');
-  
+
   // Define all error codes
   ErrorCodes[0] := pecNone;
   ErrorCodes[1] := pecPackageNotFound;
@@ -588,7 +592,7 @@ begin
   ErrorCodes[7] := pecNetworkError;
   ErrorCodes[8] := pecFileSystemError;
   ErrorCodes[9] := pecRepositoryNotConfigured;
-  
+
   // Test: Simulate error results and verify consistency
   for i := 1 to High(ErrorCodes) do  // Skip pecNone
   begin
@@ -596,21 +600,21 @@ begin
     Result.Success := False;
     Result.ErrorCode := ErrorCodes[i];
     Result.ErrorMessage := 'Test error message for code ' + IntToStr(Ord(ErrorCodes[i]));
-    
+
     // Verify consistency
     Assert(not Result.Success, 'Error result has Success=False for code ' + IntToStr(i));
     Assert(Result.ErrorCode <> pecNone, 'Error result has non-None ErrorCode for code ' + IntToStr(i));
     Assert(Result.ErrorMessage <> '', 'Error result has non-empty ErrorMessage for code ' + IntToStr(i));
   end;
-  
+
   // Test: Success result should have pecNone
   Result.Success := True;
   Result.ErrorCode := pecNone;
   Result.ErrorMessage := '';
-  
+
   Assert(Result.Success, 'Success result has Success=True');
   Assert(Result.ErrorCode = pecNone, 'Success result has ErrorCode=pecNone');
-  
+
   // Test: Verify error code enum values are distinct
   for i := 0 to High(ErrorCodes) do
   begin
@@ -620,7 +624,7 @@ begin
         'Error codes are distinct: ' + IntToStr(i) + ' vs ' + IntToStr(j));
     end;
   end;
-  
+
   Inc(TestsPassed);
   Inc(TotalTests);
   WriteLn('[PASS] Property 9: Error Result Consistency verified');
@@ -636,24 +640,24 @@ var
 begin
   WriteLn('');
   WriteLn('=== ValidatePackageSourcePath Tests ===');
-  
+
   TestDir := CreateTempDir('validate_source');
   try
     // Test: Empty directory should fail
     Assert(not ValidatePackageSourcePath(TestDir), 'Empty dir fails validation');
-    
+
     // Test: Directory with .lpk should pass
     CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'test.lpk', '<CONFIG/>');
     Assert(ValidatePackageSourcePath(TestDir), 'Dir with .lpk passes');
     DeleteFile(IncludeTrailingPathDelimiter(TestDir) + 'test.lpk');
-    
+
     // Test: Directory with Makefile should pass
     CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'Makefile', 'all:');
     Assert(ValidatePackageSourcePath(TestDir), 'Dir with Makefile passes');
-    
+
     // Test: Non-existent directory should fail
     Assert(not ValidatePackageSourcePath('/nonexistent/path'), 'Non-existent dir fails');
-    
+
   finally
     RemoveDirRecursive(TestDir);
   end;
@@ -666,38 +670,38 @@ var
 begin
   WriteLn('');
   WriteLn('=== ValidatePackageMetadata Tests ===');
-  
+
   TestDir := CreateTempDir('validate_meta');
   MetaPath := IncludeTrailingPathDelimiter(TestDir) + 'package.json';
   try
     // Test: Valid metadata
     CreateTestFile(MetaPath, '{"name":"test","version":"1.0.0"}');
     Assert(ValidatePackageMetadata(MetaPath), 'Valid metadata passes');
-    
+
     // Test: Missing name
     CreateTestFile(MetaPath, '{"version":"1.0.0"}');
     Assert(not ValidatePackageMetadata(MetaPath), 'Missing name fails');
-    
+
     // Test: Missing version
     CreateTestFile(MetaPath, '{"name":"test"}');
     Assert(not ValidatePackageMetadata(MetaPath), 'Missing version fails');
-    
+
     // Test: Empty name
     CreateTestFile(MetaPath, '{"name":"","version":"1.0.0"}');
     Assert(not ValidatePackageMetadata(MetaPath), 'Empty name fails');
-    
+
     // Test: Invalid JSON
     CreateTestFile(MetaPath, 'not json');
     Assert(not ValidatePackageMetadata(MetaPath), 'Invalid JSON fails');
-    
+
     // Test: Empty file
     CreateTestFile(MetaPath, '');
     Assert(not ValidatePackageMetadata(MetaPath), 'Empty file fails');
-    
+
     // Test: Non-existent file
     DeleteFile(MetaPath);
     Assert(not ValidatePackageMetadata(MetaPath), 'Non-existent file fails');
-    
+
   finally
     RemoveDirRecursive(TestDir);
   end;
@@ -710,27 +714,27 @@ var
 begin
   WriteLn('');
   WriteLn('=== CheckPackageRequiredFiles Tests ===');
-  
+
   TestDir := CreateTempDir('check_files');
   try
     // Test: Empty directory - missing package.json and .lpk/Makefile
     Missing := CheckPackageRequiredFiles(TestDir);
     Assert(Length(Missing) >= 1, 'Empty dir has missing files');
-    
+
     // Test: With package.json but no .lpk/Makefile
     CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'package.json', '{}');
     Missing := CheckPackageRequiredFiles(TestDir);
     Assert(Length(Missing) >= 1, 'Missing .lpk/Makefile detected');
-    
+
     // Test: With package.json and .lpk
     CreateTestFile(IncludeTrailingPathDelimiter(TestDir) + 'test.lpk', '<CONFIG/>');
     Missing := CheckPackageRequiredFiles(TestDir);
     Assert(Length(Missing) = 0, 'Complete package has no missing files');
-    
+
     // Test: Non-existent directory
     Missing := CheckPackageRequiredFiles('/nonexistent/path');
     Assert(Length(Missing) > 0, 'Non-existent dir reports missing');
-    
+
   finally
     RemoveDirRecursive(TestDir);
   end;
@@ -739,13 +743,13 @@ end;
 { Main }
 begin
   Randomize;
-  
+
   WriteLn('========================================');
   WriteLn('Package Management Property Tests');
   WriteLn('Properties 1, 4, 5, 6, 7, 9');
   WriteLn('Validates: Requirements 1.1-1.5, 2.1-2.5, 3.1-3.6, 6.2');
   WriteLn('========================================');
-  
+
   // Property-based tests
   PropertyTestDependencyResolutionCompleteness;
   PropertyTestPackageVerificationRoundTrip;
@@ -753,12 +757,12 @@ begin
   PropertyTestPackageCreationRoundTrip;
   PropertyTestBuildArtifactExclusion;
   PropertyTestErrorResultConsistency;
-  
+
   // Additional unit tests
   TestValidatePackageSourcePath;
   TestValidatePackageMetadata;
   TestCheckPackageRequiredFiles;
-  
+
   WriteLn('');
   WriteLn('========================================');
   WriteLn('Test Results: ', TestsPassed, '/', TotalTests, ' passed');
@@ -767,7 +771,7 @@ begin
   else
     WriteLn('SUCCESS: All tests passed');
   WriteLn('========================================');
-  
+
   if TestsFailed > 0 then
     Halt(1);
 end.

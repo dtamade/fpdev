@@ -39,6 +39,13 @@ function GetPackageManagerInstructions(const ATarget: string): string;
 
 implementation
 
+const
+  DEFAULT_UNIX_CROSS_BIN_PATHS: array[0..2] of string = (
+    '/usr/bin',
+    '/usr/local/bin',
+    '/opt/cross/bin'
+  );
+
 function PlatformToString(APlatform: TCrossTargetPlatform): string;
 begin
   case APlatform of
@@ -112,9 +119,9 @@ begin
   SearchPaths := nil;
   {$IFDEF UNIX}
   SetLength(SearchPaths, 4);
-  SearchPaths[0] := '/usr/bin';
-  SearchPaths[1] := '/usr/local/bin';
-  SearchPaths[2] := '/opt/cross/bin';
+  SearchPaths[0] := DEFAULT_UNIX_CROSS_BIN_PATHS[0];
+  SearchPaths[1] := DEFAULT_UNIX_CROSS_BIN_PATHS[1];
+  SearchPaths[2] := DEFAULT_UNIX_CROSS_BIN_PATHS[2];
   SearchPaths[3] := ExpandFileName('~/.local/bin');
   {$ELSE}
   SetLength(SearchPaths, 3);

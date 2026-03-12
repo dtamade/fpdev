@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.package.metadata;
+  fpdev.package.metadata, test_temp_paths;
 
 type
   { TPackageMetadataTest }
@@ -53,15 +53,16 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_metadata_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestDataDir := CreateUniqueTempDir('test_metadata_data');
 end;
 
 destructor TPackageMetadataTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    FTestDataDir := '';
+  end;
   inherited Destroy;
 end;
 
@@ -105,27 +106,11 @@ begin
 end;
 
 procedure TPackageMetadataTest.CleanupTestFiles;
-var
-  SR: TSearchRec;
-  FilePath: string;
 begin
-  if DirectoryExists(FTestDataDir) then
+  if FTestDataDir <> '' then
   begin
-    if FindFirst(FTestDataDir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := FTestDataDir + PathDelim + SR.Name;
-            DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(FTestDataDir);
+    CleanupTempDir(FTestDataDir);
+    ForceDirectories(FTestDataDir);
   end;
 end;
 

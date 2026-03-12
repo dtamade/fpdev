@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.command.utils, fpdev.paths;
 
 function TFPCCachePathCommand.Name: string; begin Result := 'path'; end;
 
@@ -45,11 +45,16 @@ function TFPCCachePathCommand.Execute(const AParams: array of string; const Ctx:
 var
   LCacheDir: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc cache path [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc cache path [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Show the cache directory path');
@@ -59,8 +64,14 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if Length(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache path [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Get cache directory
-  LCacheDir := GetAppConfigDir(False) + '.fpdev' + PathDelim + 'cache';
+  LCacheDir := GetCacheDir;
 
   // Output the path
   Ctx.Out.WriteLn(LCacheDir);

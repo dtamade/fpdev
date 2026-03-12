@@ -6,11 +6,26 @@ program test_libgit2_complete;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils,
-  fpdev.git2, libgit2;
+  SysUtils, test_pause_control,
+  fpdev.git2, libgit2, test_temp_paths;
 
 var
   Manager: TGitManager;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
+
+function GetTestRepoDir: string;
+begin
+  if GTestRootDir = '' then
+    Exit('');
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestLibGit2Initialization;
 begin
@@ -40,18 +55,7 @@ begin
   WriteLn('=== Test Repository Operations ===');
   WriteLn;
 
-  TestDir := 'test_complete_repo';
-
-  // Clean up existing test directory
-  if DirectoryExists(TestDir) then
-  begin
-    WriteLn('Deleting existing test directory...');
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
-  end;
+  TestDir := ResetTestRepoDir('test_libgit2_complete');
 
   try
     WriteLn('Cloning test repository...');
@@ -109,7 +113,7 @@ begin
   WriteLn('=== Test Commit Operations ===');
   WriteLn;
 
-  TestDir := 'test_complete_repo';
+  TestDir := GetTestRepoDir;
 
   if not DirectoryExists(TestDir) then
   begin
@@ -175,7 +179,7 @@ begin
   WriteLn('=== Test Remote Operations ===');
   WriteLn;
 
-  TestDir := 'test_complete_repo';
+  TestDir := GetTestRepoDir;
 
   if not DirectoryExists(TestDir) then
   begin
@@ -236,7 +240,7 @@ begin
   end;
 
   // Test repository check
-  WriteLn('test_complete_repo is repository: ', Manager.IsRepository('test_complete_repo'));
+  WriteLn('Test repository is repository: ', Manager.IsRepository(GetTestRepoDir));
   WriteLn('Current directory is repository: ', Manager.IsRepository('.'));
 
   WriteLn;
@@ -280,15 +284,11 @@ var
 begin
   WriteLn('=== Cleanup Test Files ===');
 
-  TestDir := 'test_complete_repo';
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('Deleting test directory: ', TestDir);
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
+    WriteLn('Deleting test directory: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('[OK] Cleanup completed');
   end;
   WriteLn;
@@ -326,7 +326,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('Press Enter to exit...');
-  ReadLn;
+  PauseIfRequested('Press Enter to exit...');
 end.

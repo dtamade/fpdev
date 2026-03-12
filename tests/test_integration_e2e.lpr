@@ -21,7 +21,7 @@ uses
   SysUtils, Classes, fpjson, jsonparser,
   fpdev.package.registry,
   fpdev.cmd.package.publish,
-  fpdev.cmd.package.search;
+  fpdev.cmd.package.search, test_temp_paths;
 
 type
   { TIntegrationTest }
@@ -65,19 +65,24 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test directories
-  FTestRegistryDir := 'test_integration_registry';
-  FTestPackageDir := 'test_integration_packages';
-
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  FTestRegistryDir := CreateUniqueTempDir('test_integration_registry');
+  FTestPackageDir := CreateUniqueTempDir('test_integration_packages');
 end;
 
 destructor TIntegrationTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestRegistryDir <> '' then
+  begin
+    CleanupTempDir(FTestRegistryDir);
+    FTestRegistryDir := '';
+  end;
+
+  if FTestPackageDir <> '' then
+  begin
+    CleanupTempDir(FTestPackageDir);
+    FTestPackageDir := '';
+  end;
+
   inherited Destroy;
 end;
 
@@ -169,37 +174,18 @@ begin
 end;
 
 procedure TIntegrationTest.CleanupTestFiles;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
+begin
+  if FTestRegistryDir <> '' then
   begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
+    CleanupTempDir(FTestRegistryDir);
+    ForceDirectories(FTestRegistryDir);
   end;
 
-begin
-  if DirectoryExists(FTestRegistryDir) then
-    DeleteDirectory(FTestRegistryDir);
-  if DirectoryExists(FTestPackageDir) then
-    DeleteDirectory(FTestPackageDir);
+  if FTestPackageDir <> '' then
+  begin
+    CleanupTempDir(FTestPackageDir);
+    ForceDirectories(FTestPackageDir);
+  end;
 end;
 
 procedure TIntegrationTest.TestCompletePublishWorkflow;
@@ -212,10 +198,8 @@ begin
   WriteLn('=== Test: Complete Publish Workflow ===');
 
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   // Step 1: Initialize registry
   Registry := TPackageRegistry.Create(FTestRegistryDir);
@@ -260,10 +244,8 @@ begin
   WriteLn('=== Test: Search After Publish ===');
 
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   // Publish a package
   CreateTestPackage('searchlib', '1.0.0', 'Searchable library', 'Search Tester');
@@ -312,10 +294,8 @@ begin
   WriteLn('=== Test: Multiple Packages Workflow ===');
 
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   // Publish multiple packages
   Publisher := TPackagePublishCommand.Create(FTestRegistryDir);
@@ -356,10 +336,8 @@ begin
   WriteLn('=== Test: Publish-Search-GetInfo Workflow ===');
 
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   // Publish package
   CreateTestPackage('infolib', '1.0.0', 'Library with info', 'Info Tester');
@@ -399,10 +377,8 @@ begin
   WriteLn('=== Test: Version Management ===');
 
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   // Publish multiple versions
   Publisher := TPackagePublishCommand.Create(FTestRegistryDir);

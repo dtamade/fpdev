@@ -344,13 +344,13 @@ fpdev 下载二进制文件的流程：
 命令行配置：
 ```bash
 # 中国用户
-fpdev config set mirror gitee
+fpdev system config set mirror gitee
 
 # 国际用户
-fpdev config set mirror github
+fpdev system config set mirror github
 
 # 自定义仓库
-fpdev config set custom_repo_url https://my-company.com/fpdev-repo
+fpdev system config set custom_repo_url https://my-company.com/fpdev-repo
 ```
 
 ---

@@ -3,7 +3,7 @@ program test_config_simple;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils,
+  SysUtils, test_config_isolation,
   fpdev.config.interfaces,
   fpdev.config.managers;
 
@@ -20,7 +20,10 @@ begin
   try
     // Create config manager with a test path
     WriteLn('Creating config manager...');
-    Config := TConfigManager.Create('test_config.json');
+    Config := CreateIsolatedConfigManager;
+    if Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(Config.GetConfigPath)) <> 1 then
+      raise Exception.Create('config path should live under system temp');
     WriteLn('Config manager created successfully');
     WriteLn;
     
@@ -82,7 +85,4 @@ begin
     end;
   end;
   
-  // Clean up test file
-  if FileExists('test_config.json') then
-    DeleteFile('test_config.json');
 end.

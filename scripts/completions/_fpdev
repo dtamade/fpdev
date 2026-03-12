@@ -4,20 +4,16 @@
 # Or copy to /usr/share/zsh/site-functions/_fpdev
 
 _fpdev() {
-    local -a commands fpc_commands lazarus_commands cross_commands package_commands project_commands
+    local -a commands fpc_commands lazarus_commands cross_commands package_commands
+    local -a package_repo_commands project_commands
 
     commands=(
-        'help:显示帮助'
-        'version:显示版本'
         'fpc:FPC 版本管理'
         'lazarus:Lazarus IDE 管理'
         'cross:交叉编译管理'
         'package:包管理'
         'project:项目管理'
-        'config:配置管理'
-        'doctor:系统诊断'
-        'default:设置默认版本'
-        'show:显示信息'
+        'system:系统域命令'
     )
 
     fpc_commands=(
@@ -29,9 +25,12 @@ _fpdev() {
         'show:显示版本详情'
         'doctor:诊断安装'
         'test:测试安装'
+        'verify:校验安装'
+        'auto-install:从项目配置自动安装'
         'update:更新版本'
-        'clean:清理'
+        'update-manifest:刷新远端清单缓存'
         'cache:缓存管理'
+        'policy:FPC 策略检查'
         'help:显示帮助'
     )
 
@@ -59,6 +58,8 @@ _fpdev() {
         'show:显示详情'
         'test:测试目标'
         'configure:配置目标'
+        'update:更新目标'
+        'clean:清理目标'
         'build:构建交叉编译器'
         'doctor:诊断环境'
         'help:显示帮助'
@@ -71,7 +72,6 @@ _fpdev() {
         'list:列出包'
         'search:搜索包'
         'info:包信息'
-        'create:创建包'
         'publish:发布包'
         'clean:清理'
         'install-local:本地安装'
@@ -79,6 +79,91 @@ _fpdev() {
         'deps:依赖树'
         'why:依赖路径'
         'help:显示帮助'
+    )
+
+    package_repo_commands=(
+        'add:添加仓库'
+        'list:列出仓库'
+        'remove:移除仓库'
+        'update:更新仓库'
+    )
+
+    local -a system_commands system_repo_commands
+    local -a system_env_commands system_config_commands system_index_commands
+    local -a system_cache_commands system_perf_commands system_toolchain_commands
+    local -a fpc_policy_commands
+
+    system_commands=(
+        'help:根帮助'
+        'version:版本信息'
+        'repo:仓库管理'
+        'config:配置管理'
+        'env:环境信息'
+        'index:索引管理'
+        'cache:缓存管理'
+        'doctor:系统诊断'
+        'perf:性能监控'
+        'toolchain:工具链检查'
+    )
+
+    system_env_commands=(
+        'data-root:数据根目录'
+        'vars:环境变量'
+        'path:PATH 配置'
+        'export:导出环境'
+        'hook:生成 shell hook'
+        'resolve:解析当前生效版本'
+    )
+
+    system_repo_commands=(
+        'add:添加仓库'
+        'list:列出仓库'
+        'remove:移除仓库'
+        'show:显示仓库'
+        'use:选择当前仓库'
+        'versions:查看版本'
+        'help:显示帮助'
+    )
+
+    system_config_commands=(
+        'show:显示配置'
+        'get:读取配置项'
+        'set:设置配置项'
+        'export:导出配置'
+        'import:导入配置'
+        'list:列出工具链'
+    )
+
+    system_index_commands=(
+        'status:显示索引状态'
+        'show:显示索引详情'
+        'update:刷新索引'
+    )
+
+    system_cache_commands=(
+        'status:显示缓存状态'
+        'stats:显示缓存统计'
+        'path:显示缓存路径'
+    )
+
+    system_perf_commands=(
+        'clear:清空性能数据'
+        'report:输出性能报告'
+        'save:保存性能数据'
+        'summary:输出性能摘要'
+    )
+
+    system_toolchain_commands=(
+        'check:输出工具链检查结果'
+        'self-test:运行工具链自检'
+        'fetch:拉取工具链工件'
+        'extract:解压本地归档'
+        'ensure-source:准备本地源码'
+        'import-bundle:导入离线捆绑包'
+    )
+
+    fpc_policy_commands=(
+        'check:检查 FPC 版本策略'
     )
 
     project_commands=(
@@ -89,6 +174,7 @@ _fpdev() {
         'run:运行项目'
         'test:测试项目'
         'clean:清理项目'
+        'template:模板管理'
         'help:显示帮助'
     )
 
@@ -112,11 +198,14 @@ _fpdev() {
     case "${words[2]}" in
         fpc)
             case "${words[3]}" in
-                install|uninstall|use|show|test|update)
+                install|uninstall|use|show|test|verify|update)
                     _describe 'version' fpc_versions
                     ;;
                 cache)
                     _describe 'cache command' '(list stats clean path)'
+                    ;;
+                policy)
+                    _describe 'policy command' '(check)'
                     ;;
                 *)
                     _describe 'fpc command' fpc_commands
@@ -126,9 +215,9 @@ _fpdev() {
         lazarus)
             _describe 'lazarus command' lazarus_commands
             ;;
-        cross|x)
+        cross)
             case "${words[3]}" in
-                install|uninstall|enable|disable|show|test|configure|build)
+                install|uninstall|enable|disable|show|test|configure|update|clean|build)
                     _describe 'target' cross_targets
                     ;;
                 *)
@@ -136,13 +225,51 @@ _fpdev() {
                     ;;
             esac
             ;;
-        package|pkg)
-            _describe 'package command' package_commands
+        package)
+            case "${words[3]}" in
+                repo)
+                    _describe 'package repo command' package_repo_commands
+                    ;;
+                *)
+                    _describe 'package command' package_commands
+                    ;;
+            esac
             ;;
-        project|proj)
+        system)
+            case "${words[3]}" in
+                config)
+                    _describe 'system config command' system_config_commands
+                    ;;
+                index)
+                    _describe 'system index command' system_index_commands
+                    ;;
+                cache)
+                    _describe 'system cache command' system_cache_commands
+                    ;;
+                perf)
+                    _describe 'system perf command' system_perf_commands
+                    ;;
+                toolchain)
+                    _describe 'system toolchain command' system_toolchain_commands
+                    ;;
+                env)
+                    _describe 'system env command' system_env_commands
+                    ;;
+                repo)
+                    _describe 'system repo command' system_repo_commands
+                    ;;
+                *)
+                    _describe 'system command' system_commands
+                    ;;
+            esac
+            ;;
+        project)
             case "${words[3]}" in
                 new)
                     _describe 'template' project_templates
+                    ;;
+                template)
+                    _describe 'template command' '(list install remove update)'
                     ;;
                 *)
                     _describe 'project command' project_commands

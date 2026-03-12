@@ -4,7 +4,7 @@ program test_cross_config_extended;
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.config.interfaces, fpdev.config.managers;
+  fpdev.config.interfaces, fpdev.config.managers, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -26,7 +26,13 @@ end;
 
 function MakeTmpConfigPath: string;
 begin
-  Result := GetTempDir(False) + 'fpdev_test_config_ext_' + IntToStr(GetProcessID) + '.json';
+  Result := CreateUniqueTempDir('fpdev_test_config_ext') + PathDelim + 'config.json';
+end;
+
+procedure CleanupTmpConfigPath(const APath: string);
+begin
+  if APath <> '' then
+    CleanupTempDir(ExtractFileDir(APath));
 end;
 
 { === Tests: Extended fields round-trip via AddCrossTarget/GetCrossTarget === }
@@ -36,8 +42,10 @@ var
   Cfg: IConfigManager;
   CrossMgr: ICrossTargetManager;
   Target, ReadBack: TCrossTarget;
+  TmpPath: string;
 begin
-  Cfg := TConfigManager.Create(MakeTmpConfigPath);
+  TmpPath := MakeTmpConfigPath;
+  Cfg := TConfigManager.Create(TmpPath);
   Cfg.LoadConfig;
   CrossMgr := Cfg.GetCrossTargetManager;
 
@@ -63,6 +71,7 @@ begin
   Check(ReadBack.ABI = 'eabihf', 'RoundTrip: ABI preserved');
   Check(ReadBack.BinutilsPrefix = 'arm-linux-gnueabihf-', 'RoundTrip: BinutilsPrefix preserved');
   Check(ReadBack.CrossOpt = '-CaEABIHF -CfVFPV3', 'RoundTrip: CrossOpt preserved');
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Backward compatibility - old format (3 fields only) === }
@@ -114,7 +123,7 @@ begin
   Check(ReadBack.BinutilsPrefix = '', 'OldFormat: BinutilsPrefix defaults to empty');
   Check(ReadBack.CrossOpt = '', 'OldFormat: CrossOpt defaults to empty');
 
-  DeleteFile(TmpPath);
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Extended fields are written to JSON correctly === }
@@ -158,7 +167,7 @@ begin
     SL.Free;
   end;
 
-  DeleteFile(TmpPath);
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Empty extended fields not written to JSON === }
@@ -199,7 +208,7 @@ begin
     SL.Free;
   end;
 
-  DeleteFile(TmpPath);
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Multiple targets with different field combinations === }
@@ -210,8 +219,10 @@ var
   CrossMgr: ICrossTargetManager;
   T1, T2, R1, R2: TCrossTarget;
   Names: TStringArray;
+  TmpPath: string;
 begin
-  Cfg := TConfigManager.Create(MakeTmpConfigPath);
+  TmpPath := MakeTmpConfigPath;
+  Cfg := TConfigManager.Create(TmpPath);
   Cfg.LoadConfig;
   CrossMgr := Cfg.GetCrossTargetManager;
 
@@ -237,6 +248,7 @@ begin
   Check(CrossMgr.GetCrossTarget('win64', R2), 'MultiTarget: win64 found');
   Check(R2.Enabled = False, 'MultiTarget: win64 disabled');
   Check(R2.CPU = 'x86_64', 'MultiTarget: win64 CPU correct');
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Save and reload preserves all fields === }
@@ -282,7 +294,7 @@ begin
   Check(ReadBack.BinutilsPrefix = 'mipsel-linux-gnu-', 'FullCycle: BinutilsPrefix');
   Check(ReadBack.CrossOpt = '-CfSOFT', 'FullCycle: CrossOpt');
 
-  DeleteFile(TmpPath);
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Update existing target preserves/overwrites fields === }
@@ -292,8 +304,10 @@ var
   Cfg: IConfigManager;
   CrossMgr: ICrossTargetManager;
   Target, ReadBack: TCrossTarget;
+  TmpPath: string;
 begin
-  Cfg := TConfigManager.Create(MakeTmpConfigPath);
+  TmpPath := MakeTmpConfigPath;
+  Cfg := TConfigManager.Create(TmpPath);
   Cfg.LoadConfig;
   CrossMgr := Cfg.GetCrossTargetManager;
 
@@ -315,6 +329,7 @@ begin
   Check(ReadBack.ABI = 'eabihf', 'Update: ABI updated');
   Check(ReadBack.SubArch = 'armv7', 'Update: SubArch added');
   Check(ReadBack.CrossOpt = '-CaEABIHF', 'Update: CrossOpt added');
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 { === Tests: Remove target === }
@@ -324,8 +339,10 @@ var
   Cfg: IConfigManager;
   CrossMgr: ICrossTargetManager;
   Target, ReadBack: TCrossTarget;
+  TmpPath: string;
 begin
-  Cfg := TConfigManager.Create(MakeTmpConfigPath);
+  TmpPath := MakeTmpConfigPath;
+  Cfg := TConfigManager.Create(TmpPath);
   Cfg.LoadConfig;
   CrossMgr := Cfg.GetCrossTargetManager;
 
@@ -338,6 +355,7 @@ begin
   Check(CrossMgr.RemoveCrossTarget('arm-linux'), 'Remove: returns True');
   Check(not CrossMgr.GetCrossTarget('arm-linux', ReadBack), 'Remove: target gone');
   Check(Length(CrossMgr.ListCrossTargets) = 0, 'Remove: list empty');
+  CleanupTmpConfigPath(TmpPath);
 end;
 
 begin

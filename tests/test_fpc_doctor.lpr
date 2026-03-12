@@ -20,6 +20,12 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+function BuildTempRoot(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + IntToStr(GetTickCount64);
+end;
+
 procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
 begin
   if not ACondition then
@@ -39,11 +45,28 @@ begin
   AssertTrue(not ACondition, AMessage);
 end;
 
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  AssertTrue(Pos(TempRoot, ExpandFileName(TestInstallRoot)) = 1,
+    'Test install root should live under system temp');
+  AssertTrue(Pos(TempRoot, ExpandFileName(ConfigManager.ConfigPath)) = 1,
+    'Config path should live under system temp');
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
 begin
-  TestInstallRoot := 'test_doctor_root_' + IntToStr(GetTickCount64);
+  if TestInstallRoot = '' then
+    TestInstallRoot := BuildTempRoot('test_doctor_root_');
   ForceDirectories(TestInstallRoot);
 
   Settings := ConfigManager.GetSettings;
@@ -138,12 +161,15 @@ begin
   WriteLn;
 
   try
-    ConfigManager := TFPDevConfigManager.Create;
+    TestInstallRoot := BuildTempRoot('test_doctor_root_');
+    ForceDirectories(TestInstallRoot);
+    ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestInstallRoot) + 'config.json');
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;
 
       SetupTestEnvironment;
+      TestTempPathsUseSystemTempRoot;
       try
         TestWriteCheckValidDir;
         TestWriteCheckNonExistentDir;

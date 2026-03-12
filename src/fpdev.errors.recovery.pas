@@ -117,8 +117,8 @@ begin
   );
 
   Result.AddSuggestion(
-    'Run fpdev doctor to check installation',
-    'fpdev doctor',
+    'Run fpdev system doctor to check installation',
+    'fpdev system doctor',
     'Diagnose system configuration'
   );
 end;
@@ -219,7 +219,7 @@ begin
 
   Result.AddSuggestion(
     'Run system diagnostics',
-    'fpdev doctor',
+    'fpdev system doctor',
     'Check all system dependencies'
   );
 
@@ -250,7 +250,7 @@ begin
 
   Result.AddSuggestion(
     'Check for missing dependencies',
-    'fpdev doctor',
+    'fpdev system doctor',
     'Verify all build dependencies are installed'
   );
 
@@ -342,14 +342,14 @@ begin
 
   Result.AddSuggestion(
     'Reset to default configuration',
-    'mv ' + AConfigFile + ' ' + AConfigFile + '.backup' + LineEnding + 'fpdev init',
-    'Backup current config and create new one'
+    'mv ' + AConfigFile + ' ' + AConfigFile + '.backup',
+    'Backup current config so fpdev can recreate it on next run'
   );
 
   Result.AddSuggestion(
     'Validate configuration',
-    'fpdev config validate',
-    'Check configuration for errors'
+    'fpdev system config show',
+    'Try loading configuration and inspect current values'
   );
 end;
 
@@ -385,7 +385,7 @@ begin
   // Build failed default suggestions
   SetLength(Suggestions, 2);
   Suggestions[0].Action := 'Check for missing dependencies';
-  Suggestions[0].Command := 'fpdev doctor';
+  Suggestions[0].Command := 'fpdev system doctor';
   Suggestions[0].Description := 'Verify all build dependencies are installed';
   Suggestions[1].Action := 'Clean and retry';
   Suggestions[1].Command := 'fpdev fpc clean';

@@ -2,6 +2,7 @@ unit libgit2;
 
 {$mode objfpc}{$H+}
 {$PACKRECORDS C}
+// acq:allow-style-file
 
 interface
 

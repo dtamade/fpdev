@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectTestCommand.Name: string; begin Result := 'test'; end;
 function TProjectTestCommand.Aliases: TStringArray; begin Result := nil; end;

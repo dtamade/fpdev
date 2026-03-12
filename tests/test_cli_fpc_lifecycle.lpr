@@ -27,10 +27,43 @@ uses
   fpdev.cmd.fpc.update,
   fpdev.cmd.fpc.test,
   fpdev.cmd.fpc.update_manifest,
-  test_cli_helpers;
+  fpdev.cmd.fpc.autoinstall,
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
+
+procedure WriteCachedFPCManifest(const ACacheDir: string);
+var
+  Manifest: TStringList;
+  CachePath: string;
+begin
+  ForceDirectories(ACacheDir);
+  CachePath := IncludeTrailingPathDelimiter(ACacheDir) + 'fpc.json';
+  Manifest := TStringList.Create;
+  try
+    Manifest.Add('{');
+    Manifest.Add('  "manifest-version": "1",');
+    Manifest.Add('  "date": "2026-03-09",');
+    Manifest.Add('  "channel": "stable",');
+    Manifest.Add('  "pkg": {');
+    Manifest.Add('    "fpc": {');
+    Manifest.Add('      "version": "3.2.2",');
+    Manifest.Add('      "targets": {');
+    Manifest.Add('        "linux-x86_64": {');
+    Manifest.Add('          "url": "https://example.com/fpc.tar.gz",');
+    Manifest.Add('          "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",');
+    Manifest.Add('          "size": 123456789');
+    Manifest.Add('        }');
+    Manifest.Add('      }');
+    Manifest.Add('    }');
+    Manifest.Add('  }');
+    Manifest.Add('}');
+    Manifest.SaveToFile(CachePath);
+  finally
+    Manifest.Free;
+  end;
+end;
 
 { ===== Group 1: fpc update - Command Basics ===== }
 
@@ -356,7 +389,82 @@ begin
   end;
 end;
 
+procedure TestUpdateManifestUnexpectedArg;
+var
+  Cmd: TFPCUpdateManifestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateManifestCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('update-manifest unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateManifestUnknownOption;
+var
+  Cmd: TFPCUpdateManifestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateManifestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('update-manifest unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateManifestForceWithExtraArg;
+var
+  Cmd: TFPCUpdateManifestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateManifestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--force', 'extra'], Ctx);
+    Check('update-manifest --force with extra arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 12: fpc update-manifest - Registration ===== }
+
+procedure TestUpdateManifestUsesContextScopedCache;
+var
+  Cmd: TFPCUpdateManifestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ExpectedCacheDir: string;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateManifestCommand.Create;
+  ExpectedCacheDir := IncludeTrailingPathDelimiter(GTempDir) + 'cache' + PathDelim + 'manifests';
+  WriteCachedFPCManifest(ExpectedCacheDir);
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('update-manifest cached run returns EXIT_OK', Ret = EXIT_OK);
+    Check('update-manifest uses context-scoped cache dir',
+      StdOut.Contains('  Cache: ' + ExpectedCacheDir));
+    Check('update-manifest cached run lists available version',
+      StdOut.Contains('3.2.2'));
+  finally
+    Cmd.Free;
+  end;
+end;
 
 procedure TestUpdateManifestRegistration;
 var
@@ -375,13 +483,43 @@ begin
   Check('fpc update-manifest is registered in command registry', Found);
 end;
 
+{ ===== Group 13: fpc auto-install - Error routing ===== }
+
+procedure TestAutoInstallMissingConfigWritesStderr;
+var
+  Cmd: TFPCAutoInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  OldDir: string;
+  TempNoConfigDir: string;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCAutoInstallCommand.Create;
+  OldDir := GetCurrentDir;
+  TempNoConfigDir := GTempDir + PathDelim + 'autoinstall_no_config';
+  ForceDirectories(TempNoConfigDir);
+  try
+    SetCurrentDir(TempNoConfigDir);
+    Ret := Cmd.Execute([], Ctx);
+    Check('auto-install missing config returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('auto-install missing config error goes to stderr',
+      StdErr.Contains('No .fpdev.toml found'));
+    Check('auto-install missing config does not write error to stdout',
+      not StdOut.Contains('No .fpdev.toml found'));
+  finally
+    SetCurrentDir(OldDir);
+    Cmd.Free;
+  end;
+end;
+
 { ===== Main ===== }
 begin
-  WriteLn('=== FPC Lifecycle Commands CLI Tests (update/test/update-manifest) ===');
+  WriteLn('=== FPC Lifecycle Commands CLI Tests (update/test/update-manifest/auto-install) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_fpc_life_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_fpc_life');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     // Group 1: fpc update basics
@@ -445,17 +583,22 @@ begin
     WriteLn('--- fpc update-manifest: Help Output ---');
     TestUpdateManifestHelpFlag;
     TestUpdateManifestHelpShortFlag;
+    TestUpdateManifestUnexpectedArg;
+    TestUpdateManifestUnknownOption;
+    TestUpdateManifestForceWithExtraArg;
 
     // Group 12: fpc update-manifest registration
     WriteLn('');
     WriteLn('--- fpc update-manifest: Registration ---');
     TestUpdateManifestRegistration;
+    TestUpdateManifestUsesContextScopedCache;
+
+    // Group 13: fpc auto-install error routing
+    WriteLn('');
+    WriteLn('--- fpc auto-install: Error Routing ---');
+    TestAutoInstallMissingConfigWritesStderr;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

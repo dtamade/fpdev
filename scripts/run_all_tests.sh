@@ -1,33 +1,8 @@
 #!/bin/bash
 # Run all FPDev tests and collect results
 
-set -e
-
-# Isolated environment (avoid touching real user config)
-TEST_TMP_ROOT="$(mktemp -d /tmp/fpdev-tests.XXXXXX 2>/dev/null || true)"
-if [ -z "${TEST_TMP_ROOT}" ] || [ ! -d "${TEST_TMP_ROOT}" ]; then
-  TEST_TMP_ROOT="/tmp/fpdev-tests.$$"
-  mkdir -p "${TEST_TMP_ROOT}"
-fi
-
-TEST_DATA_ROOT="${TEST_TMP_ROOT}/fpdev-data"
-TEST_LAZARUS_CONFIG_ROOT="${TEST_TMP_ROOT}/lazarus-config"
-mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}"
-
-export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
-export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
-
-# Default: keep test suite offline/deterministic
-export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
-
-cleanup() {
-  if [ "${FPDEV_TEST_KEEP_TEMP:-0}" = "1" ]; then
-    echo "[INFO] Keeping test temp dir: ${TEST_TMP_ROOT}"
-    return 0
-  fi
-  rm -rf "${TEST_TMP_ROOT}" 2>/dev/null || true
-}
-trap cleanup EXIT
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Colors for output
 RED='\033[0;31m'
@@ -40,41 +15,66 @@ TOTAL=0
 PASSED=0
 FAILED=0
 SKIPPED=0
+TEST_TMP_ROOT=""
+TEST_DATA_ROOT=""
+TEST_LAZARUS_CONFIG_ROOT=""
 
 # Arrays to store results
 declare -a FAILED_TESTS
 declare -a PASSED_TESTS
+declare -a TEST_FILES
 
-echo "========================================"
-echo "Running All FPDev Tests"
-echo "========================================"
-echo ""
+create_test_tmp_root() {
+  local tmp_root=""
+  tmp_root="$(mktemp -d /tmp/fpdev-tests.XXXXXX 2>/dev/null || true)"
+  if [ -z "${tmp_root}" ] || [ ! -d "${tmp_root}" ]; then
+    tmp_root="/tmp/fpdev-tests.$$"
+    mkdir -p "${tmp_root}"
+  fi
+  printf '%s\n' "${tmp_root}"
+}
 
-# Find all test files (including nested directories)
-# Excluded directories and reasons:
-#   fpdev.git2.adapter - Requires libgit2 native library (not available in CI)
-#   fpdev.libgit2.base - Requires libgit2 native library (not available in CI)
-#   fpdev.core.misc    - Legacy/experimental tests not part of main suite
-#   migrated           - Old tests superseded by newer implementations
-#   examples           - Example code, not test cases
-TEST_FILES=$(find tests -name "test_*.lpr" \
-    ! -path "*/examples/*" \
-    ! -path "*/fpdev.git2.adapter/*" \
-    ! -path "*/fpdev.libgit2.base/*" \
-    ! -path "*/fpdev.core.misc/*" \
-    ! -path "*/migrated/*" \
-    | sort)
+init_test_environment() {
+  TEST_TMP_ROOT="$(create_test_tmp_root)"
+  TEST_DATA_ROOT="${TEST_TMP_ROOT}/fpdev-data"
+  TEST_LAZARUS_CONFIG_ROOT="${TEST_TMP_ROOT}/lazarus-config"
+  mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}"
+
+  export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
+  export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
+  export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
+}
+
+cleanup() {
+  if [ -z "${TEST_TMP_ROOT}" ]; then
+    return 0
+  fi
+  if [ "${FPDEV_TEST_KEEP_TEMP:-0}" = "1" ]; then
+    echo "[INFO] Keeping test temp dir: ${TEST_TMP_ROOT}"
+    return 0
+  fi
+  rm -rf "${TEST_TMP_ROOT}" 2>/dev/null || true
+}
+
+print_banner() {
+  echo "========================================"
+  echo "Running All FPDev Tests"
+  echo "========================================"
+  echo ""
+}
+
+load_test_inventory() {
+  mapfile -t TEST_FILES < <(python3 "${SCRIPT_DIR}/update_test_stats.py" --list)
+}
 
 run_test_binary() {
   local bin_path="$1"
   local log_path="$2"
 
-  # Many fpcunit console runners require --all to actually run tests.
   if "${bin_path}" --all >"${log_path}" 2>&1; then
     return 0
   fi
 
-  # Legacy/simple tests often take no args.
   if "${bin_path}" >"${log_path}" 2>&1; then
     return 0
   fi
@@ -82,89 +82,301 @@ run_test_binary() {
   return 1
 }
 
-for TEST_FILE in $TEST_FILES; do
-    TOTAL=$((TOTAL + 1))
-    TEST_NAME=$(basename "$TEST_FILE" .lpr)
-    TEST_DIR=$(dirname "$TEST_FILE")
-    TEST_LPI="${TEST_FILE%.lpr}.lpi"
-    TEST_LOG="${TEST_TMP_ROOT}/${TEST_NAME}.log"
+cleanup_compiled_state_files() {
+  find lib -type f -name "*.compiled" -delete 2>/dev/null || true
+}
 
-    # Determine binary path: check nested bin/ first, then top-level bin/
-    if [ "$TEST_DIR" != "tests" ]; then
-        TEST_BIN="${TEST_DIR}/bin/${TEST_NAME}"
-        TEST_BIN_DIR="${TEST_DIR}/bin"
-    else
-        TEST_BIN="bin/${TEST_NAME}"
-        TEST_BIN_DIR="bin"
+cleanup_compiler_artifact_files() {
+  find lib -type f \( \
+    -name "*.o" -o \
+    -name "*.ppu" -o \
+    -name "*.a" -o \
+    -name "*.or" -o \
+    -name "*.rst" \
+  \) -delete 2>/dev/null || true
+}
+
+is_compiled_state_corruption() {
+  local build_log="$1"
+  grep -Eq \
+    "Root element is missing|Error reading file|Invalid header size|\\.compiled" \
+    "$build_log"
+}
+
+is_transient_build_failure() {
+  local build_log="$1"
+  grep -Eq \
+    "Can't call the linker|Failed to execute \"/usr/bin/ld|Resource temporarily unavailable|Text file busy|No space left on device|Disk quota exceeded|bad reloc symbol index|failed to set dynamic section sizes: bad value" \
+    "$build_log"
+}
+
+build_test_with_fallback() {
+  local test_lpi="$1"
+  local test_file="$2"
+  local test_bin_dir="$3"
+  local build_log="$4"
+
+  if [ -f "$test_lpi" ]; then
+    if lazbuild -B "$test_lpi" >>"$build_log" 2>&1; then
+      return 0
     fi
 
-    # Ensure output directory exists
-    mkdir -p "$TEST_BIN_DIR"
-
-    echo -n "[$TOTAL] Testing $TEST_NAME... "
-
-    # Try to build the test
-    BUILD_SUCCESS=false
-
-    # First try lazbuild if .lpi exists
-    if [ -f "$TEST_LPI" ]; then
-        if lazbuild -B "$TEST_LPI" > /dev/null 2>&1; then
-            BUILD_SUCCESS=true
-        else
-            # If lazbuild fails, try fpc as fallback
-            if fpc -Fusrc -Fisrc -FE"$TEST_BIN_DIR" -FUlib "$TEST_FILE" > /dev/null 2>&1; then
-                BUILD_SUCCESS=true
-            fi
-        fi
-    else
-        # Fall back to direct fpc compilation
-        if fpc -Fusrc -Fisrc -FE"$TEST_BIN_DIR" -FUlib "$TEST_FILE" > /dev/null 2>&1; then
-            BUILD_SUCCESS=true
-        fi
+    if is_compiled_state_corruption "$build_log"; then
+      echo "[run_all_tests] detected compiled-state corruption, cleaning and retrying lazbuild once" >>"$build_log"
+      cleanup_compiled_state_files
+      if lazbuild -B "$test_lpi" >>"$build_log" 2>&1; then
+        return 0
+      fi
+    elif is_transient_build_failure "$build_log"; then
+      echo "[run_all_tests] detected transient build failure, retrying lazbuild once" >>"$build_log"
+      if lazbuild -B "$test_lpi" >>"$build_log" 2>&1; then
+        return 0
+      fi
     fi
+  fi
 
-    if [ "$BUILD_SUCCESS" = true ]; then
-        # Run the test
-        if [ -f "$TEST_BIN" ]; then
-            if run_test_binary "./${TEST_BIN}" "${TEST_LOG}"; then
-                echo -e "${GREEN}PASSED${NC}"
-                PASSED=$((PASSED + 1))
-                PASSED_TESTS+=("$TEST_NAME")
-            else
-                echo -e "${RED}FAILED${NC}"
-                FAILED=$((FAILED + 1))
-                FAILED_TESTS+=("$TEST_NAME")
-                echo -e "${YELLOW}  log: ${TEST_LOG}${NC}"
-            fi
-        else
-            echo -e "${YELLOW}SKIPPED (no binary)${NC}"
-            SKIPPED=$((SKIPPED + 1))
-        fi
-    else
-        echo -e "${RED}BUILD FAILED${NC}"
-        FAILED=$((FAILED + 1))
-        FAILED_TESTS+=("$TEST_NAME")
+  echo "[run_all_tests] lazbuild failed, trying direct fpc fallback" >>"$build_log"
+  if fpc -Fusrc -Fisrc -FE"$test_bin_dir" -FUlib "$test_file" >>"$build_log" 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
+extract_lpi_target_binary() {
+  local lpi_path="$1"
+
+  awk '
+    /<Target>/ { in_target=1; next }
+    /<\/Target>/ { in_target=0 }
+    in_target && match($0, /Filename Value="([^"]+)"/, m) {
+      print m[1]
+      exit
+    }
+  ' "$lpi_path"
+}
+
+get_test_binary_candidates() {
+  local preferred_bin="$1"
+  local test_dir="$2"
+  local test_name="$3"
+  local test_lpi="$4"
+  local lpi_target=""
+
+  printf '%s\n' "$preferred_bin"
+  printf '%s\n' "${preferred_bin}.exe"
+  printf '%s\n' "bin/${test_name}"
+  printf '%s\n' "bin/${test_name}.exe"
+
+  if [ -f "$test_lpi" ]; then
+    lpi_target="$(extract_lpi_target_binary "$test_lpi")"
+    if [ -n "$lpi_target" ]; then
+      case "$lpi_target" in
+        /*|[A-Za-z]:[\\/]* )
+          printf '%s\n' "$lpi_target"
+          printf '%s\n' "${lpi_target}.exe"
+          ;;
+        *)
+          printf '%s\n' "${test_dir}/${lpi_target}"
+          printf '%s\n' "${test_dir}/${lpi_target}.exe"
+          ;;
+      esac
     fi
-done
+  fi
+}
 
-echo ""
-echo "========================================"
-echo "Test Results Summary"
-echo "========================================"
-echo "Total:   $TOTAL"
-echo -e "${GREEN}Passed:  $PASSED${NC}"
-echo -e "${RED}Failed:  $FAILED${NC}"
-echo -e "${YELLOW}Skipped: $SKIPPED${NC}"
-echo ""
+cleanup_test_binary_candidates() {
+  local preferred_bin="$1"
+  local test_dir="$2"
+  local test_name="$3"
+  local test_lpi="$4"
+  local candidate=""
 
-if [ $FAILED -gt 0 ]; then
+  while IFS= read -r candidate; do
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+      rm -f "$candidate" 2>/dev/null || true
+    fi
+  done < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+}
+
+resolve_test_binary_path() {
+  local preferred_bin="$1"
+  local test_dir="$2"
+  local test_name="$3"
+  local test_lpi="$4"
+  local candidate=""
+
+  while IFS= read -r candidate; do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+
+  return 1
+}
+
+has_valid_test_binary() {
+  local preferred_bin="$1"
+  local test_dir="$2"
+  local test_name="$3"
+  local test_lpi="$4"
+  local resolved_bin=""
+
+  if ! resolved_bin="$(resolve_test_binary_path "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")"; then
+    return 1
+  fi
+
+  [ -s "$resolved_bin" ]
+}
+
+build_test_with_recovery() {
+  local test_lpi="$1"
+  local test_file="$2"
+  local preferred_bin="$3"
+  local test_dir="$4"
+  local test_name="$5"
+  local build_log="$6"
+  local test_bin_dir=""
+  local build_success=false
+
+  test_bin_dir="$(dirname "$preferred_bin")"
+  : >"$build_log"
+
+  cleanup_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"
+  if build_test_with_fallback "$test_lpi" "$test_file" "$test_bin_dir" "$build_log"; then
+    build_success=true
+  fi
+
+  if [ "$build_success" = true ] && has_valid_test_binary "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"; then
+    return 0
+  fi
+
+  if [ "$build_success" != true ] && { is_compiled_state_corruption "$build_log" || is_transient_build_failure "$build_log"; }; then
+    echo "[run_all_tests] build failed with recoverable compiler/linker noise, cleaning outputs and retrying once" >>"$build_log"
+    cleanup_compiled_state_files
+    cleanup_compiler_artifact_files
+    cleanup_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"
+
+    if build_test_with_fallback "$test_lpi" "$test_file" "$test_bin_dir" "$build_log" \
+      && has_valid_test_binary "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"; then
+      return 0
+    fi
+  fi
+
+  if [ "$build_success" = true ]; then
+    echo "[run_all_tests] build completed without a runnable binary, cleaning outputs and retrying once" >>"$build_log"
+    cleanup_compiled_state_files
+    cleanup_compiler_artifact_files
+    cleanup_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"
+
+    if build_test_with_fallback "$test_lpi" "$test_file" "$test_bin_dir" "$build_log" \
+      && has_valid_test_binary "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"; then
+      return 0
+    fi
+  fi
+
+  if ! has_valid_test_binary "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"; then
+    echo "[run_all_tests] missing or zero-byte test binary after build" >>"$build_log"
+  fi
+
+  return 1
+}
+
+run_single_test() {
+  local test_file="$1"
+  local test_name=""
+  local test_dir=""
+  local test_lpi=""
+  local test_log=""
+  local build_log=""
+  local test_bin=""
+  local test_bin_dir=""
+  local run_bin=""
+
+  TOTAL=$((TOTAL + 1))
+  test_name="$(basename "$test_file" .lpr)"
+  test_dir="$(dirname "$test_file")"
+  test_lpi="${test_file%.lpr}.lpi"
+  test_log="${TEST_TMP_ROOT}/${test_name}.log"
+  build_log="${TEST_TMP_ROOT}/${test_name}.build.log"
+
+  if [ "$test_dir" != "tests" ]; then
+    test_bin="${test_dir}/bin/${test_name}"
+    test_bin_dir="${test_dir}/bin"
+  else
+    test_bin="bin/${test_name}"
+    test_bin_dir="bin"
+  fi
+
+  mkdir -p "$test_bin_dir"
+
+  echo -n "[$TOTAL] Testing $test_name... "
+
+  if build_test_with_recovery "$test_lpi" "$test_file" "$test_bin" "$test_dir" "$test_name" "$build_log"; then
+    if run_bin="$(resolve_test_binary_path "$test_bin" "$test_dir" "$test_name" "$test_lpi")" \
+      && run_test_binary "$run_bin" "$test_log"; then
+      echo -e "${GREEN}PASSED${NC}"
+      PASSED=$((PASSED + 1))
+      PASSED_TESTS+=("$test_name")
+    else
+      echo -e "${RED}FAILED${NC}"
+      FAILED=$((FAILED + 1))
+      FAILED_TESTS+=("$test_name")
+      echo -e "${YELLOW}  log: ${test_log}${NC}"
+    fi
+  else
+    echo -e "${RED}BUILD FAILED${NC}"
+    FAILED=$((FAILED + 1))
+    FAILED_TESTS+=("$test_name")
+    echo -e "${YELLOW}  build log: ${build_log}${NC}"
+  fi
+}
+
+print_summary() {
+  local test_name=""
+
+  echo ""
+  echo "========================================"
+  echo "Test Results Summary"
+  echo "========================================"
+  echo "Total:   $TOTAL"
+  echo -e "${GREEN}Passed:  $PASSED${NC}"
+  echo -e "${RED}Failed:  $FAILED${NC}"
+  echo -e "${YELLOW}Skipped: $SKIPPED${NC}"
+  echo ""
+
+  if [ "$FAILED" -gt 0 ]; then
     echo -e "${RED}Failed Tests:${NC}"
-    for TEST in "${FAILED_TESTS[@]}"; do
-        echo "  - $TEST"
+    for test_name in "${FAILED_TESTS[@]}"; do
+      echo "  - $test_name"
     done
     echo ""
-    exit 1
-else
-    echo -e "${GREEN}All tests passed!${NC}"
-    exit 0
+    return 1
+  fi
+
+  echo -e "${GREEN}All tests passed!${NC}"
+  return 0
+}
+
+main() {
+  local test_file=""
+
+  set -e
+  cd "$REPO_ROOT"
+  init_test_environment
+  trap cleanup EXIT
+
+  print_banner
+  load_test_inventory
+
+  for test_file in "${TEST_FILES[@]}"; do
+    run_single_test "$test_file"
+  done
+
+  print_summary
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
 fi

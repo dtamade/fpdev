@@ -21,7 +21,11 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
+
+const
+  HTTP_URL_PREFIX = 'http://';
+  HTTPS_URL_PREFIX = 'https://';
 
 function TRepoVersionsCommand.Name: string; begin Result := 'versions'; end;
 function TRepoVersionsCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -71,7 +75,10 @@ var
           Free;
         end;
       end
-      else if (Pos('http://', LowerCase(PathOrURL))=1) or (Pos('https://', LowerCase(PathOrURL))=1) then
+      else if
+        (Pos(HTTP_URL_PREFIX, LowerCase(PathOrURL)) = 1) or
+        (Pos(HTTPS_URL_PREFIX, LowerCase(PathOrURL)) = 1)
+      then
       begin
         Cli := TFPHTTPClient.Create(nil);
         try
@@ -85,12 +92,56 @@ var
       Exit;
     end;
   end;
+
+  function IsKnownOption(const AParam: string): Boolean;
+  var
+    L: string;
+  begin
+    L := LowerCase(AParam);
+    Result :=
+      (L = '--json') or
+      (L = '--offline') or
+      (L = '--refresh') or
+      (L = '--help') or
+      (L = '-h') or
+      (Pos('--repo=', L) = 1) or
+      (Pos('--os=', L) = 1) or
+      (Pos('--arch=', L) = 1) or
+      (Pos('--limit=', L) = 1);
+  end;
+
+  function ValidateParams: Boolean;
+  var
+    K: Integer;
+    Param: string;
+  begin
+    Result := False;
+    for K := Low(AParams) to High(AParams) do
+    begin
+      Param := AParams[K];
+      if Param = '' then
+        Exit;
+      if Param[1] = '-' then
+      begin
+        if not IsKnownOption(Param) then
+          Exit;
+      end
+      else
+        Exit;
+    end;
+    Result := True;
+  end;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_REPO_VERSIONS_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_DESC));
@@ -104,6 +155,12 @@ begin
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_REFRESH));
     Ctx.Out.WriteLn(_(HELP_REPO_VERSIONS_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if not ValidateParams then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_VERSIONS_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   GetFlagValue(AParams, 'repo', RepoArg);
@@ -128,14 +185,19 @@ begin
     if RepoArg<>'' then
     begin
       // Direct URL or name
-      if Pos('http', LowerCase(RepoArg))=1 then URL := RepoArg else URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoArg);
+      if Pos('http', LowerCase(RepoArg)) = 1 then
+        URL := RepoArg
+      else
+        URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoArg);
       if URL='' then
       begin
         Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoArg]));
-        Exit(EXIT_USAGE_ERROR);
+        Exit(EXIT_NOT_FOUND);
       end;
       // Calculate cache file
-      CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
+      CacheDir := IncludeTrailingPathDelimiter(
+        Ctx.Config.GetSettingsManager.GetSettings.InstallRoot
+      ) + 'cache' + PathDelim + 'repos';
       if not DirectoryExists(CacheDir) then EnsureDir(CacheDir);
       CacheFile := IncludeTrailingPathDelimiter(CacheDir) + SanitizeFileName(URL) + '.json';
 
@@ -185,7 +247,7 @@ begin
         else
         begin
           Ctx.Err.WriteLn(_Fmt(CMD_REPO_VERSIONS_PARSE_FAILED, [URL]));
-          Exit(EXIT_ALREADY_EXISTS);
+          Exit(EXIT_ERROR);
         end;
       end;
     end
@@ -195,9 +257,12 @@ begin
       Names := Ctx.Config.GetRepositoryManager.ListRepositories;
       for j := 0 to High(Names) do
       begin
-        RepoName := Names[j]; URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
-        if URL='' then Continue;
-        CacheDir := IncludeTrailingPathDelimiter(Ctx.Config.GetSettingsManager.GetSettings.InstallRoot) + 'cache' + PathDelim + 'repos';
+        RepoName := Names[j];
+        URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
+        if URL = '' then Continue;
+        CacheDir := IncludeTrailingPathDelimiter(
+          Ctx.Config.GetSettingsManager.GetSettings.InstallRoot
+        ) + 'cache' + PathDelim + 'repos';
         if not DirectoryExists(CacheDir) then EnsureDir(CacheDir);
         CacheFile := IncludeTrailingPathDelimiter(CacheDir) + SanitizeFileName(URL) + '.json';
 
@@ -264,6 +329,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['repo','versions'], @RepoVersionsFactory, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'repo', 'versions'], @RepoVersionsFactory, []);
 
 end.

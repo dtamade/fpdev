@@ -7,8 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.cmd.package,
-  fpdev.package.types;
+  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.package.manager,
+  fpdev.package.types, fpdev.utils.fs;
 
 procedure AssertTrue(const ACond: Boolean; const AMsg: string);
 begin
@@ -30,6 +30,8 @@ var
   i: Integer;
   Names: TStringList;
   Settings: TFPDevSettings;
+  TempRoot: string;
+  ConfigPath: string;
 begin
   RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo-invalid' + DirectorySeparator + 'index.json');
   AssertTrue(FileExists(RepoPath), 'Invalid sample repo index should exist: ' + RepoPath);
@@ -41,13 +43,21 @@ begin
   RepoURL := 'file://' + RepoPath;
   {$ENDIF}
 
-  Cfg := TFPDevConfigManager.Create('tests_repo_config_invalid.json');
+  TempRoot := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'fpdev-package-index-validation-' + IntToStr(GetTickCount64);
+  ForceDirectories(TempRoot);
+  ConfigPath := IncludeTrailingPathDelimiter(TempRoot) + 'config.json';
+
+  Cfg := TFPDevConfigManager.Create(ConfigPath);
   try
     if not Cfg.LoadConfig then AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
 
-    // Set InstallRoot to local test directory to avoid permission issues
+    AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(Cfg.ConfigPath)) = 1, 'Config path should use system temp root');
+
+    // Set InstallRoot to local temp directory to avoid permission issues
     Settings := Cfg.GetSettings;
-    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data_invalid';
+    Settings.InstallRoot := IncludeTrailingPathDelimiter(TempRoot) + 'test_data_invalid';
     Cfg.SetSettings(Settings);
 
     AssertTrue(Cfg.AddRepository('invalid-sample', RepoURL), 'Add invalid repo');
@@ -74,6 +84,9 @@ begin
     end;
   finally
     Cfg.Free;
+    DeleteFile(ConfigPath);
+    if DirectoryExists(TempRoot) then
+      DeleteDirRecursive(TempRoot);
   end;
 end;
 
@@ -91,4 +104,3 @@ begin
     end;
   end;
 end.
-

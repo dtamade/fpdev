@@ -38,7 +38,7 @@ uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.utils.git, fpdev.resource.repo, fpdev.constants,
-  fpdev.fpc.types, fpdev.config, fpdev.exitcodes;
+  fpdev.fpc.types, fpdev.config, fpdev.exitcodes, fpdev.paths;
 
 type
   { Bootstrap compiler requirements }
@@ -105,6 +105,7 @@ type
 
 const
   { Bootstrap compiler requirements for building from source }
+  DEFAULT_BOOTSTRAP_VERSION = '3.2.2';
   FPC_BOOTSTRAP_REQUIREMENTS: array[0..2] of TBootstrapRequirement = (
     (TargetVersion: '3.2.2'; RequiredVersion: '3.2.0'),
     (TargetVersion: '3.2.0'; RequiredVersion: '3.0.4'),
@@ -158,7 +159,7 @@ end;
 
 function TFPCSourceBuilder.GetVersionInstallPath(const AVersion: string): string;
 begin
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
 end;
 
 function TFPCSourceBuilder.GetCurrentFPCVersion: string;
@@ -179,10 +180,12 @@ function TFPCSourceBuilder.GetBootstrapCompilerPath(const AVersion: string): str
 begin
   {$IFDEF MSWINDOWS}
   Result := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +
-            FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' +
+    AVersion + PathDelim + 'bin' + PathDelim + 'fpc.exe';
   {$ELSE}
   Result := IncludeTrailingPathDelimiter(GetUserDir) +
-            FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
+    FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' +
+    AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
 end;
 
@@ -445,7 +448,7 @@ begin
         begin
           // Directory exists but is not a git repo - remove and clone fresh
           FOut.WriteLn('Directory exists but is not a git repo, removing...');
-          TProcessExecutor.Execute('rm', ['-rf', ATargetDir], '');
+          DeleteDirRecursive(ATargetDir);
           FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
           Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
           if not Result then
@@ -506,9 +509,13 @@ begin
     Settings := FConfigManager.GetSettingsManager.GetSettings;
 
     // Detect bootstrap compiler
-    BootstrapFPC := GetVersionInstallPath('3.2.2') + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'ppcx64';
+    BootstrapFPC := GetVersionInstallPath(DEFAULT_BOOTSTRAP_VERSION) +
+      PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
+      DEFAULT_BOOTSTRAP_VERSION + PathDelim + 'ppcx64';
     {$IFDEF CPU386}
-    BootstrapFPC := GetVersionInstallPath('3.2.2') + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'ppc386';
+    BootstrapFPC := GetVersionInstallPath(DEFAULT_BOOTSTRAP_VERSION) +
+      PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
+      DEFAULT_BOOTSTRAP_VERSION + PathDelim + 'ppc386';
     {$ENDIF}
     if FileExists(BootstrapFPC) then
     begin

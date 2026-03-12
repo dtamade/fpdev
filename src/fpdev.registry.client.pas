@@ -21,10 +21,10 @@ type
     
     function BuildURL(const APath: string): string;
     function AddAuthHeaders(const AHeaders: TStrings): Boolean;
-    function ExecuteWithRetry(const AMethod, AURL: string; 
-      const ABody: TStream; const AHeaders: TStrings; 
+    function ExecuteWithRetry(const AMethod, AURL: string;
+      const ABody: TStream; const AHeaders: TStrings;
       const AResponse: TStream): Boolean;
-    function BuildMultipartBody(const AFilePath, AFieldName: string; 
+    function BuildMultipartBody(const AFilePath, AFieldName: string;
       out ABoundary: string): TMemoryStream;
   public
     constructor Create;
@@ -51,6 +51,16 @@ type
   end;
 
 implementation
+
+const
+  URL_PATH_SEPARATOR = '/';
+  API_PACKAGES_SEARCH_PREFIX = '/api/packages/search?q=';
+  API_PACKAGES_PREFIX = '/api/packages/';
+  API_PACKAGES_VERSIONS_SUFFIX = '/versions';
+  API_PACKAGES_METADATA_SUFFIX = '/metadata';
+  API_PACKAGES_DOWNLOAD_SUFFIX = '/download';
+  API_PACKAGES_UPLOAD_PATH = '/api/packages/upload';
+  API_PACKAGES_PUBLISH_PATH = '/api/packages/publish';
 
 { Helper functions }
 
@@ -112,9 +122,10 @@ end;
 function TRemoteRegistryClient.BuildURL(const APath: string): string;
 begin
   Result := FConfig.BaseURL;
-  if (Length(Result) > 0) and (Result[Length(Result)] <> '/') then
-    Result := Result + '/';
-  if (Length(APath) > 0) and (APath[1] = '/') then
+  if (Length(Result) > 0) and
+    (Result[Length(Result)] <> URL_PATH_SEPARATOR) then
+    Result := Result + URL_PATH_SEPARATOR;
+  if (Length(APath) > 0) and (APath[1] = URL_PATH_SEPARATOR) then
     Result := Result + Copy(APath, 2, Length(APath))
   else
     Result := Result + APath;
@@ -278,7 +289,7 @@ var
 begin
   Result := TStringList.Create;
   
-  URL := BuildURL('/api/packages/search?q=' + AQuery);
+  URL := BuildURL(API_PACKAGES_SEARCH_PREFIX + AQuery);
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
@@ -314,7 +325,7 @@ var
 begin
   Result := nil;
   
-  URL := BuildURL('/api/packages/' + AName);
+  URL := BuildURL(API_PACKAGES_PREFIX + AName);
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
@@ -346,7 +357,9 @@ var
 begin
   Result := TStringList.Create;
   
-  URL := BuildURL('/api/packages/' + AName + '/versions');
+  URL := BuildURL(
+    API_PACKAGES_PREFIX + AName + API_PACKAGES_VERSIONS_SUFFIX
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
@@ -382,7 +395,10 @@ var
 begin
   Result := nil;
   
-  URL := BuildURL('/api/packages/' + AName + '/' + AVersion + '/metadata');
+  URL := BuildURL(
+    API_PACKAGES_PREFIX + AName + URL_PATH_SEPARATOR + AVersion +
+    API_PACKAGES_METADATA_SUFFIX
+  );
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
   try
@@ -411,7 +427,10 @@ var
 begin
   Result := False;
   
-  URL := BuildURL('/api/packages/' + AName + '/' + AVersion + '/download');
+  URL := BuildURL(
+    API_PACKAGES_PREFIX + AName + URL_PATH_SEPARATOR + AVersion +
+    API_PACKAGES_DOWNLOAD_SUFFIX
+  );
   Response := TFileStream.Create(ADestPath, fmCreate);
   Headers := TStringList.Create;
   try
@@ -426,7 +445,10 @@ end;
 
 function TRemoteRegistryClient.GetDownloadURL(const AName, AVersion: string): string;
 begin
-  Result := BuildURL('/api/packages/' + AName + '/' + AVersion + '/download');
+  Result := BuildURL(
+    API_PACKAGES_PREFIX + AName + URL_PATH_SEPARATOR + AVersion +
+    API_PACKAGES_DOWNLOAD_SUFFIX
+  );
 end;
 
 function TRemoteRegistryClient.UploadPackage(const AArchivePath: string): Boolean;
@@ -445,7 +467,7 @@ begin
     Exit;
   end;
   
-  URL := BuildURL('/api/packages/upload');
+  URL := BuildURL(API_PACKAGES_UPLOAD_PATH);
   Body := BuildMultipartBody(AArchivePath, 'package', Boundary);
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;
@@ -477,7 +499,7 @@ begin
     Exit;
   end;
   
-  URL := BuildURL('/api/packages/publish');
+  URL := BuildURL(API_PACKAGES_PUBLISH_PATH);
   Body := TMemoryStream.Create;
   Response := TMemoryStream.Create;
   Headers := TStringList.Create;

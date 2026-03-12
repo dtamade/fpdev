@@ -3,7 +3,9 @@ program test_package_create;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.package, fpdev.config.interfaces, fpdev.config.managers;
+  SysUtils, test_config_isolation, Classes, fpjson, jsonparser,
+  fpdev.package.manager, fpdev.package.creation,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.utils.fs, test_temp_paths;
 
 type
   TTestCallback = procedure;
@@ -39,6 +41,104 @@ begin
     AssertTrue(False, Format('%s: expected %d, got %d', [AMessage, AExpected, AActual]));
 end;
 
+function MakeTempDir(const APrefix: string): string;
+begin
+  Result := CreateUniqueTempDir(APrefix);
+end;
+
+function CreateTestConfig(const AContext: string): IConfigManager;
+begin
+  Result := CreateIsolatedConfigManager;
+  AssertTrue(
+    PathUsesSystemTempRoot(Result.GetConfigPath),
+    AContext + ' should use a temp config path'
+  );
+  AssertTrue(
+    ExpandFileName(Result.GetConfigPath) = ExpandFileName(GetIsolatedDefaultConfigPath),
+    AContext + ' should use the isolated default config override'
+  );
+end;
+
+procedure TestEnsurePackageMetadataFileCoreCreatesDefaultMetadata;
+var
+  TempDir: string;
+  MetaPath: string;
+  Created: Boolean;
+  Err: string;
+  MetaData: TJSONData;
+  MetaObject: TJSONObject;
+  MetaText: TStringList;
+begin
+  WriteTestHeader('TestEnsurePackageMetadataFileCoreCreatesDefaultMetadata');
+
+  TempDir := MakeTempDir('fpdev-package-create');
+  MetaPath := IncludeTrailingPathDelimiter(TempDir) + 'package.json';
+  try
+    AssertTrue(
+      EnsurePackageMetadataFileCore('demo-package', TempDir, MetaPath, Created, Err),
+      'helper should create missing metadata file'
+    );
+    AssertTrue(Created, 'helper should report metadata created');
+    AssertTrue(FileExists(MetaPath), 'helper should write package.json');
+
+    MetaText := TStringList.Create;
+    try
+      MetaText.LoadFromFile(MetaPath);
+      MetaData := GetJSON(MetaText.Text);
+      try
+        MetaObject := TJSONObject(MetaData);
+        AssertTrue(MetaObject.Get('name', '') = 'demo-package', 'metadata helper writes package name');
+        AssertTrue(MetaObject.Get('version', '') = '1.0.0', 'metadata helper writes default version');
+      finally
+        MetaData.Free;
+      end;
+    finally
+      MetaText.Free;
+    end;
+  finally
+    CleanupTempDir(TempDir);
+  end;
+end;
+
+procedure TestEnsurePackageMetadataFileCorePreservesExistingMetadata;
+var
+  TempDir: string;
+  MetaPath: string;
+  Created: Boolean;
+  Err: string;
+  MetaText: TStringList;
+begin
+  WriteTestHeader('TestEnsurePackageMetadataFileCorePreservesExistingMetadata');
+
+  TempDir := MakeTempDir('fpdev-package-create-existing');
+  MetaPath := IncludeTrailingPathDelimiter(TempDir) + 'package.json';
+  try
+    MetaText := TStringList.Create;
+    try
+      MetaText.Text := '{"name":"demo-package","version":"9.9.9"}';
+      MetaText.SaveToFile(MetaPath);
+    finally
+      MetaText.Free;
+    end;
+
+    AssertTrue(
+      EnsurePackageMetadataFileCore('demo-package', TempDir, MetaPath, Created, Err),
+      'helper should accept existing metadata file'
+    );
+    AssertTrue(not Created, 'helper should not rewrite existing metadata');
+
+    MetaText := TStringList.Create;
+    try
+      MetaText.LoadFromFile(MetaPath);
+      AssertTrue(Pos('"9.9.9"', MetaText.Text) > 0, 'existing metadata content remains unchanged');
+    finally
+      MetaText.Free;
+    end;
+  finally
+    CleanupTempDir(TempDir);
+  end;
+end;
+
 procedure TestBasicPackageCreation;
 var
   Mgr: TPackageManager;
@@ -46,7 +146,7 @@ var
 begin
   WriteTestHeader('TestBasicPackageCreation');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('basic package creation');
   Mgr := TPackageManager.Create(Config);
   try
     // Create basic package
@@ -66,7 +166,7 @@ var
 begin
   WriteTestHeader('TestPackageWithMetadata');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('package metadata');
   Mgr := TPackageManager.Create(Config);
   try
     // Create package with full metadata
@@ -86,7 +186,7 @@ var
 begin
   WriteTestHeader('TestPackageWithDependencies');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('package dependencies');
   Mgr := TPackageManager.Create(Config);
   try
     // Create package that declares dependencies
@@ -106,7 +206,7 @@ var
 begin
   WriteTestHeader('TestPackageValidation');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('package validation');
   Mgr := TPackageManager.Create(Config);
   try
     // Test package validation logic
@@ -128,7 +228,7 @@ var
 begin
   WriteTestHeader('TestPackageArchiveCreation');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('package archive creation');
   Mgr := TPackageManager.Create(Config);
   try
     // Test ZIP archive creation
@@ -149,7 +249,7 @@ var
 begin
   WriteTestHeader('TestInvalidPackageName');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('invalid package name');
   Mgr := TPackageManager.Create(Config);
   try
     // Test with invalid package name
@@ -170,7 +270,7 @@ var
 begin
   WriteTestHeader('TestMissingSourceDirectory');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('missing source directory');
   Mgr := TPackageManager.Create(Config);
   try
     // Test with non-existent source directory
@@ -191,7 +291,7 @@ var
 begin
   WriteTestHeader('TestEmptySourceDirectory');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('empty source directory');
   Mgr := TPackageManager.Create(Config);
   try
     // Test with empty source directory
@@ -211,7 +311,7 @@ var
 begin
   WriteTestHeader('TestPackageWithCircularDeps');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('package circular dependencies');
   Mgr := TPackageManager.Create(Config);
   try
     // Test package with circular dependency declaration
@@ -231,7 +331,7 @@ var
 begin
   WriteTestHeader('TestMultiplePackageFiles');
 
-  Config := TConfigManager.Create('');
+  Config := CreateTestConfig('multiple package files');
   Mgr := TPackageManager.Create(Config);
   try
     // Test package with multiple source files
@@ -244,8 +344,6 @@ begin
   end;
 end;
 
-var
-  i: Integer;
 begin
   WriteLn('FPDev Package Creation Test Suite');
   WriteLn('===================================');
@@ -256,6 +354,8 @@ begin
 
   try
     // Run all tests
+    TestEnsurePackageMetadataFileCoreCreatesDefaultMetadata;
+    TestEnsurePackageMetadataFileCorePreservesExistingMetadata;
     TestBasicPackageCreation;
     TestPackageWithMetadata;
     TestPackageWithDependencies;

@@ -7,7 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpjson, jsonparser, fpdev.cmd.package.validate;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.package.validation,
+  test_temp_paths;
 
 type
   { TPackageValidateTest }
@@ -58,15 +59,16 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_package_validate_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestDataDir := CreateUniqueTempDir('test_package_validate_data');
 end;
 
 destructor TPackageValidateTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    FTestDataDir := '';
+  end;
   inherited Destroy;
 end;
 
@@ -119,35 +121,12 @@ begin
 end;
 
 procedure TPackageValidateTest.CleanupTestFiles;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
-  end;
-
 begin
-  if DirectoryExists(FTestDataDir) then
-    DeleteDirectory(FTestDataDir);
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    ForceDirectories(FTestDataDir);
+  end;
 end;
 
 procedure TPackageValidateTest.TestValidateMetadataSuccess;

@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.command.utils, fpdev.paths;
 
 function TFPCCacheListCommand.Name: string; begin Result := 'list'; end;
 
@@ -50,11 +50,16 @@ var
   i: Integer;
   LSizeStr: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc cache list [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc cache list [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('List all cached FPC versions');
@@ -64,8 +69,14 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if Length(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache list [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Initialize cache
-  LCacheDir := GetAppConfigDir(False) + '.fpdev' + PathDelim + 'cache';
+  LCacheDir := GetCacheDir;
   LCache := TBuildCache.Create(LCacheDir);
   try
     LVersions := LCache.ListCachedVersions;

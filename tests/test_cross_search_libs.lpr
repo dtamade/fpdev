@@ -5,11 +5,35 @@ program test_cross_search_libs;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces,
-  fpdev.cross.search;
+  fpdev.cross.search, fpdev.utils.fs;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+procedure Check(const ACondition: Boolean; const ATestName: string); forward;
+
+function MakeTempDir(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + '-' + IntToStr(GetTickCount64);
+  ForceDirectories(Result);
+end;
+
+procedure CleanupTempDir(const ADir: string);
+begin
+  if (ADir <> '') and DirectoryExists(ADir) then
+    DeleteDirRecursive(ADir);
+end;
+
+procedure AssertUsesSystemTempPath(const APath, ALabel: string);
+begin
+  Check(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(APath)) = 1,
+    ALabel + ' lives under system temp'
+  );
+end;
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -41,12 +65,15 @@ var
   T: TCrossTarget;
   Libs: TStringArray;
   TmpDir: string;
+  NestedDir: string;
 begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a temp directory to use as configured path
-    TmpDir := GetTempDir(False) + 'fpdev_test_libs_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := MakeTempDir('fpdev_test_libs');
+    AssertUsesSystemTempPath(TmpDir, 'ConfiguredFirst temp dir');
+    NestedDir := IncludeTrailingPathDelimiter(TmpDir) + 'nested';
+    ForceDirectories(NestedDir);
 
     T := MakeTarget('arm', 'linux');
     T.LibrariesPath := TmpDir;
@@ -54,7 +81,8 @@ begin
     Check(Length(Libs) >= 1, 'ConfiguredFirst: at least 1 result');
     Check(Libs[0] = TmpDir, 'ConfiguredFirst: configured path is first');
 
-    RemoveDir(TmpDir);
+    CleanupTempDir(TmpDir);
+    Check(not DirectoryExists(TmpDir), 'ConfiguredFirst: temp dir cleanup removes nested children');
   finally
     S.Free;
   end;
@@ -89,8 +117,8 @@ begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a temp dir that could match multiple paths
-    TmpDir := GetTempDir(False) + 'fpdev_test_dedup_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := MakeTempDir('fpdev_test_dedup');
+    AssertUsesSystemTempPath(TmpDir, 'Dedup temp dir');
 
     T := MakeTarget('arm', 'linux');
     T.LibrariesPath := TmpDir;
@@ -104,7 +132,7 @@ begin
           HasDup := True;
     Check(not HasDup, 'Dedup: no duplicate paths');
 
-    RemoveDir(TmpDir);
+    CleanupTempDir(TmpDir);
   finally
     S.Free;
   end;
@@ -312,8 +340,8 @@ begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a fake toolchain
-    TmpDir := GetTempDir(False) + 'fpdev_test_diag_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := MakeTempDir('fpdev_test_diag');
+    AssertUsesSystemTempPath(TmpDir, 'Diagnose temp dir');
     ToolPath := TmpDir + PathDelim + 'test-diag-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
@@ -330,7 +358,7 @@ begin
     Check(HasFound, 'Diagnose found: reports binutils found');
 
     DeleteFile(ToolPath);
-    RemoveDir(TmpDir);
+    CleanupTempDir(TmpDir);
   finally
     S.Free;
   end;
@@ -347,10 +375,10 @@ var
 begin
   S := TCrossToolchainSearch.Create;
   try
-    TmpDir1 := GetTempDir(False) + 'fpdev_test_multi1_' + IntToStr(GetProcessID);
-    TmpDir2 := GetTempDir(False) + 'fpdev_test_multi2_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir1);
-    ForceDirectories(TmpDir2);
+    TmpDir1 := MakeTempDir('fpdev_test_multi1');
+    TmpDir2 := MakeTempDir('fpdev_test_multi2');
+    AssertUsesSystemTempPath(TmpDir1, 'MultipleDirs temp dir 1');
+    AssertUsesSystemTempPath(TmpDir2, 'MultipleDirs temp dir 2');
 
     // Create a target with configured path, and create another dir that could match
     // a multiarch path (simulated by creating the dir)
@@ -361,8 +389,8 @@ begin
     Check(Length(Libs) >= 1, 'MultipleDirs: at least 1 path');
     Check(Libs[0] = TmpDir1, 'MultipleDirs: configured path is first');
 
-    RemoveDir(TmpDir1);
-    RemoveDir(TmpDir2);
+    CleanupTempDir(TmpDir1);
+    CleanupTempDir(TmpDir2);
   finally
     S.Free;
   end;

@@ -33,7 +33,7 @@ type
     constructor Create(AVersionManager: TFPCVersionManager); overload;
     
     { Creates a new verifier with custom dependencies for testing. }
-    constructor Create(AVersionManager: TFPCVersionManager; 
+    constructor Create(AVersionManager: TFPCVersionManager;
       AFileSystem: IFileSystem; AProcessRunner: IProcessRunner); overload;
     destructor Destroy; override;
     
@@ -182,7 +182,9 @@ begin
     
     if CompileResult.ExitCode <> 0 then
     begin
-      VerifResult.ErrorMessage := 'Smoke test: Failed to compile hello.pas (exit code: ' + IntToStr(CompileResult.ExitCode) + ')';
+      VerifResult.ErrorMessage :=
+        'Smoke test: Failed to compile hello.pas (exit code: ' +
+        IntToStr(CompileResult.ExitCode) + ')';
       Exit(False);
     end;
 

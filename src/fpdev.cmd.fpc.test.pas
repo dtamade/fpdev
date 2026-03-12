@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -22,7 +22,7 @@ type
 implementation
 
 uses
-  fpdev.cmd.utils,
+  fpdev.command.utils,
   fpdev.utils.process;
 
 function TryTestSystemFPC(const Ctx: IContext): Boolean;
@@ -68,7 +68,7 @@ var
   LVer: string;
   LMgr: TFPCManager;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then

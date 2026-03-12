@@ -225,7 +225,9 @@ type
 
     { Container cursor
       Basic iteration interface for base container
-      This is a set of generic interfaces for traversing container elements. Due to its implementation relying on virtual functions (cannot be inlined), performance is not optimal, but it maintains component flexibility
+      This is a set of generic interfaces for traversing container elements.
+      Due to its implementation relying on virtual functions (cannot be inlined),
+      performance is not optimal, but it maintains component flexibility
     }
 
     {**

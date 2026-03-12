@@ -29,7 +29,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpdev.i18n.strings;
+uses fpdev.command.utils, fpdev.i18n, fpdev.i18n.strings;
 
 function TPackageDepsCommand.Name: string;
 begin
@@ -39,8 +39,6 @@ end;
 function TPackageDepsCommand.Aliases: TStringArray;
 begin
   Result := nil;
-  SetLength(Result, 1);
-  Result[0] := 'dependencies';
 end;
 
 function TPackageDepsCommand.FindSub(const AName: string): ICommand;
@@ -51,20 +49,30 @@ end;
 
 procedure ShowDepsHelp(const Ctx: IContext);
 begin
-  Ctx.Out.WriteLn('Usage: fpdev package deps [options] [package-name]');
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_USAGE));
   Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('Show dependency tree for a package or the current project.');
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_DESC));
   Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('Options:');
-  Ctx.Out.WriteLn('  --tree       Show as indented tree (default)');
-  Ctx.Out.WriteLn('  --flat       Show as flat list');
-  Ctx.Out.WriteLn('  --depth=N    Maximum depth to display (default: unlimited)');
-  Ctx.Out.WriteLn('  -h, --help   Show this help');
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_OPTIONS));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_OPT_TREE));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_OPT_FLAT));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_OPT_DEPTH));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_OPT_HELP));
   Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('Examples:');
-  Ctx.Out.WriteLn('  fpdev package deps             # Show deps for current project');
-  Ctx.Out.WriteLn('  fpdev package deps mylib       # Show deps for mylib');
-  Ctx.Out.WriteLn('  fpdev package deps --flat      # Flat list format');
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_EXAMPLES));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_EXAMPLE_CURRENT));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_EXAMPLE_PACKAGE));
+  Ctx.Out.WriteLn(_(HELP_PACKAGE_DEPS_EXAMPLE_FLAT));
+end;
+
+function IsKnownDepsOption(const AParam: string): Boolean;
+begin
+  Result :=
+    (AParam = '--tree') or
+    (AParam = '--flat') or
+    (AParam = '--help') or
+    (AParam = '-h') or
+    (Pos('--depth=', AParam) = 1);
 end;
 
 procedure PrintDepTree(const Ctx: IContext; const ADeps: TStringArray;
@@ -92,6 +100,7 @@ end;
 function TPackageDepsCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   PackageName: string;
+  PackageArgCount: Integer;
   ShowFlat: Boolean;
   MaxDepthStr: string;
   MaxDepth, i: Integer;
@@ -110,23 +119,48 @@ begin
   ShowFlat := HasFlag(AParams, 'flat');
   MaxDepth := 0;
   if GetFlagValue(AParams, 'depth', MaxDepthStr) then
-    TryStrToInt(MaxDepthStr, MaxDepth);
+  begin
+    if (not TryStrToInt(MaxDepthStr, MaxDepth)) or (MaxDepth < 0) then
+    begin
+      Ctx.Err.WriteLn(_(HELP_PACKAGE_DEPS_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end;
+
+  // Validate unknown flags/options
+  for i := 0 to High(AParams) do
+  begin
+    if (Length(AParams[i]) > 0) and (AParams[i][1] = '-') then
+    begin
+      if not IsKnownDepsOption(AParams[i]) then
+      begin
+        Ctx.Err.WriteLn(_(HELP_PACKAGE_DEPS_USAGE));
+        Exit(EXIT_USAGE_ERROR);
+      end;
+    end;
+  end;
 
   // Get package name (first non-flag argument)
   PackageName := '';
+  PackageArgCount := 0;
   for i := 0 to High(AParams) do
   begin
     if (Length(AParams[i]) > 0) and (AParams[i][1] <> '-') then
     begin
+      Inc(PackageArgCount);
+      if PackageArgCount > 1 then
+      begin
+        Ctx.Err.WriteLn(_(HELP_PACKAGE_DEPS_USAGE));
+        Exit(EXIT_USAGE_ERROR);
+      end;
       PackageName := AParams[i];
-      Break;
     end;
   end;
 
   if PackageName = '' then
-    PackageName := '(current project)';
+    PackageName := _(CMD_PKG_DEPS_CURRENT_PROJECT);
 
-  Ctx.Out.WriteLn('Dependencies for: ' + PackageName);
+  Ctx.Out.WriteLn(_Fmt(CMD_PKG_DEPS_HEADER, [PackageName]));
   Ctx.Out.WriteLn('');
 
   // Sample output - in real implementation, this would query the package registry
@@ -148,7 +182,7 @@ begin
   end;
 
   Ctx.Out.WriteLn('');
-  Ctx.Out.WriteLn('Total: ' + IntToStr(Length(SampleDeps)) + ' direct dependencies');
+  Ctx.Out.WriteLn(_Fmt(CMD_PKG_DEPS_TOTAL, [Length(SampleDeps)]));
 end;
 
 function PackageDepsFactory: ICommand;
@@ -157,6 +191,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['package', 'deps'], @PackageDepsFactory, ['dependencies']);
+  GlobalCommandRegistry.RegisterPath(['package', 'deps'], @PackageDepsFactory, []);
 
 end.

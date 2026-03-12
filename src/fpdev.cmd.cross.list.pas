@@ -6,8 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.cross,
-  fpdev.cmd.utils, fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry, fpdev.cross.manager,
+  fpdev.command.utils, fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   TCrossListCommand = class(TInterfacedObject, ICommand)
@@ -52,11 +52,16 @@ var
   LArr: TJSONArray;
   I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_CROSS_LIST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_DESC));
@@ -66,6 +71,16 @@ begin
     Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  for I := Low(AParams) to High(AParams) do
+  begin
+    if SameText(AParams[I], '--all') or SameText(AParams[I], '-all') or
+       SameText(AParams[I], '--remote') or SameText(AParams[I], '-remote') or
+       SameText(AParams[I], '--json') or SameText(AParams[I], '-json') then
+      Continue;
+    Ctx.Err.WriteLn(_(HELP_CROSS_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LShowAll := HasFlag(AParams, 'all') or HasFlag(AParams, 'remote');

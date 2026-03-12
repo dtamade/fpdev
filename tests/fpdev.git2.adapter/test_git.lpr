@@ -5,12 +5,20 @@ program test_git;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
-  fpdev.git;
+  SysUtils, test_pause_control, Classes,
+  fpdev.git, test_temp_paths;
 
 var
   GitManager: TGitManager;
   TestDir: string;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestGitEnvironment;
 begin
@@ -37,7 +45,7 @@ begin
   WriteLn;
 
   // 测试克隆一个小的测试仓库
-  TestDir := 'test_repo';
+  TestDir := ResetTestRepoDir('test_repo');
 
   // 如果目录已存在，先删除
   if DirectoryExists(TestDir) then
@@ -96,14 +104,11 @@ procedure CleanupTest;
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('删除测试目录: ', TestDir);
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
+    WriteLn('删除测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -139,7 +144,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

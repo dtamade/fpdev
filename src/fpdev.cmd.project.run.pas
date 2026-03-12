@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function JoinParams(const Params: array of string; const StartIndex: Integer): string;
 var

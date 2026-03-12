@@ -344,13 +344,13 @@ Configuration options:
 Command-line configuration:
 ```bash
 # Chinese users
-fpdev config set mirror gitee
+fpdev system config set mirror gitee
 
 # International users
-fpdev config set mirror github
+fpdev system config set mirror github
 
 # Custom repository
-fpdev config set custom_repo_url https://my-company.com/fpdev-repo
+fpdev system config set custom_repo_url https://my-company.com/fpdev-repo
 ```
 
 ---

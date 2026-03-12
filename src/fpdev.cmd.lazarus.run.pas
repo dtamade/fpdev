@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TLazRunCommand.Name: string; begin Result := 'run'; end;
 function TLazRunCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -32,17 +32,33 @@ var
   LVer: string;
   LMgr: TLazarusManager;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_RUN_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_LAZARUS_RUN_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_RUN_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_RUN_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_RUN_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if (Length(AParams) = 1) and (Length(AParams[0]) > 0) and (AParams[0][1] = '-') then
+  begin
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_RUN_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   if Length(AParams) >= 1 then LVer := AParams[0] else LVer := '';
@@ -65,4 +81,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['lazarus','run'], @LazRunFactory, []);
 
 end.
-

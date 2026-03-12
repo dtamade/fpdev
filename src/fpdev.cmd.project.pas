@@ -35,7 +35,7 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.resource.repo, fpdev.resource.repo.types, fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings,
-  fpdev.project.generator;
+  fpdev.project.generator, fpdev.project.execflow;
 
 type
   TProjectTemplateArray = array of TProjectTemplate;
@@ -52,8 +52,10 @@ type
     function ValidateProjectName(const AProjectName: string): Boolean;
     function GetTemplateInfo(const ATemplateName: string): TProjectTemplate;
     function SetupProjectEnvironment(const AProjectDir: string): Boolean;
-    function FindExecutableInDirectory(const ADir: string): string;
-    function FindTestExecutableInDirectory(const ADir: string): string;
+    function ExecuteProcess(const AExecutable: string;
+      const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
+    function RunDirectProcess(const AExecutable: string;
+      const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
     procedure CopyTemplateDirectory(const ASrcDir, ADestDir: string);
 
   public
@@ -78,7 +80,11 @@ type
     function TestProject(const AProjectDir: string): Boolean; overload;
     function TestProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean; overload;
     function RunProject(const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
-    function RunProject(const Outp, Errp: IOutput; const AProjectDir: string; const AArgs: string = ''): Boolean; overload;
+    function RunProject(
+      const Outp, Errp: IOutput;
+      const AProjectDir: string;
+      const AArgs: string = ''
+    ): Boolean; overload;
 
     // Template management
     function InstallTemplate(const ATemplatePath: string): Boolean; overload;
@@ -92,15 +98,24 @@ type
 implementation
 
 const
+  PROJECT_NAME_UNIX_PATH_SEPARATOR = '/';
+
   // Built-in project templates
   BUILTIN_TEMPLATES: array[0..6] of TProjectTemplate = (
-    (Name: 'console'; DisplayName: 'Console Application'; Description: 'Simple console application'; ProjectType: ptConsole; Available: True),
-    (Name: 'gui'; DisplayName: 'GUI Application'; Description: 'Lazarus GUI application'; ProjectType: ptGUI; Available: True),
-    (Name: 'library'; DisplayName: 'Dynamic Library'; Description: 'Shared library project'; ProjectType: ptLibrary; Available: True),
-    (Name: 'package'; DisplayName: 'Lazarus Package'; Description: 'Lazarus package project'; ProjectType: ptPackage; Available: True),
-    (Name: 'webapp'; DisplayName: 'Web Application'; Description: 'Pascal web application'; ProjectType: ptWebApp; Available: True),
-    (Name: 'service'; DisplayName: 'System Service'; Description: 'Background service application'; ProjectType: ptService; Available: True),
-    (Name: 'game'; DisplayName: 'Game Project'; Description: 'Simple game project template'; ProjectType: ptGame; Available: True)
+    (Name: 'console'; DisplayName: 'Console Application';
+      Description: 'Simple console application'; ProjectType: ptConsole; Available: True),
+    (Name: 'gui'; DisplayName: 'GUI Application';
+      Description: 'Lazarus GUI application'; ProjectType: ptGUI; Available: True),
+    (Name: 'library'; DisplayName: 'Dynamic Library';
+      Description: 'Shared library project'; ProjectType: ptLibrary; Available: True),
+    (Name: 'package'; DisplayName: 'Lazarus Package';
+      Description: 'Lazarus package project'; ProjectType: ptPackage; Available: True),
+    (Name: 'webapp'; DisplayName: 'Web Application';
+      Description: 'Pascal web application'; ProjectType: ptWebApp; Available: True),
+    (Name: 'service'; DisplayName: 'System Service';
+      Description: 'Background service application'; ProjectType: ptService; Available: True),
+    (Name: 'game'; DisplayName: 'Game Project';
+      Description: 'Simple game project template'; ProjectType: ptGame; Available: True)
   );
 
 { TProjectManager }
@@ -186,7 +201,7 @@ function TProjectManager.ValidateProjectName(const AProjectName: string): Boolea
 begin
   Result := (AProjectName <> '') and
             (Pos(' ', AProjectName) = 0) and
-            (Pos('/', AProjectName) = 0) and
+            (Pos(PROJECT_NAME_UNIX_PATH_SEPARATOR, AProjectName) = 0) and
             (Pos(PathDelim, AProjectName) = 0);
 end;
 
@@ -404,97 +419,31 @@ begin
   end;
 end;
 
+function TProjectManager.ExecuteProcess(const AExecutable: string;
+  const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
+begin
+  Result := TProcessExecutor.Execute(AExecutable, AParams, AWorkDir);
+end;
+
+function TProjectManager.RunDirectProcess(const AExecutable: string;
+  const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
+begin
+  Result := TProcessExecutor.RunDirect(AExecutable, AParams, AWorkDir);
+end;
+
 function TProjectManager.BuildProject(const AProjectDir: string; const ATarget: string): Boolean;
+{$IFDEF DEBUG}
 var
-  LResult: TProcessResult;
-  FoundLPI, FoundLPR: string;
-  SR: TSearchRec;
-  Params: array of string;
-  {$IFDEF DEBUG}
   LOut: IOutput;
-  {$ENDIF}
+{$ENDIF}
 begin
   {$IFDEF DEBUG}
   LOut := TConsoleOutput.Create(True) as IOutput;
   {$ENDIF}
   Result := False;
 
-  if not DirectoryExists(AProjectDir) then
-  begin
-    Exit;
-  end;
-
   try
-
-    // Find first .lpi project file
-    FoundLPI := '';
-    if FindFirst(AProjectDir + PathDelim + '*.lpi', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Attr and faDirectory) = 0 then
-        begin
-          FoundLPI := AProjectDir + PathDelim + SR.Name;
-          Break;
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-
-    if FoundLPI <> '' then
-    begin
-      // Use lazbuild to build Lazarus project
-      Params := nil;
-      if ATarget <> '' then
-      begin
-        SetLength(Params, 2);
-        Params[0] := FoundLPI;
-        Params[1] := '--cpu=' + ATarget;
-      end
-      else
-      begin
-        SetLength(Params, 1);
-        Params[0] := FoundLPI;
-      end;
-
-      // Build tools can be very chatty; avoid pipe buffering deadlocks by
-      // streaming output directly to the console.
-      LResult := TProcessExecutor.RunDirect('lazbuild', Params, AProjectDir);
-      Result := LResult.Success;
-    end
-    else
-    begin
-      // Find the first .lpr (FPC project)
-      FoundLPR := '';
-      if FindFirst(AProjectDir + PathDelim + '*.lpr', faAnyFile, SR) = 0 then
-      begin
-        repeat
-          if (SR.Attr and faDirectory) = 0 then
-          begin
-            FoundLPR := AProjectDir + PathDelim + SR.Name;
-            Break;
-          end;
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-
-      if FoundLPR <> '' then
-      begin
-        // Use fpc to build .lpr (only for projects, not for local tests/examples)
-        LResult := TProcessExecutor.RunDirect('fpc', [ExtractFileName(FoundLPR)], AProjectDir);
-        Result := LResult.Success;
-      end
-      else if FileExists(AProjectDir + PathDelim + 'Makefile') then
-      begin
-        // Fallback to make (if Makefile provided)
-        LResult := TProcessExecutor.RunDirect('make', [], AProjectDir);
-        Result := LResult.Success;
-      end
-      else
-      begin
-        Exit;
-      end;
-    end;
-
+    Result := ExecuteProjectBuildCore(AProjectDir, ATarget, @RunDirectProcess);
   except
     on E: Exception do
     begin
@@ -548,51 +497,6 @@ begin
   end;
 end;
 
-function TProjectManager.FindTestExecutableInDirectory(const ADir: string): string;
-var
-  SR: TSearchRec;
-  TestPattern: string;
-begin
-  Result := '';
-
-  if not DirectoryExists(ADir) then
-    Exit;
-
-  // Look for test executables (files starting with 'test' or 'test_')
-  {$IFDEF MSWINDOWS}
-  TestPattern := ADir + PathDelim + 'test*.exe';
-  {$ELSE}
-  TestPattern := ADir + PathDelim + 'test*';
-  {$ENDIF}
-
-  if FindFirst(TestPattern, faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Attr and faDirectory) = 0 then
-      begin
-        Result := ADir + PathDelim + SR.Name;
-        {$IFNDEF MSWINDOWS}
-        // On Unix, verify it's an executable (has no extension or is a binary)
-        if (ExtractFileExt(SR.Name) = '') or (ExtractFileExt(SR.Name) = '.lpr') then
-        begin
-          // If it's .lpr, try to find corresponding executable
-          if ExtractFileExt(SR.Name) = '.lpr' then
-            Result := ADir + PathDelim + ChangeFileExt(SR.Name, '');
-
-          if FileExists(Result) then
-            Break
-          else
-            Result := '';
-        end;
-        {$ELSE}
-        Break;
-        {$ENDIF}
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-end;
-
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
 begin
   Result := TestProject(nil, nil, AProjectDir);
@@ -600,8 +504,6 @@ end;
 
 function TProjectManager.TestProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean;
 var
-  LResult: TProcessResult;
-  FoundExe: string;
   LO: IOutput;
   LE: IOutput;
 begin
@@ -614,38 +516,8 @@ begin
   if LE = nil then
     LE := TConsoleOutput.Create(True) as IOutput;
 
-  if not DirectoryExists(AProjectDir) then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
-    Exit;
-  end;
-
   try
-    // Find test executable in project directory
-    FoundExe := FindTestExecutableInDirectory(AProjectDir);
-
-    if FoundExe = '' then
-    begin
-      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_NO_TEST_FOUND, [AProjectDir]));
-      LE.WriteLn(_(CMD_PROJECT_TEST_NOTE));
-      Exit;
-    end;
-
-    LO.WriteLn(_Fmt(CMD_PROJECT_RUNNING_TESTS, [ExtractFileName(FoundExe)]));
-
-    // Execute test - use absolute path to avoid path resolution issues
-    LResult := TProcessExecutor.Execute(ExpandFileName(FoundExe), [], AProjectDir);
-    Result := LResult.Success;
-
-    if Result then
-    begin
-      LO.WriteLn(_(CMD_PROJECT_TEST_PASSED));
-    end
-    else
-    begin
-      LE.WriteLn(_Fmt(CMD_PROJECT_TEST_FAILED, [IntToStr(LResult.ExitCode)]));
-    end;
-
+    Result := ExecuteProjectTestCore(AProjectDir, LO, LE, @ExecuteProcess);
   except
     on E: Exception do
     begin
@@ -655,48 +527,6 @@ begin
   end;
 end;
 
-function TProjectManager.FindExecutableInDirectory(const ADir: string): string;
-var
-  SR: TSearchRec;
-begin
-  Result := '';
-
-  if not DirectoryExists(ADir) then
-    Exit;
-
-  {$IFDEF MSWINDOWS}
-  // On Windows, look for .exe files
-  if FindFirst(ADir + PathDelim + '*.exe', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Attr and faDirectory) = 0 then
-      begin
-        Result := ADir + PathDelim + SR.Name;
-        Break;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-  {$ELSE}
-  // On Unix, look for executable corresponding to .lpr files
-  if FindFirst(ADir + PathDelim + '*.lpr', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Attr and faDirectory) = 0 then
-      begin
-        // Try executable with same name but no extension
-        Result := ADir + PathDelim + ChangeFileExt(SR.Name, '');
-        if FileExists(Result) then
-          Break
-        else
-          Result := '';
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-  {$ENDIF}
-end;
-
 function TProjectManager.RunProject(const AProjectDir: string; const AArgs: string): Boolean;
 begin
   Result := RunProject(nil, nil, AProjectDir, AArgs);
@@ -704,11 +534,6 @@ end;
 
 function TProjectManager.RunProject(const Outp, Errp: IOutput; const AProjectDir: string; const AArgs: string): Boolean;
 var
-  LResult: TProcessResult;
-  FoundExe: string;
-  Args: TStringList;
-  Params: array of string;
-  i: Integer;
   LO: IOutput;
   LE: IOutput;
 begin
@@ -721,47 +546,8 @@ begin
   if LE = nil then
     LE := TConsoleOutput.Create(True) as IOutput;
 
-  if not DirectoryExists(AProjectDir) then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
-    Exit;
-  end;
-
   try
-    // Find executable in project directory
-    FoundExe := FindExecutableInDirectory(AProjectDir);
-
-    if FoundExe = '' then
-    begin
-      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_NO_EXECUTABLE, [AProjectDir]));
-      Exit;
-    end;
-
-    // Parse arguments if provided
-    Params := nil;
-    SetLength(Params, 0);
-    if AArgs <> '' then
-    begin
-      Args := TStringList.Create;
-      try
-        ExtractStrings([' '], [], PChar(AArgs), Args);
-        SetLength(Params, Args.Count);
-        for i := 0 to Args.Count - 1 do
-          Params[i] := Args[i];
-      finally
-        Args.Free;
-      end;
-    end;
-
-    // Execute - use absolute path to avoid path resolution issues
-    LResult := TProcessExecutor.Execute(ExpandFileName(FoundExe), Params, AProjectDir);
-    Result := LResult.Success;
-
-    if not Result then
-    begin
-      LE.WriteLn(_(MSG_WARNING) + ': ' + _Fmt(CMD_PROJECT_EXIT_CODE, [IntToStr(LResult.ExitCode)]));
-    end;
-
+    Result := ExecuteProjectRunCore(AProjectDir, AArgs, LO, LE, @ExecuteProcess);
   except
     on E: Exception do
     begin

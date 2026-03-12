@@ -5,7 +5,7 @@ program test_binary_installer_unit;
 { Unit tests for TBinaryInstaller class in fpdev.fpc.binary }
 
 uses
-  SysUtils, Classes, fpdev.fpc.binary;
+  SysUtils, Classes, fpdev.fpc.binary, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -120,21 +120,24 @@ procedure TestOfflineModeBlocking;
 var
   Installer: TBinaryInstaller;
   Result: Boolean;
+  TempRoot: string;
 begin
   WriteLn('');
   WriteLn('=== Test 5: Offline Mode Blocking ===');
 
+  TempRoot := CreateUniqueTempDir('test_binary_installer_offline');
   Installer := TBinaryInstaller.Create;
   try
     Installer.OfflineMode := True;
     Installer.UseCache := False;  // Disable cache to force download attempt
 
     // In offline mode, installation should fail for non-cached versions
-    Result := Installer.Install('99.99.99', GetTempDir(False) + 'test_install');
+    Result := Installer.Install('99.99.99', TempRoot + PathDelim + 'test_install');
     Check('Install fails in offline mode for non-cached version', Result = False);
     Check('Error message mentions offline mode', Pos('offline', LowerCase(Installer.GetLastError)) > 0);
   finally
     Installer.Free;
+    CleanupTempDir(TempRoot);
   end;
 end;
 

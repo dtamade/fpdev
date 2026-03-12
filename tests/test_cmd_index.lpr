@@ -18,10 +18,10 @@ program test_cmd_index;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.cmd.index;
+  fpdev.cmd.index, fpdev.cmd.index.status, fpdev.cmd.index.show, fpdev.cmd.index.update;
 
 var
   GTestCount: Integer = 0;
@@ -267,17 +267,19 @@ end;
 
 procedure TestStatusOutput;
 var
-  Cmd: ICommand;
   OutBuf: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
   Output: string;
+  Args: TStringArray;
 begin
   OutBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, OutBuf);
-  Cmd := CreateIndexCommand;
-
-  Ret := Cmd.Execute(['status'], Ctx);
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'index';
+  Args[2] := 'status';
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
   Output := OutBuf.GetBuffer;
 
   Test('Status returns exit code 0', Ret = 0);
@@ -331,14 +333,32 @@ var
   Ctx: IContext;
   Args: TStringArray;
   Ret: Integer;
+  Children: TStringArray;
+  I: Integer;
+  HasStatus, HasShow, HasUpdate: Boolean;
 begin
   Ctx := TDefaultCommandContext.Create;
-  SetLength(Args, 2);
-  Args[0] := 'index';
-  Args[1] := 'help';
+  SetLength(Args, 3);
+  Args[0] := 'system';
+  Args[1] := 'index';
+  Args[2] := 'help';
 
-  Ret := GlobalCommandRegistry.Dispatch(Args, Ctx);
-  Test('index command registered in GlobalCommandRegistry', Ret = 0);
+  Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+  Test('system index command registered in GlobalCommandRegistry', Ret = 0);
+
+  Children := GlobalCommandRegistry.ListChildren(['system', 'index']);
+  HasStatus := False;
+  HasShow := False;
+  HasUpdate := False;
+  for I := Low(Children) to High(Children) do
+  begin
+    if Children[I] = 'status' then HasStatus := True;
+    if Children[I] = 'show' then HasShow := True;
+    if Children[I] = 'update' then HasUpdate := True;
+  end;
+  Test('system index status subcommand registered', HasStatus);
+  Test('system index show subcommand registered', HasShow);
+  Test('system index update subcommand registered', HasUpdate);
 end;
 
 begin

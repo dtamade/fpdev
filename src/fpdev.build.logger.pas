@@ -178,7 +178,12 @@ end;
 
 procedure TBuildLogger.LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
 begin
-  Log('Summary: version=' + AVersion + ' context=' + AContext + ' result=' + AResult + ' elapsed_ms=' + IntToStr(AElapsedMs));
+  Log(
+    'Summary: version=' + AVersion +
+    ' context=' + AContext +
+    ' result=' + AResult +
+    ' elapsed_ms=' + IntToStr(AElapsedMs)
+  );
 end;
 
 function TBuildLogger.GetVerbosity: Integer;

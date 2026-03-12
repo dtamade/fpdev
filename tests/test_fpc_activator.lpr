@@ -4,7 +4,7 @@ program test_fpc_activator;
 
 {
   Unit tests for TFPCActivator
-  
+
   Tests:
   - CreateWindowsActivationScript: Creates Windows batch activation script
   - CreateUnixActivationScript: Creates Unix shell activation script
@@ -12,8 +12,8 @@ program test_fpc_activator;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.types, fpdev.fpc.types,
-  fpdev.config.interfaces, fpdev.config.managers;
+  SysUtils, test_config_isolation, Classes, fpdev.fpc.version, fpdev.fpc.activator, fpdev.types, fpdev.fpc.types,
+  fpdev.config.interfaces, fpdev.config.managers, test_temp_paths;
 
 var
   TestInstallRoot: string;
@@ -28,8 +28,9 @@ var
   Settings: TFPDevSettings;
 begin
   // Create temporary install root directory
-  TestInstallRoot := GetTempDir + 'test_activator_root_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestInstallRoot);
+  TestInstallRoot := CreateUniqueTempDir('test_activator_root');
+  if not PathUsesSystemTempRoot(TestInstallRoot) then
+    raise Exception.Create('Test install root should use system temp root');
 
   // Setup config manager to use test directory
   Settings := ConfigManager.GetSettingsManager.GetSettings;
@@ -40,34 +41,10 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
   if DirectoryExists(TestInstallRoot) then
   begin
-    DeleteDirectory(TestInstallRoot);
+    CleanupTempDir(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
   end;
 end;
@@ -103,6 +80,27 @@ begin
     WriteLn('  PASSED: ', AMessage);
     Inc(TestsPassed);
   end;
+end;
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Config manager uses isolated config path');
+  WriteLn('==================================================');
+
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+    'Config path should live under system temp root');
+  AssertTrue(ConfigPath = ExpectedPath,
+    'Config path should use isolated default override');
 end;
 
 function CreateMockFPCInstallation(const AVersion: string): Boolean;
@@ -149,7 +147,7 @@ var
 begin
   Result := '';
   if not FileExists(APath) then Exit;
-  
+
   SL := TStringList.Create;
   try
     SL.LoadFromFile(APath);
@@ -172,7 +170,7 @@ begin
   ActivationResult := Activator.ActivateVersion('9.9.9');
 
   AssertFalse(ActivationResult.Success, 'Should return False for non-installed version');
-  AssertTrue(Pos('not installed', ActivationResult.ErrorMessage) > 0, 
+  AssertTrue(Pos('not installed', ActivationResult.ErrorMessage) > 0,
     'Error message should mention "not installed"');
 end;
 
@@ -198,11 +196,11 @@ begin
   // Note: Activation may fail at SetDefaultToolchain step, but scripts should still be created
   AssertTrue(Length(ActivationResult.ActivationScript) > 0, 'ActivationScript path should be set');
   AssertTrue(Length(ActivationResult.ShellCommand) > 0, 'ShellCommand should be set');
-  
+
   // Check that activation script file exists (even if final step failed)
   if Length(ActivationResult.ActivationScript) > 0 then
   begin
-    AssertTrue(FileExists(ActivationResult.ActivationScript), 
+    AssertTrue(FileExists(ActivationResult.ActivationScript),
       'Activation script file should exist');
   end;
 end;
@@ -243,11 +241,11 @@ begin
   // Read the Windows script (should have .cmd extension)
   ScriptContent := ReadFileContent(ActivationResult.ActivationScript);
 
-  AssertTrue(Pos('@echo off', ScriptContent) > 0, 
+  AssertTrue(Pos('@echo off', ScriptContent) > 0,
     'Windows script should contain @echo off');
-  AssertTrue(Pos('SET "PATH=', ScriptContent) > 0, 
+  AssertTrue(Pos('SET "PATH=', ScriptContent) > 0,
     'Windows script should set PATH');
-  AssertTrue(Pos('3.2.2', ScriptContent) > 0, 
+  AssertTrue(Pos('3.2.2', ScriptContent) > 0,
     'Windows script should contain version path');
 end;
 
@@ -276,9 +274,9 @@ begin
   WriteLn('Test: Activator uses VersionManager');
   WriteLn('==================================================');
 
-  AssertTrue(Activator.VersionManager = VersionManager, 
+  AssertTrue(Activator.VersionManager = VersionManager,
     'Activator should use provided VersionManager');
-  AssertTrue(Activator.ConfigManager = ConfigManager, 
+  AssertTrue(Activator.ConfigManager = ConfigManager,
     'Activator should use provided ConfigManager');
 end;
 
@@ -302,8 +300,9 @@ begin
 
   // Save original directory and change to a temp directory outside the project
   OriginalDir := GetCurrentDir;
-  TempDir := GetTempDir + 'fpdev_test_' + IntToStr(GetTickCount64);
-  ForceDirectories(TempDir);
+  TempDir := CreateUniqueTempDir('fpdev_test_activator_scope');
+  AssertTrue(PathUsesSystemTempRoot(TempDir),
+    'Activation scope temp dir should use system temp root');
   try
     SetCurrentDir(TempDir);
 
@@ -322,8 +321,7 @@ begin
   finally
     // Restore original directory and clean up temp directory
     SetCurrentDir(OriginalDir);
-    if DirectoryExists(TempDir) then
-      RemoveDir(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -383,9 +381,9 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TConfigManager.Create('');
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+    ConfigManager := CreateIsolatedConfigManager;
+
+    TestConfigManagerUsesIsolatedDefaultConfigPath;
 
     // Setup test environment
     SetupTestEnvironment;

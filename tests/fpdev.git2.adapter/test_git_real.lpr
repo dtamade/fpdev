@@ -6,10 +6,18 @@ program test_git_real;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fpdev.fpc.source;
+  SysUtils, test_pause_control, fpdev.fpc.source, test_temp_paths;
 
 var
   FPCManager: TFPCSourceManager;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestSmallGitClone;
 var
@@ -18,7 +26,7 @@ begin
   WriteLn('=== 测试实际Git克隆操作 ===');
   WriteLn;
 
-  TestDir := 'test_small_repo';
+  TestDir := ResetTestRepoDir('test_small_repo');
 
   // 清理已存在的测试目录
   if DirectoryExists(TestDir) then
@@ -134,20 +142,14 @@ begin
 end;
 
 procedure CleanupTest;
-var
-  TestDir: string;
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  TestDir := 'test_small_repo';
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('删除测试目录: ', TestDir);
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
+    WriteLn('删除测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -183,7 +185,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

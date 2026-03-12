@@ -8,7 +8,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.cross,
+  fpdev.command.intf, fpdev.command.registry, fpdev.cross.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -22,7 +22,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TCrossUpdateCommand.Name: string; begin Result := 'update'; end;
 function TCrossUpdateCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -38,10 +38,15 @@ var
   LTarget: string;
   LMgr: TCrossCompilerManager;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_CROSS_UPDATE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_CROSS_UPDATE_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_CROSS_UPDATE_DESC));
@@ -52,6 +57,16 @@ begin
 
   if Length(AParams) < 1 then
     Exit(MissingArgError(Ctx, 'target', _(HELP_CROSS_UPDATE_USAGE)));
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_CROSS_UPDATE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if (Length(AParams[0]) > 0) and (AParams[0][1] = '-') then
+  begin
+    Ctx.Err.WriteLn(_(HELP_CROSS_UPDATE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
 
   LTarget := AParams[0];
   LMgr := TCrossCompilerManager.Create(Ctx.Config);

@@ -5,18 +5,13 @@ program test_git_basic;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Process, Classes, FileUtil,
-  git2.api, git2.impl, fpdev.git2;
+  SysUtils, test_pause_control, Process, Classes,
+  git2.api, git2.impl, fpdev.git2, test_temp_paths;
 
-function HasSwitch(const ASwitch: string): Boolean;
 var
-  i: Integer;
-begin
-  Result := False;
-  for i := 1 to ParamCount do
-    if CompareText(ParamStr(i), ASwitch) = 0 then
-      Exit(True);
-end;
+  GTestRootDir: string = '';
+  GitManager: TGitManager = nil;
+
 
 function IsGitInstalled: Boolean;
 var
@@ -106,18 +101,11 @@ begin
   WriteLn('URL: ', AURL);
   WriteLn('目标目录: ', ATargetDir);
 
-  // 如果目标目录已存在，先删除（优先使用 FileUtil，失败再回退到 shell）
+  // 如果目标目录已存在，先删除
   if DirectoryExists(ATargetDir) then
   begin
     WriteLn('删除已存在的目录...');
-    if not DeleteDirectoryRecursive(ATargetDir, True) then
-    begin
-      {$IFDEF MSWINDOWS}
-      ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', '"' + ATargetDir + '"']);
-      {$ELSE}
-      ExecuteProcess('sh', ['-c', 'rm -rf ' + QuotedStr(ATargetDir)]);
-      {$ENDIF}
-    end;
+    CleanupTempDir(ATargetDir);
   end;
 
   // 确保父目录存在
@@ -217,13 +205,15 @@ end;
 procedure TestRepositoryOperations(const AUrl, ABranch: string; const ADepth: Integer; const AOffline: Boolean);
 var
   LTestDir: string;
+  LUseLibgit2: Boolean;
+  LRepo: TGitRepository;
 begin
   WriteLn('=== 测试仓库操作 ===');
   WriteLn;
 
-  // 将测试输出置于 bin/tmp 目录并带时间戳避免冲突
-  ForceDirectories('bin' + PathDelim + 'tmp');
-  LTestDir := 'bin' + PathDelim + 'tmp' + PathDelim + 'test_basic_repo_' + FormatDateTime('yyyymmddhhnnss', Now);
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir('test_basic_repo');
+  LTestDir := GTestRootDir + PathDelim + 'repo';
 
   if AOffline then
   begin
@@ -233,7 +223,7 @@ begin
 
   // 优先使用 libgit2 (若可用)，否则回退到系统 git
   WriteLn('测试克隆仓库...');
-  var LUseLibgit2 := False;
+  LUseLibgit2 := False;
   try
     LUseLibgit2 := GitManager.Initialize;
   except
@@ -243,7 +233,7 @@ begin
   if LUseLibgit2 then
   begin
     try
-      var LRepo := GitManager.CloneRepository(AUrl, LTestDir);
+      LRepo := GitManager.CloneRepository(AUrl, LTestDir);
       try
         if Assigned(LRepo) then
         begin
@@ -309,20 +299,13 @@ begin
 end;
 
 procedure CleanupTest;
-var
-  LBinTmp: string;
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  // 清理 bin/tmp 下以 test_basic_repo_ 开头的目录
-  LBinTmp := 'bin' + PathDelim + 'tmp';
-  if DirectoryExists(LBinTmp) then
+  if GTestRootDir <> '' then
   begin
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'for', '/d', '%d', 'in', '(', '"' + LBinTmp + PathDelim + 'test_basic_repo_*' + '"', ')', 'do', 'rmdir', '/s', '/q', '%d']);
-    {$ELSE}
-    ExecuteProcess('sh', ['-c', 'rm -rf ' + QuotedStr(LBinTmp + PathDelim + 'test_basic_repo_*')]);
-    {$ENDIF}
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -333,9 +316,12 @@ var
   LBranch: string;
   LDepth: Integer;
   LOffline: Boolean;
+  i: Integer;
 begin
+  GitManager := TGitManager.Create;
   try
-    WriteLn('FPDev Git功能测试 (基础版)');
+    try
+      WriteLn('FPDev Git功能测试 (基础版)');
     WriteLn('==========================');
     WriteLn;
 
@@ -347,12 +333,11 @@ begin
     LOffline := True;
 
     // 环境变量优先：FPDEV_ONLINE=1 覆盖；FPDEV_OFFLINE=1 强制离线
-    if (GetEnv('FPDEV_ONLINE') <> '') then
+    if GetEnvironmentVariable('FPDEV_ONLINE') <> '' then
       LOffline := False;
-    if (GetEnv('FPDEV_OFFLINE') <> '') then
+    if GetEnvironmentVariable('FPDEV_OFFLINE') <> '' then
       LOffline := True;
     // 遍历参数：允许 --url=... --branch=... --depth=... --offline 或 --url ...
-    var i: Integer;
     for i := 1 to ParamCount do
     begin
       if (ParamStr(i) = '--offline') then
@@ -380,18 +365,17 @@ begin
     WriteLn('如果Git环境验证通过，说明基础Git功能可以正常工作。');
     WriteLn('接下来可以获取git2.dll并测试libgit2原生功能。');
 
-  except
-    on E: Exception do
-    begin
-      WriteLn('测试过程中发生错误: ', E.ClassName, ': ', E.Message);
-      ExitCode := 1;
+    except
+      on E: Exception do
+      begin
+        WriteLn('测试过程中发生错误: ', E.ClassName, ': ', E.Message);
+        ExitCode := 1;
+      end;
     end;
+  finally
+    GitManager.Free;
+    GitManager := nil;
   end;
 
-  WriteLn;
-  if HasSwitch('--pause') or (GetEnv('FPDEV_DEMO_PAUSE') <> '') then
-  begin
-    WriteLn('按Enter键退出 (--pause 或 FPDEV_DEMO_PAUSE=1 控制)...');
-    ReadLn;
-  end;
+  PauseIfRequested('按Enter键退出 (--pause 或 FPDEV_DEMO_PAUSE=1 控制)...');
 end.

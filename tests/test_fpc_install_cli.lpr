@@ -26,7 +26,7 @@ program test_fpc_install_cli;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, fpdev.utils.fs,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.logger.intf, fpdev.exitcodes,
@@ -38,6 +38,12 @@ var
   GTestCount: Integer = 0;
   GPassCount: Integer = 0;
   GFailCount: Integer = 0;
+
+function BuildTempConfigDir: string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'fpdev_test_install_' + IntToStr(GetTickCount64);
+end;
 
 procedure Test(const AName: string; ACondition: Boolean);
 begin
@@ -650,10 +656,14 @@ begin
   WriteLn;
 
   // Create temp config directory
-  GTempConfigDir := GetTempDir + 'fpdev_test_install_' + IntToStr(GetTickCount64);
+  GTempConfigDir := BuildTempConfigDir;
   ForceDirectories(GTempConfigDir);
 
   try
+    Test('Temp config dir uses system temp root',
+      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+        ExpandFileName(GTempConfigDir)) = 1);
+
     // Group 1: Command basics
     WriteLn('--- Command Basics ---');
     TestCommandName;
@@ -717,7 +727,7 @@ begin
     begin
       // Simple cleanup - delete config file and directory
       DeleteFile(GTempConfigDir + PathDelim + 'config.json');
-      RemoveDir(GTempConfigDir);
+      DeleteDirRecursive(GTempConfigDir);
     end;
   end;
 

@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TLazInstallCommand.Name: string; begin Result := 'install'; end;
 function TLazInstallCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -34,12 +34,20 @@ var
   LNoConfigure: Boolean;
   LSettings: TFPDevSettings;
   LMgr: TLazarusManager;
+  I: Integer;
+  LParam: string;
+  LPositionalCount: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_INSTALL_DESC));
@@ -54,13 +62,37 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  LPositionalCount := 0;
+  for I := Low(AParams) to High(AParams) do
+  begin
+    LParam := AParams[I];
+    if (Length(LParam) > 0) and (LParam[1] = '-') then
+    begin
+      if SameText(LParam, '--from-source') or SameText(LParam, '-from-source') or
+         SameText(LParam, '--no-configure') or SameText(LParam, '-no-configure') or
+         (Pos('--from=', LowerCase(LParam)) = 1) or
+         (Pos('--fpc=', LowerCase(LParam)) = 1) or
+         (Pos('--jobs=', LowerCase(LParam)) = 1) then
+        Continue;
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+
+    Inc(LPositionalCount);
+    if LPositionalCount > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end;
+
+  if LPositionalCount < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
-  LVer := AParams[0];
+  LVer := GetPositionalArg(AParams, 0);
 
   LFromSource := HasFlag(AParams, 'from-source');
   if GetFlagValue(AParams, 'from', LFrom) then

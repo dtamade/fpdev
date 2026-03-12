@@ -1,6 +1,7 @@
 unit fpdev.ui.progress;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 

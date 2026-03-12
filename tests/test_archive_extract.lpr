@@ -3,7 +3,7 @@ program test_archive_extract;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, fpdev.archive.extract;
+  SysUtils, Classes, Process, fpdev.archive.extract, test_temp_paths;
 
 var
   Extractor: TArchiveExtractor;
@@ -26,9 +26,8 @@ end;
 
 procedure Cleanup;
 begin
-  // Simple cleanup - just note the temp directory
-  if DirectoryExists(TempDir) then
-    WriteLn('Note: Temp directory created at: ', TempDir);
+  if (TempDir <> '') and PathUsesSystemTempRoot(TempDir) then
+    CleanupTempDir(TempDir);
 end;
 
 begin
@@ -38,8 +37,7 @@ begin
   WriteLn('=== Archive Extraction Tests ===');
   WriteLn;
 
-  TempDir := GetTempDir + 'fpdev_test_' + IntToStr(Random(10000)) + PathDelim;
-  ForceDirectories(TempDir);
+  TempDir := CreateUniqueTempDir('fpdev_test_archive_extract');
 
   try
     Extractor := TArchiveExtractor.Create;

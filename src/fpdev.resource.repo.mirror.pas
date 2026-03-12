@@ -41,11 +41,20 @@ implementation
 uses
   Classes, DateUtils, fpdev.utils.process;
 
+const
+  DEFAULT_REGION_US = 'us';
+  SYSTEM_TIMEZONE_FILE = '/etc/timezone';
+  {$IFDEF MSWINDOWS}
+  CURL_DISCARD_OUTPUT_TARGET = 'NUL';
+  {$ELSE}
+  CURL_DISCARD_OUTPUT_TARGET = '/dev/null';
+  {$ENDIF}
+
 function ResourceRepoDetectUserRegion(const ALog: TResourceRepoMirrorLogProc): string;
 var
   TZ: string;
 begin
-  Result := 'us';
+  Result := DEFAULT_REGION_US;
 
   {$IFDEF MSWINDOWS}
   TZ := GetEnvironmentVariable('TZ');
@@ -55,12 +64,12 @@ begin
   TZ := GetEnvironmentVariable('TZ');
   if TZ = '' then
   begin
-    if FileExists('/etc/timezone') then
+    if FileExists(SYSTEM_TIMEZONE_FILE) then
     begin
       try
         with TStringList.Create do
         try
-          LoadFromFile('/etc/timezone');
+          LoadFromFile(SYSTEM_TIMEZONE_FILE);
           if Count > 0 then
             TZ := Strings[0];
         finally
@@ -110,7 +119,7 @@ begin
 
   try
     LResult := TProcessExecutor.Execute('curl',
-      ['-s', '-o', '/dev/null', '-w', '%{time_total}',
+      ['-s', '-o', CURL_DISCARD_OUTPUT_TARGET, '-w', '%{time_total}',
        '--connect-timeout', IntToStr(ATimeoutMS div 1000),
        '--max-time', IntToStr(ATimeoutMS div 1000),
        '-I', TestURL], '');

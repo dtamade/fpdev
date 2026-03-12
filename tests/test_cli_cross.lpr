@@ -8,7 +8,7 @@ program test_cli_cross;
 ================================================================================
 
   Covers: list, show, enable, disable, install, uninstall, configure,
-          build, doctor, test
+          build, doctor, test, update, clean
 
   B193-B195: Cross command CLI test coverage
   Author: fafafaStudio
@@ -17,7 +17,11 @@ program test_cli_cross;
 
 uses
   SysUtils, Classes,
+  {$IFDEF UNIX}
+  BaseUnix,
+  {$ENDIF}
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
   fpdev.exitcodes,
   fpdev.cmd.cross, fpdev.cross.downloader,
   fpdev.cmd.cross.root,
@@ -31,7 +35,9 @@ uses
   fpdev.cmd.cross.build,
   fpdev.cmd.cross.doctor,
   fpdev.cmd.cross.test,
-  test_cli_helpers;
+  fpdev.cmd.cross.update,
+  fpdev.cmd.cross.clean,
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
@@ -123,6 +129,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestListUnexpectedArg;
+var Cmd: TCrossListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('list unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestListUnknownOption;
+var Cmd: TCrossListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('list unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== show ===== }
 
 procedure TestShowName;
@@ -152,6 +180,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('show no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestShowUnexpectedArg;
+var Cmd: TCrossShowCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('show unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestShowUnknownOption;
+var Cmd: TCrossShowCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('show unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -186,6 +236,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestEnableUnexpectedArg;
+var Cmd: TCrossEnableCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossEnableCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('enable unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestEnableUnknownOption;
+var Cmd: TCrossEnableCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossEnableCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('enable unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== disable ===== }
 
 procedure TestDisableName;
@@ -214,6 +286,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('disable no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDisableUnexpectedArg;
+var Cmd: TCrossDisableCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossDisableCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('disable unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDisableUnknownOption;
+var Cmd: TCrossDisableCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossDisableCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('disable unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -249,6 +343,28 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestInstallUnexpectedArg;
+var Cmd: TCrossInstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('install unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestInstallUnknownOption;
+var Cmd: TCrossInstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('install unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== uninstall ===== }
 
 procedure TestUninstallName;
@@ -277,6 +393,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('uninstall no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUninstallUnexpectedArg;
+var Cmd: TCrossUninstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('uninstall unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUninstallUnknownOption;
+var Cmd: TCrossUninstallCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('uninstall unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -309,6 +447,28 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('configure no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigureUnexpectedArg;
+var Cmd: TCrossConfigureCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', '--binutils=/tmp/bin', '--libraries=/tmp/lib', 'extra'], Ctx);
+    Check('configure unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigureUnknownOption;
+var Cmd: TCrossConfigureCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', '--unknown'], Ctx);
+    Check('configure unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
 end;
 
@@ -376,6 +536,70 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestDoctorUnexpectedArg;
+var Cmd: TCrossDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('doctor unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDoctorUnknownOption;
+var Cmd: TCrossDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('doctor unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestDoctorUnwritableInstallRoot;
+var
+  Cmd: TCrossDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+  ReadOnlyRoot: string;
+begin
+  {$IFDEF UNIX}
+  ReadOnlyRoot := GTempDir + PathDelim + 'cross_doctor_ro';
+  ForceDirectories(ReadOnlyRoot);
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := ReadOnlyRoot;
+  if not Ctx.Config.GetSettingsManager.SetSettings(Settings) then
+  begin
+    Check('doctor unwritable setup: set install root', False);
+    Exit;
+  end;
+
+  if fpchmod(ReadOnlyRoot, &555) <> 0 then
+  begin
+    Check('doctor unwritable setup: chmod readonly', False);
+    Exit;
+  end;
+
+  Cmd := TCrossDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('doctor unwritable install root returns EXIT_ERROR', Ret = EXIT_ERROR);
+  finally
+    Cmd.Free;
+    fpchmod(ReadOnlyRoot, &755);
+    RemoveDir(ReadOnlyRoot);
+  end;
+  {$ELSE}
+  Check('doctor unwritable install root skipped on non-UNIX', True);
+  {$ENDIF}
+end;
+
 { ===== test ===== }
 
 procedure TestTestName;
@@ -408,6 +632,136 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestTestUnexpectedArg;
+var Cmd: TCrossTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('test unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestTestUnknownOption;
+var Cmd: TCrossTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('test unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+{ ===== update ===== }
+
+procedure TestUpdateName;
+var Cmd: TCrossUpdateCommand;
+begin
+  Cmd := TCrossUpdateCommand.Create;
+  try Check('update: name', Cmd.Name = 'update'); finally Cmd.Free; end;
+end;
+
+procedure TestUpdateHelp;
+var Cmd: TCrossUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Check('update --help EXIT_OK', Ret = EXIT_OK);
+    Check('update --help shows usage', StdOut.Contains('update'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestUpdateMissingTarget;
+var Cmd: TCrossUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('update no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUpdateUnexpectedArg;
+var Cmd: TCrossUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('update unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestUpdateUnknownOption;
+var Cmd: TCrossUpdateCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('update unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+{ ===== clean ===== }
+
+procedure TestCleanName;
+var Cmd: TCrossCleanCommand;
+begin
+  Cmd := TCrossCleanCommand.Create;
+  try Check('clean: name', Cmd.Name = 'clean'); finally Cmd.Free; end;
+end;
+
+procedure TestCleanHelp;
+var Cmd: TCrossCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Check('clean --help EXIT_OK', Ret = EXIT_OK);
+    Check('clean --help shows usage', StdOut.Contains('clean'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestCleanMissingTarget;
+var Cmd: TCrossCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossCleanCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('clean no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestCleanUnexpectedArg;
+var Cmd: TCrossCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['win64', 'extra'], Ctx);
+    Check('clean unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestCleanUnknownOption;
+var Cmd: TCrossCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('clean unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
 { ===== Registration ===== }
 
 procedure TestCrossRegistration;
@@ -416,13 +770,13 @@ var
   I: Integer;
   FoundList, FoundShow, FoundEnable, FoundDisable: Boolean;
   FoundInstall, FoundUninstall, FoundConfigure, FoundBuild: Boolean;
-  FoundDoctor, FoundTest: Boolean;
+  FoundDoctor, FoundTest, FoundUpdate, FoundClean: Boolean;
 begin
   Children := GlobalCommandRegistry.ListChildren(['cross']);
   FoundList := False; FoundShow := False; FoundEnable := False;
   FoundDisable := False; FoundInstall := False; FoundUninstall := False;
   FoundConfigure := False; FoundBuild := False; FoundDoctor := False;
-  FoundTest := False;
+  FoundTest := False; FoundUpdate := False; FoundClean := False;
 
   for I := Low(Children) to High(Children) do
   begin
@@ -436,6 +790,8 @@ begin
     if Children[I] = 'build' then FoundBuild := True;
     if Children[I] = 'doctor' then FoundDoctor := True;
     if Children[I] = 'test' then FoundTest := True;
+    if Children[I] = 'update' then FoundUpdate := True;
+    if Children[I] = 'clean' then FoundClean := True;
   end;
 
   Check('cross list registered', FoundList);
@@ -448,6 +804,8 @@ begin
   Check('cross build registered', FoundBuild);
   Check('cross doctor registered', FoundDoctor);
   Check('cross test registered', FoundTest);
+  Check('cross update registered', FoundUpdate);
+  Check('cross clean registered', FoundClean);
 end;
 
 { ===== Main ===== }
@@ -455,8 +813,8 @@ begin
   WriteLn('=== Cross Commands CLI Tests (B193-B195) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_cross_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_cross');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     WriteLn('--- list ---');
@@ -465,42 +823,56 @@ begin
     TestListNoArgs;
     TestListNoArgsDoesNotLoadManifest;
     TestListJsonOutput;
+    TestListUnexpectedArg;
+    TestListUnknownOption;
 
     WriteLn('');
     WriteLn('--- show ---');
     TestShowName;
     TestShowHelp;
     TestShowMissingTarget;
+    TestShowUnexpectedArg;
+    TestShowUnknownOption;
 
     WriteLn('');
     WriteLn('--- enable ---');
     TestEnableName;
     TestEnableHelp;
     TestEnableMissingTarget;
+    TestEnableUnexpectedArg;
+    TestEnableUnknownOption;
 
     WriteLn('');
     WriteLn('--- disable ---');
     TestDisableName;
     TestDisableHelp;
     TestDisableMissingTarget;
+    TestDisableUnexpectedArg;
+    TestDisableUnknownOption;
 
     WriteLn('');
     WriteLn('--- install ---');
     TestInstallName;
     TestInstallHelp;
     TestInstallMissingTarget;
+    TestInstallUnexpectedArg;
+    TestInstallUnknownOption;
 
     WriteLn('');
     WriteLn('--- uninstall ---');
     TestUninstallName;
     TestUninstallHelp;
     TestUninstallMissingTarget;
+    TestUninstallUnexpectedArg;
+    TestUninstallUnknownOption;
 
     WriteLn('');
     WriteLn('--- configure ---');
     TestConfigureName;
     TestConfigureHelp;
     TestConfigureMissingTarget;
+    TestConfigureUnexpectedArg;
+    TestConfigureUnknownOption;
 
     WriteLn('');
     WriteLn('--- build ---');
@@ -513,22 +885,39 @@ begin
     TestDoctorName;
     TestDoctorHelp;
     TestDoctorNoArgs;
+    TestDoctorUnexpectedArg;
+    TestDoctorUnknownOption;
+    TestDoctorUnwritableInstallRoot;
 
     WriteLn('');
     WriteLn('--- test ---');
     TestTestName;
     TestTestHelp;
     TestTestMissingTarget;
+    TestTestUnexpectedArg;
+    TestTestUnknownOption;
+
+    WriteLn('');
+    WriteLn('--- update ---');
+    TestUpdateName;
+    TestUpdateHelp;
+    TestUpdateMissingTarget;
+    TestUpdateUnexpectedArg;
+    TestUpdateUnknownOption;
+
+    WriteLn('');
+    WriteLn('--- clean ---');
+    TestCleanName;
+    TestCleanHelp;
+    TestCleanMissingTarget;
+    TestCleanUnexpectedArg;
+    TestCleanUnknownOption;
 
     WriteLn('');
     WriteLn('--- Registration ---');
     TestCrossRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

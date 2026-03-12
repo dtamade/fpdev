@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpjson;
+uses fpdev.command.utils, fpjson;
 
 function TLazListCommand.Name: string; begin Result := 'list'; end;
 function TLazListCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -49,11 +49,16 @@ var
   LDefault: string;
   I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_LIST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_DESC));
@@ -63,6 +68,15 @@ begin
     Ctx.Out.WriteLn('  --json           Output in JSON format');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  for I := Low(AParams) to High(AParams) do
+  begin
+    if SameText(AParams[I], '--all') or SameText(AParams[I], '-all') or
+       SameText(AParams[I], '--json') or SameText(AParams[I], '-json') then
+      Continue;
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LAll := HasFlag(AParams, 'all');
@@ -121,4 +135,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['lazarus','list'], @LazListFactory, []);
 
 end.
-

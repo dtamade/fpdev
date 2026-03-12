@@ -5,6 +5,7 @@
 
 import os
 import re
+import subprocess
 from pathlib import Path
 from collections import defaultdict
 
@@ -43,13 +44,17 @@ def analyze_temp_files_and_debug_code():
                     content = f.read()
             except:
                 continue
+
+        if 'acq:allow-debug-output-file' in content.lower():
+            continue
         
         # 查找调试相关代码（忽略注释与注释块中的示例）
         debug_write_patterns = [
             r'(?<![\w\.])writeln\s*\(',  # 调试输出
             r'(?<![\w\.])write\s*\(',    # 调试输出
         ]
-        comment_keywords = ('debug', 'todo', 'fixme', 'hack')
+        comment_keywords = ('todo', 'fixme', 'hack')
+        allow_debug_directive = 'acq:allow-debug-output'
 
         debug_lines = []
         lines = content.split('\n')
@@ -114,8 +119,13 @@ def analyze_temp_files_and_debug_code():
                 has_debug_write = False
 
             comment_lower = inline_comment.strip().lower()
+            has_allow_directive = allow_debug_directive in comment_lower
             has_comment_tag = any(comment_lower.startswith(keyword)
                                   for keyword in comment_keywords)
+
+            if has_allow_directive:
+                has_debug_write = False
+                has_comment_tag = False
 
             if has_debug_write or has_comment_tag:
                 debug_lines.append((i, line.strip()))
@@ -197,6 +207,8 @@ def analyze_code_style():
     
     pas_files = list(src_dir.rglob('*.pas'))
     style_issues = []
+    allow_file_directive = 'acq:allow-style-file'
+    allow_line_directive = 'acq:allow-style'
     
     for pas_file in pas_files:
         try:
@@ -208,13 +220,21 @@ def analyze_code_style():
                     content = f.read()
             except:
                 continue
+
+        if allow_file_directive in content.lower():
+            continue
         
         file_issues = []
         lines = content.split('\n')
         
         for i, line in enumerate(lines, 1):
+            if allow_line_directive in line.lower():
+                continue
+
+            is_blank_line = line.strip() == ''
+
             # 检查行尾空格
-            if line.endswith(' ') or line.endswith('\t'):
+            if (not is_blank_line) and (line.endswith(' ') or line.endswith('\t')):
                 file_issues.append(f"行 {i}: 行尾有空格")
             
             # 检查制表符
@@ -251,6 +271,8 @@ def analyze_hardcoded_constants():
     
     pas_files = list(src_dir.rglob('*.pas'))
     hardcoded_files = []
+    allow_file_directive = 'acq:allow-hardcoded-constants-file'
+    allow_line_directive = 'acq:allow-hardcoded-constants'
     
     for pas_file in pas_files:
         try:
@@ -262,6 +284,9 @@ def analyze_hardcoded_constants():
                     content = f.read()
             except:
                 continue
+
+        if allow_file_directive in content.lower():
+            continue
         
         # 查找可能的硬编码常量
         hardcoded_patterns = [
@@ -273,9 +298,86 @@ def analyze_hardcoded_constants():
         
         hardcoded_items = []
         lines = content.split('\n')
+        in_const_block = False
+        in_brace_comment = False
+        in_paren_comment = False
+        const_block_end_pattern = re.compile(
+            r'^\s*(type|var|begin|procedure|function|constructor|destructor|'
+            r'interface|implementation|uses|initialization|finalization)\b',
+            re.IGNORECASE
+        )
+
         for i, line in enumerate(lines, 1):
+            if allow_line_directive in line.lower():
+                continue
+
+            code_part = ''
+            pos = 0
+            in_string = False
+
+            while pos < len(line):
+                if in_brace_comment:
+                    end_pos = line.find('}', pos)
+                    if end_pos == -1:
+                        pos = len(line)
+                        break
+                    in_brace_comment = False
+                    pos = end_pos + 1
+                    continue
+
+                if in_paren_comment:
+                    end_pos = line.find('*)', pos)
+                    if end_pos == -1:
+                        pos = len(line)
+                        break
+                    in_paren_comment = False
+                    pos = end_pos + 2
+                    continue
+
+                if in_string:
+                    code_part += line[pos]
+                    if line[pos] == "'":
+                        if pos + 1 < len(line) and line[pos + 1] == "'":
+                            code_part += line[pos + 1]
+                            pos += 2
+                            continue
+                        in_string = False
+                    pos += 1
+                    continue
+
+                if line.startswith('//', pos):
+                    break
+
+                if line.startswith('{', pos):
+                    in_brace_comment = True
+                    pos += 1
+                    continue
+
+                if line.startswith('(*', pos):
+                    in_paren_comment = True
+                    pos += 2
+                    continue
+
+                if line[pos] == "'":
+                    in_string = True
+
+                code_part += line[pos]
+                pos += 1
+
+            stripped = code_part.strip()
+
+            if re.match(r'^\s*const\b', code_part, re.IGNORECASE):
+                in_const_block = True
+                continue
+
+            if in_const_block and const_block_end_pattern.match(stripped):
+                in_const_block = False
+
+            if in_const_block:
+                continue
+
             for pattern in hardcoded_patterns:
-                matches = re.findall(pattern, line)
+                matches = re.findall(pattern, code_part)
                 for match in matches:
                     hardcoded_items.append((i, match))
         
@@ -312,6 +414,59 @@ def analyze_backup_directory():
     
     return issues
 
+def analyze_legacy_source_backups():
+    """分析 src 目录中的历史副本文件"""
+    issues = []
+
+    src_dir = Path('src')
+    if not src_dir.exists():
+        return issues
+
+    legacy_files = sorted(src_dir.rglob('*.old'))
+    if legacy_files:
+        issues.append({
+            'type': 'legacy_source_backup',
+            'files': legacy_files,
+            'description': 'src目录中存在历史副本文件',
+            'suggestion': '将历史副本移出 src/ 或直接删除，避免与真实源码混淆'
+        })
+
+    return issues
+
+
+def analyze_repository_hygiene():
+    """分析仓库中被跟踪的生成 Python 缓存文件"""
+    issues = []
+
+    try:
+        result = subprocess.run(
+            ['git', 'ls-files', '-z'],
+            check=True,
+            capture_output=True,
+            text=False
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return issues
+
+    tracked_files = []
+    for raw_path in result.stdout.split(b'\0'):
+        if not raw_path:
+            continue
+        rel_path = raw_path.decode('utf-8', errors='ignore')
+        path = Path(rel_path)
+        if path.suffix == '.pyc':
+            tracked_files.append(path)
+
+    if tracked_files:
+        issues.append({
+            'type': 'repository_hygiene',
+            'files': tracked_files,
+            'description': '仓库中存在被跟踪的 Python 缓存文件',
+            'suggestion': '将 *.pyc 移出 Git 索引，并确保它们被 .gitignore 忽略'
+        })
+
+    return issues
+
 def main():
     """主函数"""
     print("🔍 分析代码质量...")
@@ -343,6 +498,16 @@ def main():
     print("📋 分析backup目录...")
     backup_issues = analyze_backup_directory()
     all_issues.extend(backup_issues)
+
+    # 6. 分析 src 中的历史副本文件
+    print("📋 分析 src 中的历史副本文件...")
+    legacy_backup_issues = analyze_legacy_source_backups()
+    all_issues.extend(legacy_backup_issues)
+
+    # 7. 分析仓库级生成物
+    print("📋 分析仓库级生成物...")
+    hygiene_issues = analyze_repository_hygiene()
+    all_issues.extend(hygiene_issues)
     
     # 统计报告
     print(f"\n📊 分析结果:")
@@ -395,6 +560,8 @@ def main():
     print("3. 统一代码风格和格式")
     print("4. 提取硬编码常量到配置")
     print("5. 检查并移除未使用的代码")
+    print("6. 清理 src 中的历史副本文件")
+    print("7. 清理被跟踪的仓库级生成物")
     
     return len(all_issues)
 

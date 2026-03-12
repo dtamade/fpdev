@@ -1,11 +1,15 @@
 # Package Creation Design
 
+> Status (2026-03-05): this document is a historical design draft.
+> `fpdev package create` is currently not a registered public CLI command.
+> Current package authoring flow: prepare package metadata, then use `fpdev package install-local <path>` and `fpdev package publish <name>`.
+
 ## Overview
 This document describes the design for package creation functionality in FPDev.
 
 ## Feature Specification
 
-### Command
+### Command (Historical Proposal)
 ```
 fpdev package create <name> <path>
 

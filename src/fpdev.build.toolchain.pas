@@ -189,7 +189,11 @@ begin
     [Length(FCache), FCacheHits, FCacheMisses, HitRate]);
 end;
 
-function TBuildToolchainChecker.ExecuteCommand(const AExe: string; const AArgs: array of string; out AOutput: string): Boolean;
+function TBuildToolchainChecker.ExecuteCommand(
+  const AExe: string;
+  const AArgs: array of string;
+  out AOutput: string
+): Boolean;
 var
   Process: TProcess;
   OutStream: TStringStream;
@@ -229,7 +233,11 @@ begin
   end;
 end;
 
-function TBuildToolchainChecker.ExecuteCommandCached(const AExe: string; const AArgs: array of string; out AOutput: string): Boolean;
+function TBuildToolchainChecker.ExecuteCommandCached(
+  const AExe: string;
+  const AArgs: array of string;
+  out AOutput: string
+): Boolean;
 var
   Key: string;
   Entry: TToolCacheEntry;
@@ -355,7 +363,7 @@ end;
 
 function TBuildToolchainChecker.IsSourceDirValid(const ASourceDir: string): Boolean;
 begin
-  Result := DirectoryExists(ASourceDir) and 
+  Result := DirectoryExists(ASourceDir) and
             FileExists(ASourceDir + PathDelim + 'Makefile');
 end;
 

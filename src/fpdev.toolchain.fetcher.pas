@@ -34,13 +34,28 @@ function ParseHashString(const AHash: string; out AAlgorithm: THashAlgorithm; ou
 function VerifyFileHash(const AFile: string; AAlgorithm: THashAlgorithm; const AExpectedDigest: string): Boolean;
 
 // Try downloading from multiple mirrors sequentially, return True on success, file saved to DestFile.
-function FetchWithMirrors(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
+function FetchWithMirrors(
+  const AURLs: array of string;
+  const DestFile: string;
+  const Opt: TFetchOptions;
+  out AErr: string
+): boolean;
 
 // If DestFile already exists and hash verification passes, reuse it directly; otherwise call FetchWithMirrors.
-function EnsureDownloadedCached(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
+function EnsureDownloadedCached(
+  const AURLs: array of string;
+  const DestFile: string;
+  const Opt: TFetchOptions;
+  out AErr: string
+): boolean;
 
 // Download from manifest target (with multi-mirror fallback and hash verification)
-function FetchFromManifest(const ATarget: TManifestTarget; const DestFile: string; ATimeoutMS: Integer; out AErr: string): boolean;
+function FetchFromManifest(
+  const ATarget: TManifestTarget;
+  const DestFile: string;
+  ATimeoutMS: Integer;
+  out AErr: string
+): boolean;
 
 implementation
 
@@ -154,7 +169,12 @@ begin
   end;
 end;
 
-function FetchWithMirrors(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
+function FetchWithMirrors(
+  const AURLs: array of string;
+  const DestFile: string;
+  const Opt: TFetchOptions;
+  out AErr: string
+): boolean;
 var
   i: Integer;
   URL: string;
@@ -243,7 +263,12 @@ begin
   end;
 end;
 
-function EnsureDownloadedCached(const AURLs: array of string; const DestFile: string; const Opt: TFetchOptions; out AErr: string): boolean;
+function EnsureDownloadedCached(
+  const AURLs: array of string;
+  const DestFile: string;
+  const Opt: TFetchOptions;
+  out AErr: string
+): boolean;
 begin
   AErr := '';
   // Ensure data root is initialized
@@ -264,7 +289,12 @@ begin
   Result := FetchWithMirrors(AURLs, DestFile, Opt, AErr);
 end;
 
-function FetchFromManifest(const ATarget: TManifestTarget; const DestFile: string; ATimeoutMS: Integer; out AErr: string): boolean;
+function FetchFromManifest(
+  const ATarget: TManifestTarget;
+  const DestFile: string;
+  ATimeoutMS: Integer;
+  out AErr: string
+): boolean;
 var
   Opt: TFetchOptions;
   URLs: array of string;
@@ -304,4 +334,3 @@ begin
 end;
 
 end.
-

@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes,
-  fpdev.paths, fpdev.utils;
+  fpdev.paths, fpdev.utils, fpdev.utils.fs, test_temp_paths;
 
 type
   { TPathsTest }
@@ -17,6 +17,7 @@ type
     FTestsPassed: Integer;
     FTestsFailed: Integer;
     FSavedDataRoot: string;
+    FSavedPortable: string;
 
     procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
     procedure AssertFalse(const ACondition: Boolean; const AMessage: string);
@@ -32,6 +33,7 @@ type
 
     // Test methods
     procedure TestGetDataRoot;
+    procedure TestTempDataRootUsesSystemTempAndUniqueSuffix;
     procedure TestGetDataRootEnvOverride;
     procedure TestGetCacheDir;
     procedure TestGetSandboxDir;
@@ -52,17 +54,24 @@ begin
   inherited Create;
   FTestsPassed := 0;
   FTestsFailed := 0;
-  // Save current FPDEV_DATA_ROOT if set
+  // Save current path-related environment overrides if set
   FSavedDataRoot := GetEnvironmentVariable('FPDEV_DATA_ROOT');
+  FSavedPortable := GetEnvironmentVariable('FPDEV_PORTABLE');
 end;
 
 destructor TPathsTest.Destroy;
 begin
-  // Restore FPDEV_DATA_ROOT
+  // Restore path-related environment overrides
   if FSavedDataRoot <> '' then
     set_env('FPDEV_DATA_ROOT', FSavedDataRoot)
   else
     set_env('FPDEV_DATA_ROOT', '');
+
+  if FSavedPortable <> '' then
+    set_env('FPDEV_PORTABLE', FSavedPortable)
+  else
+    set_env('FPDEV_PORTABLE', '');
+
   inherited Destroy;
 end;
 
@@ -123,6 +132,11 @@ begin
   end;
 end;
 
+function BuildTempDataRoot: string;
+begin
+  Result := CreateUniqueTempDir('fpdev_test_data_root');
+end;
+
 procedure TPathsTest.RunAllTests;
 begin
   WriteLn('');
@@ -130,6 +144,7 @@ begin
   WriteLn('');
 
   TestGetDataRoot;
+  TestTempDataRootUsesSystemTempAndUniqueSuffix;
   TestGetDataRootEnvOverride;
   TestGetCacheDir;
   TestGetSandboxDir;
@@ -173,6 +188,25 @@ begin
   {$ENDIF}
 end;
 
+procedure TPathsTest.TestTempDataRootUsesSystemTempAndUniqueSuffix;
+var
+  Root1, Root2: string;
+begin
+  WriteLn('-- TestTempDataRootUsesSystemTempAndUniqueSuffix --');
+
+  Root1 := BuildTempDataRoot;
+  Root2 := BuildTempDataRoot;
+  try
+    AssertTrue(PathUsesSystemTempRoot(Root1),
+      'Temp data root lives under system temp');
+    AssertTrue(ExpandFileName(Root1) <> ExpandFileName(Root2),
+      'Temp data root is unique per call');
+  finally
+    CleanupTempDir(Root1);
+    CleanupTempDir(Root2);
+  end;
+end;
+
 procedure TPathsTest.TestGetDataRootEnvOverride;
 var
   Root: string;
@@ -180,69 +214,129 @@ var
 begin
   WriteLn('-- TestGetDataRootEnvOverride --');
 
-  TestPath := GetTempDir + 'fpdev_test_data_root';
+  TestPath := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '1');
   set_env('FPDEV_DATA_ROOT', TestPath);
 
   Root := GetDataRoot();
   AssertTrue(Root = TestPath, 'GetDataRoot() should respect FPDEV_DATA_ROOT env var');
+  AssertTrue(Root <> IncludeTrailingPathDelimiter(ExtractFileDir(ParamStr(0))) + 'data',
+    'GetDataRoot() env override should win over portable mode');
 
   // Clean up
   set_env('FPDEV_DATA_ROOT', '');
+  set_env('FPDEV_PORTABLE', '');
+  CleanupTempDir(TestPath);
 end;
 
 procedure TPathsTest.TestGetCacheDir;
 var
+  TestRoot: string;
   Dir: string;
 begin
   WriteLn('-- TestGetCacheDir --');
-  Dir := GetCacheDir();
-  AssertNotEmpty(Dir, 'GetCacheDir() should return non-empty string');
-  AssertEndsWith('cache', Dir, 'GetCacheDir() should end with "cache"');
-  AssertTrue(DirectoryExists(Dir), 'GetCacheDir() should create directory if not exists');
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    Dir := GetCacheDir();
+    AssertNotEmpty(Dir, 'GetCacheDir() should return non-empty string');
+    AssertEndsWith('cache', Dir, 'GetCacheDir() should end with "cache"');
+    AssertTrue(DirectoryExists(Dir), 'GetCacheDir() should create directory if not exists');
+    AssertTrue(Pos(ExpandFileName(TestRoot), ExpandFileName(Dir)) = 1,
+      'GetCacheDir() should stay under isolated temp root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 procedure TPathsTest.TestGetSandboxDir;
 var
+  TestRoot: string;
   Dir: string;
 begin
   WriteLn('-- TestGetSandboxDir --');
-  Dir := GetSandboxDir();
-  AssertNotEmpty(Dir, 'GetSandboxDir() should return non-empty string');
-  AssertEndsWith('sandbox', Dir, 'GetSandboxDir() should end with "sandbox"');
-  AssertTrue(DirectoryExists(Dir), 'GetSandboxDir() should create directory if not exists');
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    Dir := GetSandboxDir();
+    AssertNotEmpty(Dir, 'GetSandboxDir() should return non-empty string');
+    AssertEndsWith('sandbox', Dir, 'GetSandboxDir() should end with "sandbox"');
+    AssertTrue(DirectoryExists(Dir), 'GetSandboxDir() should create directory if not exists');
+    AssertTrue(Pos(ExpandFileName(TestRoot), ExpandFileName(Dir)) = 1,
+      'GetSandboxDir() should stay under isolated temp root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 procedure TPathsTest.TestGetLogsDir;
 var
+  TestRoot: string;
   Dir: string;
 begin
   WriteLn('-- TestGetLogsDir --');
-  Dir := GetLogsDir();
-  AssertNotEmpty(Dir, 'GetLogsDir() should return non-empty string');
-  AssertEndsWith('logs', Dir, 'GetLogsDir() should end with "logs"');
-  AssertTrue(DirectoryExists(Dir), 'GetLogsDir() should create directory if not exists');
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    Dir := GetLogsDir();
+    AssertNotEmpty(Dir, 'GetLogsDir() should return non-empty string');
+    AssertEndsWith('logs', Dir, 'GetLogsDir() should end with "logs"');
+    AssertTrue(DirectoryExists(Dir), 'GetLogsDir() should create directory if not exists');
+    AssertTrue(Pos(ExpandFileName(TestRoot), ExpandFileName(Dir)) = 1,
+      'GetLogsDir() should stay under isolated temp root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 procedure TPathsTest.TestGetLocksDir;
 var
+  TestRoot: string;
   Dir: string;
 begin
   WriteLn('-- TestGetLocksDir --');
-  Dir := GetLocksDir();
-  AssertNotEmpty(Dir, 'GetLocksDir() should return non-empty string');
-  AssertEndsWith('locks', Dir, 'GetLocksDir() should end with "locks"');
-  AssertTrue(DirectoryExists(Dir), 'GetLocksDir() should create directory if not exists');
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    Dir := GetLocksDir();
+    AssertNotEmpty(Dir, 'GetLocksDir() should return non-empty string');
+    AssertEndsWith('locks', Dir, 'GetLocksDir() should end with "locks"');
+    AssertTrue(DirectoryExists(Dir), 'GetLocksDir() should create directory if not exists');
+    AssertTrue(Pos(ExpandFileName(TestRoot), ExpandFileName(Dir)) = 1,
+      'GetLocksDir() should stay under isolated temp root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 procedure TPathsTest.TestGetTempRootDir;
 var
+  TestRoot: string;
   Dir: string;
 begin
   WriteLn('-- TestGetTempRootDir --');
-  Dir := GetTempRootDir();
-  AssertNotEmpty(Dir, 'GetTempRootDir() should return non-empty string');
-  AssertEndsWith('tmp', Dir, 'GetTempRootDir() should end with "tmp"');
-  AssertTrue(DirectoryExists(Dir), 'GetTempRootDir() should create directory if not exists');
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    Dir := GetTempRootDir();
+    AssertNotEmpty(Dir, 'GetTempRootDir() should return non-empty string');
+    AssertEndsWith('tmp', Dir, 'GetTempRootDir() should end with "tmp"');
+    AssertTrue(DirectoryExists(Dir), 'GetTempRootDir() should create directory if not exists');
+    AssertTrue(Pos(ExpandFileName(TestRoot), ExpandFileName(Dir)) = 1,
+      'GetTempRootDir() should stay under isolated temp root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 procedure TPathsTest.TestDirectoryCreation;
@@ -253,7 +347,8 @@ begin
   WriteLn('-- TestDirectoryCreation --');
 
   // Use a unique test directory
-  TestRoot := GetTempDir + 'fpdev_paths_test_' + IntToStr(Random(100000));
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
   set_env('FPDEV_DATA_ROOT', TestRoot);
 
   try
@@ -269,36 +364,41 @@ begin
   finally
     // Cleanup
     set_env('FPDEV_DATA_ROOT', '');
-    // Remove test directories
-    RemoveDir(CacheDir);
-    RemoveDir(SandboxDir);
-    RemoveDir(LogsDir);
-    RemoveDir(TestRoot + PathDelim + 'locks');
-    RemoveDir(TestRoot + PathDelim + 'tmp');
-    RemoveDir(TestRoot);
+    CleanupTempDir(TestRoot);
   end;
 end;
 
 procedure TPathsTest.TestPathConsistency;
 var
+  TestRoot: string;
   DataRoot: string;
   CacheDir, SandboxDir, LogsDir, LocksDir, TempDir: string;
 begin
   WriteLn('-- TestPathConsistency --');
 
-  DataRoot := GetDataRoot();
-  CacheDir := GetCacheDir();
-  SandboxDir := GetSandboxDir();
-  LogsDir := GetLogsDir();
-  LocksDir := GetLocksDir();
-  TempDir := GetTempRootDir();
+  TestRoot := BuildTempDataRoot;
+  set_env('FPDEV_PORTABLE', '');
+  set_env('FPDEV_DATA_ROOT', TestRoot);
+  try
+    DataRoot := GetDataRoot();
+    CacheDir := GetCacheDir();
+    SandboxDir := GetSandboxDir();
+    LogsDir := GetLogsDir();
+    LocksDir := GetLocksDir();
+    TempDir := GetTempRootDir();
 
-  // All subdirectories should be under DataRoot
-  AssertTrue(Pos(DataRoot, CacheDir) = 1, 'CacheDir should be under DataRoot');
-  AssertTrue(Pos(DataRoot, SandboxDir) = 1, 'SandboxDir should be under DataRoot');
-  AssertTrue(Pos(DataRoot, LogsDir) = 1, 'LogsDir should be under DataRoot');
-  AssertTrue(Pos(DataRoot, LocksDir) = 1, 'LocksDir should be under DataRoot');
-  AssertTrue(Pos(DataRoot, TempDir) = 1, 'TempDir should be under DataRoot');
+    // All subdirectories should be under DataRoot
+    AssertTrue(Pos(DataRoot, CacheDir) = 1, 'CacheDir should be under DataRoot');
+    AssertTrue(Pos(DataRoot, SandboxDir) = 1, 'SandboxDir should be under DataRoot');
+    AssertTrue(Pos(DataRoot, LogsDir) = 1, 'LogsDir should be under DataRoot');
+    AssertTrue(Pos(DataRoot, LocksDir) = 1, 'LocksDir should be under DataRoot');
+    AssertTrue(Pos(DataRoot, TempDir) = 1, 'TempDir should be under DataRoot');
+    AssertTrue(ExpandFileName(DataRoot) = ExpandFileName(TestRoot),
+      'PathConsistency should use isolated temp data root');
+  finally
+    set_env('FPDEV_DATA_ROOT', '');
+    CleanupTempDir(TestRoot);
+  end;
 end;
 
 var

@@ -10,6 +10,14 @@ var
   TestsPassed, TestsFailed: Integer;
   TempFile: string;
   Stream: TFileStream;
+  TempFileSeq: Integer = 0;
+
+function BuildTempDownloadFile: string;
+begin
+  Inc(TempFileSeq);
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False)) +
+    'test_download-' + IntToStr(GetTickCount64) + '-' + IntToStr(TempFileSeq) + '.txt';
+end;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -41,8 +49,20 @@ begin
     Downloader.OnProgress := nil;
     Assert(True, 'Can set progress callback');
 
-    // Test 3: Download small test file (httpbin.org echo)
-    TempFile := GetTempDir + 'test_download.txt';
+    // Test 3: temp download path policy
+    TempFile := BuildTempDownloadFile;
+    Assert(
+      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+        ExpandFileName(TempFile)) = 1,
+      'Temp file lives under system temp'
+    );
+    Assert(
+      ExpandFileName(TempFile) <> ExpandFileName(BuildTempDownloadFile),
+      'Temp file path is unique per call'
+    );
+
+    // Test 4: Download small test file (httpbin.org echo)
+    TempFile := BuildTempDownloadFile;
     WriteLn('Downloading test file to: ', TempFile);
     if Downloader.Download('https://httpbin.org/bytes/1024', TempFile) then
     begin
@@ -58,10 +78,10 @@ begin
     else
       WriteLn('[SKIP] Download test (network unavailable)');
 
-    // Test 4: Invalid URL returns false
+    // Test 5: Invalid URL returns false
     Assert(not Downloader.Download('invalid://url', TempFile), 'Invalid URL returns false');
 
-    // Test 5: Can get last error message
+    // Test 6: Can get last error message
     Assert(Length(Downloader.GetLastError) > 0, 'Can get last error message');
 
   finally

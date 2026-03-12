@@ -33,6 +33,7 @@ unit fpdev.ui.progress.download;
 }
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 

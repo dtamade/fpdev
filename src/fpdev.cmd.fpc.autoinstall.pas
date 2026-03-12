@@ -12,7 +12,8 @@ type
   TFPCAutoInstallCommand = class(TInterfacedObject, ICommand)
   private
     FOutput: IOutput;
-    
+    FErrOutput: IOutput;
+
     function FindConfigFile: string;
     function InstallFPC(const AVersion, ASource: string): Boolean;
     function InstallComponents(const APackages: TStringList): Boolean;
@@ -29,7 +30,7 @@ function CreateFPCAutoInstallCommand: ICommand;
 implementation
 
 uses
-  fpdev.command.registry, fpdev.output.console, fpdev.utils.fs, fpdev.cmd.utils;
+  fpdev.command.registry, fpdev.output.console, fpdev.utils.fs, fpdev.command.utils;
 
 function CreateFPCAutoInstallCommand: ICommand;
 begin
@@ -65,7 +66,7 @@ end;
 function TFPCAutoInstallCommand.InstallFPC(const AVersion, ASource: string): Boolean;
 begin
   FOutput.WriteLn('Installing FPC ' + AVersion + ' from ' + ASource + '...');
-  
+
   Result := True;
 end;
 
@@ -78,11 +79,11 @@ begin
     Result := True;
     Exit;
   end;
-  
+
   FOutput.WriteLn('Installing components...');
   for I := 0 to APackages.Count - 1 do
     FOutput.WriteLn('  - ' + APackages[I]);
-  
+
   Result := True;
 end;
 
@@ -95,11 +96,11 @@ begin
     Result := True;
     Exit;
   end;
-  
+
   FOutput.WriteLn('Installing cross-compilation targets...');
   for I := 0 to ATargets.Count - 1 do
     FOutput.WriteLn('  - ' + ATargets[I]);
-  
+
   Result := True;
 end;
 
@@ -113,6 +114,10 @@ begin
     FOutput := Ctx.Out
   else
     FOutput := TConsoleOutput.Create(False);
+  if (Ctx <> nil) and (Ctx.Err <> nil) then
+    FErrOutput := Ctx.Err
+  else
+    FErrOutput := TConsoleOutput.Create(True);
 
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
@@ -120,49 +125,49 @@ begin
     FOutput.WriteLn('Read .fpdev.toml and install configured FPC/toolchain dependencies.');
     Exit(EXIT_OK);
   end;
-  
+
   ConfigPath := FindConfigFile;
   if ConfigPath = '' then
   begin
-    FOutput.WriteLn('Error: No .fpdev.toml found in current directory or parent directories');
+    FErrOutput.WriteLn('Error: No .fpdev.toml found in current directory or parent directories');
     Exit;
   end;
-  
+
   FOutput.WriteLn('Found config: ' + ConfigPath);
-  
+
   Config := TProjectConfig.Create(ConfigPath);
   try
     if not Config.Load then
     begin
-      FOutput.WriteLn('Error: Failed to load config: ' + Config.LoadError);
+      FErrOutput.WriteLn('Error: Failed to load config: ' + Config.LoadError);
       Exit;
     end;
-    
+
     FOutput.WriteLn('Toolchain configuration:');
     FOutput.WriteLn('  Version: ' + Config.Toolchain.Version);
     FOutput.WriteLn('  Source: ' + Config.Toolchain.Source);
     FOutput.WriteLn('  Channel: ' + Config.Toolchain.Channel);
-    
+
     if not InstallFPC(Config.Toolchain.Version, Config.Toolchain.Source) then
     begin
-      FOutput.WriteLn('Error: Failed to install FPC');
+      FErrOutput.WriteLn('Error: Failed to install FPC');
       Exit;
     end;
-    
+
     if not InstallComponents(Config.Components.Packages) then
     begin
-      FOutput.WriteLn('Error: Failed to install components');
+      FErrOutput.WriteLn('Error: Failed to install components');
       Exit;
     end;
-    
+
     if not InstallCrossTargets(Config.Targets.Cross) then
     begin
-      FOutput.WriteLn('Error: Failed to install cross-compilation targets');
+      FErrOutput.WriteLn('Error: Failed to install cross-compilation targets');
       Exit;
     end;
-    
+
     FOutput.WriteLn('Installation complete!');
-    Result := 0;
+    Result := EXIT_OK;
   finally
     Config.Free;
   end;

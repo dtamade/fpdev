@@ -5,11 +5,12 @@ unit fpdev.cmd.package.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['package'], nil, ['pkg']);
+  GlobalCommandRegistry.RegisterSingletonPath(['package'], CreateNamespaceRootShellCommand(['package']), []);
 
 end.

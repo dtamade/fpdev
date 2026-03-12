@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes,
+  SysUtils, test_pause_control, test_temp_paths, Classes,
   fpdev.config;
 
 type
@@ -48,18 +48,17 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
   
-  // 创建临时测试配置文件路径
-  FTestConfigPath := 'test_fpc_config.json';
+  FTestConfigPath := CreateUniqueTempDir('test_fpc_management')
+    + PathDelim + 'config.json';
   FConfigManager := TFPDevConfigManager.Create(FTestConfigPath);
 end;
 
 destructor TFPCManagementTest.Destroy;
 begin
-  // 清理测试文件
-  if FileExists(FTestConfigPath) then
-    DeleteFile(FTestConfigPath);
-    
   FConfigManager.Free;
+  if FTestConfigPath <> '' then
+    CleanupTempDir(ExtractFileDir(FTestConfigPath));
+  FTestConfigPath := '';
   inherited Destroy;
 end;
 
@@ -113,6 +112,12 @@ begin
   WriteLn('--- Testing Configuration Creation ---');
 
   try
+    AssertTrue(
+      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+        ExpandFileName(FTestConfigPath)) = 1,
+      'Config path should live under system temp'
+    );
+
     // 创建配置管理器
     AssertTrue(FConfigManager.CreateDefaultConfig, 'Should create default config');
     AssertTrue(FileExists(FTestConfigPath), 'Config file should exist after creation');
@@ -314,9 +319,5 @@ begin
     end;
   end;
   
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  WriteLn('Press Enter to continue...');
-  ReadLn;
-  {$ENDIF}
+  PauseIfRequested('Press Enter to continue...');
 end.

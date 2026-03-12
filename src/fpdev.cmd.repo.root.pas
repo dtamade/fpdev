@@ -5,13 +5,13 @@ unit fpdev.cmd.repo.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  // Root node, only for mounting subcommands
-  GlobalCommandRegistry.RegisterPath(['repo'], nil, []);
+  GlobalCommandRegistry.RegisterSingletonPath(['system', 'repo'], CreateNamespaceRootShellCommand(['system', 'repo']), []);
 
 end.
 

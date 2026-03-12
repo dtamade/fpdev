@@ -22,11 +22,15 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectTemplateListCommand.Name: string; begin Result := 'list'; end;
 function TProjectTemplateListCommand.Aliases: TStringArray; begin Result := nil; end;
-function TProjectTemplateListCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
+function TProjectTemplateListCommand.FindSub(const AName: string): ICommand;
+begin
+  if AName <> '' then;
+  Result := nil;
+end;
 
 function ProjectTemplateListFactory: ICommand;
 begin
@@ -60,6 +64,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['project','template','list'], @ProjectTemplateListFactory, ['ls']);
+  GlobalCommandRegistry.RegisterPath(['project','template','list'], @ProjectTemplateListFactory, []);
 
 end.

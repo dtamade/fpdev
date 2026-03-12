@@ -21,8 +21,13 @@ program test_cli_fpc_diag;
 
 uses
   SysUtils, Classes,
+  {$IFDEF UNIX}
+  BaseUnix,
+  {$ENDIF}
   fpdev.command.intf, fpdev.command.registry,
   fpdev.exitcodes,
+  fpdev.build.cache.key,
+  fpdev.paths,
   fpdev.cmd.fpc,                // Register 'fpc' root command
   fpdev.cmd.fpc.doctor,
   fpdev.cmd.fpc.verify,
@@ -31,7 +36,7 @@ uses
   fpdev.cmd.fpc.cache.clean,
   fpdev.cmd.fpc.cache.stats,
   fpdev.cmd.fpc.cache.path,
-  test_cli_helpers;
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
@@ -107,6 +112,40 @@ begin
     Ret := Cmd.Execute(['-h'], Ctx);
     Check('doctor -h returns EXIT_OK', Ret = EXIT_OK);
     Check('doctor -h shows usage', StdOut.Contains('doctor'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestDoctorUnexpectedArg;
+var
+  Cmd: TFPCDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('doctor unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestDoctorUnknownOption;
+var
+  Cmd: TFPCDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('doctor unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally
     Cmd.Free;
   end;
@@ -325,6 +364,40 @@ begin
   end;
 end;
 
+procedure TestCacheListUnexpectedArg;
+var
+  Cmd: TFPCCacheListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('cache list unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCacheListUnknownOption;
+var
+  Cmd: TFPCCacheListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('cache list unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 10: fpc cache clean - Command Basics ===== }
 
 procedure TestCacheCleanCommandName;
@@ -394,6 +467,113 @@ begin
   end;
 end;
 
+procedure TestCacheCleanAllPartialFailure;
+{$IFDEF UNIX}
+var
+  Cmd: TFPCCacheCleanCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  CacheDir, Version, ArchivePath: string;
+  StatBuf: TStat;
+  OriginalMode: Cardinal;
+  TempFile: TStringList;
+{$ENDIF}
+begin
+  {$IFDEF UNIX}
+  CacheDir := GetCacheDir;
+  ForceDirectories(CacheDir);
+
+  Version := IntToStr((GetTickCount64 mod 1000000) + 1000000) + '.0.0';
+  ArchivePath := IncludeTrailingPathDelimiter(CacheDir) + 'fpc-' + Version + '-' +
+    BuildCacheGetCurrentCPU + '-' + BuildCacheGetCurrentOS + '.tar.gz';
+
+  TempFile := TStringList.Create;
+  try
+    TempFile.Add('test');
+    TempFile.SaveToFile(ArchivePath);
+  finally
+    TempFile.Free;
+  end;
+
+  OriginalMode := &755;
+  if FpStat(CacheDir, StatBuf) = 0 then
+    OriginalMode := StatBuf.st_mode and $1FF;
+
+  if FpChmod(CacheDir, &555) <> 0 then
+  begin
+    DeleteFile(ArchivePath);
+    Check('cache clean --all partial failure setup chmod', False);
+    Exit;
+  end;
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['--all'], Ctx);
+    Check('cache clean --all partial failure returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('cache clean --all partial failure shows failed delete', StdErr.Contains('Failed to delete'));
+  finally
+    Cmd.Free;
+    FpChmod(CacheDir, OriginalMode);
+    DeleteFile(ArchivePath);
+  end;
+  {$ELSE}
+  Check('cache clean --all partial failure test skipped on non-UNIX', True);
+  {$ENDIF}
+end;
+
+procedure TestCacheCleanUnexpectedArg;
+var
+  Cmd: TFPCCacheCleanCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('cache clean unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCacheCleanUnknownOption;
+var
+  Cmd: TFPCCacheCleanCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('cache clean unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCacheCleanAllUnexpectedArg;
+var
+  Cmd: TFPCCacheCleanCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['--all', 'extra'], Ctx);
+    Check('cache clean --all with extra arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 11: fpc cache stats - Command Basics ===== }
 
 procedure TestCacheStatsCommandName;
@@ -439,6 +619,40 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('cache stats returns EXIT_OK', Ret = EXIT_OK);
     Check('cache stats shows statistics', StdOut.Contains('Statistics') or StdOut.Contains('Cached'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCacheStatsUnexpectedArg;
+var
+  Cmd: TFPCCacheStatsCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheStatsCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('cache stats unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCacheStatsUnknownOption;
+var
+  Cmd: TFPCCacheStatsCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCacheStatsCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('cache stats unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally
     Cmd.Free;
   end;
@@ -494,6 +708,40 @@ begin
   end;
 end;
 
+procedure TestCachePathUnexpectedArg;
+var
+  Cmd: TFPCCachePathCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCachePathCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('cache path unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCachePathUnknownOption;
+var
+  Cmd: TFPCCachePathCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCachePathCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('cache path unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 13: fpc cache - Registration ===== }
 
 procedure TestCacheRegistration;
@@ -537,8 +785,8 @@ begin
   WriteLn('=== FPC Diagnostic Commands CLI Tests (doctor/verify/cache) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_fpc_diag_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_fpc_diag');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     // Group 1: fpc doctor basics
@@ -552,6 +800,8 @@ begin
     WriteLn('--- fpc doctor: Help Output ---');
     TestDoctorHelpFlag;
     TestDoctorHelpShortFlag;
+    TestDoctorUnexpectedArg;
+    TestDoctorUnknownOption;
 
     // Group 3: fpc doctor execution
     WriteLn('');
@@ -592,6 +842,8 @@ begin
     TestCacheListCommandName;
     TestCacheListHelpFlag;
     TestCacheListExecution;
+    TestCacheListUnexpectedArg;
+    TestCacheListUnknownOption;
 
     // Group 10: fpc cache clean
     WriteLn('');
@@ -600,6 +852,10 @@ begin
     TestCacheCleanHelpFlag;
     TestCacheCleanNoArgs;
     TestCacheCleanNonExistent;
+    TestCacheCleanAllPartialFailure;
+    TestCacheCleanUnexpectedArg;
+    TestCacheCleanUnknownOption;
+    TestCacheCleanAllUnexpectedArg;
 
     // Group 11: fpc cache stats
     WriteLn('');
@@ -607,6 +863,8 @@ begin
     TestCacheStatsCommandName;
     TestCacheStatsHelpFlag;
     TestCacheStatsExecution;
+    TestCacheStatsUnexpectedArg;
+    TestCacheStatsUnknownOption;
 
     // Group 12: fpc cache path
     WriteLn('');
@@ -614,17 +872,15 @@ begin
     TestCachePathCommandName;
     TestCachePathHelpFlag;
     TestCachePathExecution;
+    TestCachePathUnexpectedArg;
+    TestCachePathUnknownOption;
 
     // Group 13: fpc cache registration
     WriteLn('');
     WriteLn('--- fpc cache: Registration ---');
     TestCacheRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

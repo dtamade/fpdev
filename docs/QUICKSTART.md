@@ -8,14 +8,14 @@
 
 确保您已经完成了 [安装](INSTALLATION.md)，并且可以运行：
 ```bash
-fpdev --version
+fpdev system version
 ```
 
 ## 🎯 第一步：验证安装
 
 ```bash
 # 查看帮助信息
-fpdev help
+fpdev system help
 
 # 查看可用的 FPC 版本
 fpdev fpc list --all
@@ -33,7 +33,7 @@ fpdev lazarus list --all
 fpdev fpc install 3.2.2 --from-source
 
 # 设置为默认版本
-fpdev fpc default 3.2.2
+fpdev fpc use 3.2.2
 
 # 验证安装
 fpdev fpc current
@@ -48,7 +48,7 @@ fpdev fpc current
 fpdev lazarus install 3.0 --from-source
 
 # 设置为默认版本
-fpdev lazarus default 3.0
+fpdev lazarus use 3.0
 
 # 验证安装
 fpdev lazarus current
@@ -186,7 +186,7 @@ fpdev project build . win64
 ```bash
 fpdev fpc install <version> [--from-source]    # 安装版本
 fpdev fpc list [--all]                         # 列出版本
-fpdev fpc default <version>                    # 设置默认版本
+fpdev fpc use <version>                        # 切换到指定版本
 fpdev fpc current                              # 当前版本
 fpdev fpc uninstall <version>                  # 卸载版本
 ```
@@ -194,9 +194,9 @@ fpdev fpc uninstall <version>                  # 卸载版本
 ### Lazarus 管理
 ```bash
 fpdev lazarus install <version> [--from-source]  # 安装版本
-fpdev lazarus launch [version]                   # 启动 IDE
+fpdev lazarus run [version]                      # 启动 IDE
 fpdev lazarus list [--all]                       # 列出版本
-fpdev lazarus default <version>                  # 设置默认版本
+fpdev lazarus use <version>                    # 切换到指定版本
 ```
 
 ### 项目管理
@@ -253,7 +253,7 @@ FPDev 会在以下位置创建配置文件：
 export FPDEV_PARALLEL_JOBS=8
 
 # 启用源码缓存 (加速重复安装)
-fpdev config set cache.sources true
+fpdev system config set keep_sources true
 ```
 
 ### 网络优化
@@ -264,7 +264,7 @@ export HTTP_PROXY=http://proxy.example.com:8080
 export HTTPS_PROXY=http://proxy.example.com:8080
 
 # 使用镜像源 (中国用户)
-fpdev config set mirror.fpc https://mirrors.tuna.tsinghua.edu.cn/freepascal
+fpdev system config set mirror gitee
 ```
 
 ## 🐛 常见问题
@@ -276,10 +276,10 @@ A: 检查以下几点：
 3. 查看详细错误信息：`fpdev fpc install 3.2.2 --from-source --verbose`
 
 ### Q: 如何切换 FPC 版本？
-A: 使用 `fpdev fpc default <version>` 命令
+A: 使用 `fpdev fpc use <version>` 命令
 
 ### Q: 如何启动特定版本的 Lazarus？
-A: 使用 `fpdev lazarus launch <version>` 命令
+A: 使用 `fpdev lazarus run <version>` 命令
 
 ### Q: 项目构建失败？
 A: 确保：
@@ -300,7 +300,7 @@ A: 确保：
 
 1. **使用 Tab 补全**: 大多数 shell 支持命令补全
 2. **查看帮助**: 任何命令后加 `--help` 查看详细帮助
-3. **保持更新**: 定期检查新版本 `fpdev version --check`
+3. **保持更新**: 用 `fpdev system version` 检查本地版本，并定期查看发布说明
 4. **备份配置**: 重要项目建议备份 `.fpdev` 目录
 
 ---

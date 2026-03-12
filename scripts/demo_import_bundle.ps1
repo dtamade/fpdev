@@ -1,4 +1,4 @@
-# Demo script: build a sample bundle and import it via fpdev --import-bundle
+# Demo script: build a sample bundle and import it via fpdev system toolchain import-bundle
 # Usage: Run from repo root or anywhere; this script resolves relative to its own directory
 
 param(
@@ -49,9 +49,9 @@ Write-Info "Bundle prepared: $BundleZip"
 Write-Info "Expecting import of: $ToolZipName (sha256: $Sha)"
 
 # Run import-bundle
-$cmd = '"' + $BinExe + '" --import-bundle "' + $BundleZip + '"'
+$cmd = '"' + $BinExe + '" system toolchain import-bundle "' + $BundleZip + '"'
 Write-Info "Running: $cmd"
-$proc = Start-Process -FilePath $BinExe -ArgumentList @('--import-bundle', $BundleZip) -NoNewWindow -PassThru -Wait
+$proc = Start-Process -FilePath $BinExe -ArgumentList @('system', 'toolchain', 'import-bundle', $BundleZip) -NoNewWindow -PassThru -Wait
 $exit = $proc.ExitCode
 Write-Info ("ExitCode: {0}" -f $exit)
 
@@ -66,4 +66,3 @@ if (Test-Path $Imported) {
   Write-Err "Imported file not found in cache: $Imported"
   exit 4
 }
-

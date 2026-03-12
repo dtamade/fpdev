@@ -58,6 +58,14 @@ implementation
 uses
   fpdev.utils.fs, fpdev.utils.process;
 
+{$IFDEF MSWINDOWS}
+const
+  XCOPY_RECURSIVE_SWITCH = '/E';
+  XCOPY_ASSUME_DIRECTORY_SWITCH = '/I';
+  XCOPY_QUIET_SWITCH = '/Q';
+  XCOPY_OVERWRITE_SWITCH = '/Y';
+{$ENDIF}
+
 { Helper: Download file with mirror fallback }
 function DownloadWithFallback(
   const ACtx: TRepoInstallContext;
@@ -133,7 +141,18 @@ begin
 
   // Copy entire directory
   {$IFDEF MSWINDOWS}
-  Result := TProcessExecutor.Run('xcopy', [SourceDir, ADestDir, '/E', '/I', '/Q', '/Y'], '');
+  Result := TProcessExecutor.Run(
+    'xcopy',
+    [
+      SourceDir,
+      ADestDir,
+      XCOPY_RECURSIVE_SWITCH,
+      XCOPY_ASSUME_DIRECTORY_SWITCH,
+      XCOPY_QUIET_SWITCH,
+      XCOPY_OVERWRITE_SWITCH
+    ],
+    ''
+  );
   {$ELSE}
   Result := TProcessExecutor.Run('cp', ['-r', SourceDir + PathDelim + '.', ADestDir], '');
   {$ENDIF}

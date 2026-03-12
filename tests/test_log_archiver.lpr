@@ -3,11 +3,31 @@ program test_log_archiver;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, fpdev.logger.structured, fpdev.logger.archiver;
+  Classes, SysUtils, fpdev.logger.structured, fpdev.logger.archiver,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GLogTestRoot: string = '';
+
+function LogTestPath(const ARelative: string): string;
+begin
+  if GLogTestRoot = '' then
+    GLogTestRoot := CreateUniqueTempDir('test_rotation_logs');
+  Result := GLogTestRoot;
+  if ARelative <> '' then
+    Result := Result + PathDelim + ARelative;
+end;
+
+procedure CleanupLogTestRoot;
+begin
+  if GLogTestRoot <> '' then
+  begin
+    CleanupTempDir(GLogTestRoot);
+    GLogTestRoot := '';
+  end;
+end;
 
 procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
 begin
@@ -106,10 +126,9 @@ begin
   Config := CreateDefaultArchiveConfig;
   Config.Enabled := True;
   Archiver := TLogArchiver.Create(Config);
-  TestFile := 'test_rotation_logs/archive_test.log.1';
+  TestFile := LogTestPath('archive_test.log.1');
 
-  // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(ExtractFileDir(TestFile));
 
   try
     // Create rotated log file
@@ -117,7 +136,7 @@ begin
     AssertTrue(Archiver.ShouldArchive(TestFile), 'Should archive rotated log file');
 
     // Test with current log file (should not archive)
-    AssertTrue(not Archiver.ShouldArchive('test_rotation_logs/current.log'),
+    AssertTrue(not Archiver.ShouldArchive(LogTestPath('current.log')),
                'Should not archive current log file');
   finally
     if FileExists(TestFile) then
@@ -136,12 +155,11 @@ begin
 
   Config := CreateDefaultArchiveConfig;
   Config.Enabled := True;
-  Config.ArchiveDir := 'test_rotation_logs/archive';
+  Config.ArchiveDir := LogTestPath('archive');
   Archiver := TLogArchiver.Create(Config);
-  TestFile := 'test_rotation_logs/archive_test.log.1';
+  TestFile := LogTestPath('archive_test.log.1');
 
-  // Ensure directories exist
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(ExtractFileDir(TestFile));
   ForceDirectories(Config.ArchiveDir);
 
   try
@@ -179,10 +197,9 @@ begin
   Config := CreateDefaultArchiveConfig;
   Config.Enabled := False;
   Archiver := TLogArchiver.Create(Config);
-  TestFile := 'test_rotation_logs/disabled_test.log.1';
+  TestFile := LogTestPath('disabled_test.log.1');
 
-  // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(ExtractFileDir(TestFile));
 
   try
     // Create test file
@@ -213,7 +230,7 @@ begin
   Config := CreateDefaultArchiveConfig;
   Config.Enabled := True;
   Config.MaxArchiveAge := 1; // 1 day
-  ArchiveDir := 'test_rotation_logs/archive_cleanup';
+  ArchiveDir := LogTestPath('archive_cleanup');
   Config.ArchiveDir := ArchiveDir;
   Archiver := TLogArchiver.Create(Config);
 
@@ -259,9 +276,9 @@ begin
 
   Config := CreateDefaultArchiveConfig;
   Config.Enabled := True;
-  Config.ArchiveDir := 'test_rotation_logs/archive_multi';
+  Config.ArchiveDir := LogTestPath('archive_multi');
   Archiver := TLogArchiver.Create(Config);
-  LogDir := 'test_rotation_logs/multi';
+  LogDir := LogTestPath('multi');
 
   // Ensure directories exist
   ForceDirectories(LogDir);
@@ -318,6 +335,8 @@ begin
   WriteLn('Passed: ', TestsPassed);
   WriteLn('Failed: ', TestsFailed);
   WriteLn;
+
+  CleanupLogTestRoot;
 
   if TestsFailed > 0 then
   begin

@@ -3,7 +3,7 @@ program test_bootstrap_downloader;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, opensslsockets, fpdev.fpc.source, fpdev.config;
+  SysUtils, Classes, opensslsockets, test_config_isolation, test_temp_paths, fpdev.fpc.source, fpdev.config;
 
 var
   TestRootDir: string;
@@ -15,50 +15,28 @@ var
 procedure InitTestEnvironment;
 begin
   // Create test root directory in temp
-  TestRootDir := GetTempDir + 'test_bootstrap_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_bootstrap');
+  if not PathUsesSystemTempRoot(TestRootDir) then
+    raise Exception.Create('Test root dir should use system temp root');
 
   // Initialize config manager
-  ConfigManager := TFPDevConfigManager.Create;
+  ConfigManager := TFPDevConfigManager.Create('');
   ConfigManager.LoadConfig;
+  if not PathUsesSystemTempRoot(ConfigManager.ConfigPath) then
+    raise Exception.Create('Config path should use system temp root');
 
   TestsPassed := 0;
   TestsFailed := 0;
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
-
   if Assigned(SourceManager) then
     SourceManager.Free;
   if Assigned(ConfigManager) then
     ConfigManager.Free;
+
+  CleanupTempDir(TestRootDir);
 
   WriteLn;
   WriteLn('========================================');

@@ -10,7 +10,7 @@ uses
   SysUtils, Classes,
   fpjson, jsonparser,
   fpdev.package.metadata,
-  fpdev.package.resolver;
+  fpdev.package.resolver, fpdev.utils.fs;
 
 type
   { TPackageResolverIntegrationTest }
@@ -18,7 +18,10 @@ type
   private
     FTestsPassed: Integer;
     FTestsFailed: Integer;
+    FTestRootDir: string;
     FTestDataDir: string;
+    FLockFilePath: string;
+    FOriginalDir: string;
 
     procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
     procedure AssertEquals(const AExpected, AActual: string; const AMessage: string);
@@ -54,14 +57,27 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_integration_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestRootDir := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'fpdev-package-resolver-' + IntToStr(GetTickCount64);
+  FTestDataDir := IncludeTrailingPathDelimiter(FTestRootDir) + 'packages';
+  FLockFilePath := IncludeTrailingPathDelimiter(FTestRootDir) + 'fpdev-lock.json';
+  FOriginalDir := GetCurrentDir;
+
+  AssertTrue(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(FTestDataDir)) = 1,
+    'Test data dir should live under system temp'
+  );
+
+  ForceDirectories(FTestDataDir);
+  if not SetCurrentDir(FTestRootDir) then
+    raise Exception.Create('Failed to change current directory to test root: ' + FTestRootDir);
 end;
 
 destructor TPackageResolverIntegrationTest.Destroy;
 begin
+  if (FOriginalDir <> '') and DirectoryExists(FOriginalDir) then
+    SetCurrentDir(FOriginalDir);
   CleanupTestFiles;
   inherited Destroy;
 end;
@@ -135,32 +151,12 @@ begin
 end;
 
 procedure TPackageResolverIntegrationTest.CleanupTestFiles;
-var
-  SR: TSearchRec;
-  FilePath: string;
 begin
-  // Cleanup lockfile written to current project directory (default behavior)
-  if FileExists('fpdev-lock.json') then
-    DeleteFile('fpdev-lock.json');
+  if (FLockFilePath <> '') and FileExists(FLockFilePath) then
+    DeleteFile(FLockFilePath);
 
-  if DirectoryExists(FTestDataDir) then
-  begin
-    if FindFirst(FTestDataDir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := FTestDataDir + PathDelim + SR.Name;
-            DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(FTestDataDir);
-  end;
+  if (FTestRootDir <> '') and DirectoryExists(FTestRootDir) then
+    DeleteDirRecursive(FTestRootDir);
 end;
 
 procedure TPackageResolverIntegrationTest.TestResolveSimplePackage;
@@ -353,11 +349,16 @@ begin
     Resolver.Free;
   end;
 
-  AssertTrue(FileExists('fpdev-lock.json'), 'Lock file should be generated');
+  AssertTrue(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(FLockFilePath)) = 1,
+    'Lock file should live under system temp'
+  );
+  AssertTrue(FileExists(FLockFilePath), 'Lock file should be generated');
 
   with TStringList.Create do
   try
-    LoadFromFile('fpdev-lock.json');
+    LoadFromFile(FLockFilePath);
     LockJsonStr := Text;
   finally
     Free;

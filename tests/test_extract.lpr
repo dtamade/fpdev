@@ -6,7 +6,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes,
+  SysUtils, test_pause_control, Classes,
   fpdev.toolchain.extract, fpdev.fpc.utils, fpdev.fpc.types;
 
 type
@@ -17,29 +17,30 @@ type
     FTestOutputDir: string;
     FTestsPassed: Integer;
     FTestsFailed: Integer;
-    
+
     procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
     procedure AssertFalse(const ACondition: Boolean; const AMessage: string);
     procedure AssertEquals(const AExpected, AActual: string; const AMessage: string);
-    
+
     procedure SetupTestEnvironment;
     procedure CleanupTestEnvironment;
     procedure CleanupDir(const ADir: string);
-    
+
   public
     constructor Create;
     destructor Destroy; override;
-    
+
     procedure RunAllTests;
-    
+
     // Unit tests
+    procedure TestOutputDirUsesSystemTempAndUniqueSuffix;
     procedure TestDetectArchiveFormat;
     procedure TestZipExtract;
     procedure TestExtractArchiveUnified;
-    
+
     // Property-based tests
     procedure TestProperty4_ArchiveFormatSupport;
-    
+
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
   end;
@@ -52,7 +53,9 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
   FTestDataDir := 'tests' + PathDelim + 'data' + PathDelim + 'cross' + PathDelim;
-  FTestOutputDir := GetTempDir + 'fpdev_extract_test' + PathDelim;
+  FTestOutputDir := IncludeTrailingPathDelimiter(GetTempDir(False)) +
+    'fpdev_extract_test-' + IntToHex(PtrUInt(Self), SizeOf(Pointer) * 2) +
+    '-' + IntToStr(GetTickCount64) + PathDelim;
 end;
 
 destructor TExtractTest.Destroy;
@@ -92,7 +95,7 @@ var
 begin
   if not DirectoryExists(ADir) then
     Exit;
-    
+
   if FindFirst(ADir + '*', faAnyFile, SR) = 0 then
   begin
     repeat
@@ -129,48 +132,75 @@ procedure TExtractTest.RunAllTests;
 begin
   WriteLn('=== Archive Extraction Tests ===');
   WriteLn;
-  
+
   FTestsPassed := 0;
   FTestsFailed := 0;
-  
+
   SetupTestEnvironment;
   try
     // Unit tests
     WriteLn('--- Unit Tests ---');
+    TestOutputDirUsesSystemTempAndUniqueSuffix;
     TestDetectArchiveFormat;
     TestZipExtract;
     TestExtractArchiveUnified;
-    
+
     WriteLn;
     WriteLn('--- Property-Based Tests ---');
     TestProperty4_ArchiveFormatSupport;
   finally
     CleanupTestEnvironment;
   end;
-  
+
   WriteLn;
   WriteLn('=== Test Results ===');
   WriteLn('Tests Passed: ', FTestsPassed);
   WriteLn('Tests Failed: ', FTestsFailed);
   WriteLn('Total Tests: ', FTestsPassed + FTestsFailed);
-  
+
   if FTestsFailed = 0 then
     WriteLn('All tests passed!')
   else
     WriteLn('Some tests failed!');
 end;
 
+procedure TExtractTest.TestOutputDirUsesSystemTempAndUniqueSuffix;
+var
+  Other: TExtractTest;
+begin
+  WriteLn('TestOutputDirUsesSystemTempAndUniqueSuffix:');
+
+  AssertTrue(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(FTestOutputDir)) = 1,
+    'Output directory should live under system temp'
+  );
+
+  Other := TExtractTest.Create;
+  try
+    AssertTrue(
+      ExpandFileName(FTestOutputDir) <> ExpandFileName(Other.FTestOutputDir),
+      'Output directory should be unique per test instance'
+    );
+  finally
+    Other.Free;
+    SetupTestEnvironment;
+  end;
+
+  WriteLn;
+end;
+
 procedure TExtractTest.TestDetectArchiveFormat;
 begin
   WriteLn('TestDetectArchiveFormat:');
-  
+
   AssertTrue(DetectArchiveFormat('test.zip') = afZip, 'Should detect .zip format');
   AssertTrue(DetectArchiveFormat('test.tar.gz') = afTarGz, 'Should detect .tar.gz format');
   AssertTrue(DetectArchiveFormat('test.tgz') = afTarGz, 'Should detect .tgz format');
   AssertTrue(DetectArchiveFormat('test.tar') = afTar, 'Should detect .tar format');
   AssertTrue(DetectArchiveFormat('test.txt') = afUnknown, 'Should return unknown for .txt');
   AssertTrue(DetectArchiveFormat('test') = afUnknown, 'Should return unknown for no extension');
-  
+
   WriteLn;
 end;
 
@@ -331,20 +361,20 @@ begin
     WriteLn('Archive Extraction Test Suite');
     WriteLn('==============================');
     WriteLn;
-    
+
     Test := TExtractTest.Create;
     try
       Test.RunAllTests;
-      
+
       if Test.TestsFailed > 0 then
         ExitCode := 1;
     finally
       Test.Free;
     end;
-    
+
     WriteLn;
     WriteLn('Test suite completed.');
-    
+
   except
     on E: Exception do
     begin
@@ -352,10 +382,6 @@ begin
       ExitCode := 1;
     end;
   end;
-  
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  WriteLn('Press Enter to continue...');
-  ReadLn;
-  {$ENDIF}
+
+  PauseIfRequested('Press Enter to continue...');
 end.

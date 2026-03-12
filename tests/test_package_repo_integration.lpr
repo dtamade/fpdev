@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.cmd.package;
+  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.package.manager, fpdev.utils.fs;
 
 procedure AssertTrue(const ACond: Boolean; const AMsg: string);
 begin
@@ -26,6 +26,8 @@ var
   RepoPath, RepoURL: string;
   Settings: TFPDevSettings;
   PM: TPackageManager;
+  TempRoot: string;
+  ConfigPath: string;
 begin
   // 使用相对路径定位示例仓库索引
   RepoPath := ExpandFileName(ExtractFileDir(ExtractFileDir(ParamStr(0))) + DirectorySeparator + 'examples' + DirectorySeparator + 'sample-repo' + DirectorySeparator + 'index.json');
@@ -39,16 +41,24 @@ begin
   RepoURL := 'file://' + RepoPath;
   {$ENDIF}
 
+  TempRoot := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'fpdev-package-repo-integration-' + IntToStr(GetTickCount64);
+  ForceDirectories(TempRoot);
+  ConfigPath := IncludeTrailingPathDelimiter(TempRoot) + 'config.json';
+
   // 初始化配置
-  Cfg := TFPDevConfigManager.Create('tests_repo_config.json');
+  Cfg := TFPDevConfigManager.Create(ConfigPath);
   try
     // 初始化新配置，使 InstallRoot 定位到测试程序旁 data 目录
     if not Cfg.LoadConfig then
       AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
 
-    // Set InstallRoot to local test directory to avoid permission issues
+    AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(Cfg.ConfigPath)) = 1, 'Config path should use system temp root');
+
+    // Set InstallRoot to local temp directory to avoid permission issues
     Settings := Cfg.GetSettings;
-    Settings.InstallRoot := ExtractFileDir(ParamStr(0)) + DirectorySeparator + 'test_data';
+    Settings.InstallRoot := IncludeTrailingPathDelimiter(TempRoot) + 'test_data';
     Cfg.SetSettings(Settings);
 
     // 添加仓库并保存
@@ -65,6 +75,9 @@ begin
     end;
   finally
     Cfg.Free;
+    DeleteFile(ConfigPath);
+    if DirectoryExists(TempRoot) then
+      DeleteDirRecursive(TempRoot);
   end;
 end;
 
@@ -82,4 +95,3 @@ begin
     end;
   end;
 end.
-

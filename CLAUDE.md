@@ -54,116 +54,54 @@ FPDev uses a **command registry pattern** with hierarchical command dispatch:
 
 ```
 fpdev (root)
-+-- help (h, ?)
-+-- version (-v, --version)
-+-- doctor
-+-- show
-+-- default
-+-- env
-+-- perf
-|   +-- report
-|   +-- summary
-|   +-- clear
-|   +-- save
-+-- cache
-+-- index
-+-- shell-hook
-+-- resolve-version
-+-- config
-|   +-- list (ls)
 +-- fpc
-|   +-- install
-|   +-- uninstall
-|   +-- list
-|   +-- use (default)
-|   +-- current
-|   +-- show
-|   +-- update
-|   +-- test
-|   +-- doctor
-|   +-- help
-|   +-- verify
-|   +-- auto-install
-|   +-- update-manifest
+|   +-- install / uninstall / list / use / current / show
+|   +-- update / test / doctor / help / verify
+|   +-- auto-install / update-manifest
 |   +-- cache
-|       +-- list
-|       +-- stats
-|       +-- clean
-|       +-- path
+|       +-- list / stats / clean / path
 +-- lazarus
-|   +-- install
-|   +-- uninstall
-|   +-- list
-|   +-- use (default)
-|   +-- current
-|   +-- show
-|   +-- update
-|   +-- test
-|   +-- doctor
-|   +-- help
-|   +-- run
-|   +-- configure (config)
-+-- repo
-|   +-- add
-|   +-- remove (rm)
-|   +-- list (ls)
-|   +-- show
-|   +-- default
-|   +-- versions
-|   +-- help
-+-- cross (x)
-|   +-- build
-|   +-- install
-|   +-- uninstall
-|   +-- list
-|   +-- enable
-|   +-- disable
-|   +-- show
-|   +-- configure
-|   +-- doctor
-|   +-- test
-|   +-- help
-|   +-- clean
-|   +-- update
-+-- package (pkg)
-|   +-- install
-|   +-- install-local
-|   +-- uninstall
-|   +-- list (ls)
-|   +-- search
-|   +-- publish
-|   +-- info
-|   +-- update
-|   +-- clean
-|   +-- deps (dependencies)
-|   +-- why
-|   +-- help
+|   +-- install / uninstall / list / use / current / show
+|   +-- update / test / doctor / help / run / configure
++-- cross
+|   +-- build / install / uninstall / list / show
+|   +-- enable / disable / configure / doctor / test
+|   +-- help / clean / update
++-- package
+|   +-- install / install-local / uninstall / list / search
+|   +-- publish / info / update / clean / deps / why / help
 |   +-- repo
-|       +-- add
-|       +-- remove (rm, del)
-|       +-- list (ls)
-|       +-- update
-+-- project (proj)
-    +-- new
-    +-- build
-    +-- run
-    +-- test
-    +-- clean
-    +-- list
-    +-- info
-    +-- help
-    +-- template (tpl)
-        +-- list (ls)
-        +-- install
-        +-- remove (rm)
-        +-- update
+|       +-- add / remove / list / update
++-- project
+|   +-- new / build / run / test / clean / list / info / help
+|   +-- template
+|       +-- list / install / remove / update
++-- system
+    +-- repo
+    |   +-- add / remove / list / show / use / versions / help
+    +-- config
+    |   +-- show / get / set / export / import / list
+    +-- env
+    |   +-- vars / path / export / hook / resolve
+    +-- index
+    |   +-- status / show / update
+    +-- cache
+    |   +-- status / stats / path
+    +-- perf
+    |   +-- report / summary / clear / save
+    +-- doctor
 ```
+
+Only `--portable` is handled as an entry-layer prelude. Root help, version, toolchain checks, and policy checks live in the command tree.
 
 **Command Registration**: Commands register via `GlobalCommandRegistry.RegisterPath()` in their unit's `initialization` section. The main program imports all command units to trigger registration.
 
 **Key Files**:
 - `src/fpdev.command.intf.pas` - Command interfaces (`ICommand`, `IContext`)
-- `src/fpdev.command.registry.pas` - Command registry and dispatcher
+- `src/fpdev.command.tree.pas` - Command tree nodes
+- `src/fpdev.command.registration.pas` - Path registration and alias attachment
+- `src/fpdev.command.registry.pas` - Registry facade and dispatcher
+- `src/fpdev.cli.bootstrap.pas` - Default help / context / registry bootstrap
 - `src/fpdev.cmd.*.pas` - Root command implementations
 - `src/fpdev.cmd.*.<action>.pas` - Sub-command implementations
 

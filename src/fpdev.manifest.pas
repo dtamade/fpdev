@@ -11,6 +11,7 @@ uses
 const
   SUPPORTED_MANIFEST_VERSION = '1';
   MAX_PACKAGE_SIZE = 10737418240; // 10GB in bytes
+  HTTPS_URL_PREFIX = 'https://';
 
 type
   { TManifestTarget - Binary package information for a single platform }
@@ -84,7 +85,7 @@ uses
 
 function ValidateURL(const AURL: string): Boolean;
 begin
-  Result := (Pos('https://', LowerCase(AURL)) = 1);
+  Result := (Pos(HTTPS_URL_PREFIX, LowerCase(AURL)) = 1);
 end;
 
 function ValidateHexDigest(const ADigest: string): Boolean;
@@ -429,7 +430,10 @@ begin
   Result := True;
 end;
 
-function TManifestParser.GetPackage(const AName, AVersion, {%H-} APlatform: string; out APkg: TManifestPackage): Boolean;
+function TManifestParser.GetPackage(
+  const AName, AVersion, {%H-} APlatform: string;
+  out APkg: TManifestPackage
+): Boolean;
 var
   I: Integer;
 begin
@@ -559,7 +563,10 @@ begin
       // Validate size does not exceed the maximum limit
       if Target.Size > MAX_PACKAGE_SIZE then
       begin
-        FLastError := Format('Size exceeds maximum limit for platform %s: %d bytes (max: %d)', [Pkg.Targets[J].Platform, Target.Size, MAX_PACKAGE_SIZE]);
+        FLastError := Format(
+          'Size exceeds maximum limit for platform %s: %d bytes (max: %d)',
+          [Pkg.Targets[J].Platform, Target.Size, MAX_PACKAGE_SIZE]
+        );
         Exit;
       end;
     end;

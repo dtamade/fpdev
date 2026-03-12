@@ -28,7 +28,7 @@ type
 implementation
 
 uses
-  fpdev.cmd.utils,
+  fpdev.command.utils,
   fpdev.config.interfaces,
   fpdev.cross.engine,
   fpdev.cross.engine.intf,
@@ -138,7 +138,10 @@ begin
     // unexpected network/make tool failures during acceptance smoke.
     if not DirectoryExists(IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version) then
     begin
-      Ctx.Err.WriteLn('Error: FPC source tree not found: ' + IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version);
+      Ctx.Err.WriteLn(
+        'Error: FPC source tree not found: ' +
+        IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version
+      );
       Ctx.Err.WriteLn('Hint: Provide a checkout under that path, or pass --source=<root> and --version=<ver>.');
       Exit(EXIT_NOT_FOUND);
     end;

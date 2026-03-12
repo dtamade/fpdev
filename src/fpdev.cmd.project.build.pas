@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectBuildCommand.Name: string; begin Result := 'build'; end;
 function TProjectBuildCommand.Aliases: TStringArray; begin Result := nil; end;

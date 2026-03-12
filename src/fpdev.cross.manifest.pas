@@ -86,7 +86,11 @@ type
 
     { Legacy compatibility methods }
     function GetTarget(const ATarget: string; out AManifestTarget: TCrossManifestTarget): Boolean;
-    function GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const {%H-} AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+    function GetBinutilsForHost(
+      const AManifestTarget: TCrossManifestTarget;
+      const {%H-} AHostPlatform: string;
+      out ABinutils: TCrossBinutils
+    ): Boolean;
 
     { Properties }
     property Version: string read FVersion;
@@ -341,7 +345,10 @@ begin
   Result := ParseJSON(AJSON);
 end;
 
-function TCrossToolchainManifest.FindEntry(const ATarget, AComponentType: string; const AHost: THostPlatform): TCrossToolchainEntry;
+function TCrossToolchainManifest.FindEntry(
+  const ATarget, AComponentType: string;
+  const AHost: THostPlatform
+): TCrossToolchainEntry;
 var
   i, j: Integer;
 begin
@@ -464,7 +471,11 @@ begin
   end;
 end;
 
-function TCrossToolchainManifest.GetBinutilsForHost(const AManifestTarget: TCrossManifestTarget; const {%H-} AHostPlatform: string; out ABinutils: TCrossBinutils): Boolean;
+function TCrossToolchainManifest.GetBinutilsForHost(
+  const AManifestTarget: TCrossManifestTarget;
+  const {%H-} AHostPlatform: string;
+  out ABinutils: TCrossBinutils
+): Boolean;
 var
   i: Integer;
 begin

@@ -47,6 +47,10 @@ type
 
 implementation
 
+const
+  SYSTEM_USR_LOCAL_BIN = '/usr/local/bin';
+  SYSTEM_USR_BIN = '/usr/bin';
+
 class function TCrossCompilerResolver.GetCPUSuffix(const ACPU: string): string;
 begin
   if ACPU = 'x86_64' then
@@ -102,8 +106,8 @@ begin
 
   SearchDirs[0] := AFPCPrefix;
   SearchDirs[1] := AFPCPrefix + PathDelim + 'bin';
-  SearchDirs[2] := '/usr/local/bin';
-  SearchDirs[3] := '/usr/bin';
+  SearchDirs[2] := SYSTEM_USR_LOCAL_BIN;
+  SearchDirs[3] := SYSTEM_USR_BIN;
 
   for I := 0 to High(SearchDirs) do
   begin

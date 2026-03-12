@@ -43,7 +43,7 @@ $Sha = (Get-FileHash $ZipPath -Algorithm SHA256).Hash
 Write-Info "SHA-256: $Sha"
 
 # Ensure source into sandbox using CLI
-$Args = @('--ensure-source','fpc-src','3.2.2','--local', $ZipPath, '--sha256', $Sha, '--strict')
+$Args = @('system','toolchain','ensure-source','fpc-src','3.2.2','--local', $ZipPath, '--sha256', $Sha, '--strict')
 Write-Info ("Running: {0} {1}" -f $BinExe, ($Args -join ' '))
 $proc = Start-Process -FilePath $BinExe -ArgumentList $Args -NoNewWindow -PassThru -Wait
 $exit = $proc.ExitCode
@@ -62,4 +62,3 @@ if ((Test-Path $CompilerDir) -and (Test-Path $RtlDir) -and (Test-Path $PkgsDir))
   Write-Err "Structure check failed under: $SandboxPath"
   exit 4
 }
-

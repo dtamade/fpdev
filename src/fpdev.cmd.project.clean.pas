@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectCleanCommand.Name: string; begin Result := 'clean'; end;
 function TProjectCleanCommand.Aliases: TStringArray; begin Result := nil; end;

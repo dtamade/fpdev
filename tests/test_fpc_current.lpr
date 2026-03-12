@@ -11,13 +11,18 @@ program test_fpc_current;
 }
 
 uses
-  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.fpc;
+  SysUtils, Classes, test_temp_paths, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.fpc.manager;
 
 var
   TestInstallRoot: string;
   ConfigManager: IConfigManager;
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+function BuildTempRoot(const APrefix: string): string;
+begin
+  Result := CreateUniqueTempDir(APrefix);
+end;
 
 procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
 begin
@@ -52,12 +57,31 @@ begin
   end;
 end;
 
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+  ConfigPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  AssertTrue(Pos(TempRoot, ExpandFileName(TestInstallRoot)) = 1,
+    'Test install root should live under system temp');
+  AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+    'Config path should live under system temp');
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
   SettingsMgr: ISettingsManager;
 begin
-  TestInstallRoot := 'test_current_root_' + IntToStr(GetTickCount64);
+  if TestInstallRoot = '' then
+    TestInstallRoot := BuildTempRoot('test_current_root_');
   ForceDirectories(TestInstallRoot);
 
   SettingsMgr := ConfigManager.GetSettingsManager;
@@ -69,33 +93,12 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
 begin
-  if DirectoryExists(TestInstallRoot) then
+  if (TestInstallRoot <> '') and DirectoryExists(TestInstallRoot) then
   begin
-    DeleteDirectory(TestInstallRoot);
+    CleanupTempDir(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
+    TestInstallRoot := '';
   end;
 end;
 
@@ -165,7 +168,7 @@ begin
 
   try
     // Use test-specific config file to avoid interference from user's config
-    TestInstallRoot := 'test_current_root_' + IntToStr(GetTickCount64);
+    TestInstallRoot := BuildTempRoot('test_current_root_');
     ForceDirectories(TestInstallRoot);
 
     ConfigManager := TConfigManager.Create(TestInstallRoot + PathDelim + 'test_config.json');
@@ -173,6 +176,7 @@ begin
 
     SetupTestEnvironment;
     try
+      TestTempPathsUseSystemTempRoot;
       TestManagerCreation;
       TestGetCurrentVersionEmpty;
       TestSetDefaultNonInstalled;

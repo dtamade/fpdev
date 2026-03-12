@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils,
+  SysUtils, test_pause_control,
   Classes,
   fpdev.config.test;
 
@@ -30,9 +30,5 @@ begin
     end;
   end;
   
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  WriteLn('Press Enter to continue...');
-  ReadLn;
-  {$ENDIF}
+  PauseIfRequested('Press Enter to continue...');
 end.

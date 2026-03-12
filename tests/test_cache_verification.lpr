@@ -4,7 +4,7 @@ program test_cache_verification;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
 
 var
   TestsPassed: Integer = 0;
@@ -24,6 +24,56 @@ begin
   end;
 end;
 
+function MakeTempDir(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
+  ForceDirectories(Result);
+end;
+
+procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
+begin
+  Assert(
+    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+      ExpandFileName(APath)) = 1,
+    ATestName
+  );
+end;
+
+procedure CleanupTestDir(const ADir: string);
+begin
+  if DirectoryExists(ADir) then
+    DeleteDirRecursive(ADir);
+end;
+
+procedure TestCleanupRemovesNestedDirectories;
+var
+  CacheDir: string;
+  NestedDir: string;
+  NestedFile: string;
+  TestData: TStringList;
+begin
+  WriteLn('=== TestCleanupRemovesNestedDirectories ===');
+
+  CacheDir := MakeTempDir('fpdev-test-cache-verification-cleanup');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Cache verification cleanup temp directory should live under system temp');
+
+  NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
+  NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'hash.txt';
+  ForceDirectories(NestedDir);
+
+  TestData := TStringList.Create;
+  try
+    TestData.Add('hash');
+    TestData.SaveToFile(NestedFile);
+  finally
+    TestData.Free;
+  end;
+
+  CleanupTestDir(CacheDir);
+  Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache verification test directory');
+end;
+
 procedure TestSHA256Calculation;
 var
   Cache: TBuildCache;
@@ -33,13 +83,12 @@ var
 begin
   WriteLn('=== TestSHA256Calculation ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-sha256-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-sha256');
+  AssertPathIsUnderSystemTemp(CacheDir, 'SHA256 temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create test file with known content
       TestFile := CacheDir + PathDelim + 'test.txt';
       TestData := TStringList.Create;
       try
@@ -49,16 +98,13 @@ begin
         TestData.Free;
       end;
 
-      // Test 1: Calculate SHA256 hash
       Hash1 := Cache.CalculateSHA256(TestFile);
       Assert(Hash1 <> '', 'SHA256 hash should not be empty');
       Assert(Length(Hash1) = 64, 'SHA256 hash should be 64 characters (hex)');
 
-      // Test 2: Same file produces same hash
       Hash2 := Cache.CalculateSHA256(TestFile);
       Assert(Hash1 = Hash2, 'Same file should produce same hash');
 
-      // Test 3: Different content produces different hash
       TestData := TStringList.Create;
       try
         TestData.Add('Different Content');
@@ -68,36 +114,31 @@ begin
       end;
       Hash2 := Cache.CalculateSHA256(TestFile);
       Assert(Hash1 <> Hash2, 'Different content should produce different hash');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
 procedure TestVerificationOnRestore;
 var
   Cache: TBuildCache;
-  CacheDir, TestArchive, DestDir: string;
+  CacheDir, TestArchive: string;
   TestData: TStringList;
   Info: TArtifactInfo;
 begin
   WriteLn('=== TestVerificationOnRestore ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-verify-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-verify');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Verification temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Enable verification
       Cache.SetVerifyOnRestore(True);
 
-      // Create test archive with metadata
       TestArchive := CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.tar.gz';
       TestData := TStringList.Create;
       try
@@ -107,14 +148,12 @@ begin
         TestData.Free;
       end;
 
-      // Calculate hash and save metadata
       Initialize(Info);
       Info.Version := '3.2.2';
       Info.ArchivePath := TestArchive;
       Info.SHA256 := Cache.CalculateSHA256(TestArchive);
       Info.CreatedAt := Now;
 
-      // Save metadata
       TestData := TStringList.Create;
       try
         TestData.Add('version=' + Info.Version);
@@ -125,26 +164,19 @@ begin
         TestData.Free;
       end;
 
-      // Test 1: Verification succeeds with correct hash
       Assert(Cache.VerifyArtifact(TestArchive, Info.SHA256),
         'Verification should succeed with correct hash');
-
-      // Test 2: Verification fails with incorrect hash
       Assert(not Cache.VerifyArtifact(TestArchive, 'incorrect_hash'),
         'Verification should fail with incorrect hash');
 
-      // Test 3: Verification can be disabled
       Cache.SetVerifyOnRestore(False);
       Assert(Cache.VerifyArtifact(TestArchive, 'incorrect_hash'),
         'Verification should be skipped when disabled');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -159,13 +191,12 @@ var
 begin
   WriteLn('=== TestVerificationPerformance ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-perf-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := MakeTempDir('fpdev-test-cache-perf');
+  AssertPathIsUnderSystemTemp(CacheDir, 'Verification performance temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
     try
-      // Create ~1MB test file
       TestFile := CacheDir + PathDelim + 'large.txt';
       TestData := TStringList.Create;
       try
@@ -176,24 +207,18 @@ begin
         TestData.Free;
       end;
 
-      // Measure verification time
       StartTime := Now;
       Cache.CalculateSHA256(TestFile);
       EndTime := Now;
       ElapsedMS := MilliSecondsBetween(EndTime, StartTime);
 
       WriteLn('  Verification time for ~1MB file: ', ElapsedMS, 'ms');
-
-      // Test: Verification should be reasonably fast (< 1000ms for 1MB)
       Assert(ElapsedMS < 1000, 'Verification should complete in < 1000ms for 1MB file');
-
     finally
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTestDir(CacheDir);
   end;
 end;
 
@@ -202,6 +227,7 @@ begin
   WriteLn('Running Cache Verification Tests...');
   WriteLn;
 
+  TestCleanupRemovesNestedDirectories;
   TestSHA256Calculation;
   TestVerificationOnRestore;
   TestVerificationPerformance;

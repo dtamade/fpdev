@@ -33,7 +33,7 @@ type
 function BuildToolchainReportJSON: string;
 // Get the current FPC version (fpc -iV); returns True on success and fills the version string
 function GetFPCVersion(out AFPCVersion: string): boolean;
-// Check whether the FPC version satisfies the policy for the given source version (e.g. 'main', '3.2.2', '3.2.')
+// Check whether the FPC version satisfies the policy for the given source version (e.g. main, 3.2.x)
 // Return value: True means >= min (can proceed); AStatus = OK | WARN | FAIL;
 //  - OK  : >= rec
 //  - WARN: >= min and < rec
@@ -42,6 +42,12 @@ function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;
 
 implementation
+
+const
+  TOOLCHAIN_POLICY_MAINLINE_VERSION = '3.2.2';
+  TOOLCHAIN_POLICY_VERSION_320 = '3.2.0';
+  TOOLCHAIN_POLICY_VERSION_304 = '3.0.4';
+  TOOLCHAIN_POLICY_VERSION_264 = '2.6.4';
 
 var
   GPolicyLoaded: Boolean = False;
@@ -352,11 +358,27 @@ begin
   if GetExternalPolicy(S, AMin, ARec, MatchedKey) then Exit;
   // Built-in conservative policy
   if (S='trunk') or (S='main') or (Pos('3.3.', S)=1) then
-  begin AMin:='3.2.2'; ARec:='3.2.2'; Exit; end;
-  if (S='3.2.2') then begin AMin:='3.0.4'; ARec:='3.2.0'; Exit; end;
-  if (Pos('3.2.', S)=1) then begin AMin:='3.0.4'; ARec:='3.2.2'; Exit; end;
-  if (Pos('3.0.', S)=1) then begin AMin:='2.6.4'; ARec:='3.0.4'; Exit; end;
-  AMin := '3.2.2'; ARec := '3.2.2';
+  begin AMin:=TOOLCHAIN_POLICY_MAINLINE_VERSION; ARec:=TOOLCHAIN_POLICY_MAINLINE_VERSION; Exit; end;
+  if (S=TOOLCHAIN_POLICY_MAINLINE_VERSION) then
+  begin
+    AMin := TOOLCHAIN_POLICY_VERSION_304;
+    ARec := TOOLCHAIN_POLICY_VERSION_320;
+    Exit;
+  end;
+  if (Pos('3.2.', S)=1) then
+  begin
+    AMin := TOOLCHAIN_POLICY_VERSION_304;
+    ARec := TOOLCHAIN_POLICY_MAINLINE_VERSION;
+    Exit;
+  end;
+  if (Pos('3.0.', S)=1) then
+  begin
+    AMin := TOOLCHAIN_POLICY_VERSION_264;
+    ARec := TOOLCHAIN_POLICY_VERSION_304;
+    Exit;
+  end;
+  AMin := TOOLCHAIN_POLICY_MAINLINE_VERSION;
+  ARec := TOOLCHAIN_POLICY_MAINLINE_VERSION;
 end;
 
 function CheckFPCVersionPolicy(const ASourceVersion: string;

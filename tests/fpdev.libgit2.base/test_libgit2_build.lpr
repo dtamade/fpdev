@@ -5,10 +5,25 @@ program test_libgit2_build;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fpdev.git2;
+  SysUtils, test_pause_control, fpdev.git2, test_temp_paths;
 
 var
   GitManager: TGit2Manager;
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
+
+function GetTestRepoDir: string;
+begin
+  if GTestRootDir = '' then
+    Exit('');
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 procedure TestLibGit2Build;
 begin
@@ -109,18 +124,7 @@ begin
     Exit;
   end;
 
-  TestDir := 'test_libgit2_clone';
-
-  // 清理已存在的测试目录
-  if DirectoryExists(TestDir) then
-  begin
-    WriteLn('删除已存在的测试目录...');
-    {$IFDEF MSWINDOWS}
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
-    {$ELSE}
-    ExecuteProcess('rm', ['-rf', TestDir]);
-    {$ENDIF}
-  end;
+  TestDir := ResetTestRepoDir('test_libgit2_clone');
 
   WriteLn('测试克隆小仓库...');
   if GitManager.CloneRepository('https://github.com/octocat/Hello-World.git', TestDir) then
@@ -139,6 +143,17 @@ begin
     WriteLn('✗ 克隆失败');
   end;
 
+  WriteLn;
+end;
+
+procedure CleanupTest;
+begin
+  if GTestRootDir <> '' then
+  begin
+    WriteLn('清理测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
+  end;
   WriteLn;
 end;
 
@@ -180,6 +195,7 @@ begin
       TestLibGit2Build;
       TestLibGit2Loading;
       TestSimpleGitOperation;
+      CleanupTest;
       ShowNextSteps;
 
       WriteLn('=== 测试完成 ===');
@@ -196,7 +212,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

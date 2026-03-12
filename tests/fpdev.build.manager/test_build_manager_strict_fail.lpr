@@ -4,7 +4,7 @@ program test_build_manager_strict_fail;
 
 uses
   SysUtils,
-  fpdev.build.manager;
+  fpdev.build.manager, fpdev.build.strict;
 
 procedure EnsureDir(const APath: string);
 begin
@@ -43,6 +43,11 @@ begin
 
   // 使用 demo 内置模板作为严格清单
   LStrictIni := 'plays' + PathDelim + 'fpdev.build.manager.demo' + PathDelim + 'build-manager.strict.ini';
+
+  if BuildManagerResolveStrictConfigPathCore(LStrictIni, '') = LStrictIni then
+    WriteLn('STRICT_PATH OK')
+  else
+    WriteLn('STRICT_PATH FAIL');
 
   LBM := TBuildManager.Create('sources' + PathDelim + 'fpc', 2, True);
   try

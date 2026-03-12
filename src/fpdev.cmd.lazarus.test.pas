@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TLazTestCommand.Name: string; begin Result := 'test'; end;
 function TLazTestCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -32,11 +32,16 @@ var
   LVer: string;
   LMgr: TLazarusManager;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_TEST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_LAZARUS_TEST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_TEST_DESC));
@@ -48,6 +53,16 @@ begin
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_TEST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_TEST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if (Length(AParams[0]) > 0) and (AParams[0][1] = '-') then
+  begin
     Ctx.Err.WriteLn(_(HELP_LAZARUS_TEST_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;

@@ -3,11 +3,38 @@ program test_build_cache_rebuildscan;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.build.cache.rebuildscan;
+  SysUtils, Classes,
+  fpdev.build.cache.types,
+  fpdev.build.cache.rebuildscan;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+
+type
+  TStubMetadataLoader = class
+    function Load(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+  end;
+
+function TStubMetadataLoader.Load(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
+begin
+  Initialize(AInfo);
+  if AVersion = '3.2.2' then
+  begin
+    AInfo.Version := AVersion;
+    AInfo.ArchiveSize := 1000;
+    Exit(True);
+  end;
+  if AVersion = 'main' then
+  begin
+    AInfo.Version := AVersion;
+    AInfo.ArchiveSize := 2000;
+    Exit(True);
+  end;
+  Result := False;
+end;
+
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -73,6 +100,29 @@ begin
   end;
 end;
 
+
+procedure TestCollectRebuildInfos;
+var
+  Versions: array of string;
+  Infos: TBuildCacheRebuildInfoArray;
+  Loader: TStubMetadataLoader;
+begin
+  SetLength(Versions, 3);
+  Versions[0] := '3.2.2';
+  Versions[1] := '3.0.4';
+  Versions[2] := 'main';
+
+  Loader := TStubMetadataLoader.Create;
+  try
+    Infos := BuildCacheCollectRebuildInfos(Versions, @Loader.Load);
+    Check(Length(Infos) = 2, 'CollectRebuildInfos: failed loads are skipped');
+    Check(Infos[0].Version = '3.2.2', 'CollectRebuildInfos: first successful version keeps order');
+    Check(Infos[1].Version = 'main', 'CollectRebuildInfos: later successful version keeps order');
+  finally
+    Loader.Free;
+  end;
+end;
+
 begin
   Randomize;
   WriteLn('=== Build Cache RebuildScan Unit Tests ===');
@@ -81,6 +131,7 @@ begin
   TestExtractVersionFromMetadataFilename;
   TestListMetadataVersionsNonExistent;
   TestListMetadataVersionsWithFiles;
+  TestCollectRebuildInfos;
 
   WriteLn;
   WriteLn('=== Summary ===');

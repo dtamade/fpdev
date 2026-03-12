@@ -94,6 +94,9 @@ function FormatElapsedTime(AMs: Int64): string;
 
 implementation
 
+const
+  PROC_SELF_STATUS_PATH = '/proc/self/status';
+
 var
   GlobalPerfMon: TPerfMonitor = nil;
 
@@ -172,7 +175,7 @@ begin
   Result := 0;
   {$IFDEF LINUX}
   try
-    AssignFile(F, '/proc/self/status');
+    AssignFile(F, PROC_SELF_STATUS_PATH);
     Reset(F);
     try
       while not Eof(F) do

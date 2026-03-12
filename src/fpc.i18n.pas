@@ -212,7 +212,8 @@ begin
   end;
 
   // CRITICAL: Always use English for terminal output to avoid Windows console encoding issues
-  // See CLAUDE.md: "Windows console encoding issues cause Pascal's WriteLn to throw 'Disk Full' I/O errors when outputting Chinese characters"
+  // See CLAUDE.md: "Windows console encoding issues cause Pascal's WriteLn
+  // to throw 'Disk Full' I/O errors when outputting Chinese characters"
   FCurrentLang := langEnglish;
 end;
 

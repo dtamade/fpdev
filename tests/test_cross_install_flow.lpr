@@ -5,7 +5,7 @@ program test_cross_install_flow;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces,
-  fpdev.cross.search;
+  fpdev.cross.search, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -120,10 +120,10 @@ var
   Res: TCrossSearchResult;
   TmpDir, ToolPath: string;
 begin
+  TmpDir := '';
   Search := TCrossToolchainSearch.Create;
   try
-    TmpDir := GetTempDir(False) + 'fpdev_test_autoflow_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := CreateUniqueTempDir('fpdev_test_autoflow');
     ToolPath := TmpDir + PathDelim + 'custom-prefix-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
@@ -138,10 +138,9 @@ begin
     Check(Res.Layer = 0, 'ConfiguredOverride: layer is 0 (configured)');
     Check(Res.BinutilsPath = TmpDir, 'ConfiguredOverride: path matches');
 
-    DeleteFile(ToolPath);
-    RemoveDir(TmpDir);
   finally
     Search.Free;
+    CleanupTempDir(TmpDir);
   end;
 end;
 
@@ -152,17 +151,19 @@ var
   Search: TCrossToolchainSearch;
   Target: TCrossTarget;
   Res: TCrossSearchResult;
-  TmpCfg, BinDir, ToolPath: string;
+  TempRoot, TmpCfg, BinDir, ToolPath: string;
   SL: TStringList;
 begin
+  TempRoot := '';
   Search := TCrossToolchainSearch.Create;
   try
-    BinDir := GetTempDir(False) + 'fpdev_test_cfgfall_' + IntToStr(GetProcessID);
+    TempRoot := CreateUniqueTempDir('fpdev_test_cfgfall');
+    BinDir := TempRoot + PathDelim + 'bin';
     ForceDirectories(BinDir);
     ToolPath := BinDir + PathDelim + 'sparc-solaris-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
-    TmpCfg := GetTempDir(False) + 'fpdev_test_fallback_' + IntToStr(GetProcessID) + '.cfg';
+    TmpCfg := TempRoot + PathDelim + 'fallback.cfg';
     SL := TStringList.Create;
     try
       SL.Add('#IFDEF CPUSPARC');
@@ -183,11 +184,9 @@ begin
     Check(Res.Layer = 6, 'FpcCfgFallback: layer is 6 (config-hints)');
     Check(Res.BinutilsPath = BinDir, 'FpcCfgFallback: correct path from config');
 
-    DeleteFile(ToolPath);
-    RemoveDir(BinDir);
-    DeleteFile(TmpCfg);
   finally
     Search.Free;
+    CleanupTempDir(TempRoot);
   end;
 end;
 

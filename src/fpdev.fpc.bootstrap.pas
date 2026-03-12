@@ -64,6 +64,18 @@ implementation
 uses
   fpdev.utils.process;
 
+const
+  FPC_VERSION_MAIN = 'main';
+  FPC_VERSION_331 = '3.3.1';
+  FPC_VERSION_322 = '3.2.2';
+  FPC_VERSION_320 = '3.2.0';
+  FPC_VERSION_304 = '3.0.4';
+  FPC_VERSION_302 = '3.0.2';
+  FPC_VERSION_264 = '2.6.4';
+  SOURCEFORGE_BOOTSTRAP_URL_TEMPLATE =
+    'https://sourceforge.net/projects/freepascal/files/%s/%s/' +
+    'fpc-%s.%s.zip/download';
+
 { TBootstrapManager }
 
 constructor TBootstrapManager.Create(const ASourceRoot: string);
@@ -124,19 +136,23 @@ end;
 function TBootstrapManager.GetRequiredBootstrapVersion(const ATargetVersion: string): string;
 begin
   // Based on FPCUpDeluxe logic: determine required bootstrap version
-  if (ATargetVersion = 'main') or (ATargetVersion = '3.3.1') then
-    Result := '3.2.2'
-  else if (ATargetVersion = '3.2.2') or (ATargetVersion = '3.2.0') then
-    Result := '3.0.4'
-  else if (ATargetVersion = '3.0.4') or (ATargetVersion = '3.0.2') then
-    Result := '2.6.4'
+  if (ATargetVersion = FPC_VERSION_MAIN) or
+    (ATargetVersion = FPC_VERSION_331) then
+    Result := FPC_VERSION_322
+  else if (ATargetVersion = FPC_VERSION_322) or
+    (ATargetVersion = FPC_VERSION_320) then
+    Result := FPC_VERSION_304
+  else if (ATargetVersion = FPC_VERSION_304) or
+    (ATargetVersion = FPC_VERSION_302) then
+    Result := FPC_VERSION_264
   else
-    Result := '3.2.2'; // Default to stable version
+    Result := FPC_VERSION_322; // Default to stable version
 end;
 
 function TBootstrapManager.GetBootstrapPath(const AVersion: string): string;
 begin
-  Result := FSourceRoot + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
+  Result := FSourceRoot + PathDelim + 'bootstrap' + PathDelim +
+    'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
   {$IFDEF MSWINDOWS}
   Result := Result + '.exe';
   {$ENDIF}
@@ -220,7 +236,7 @@ begin
 
   // Legacy SourceForge download URL (kept for backward compatibility)
   // Format: https://sourceforge.net/projects/freepascal/files/{Platform}/{Version}/fpc-{Version}.{Arch}.zip/download
-  Result := Format('https://sourceforge.net/projects/freepascal/files/%s/%s/fpc-%s.%s.zip/download',
+  Result := Format(SOURCEFORGE_BOOTSTRAP_URL_TEMPLATE,
     [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);
 end;
 

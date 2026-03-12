@@ -14,7 +14,8 @@ program test_fpc_metadata;
 }
 
 uses
-  SysUtils, Classes, fpdev.types, fpdev.fpc.types, fpdev.fpc.metadata;
+  SysUtils, Classes, fpdev.types, fpdev.fpc.types, fpdev.fpc.metadata,
+  test_temp_paths;
 
 var
   TestDir: string;
@@ -23,39 +24,17 @@ var
 
 procedure SetupTestDir;
 begin
-  TestDir := GetTempDir + 'test_fpc_metadata_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestDir);
+  TestDir := CreateUniqueTempDir('test_fpc_metadata');
   WriteLn('[Setup] Created test directory: ', TestDir);
 end;
 
 procedure CleanupTestDir;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
 begin
-  if DirectoryExists(TestDir) then
+  if TestDir <> '' then
   begin
-    DeleteDirectory(TestDir);
+    CleanupTempDir(TestDir);
     WriteLn('[Teardown] Deleted test directory: ', TestDir);
+    TestDir := '';
   end;
 end;
 

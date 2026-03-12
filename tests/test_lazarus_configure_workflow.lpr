@@ -3,13 +3,14 @@ program test_lazarus_configure_workflow;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.lazarus;
+  SysUtils, test_config_isolation, Classes,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.lazarus, fpdev.utils, test_temp_paths;
 
 var
   TestRootDir: string;
   ConfigManager: IConfigManager;
   LazarusManager: TLazarusManager;
+  OriginalLazarusConfigRoot: string;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
@@ -18,12 +19,17 @@ var
   Settings: TFPDevSettings;
 begin
   // Create test root directory in temp
-  TestRootDir := GetTempDir + 'test_lazarus_configure_workflow_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestRootDir);
+  TestRootDir := CreateUniqueTempDir('test_lazarus_configure_workflow');
+  if not PathUsesSystemTempRoot(TestRootDir) then
+    raise Exception.Create('Test root dir should use system temp root');
+
+  OriginalLazarusConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
+  if not set_env('FPDEV_LAZARUS_CONFIG_ROOT',
+    IncludeTrailingPathDelimiter(TestRootDir) + 'lazarus-config-root') then
+    raise Exception.Create('Failed to set isolated Lazarus config root');
 
   // Initialize config manager (interface-based)
-  ConfigManager := TConfigManager.Create('');
-  ConfigManager.LoadConfig;
+  ConfigManager := CreateIsolatedConfigManager;
 
   // Override install root to test directory
   Settings := ConfigManager.GetSettingsManager.GetSettings;
@@ -38,37 +44,17 @@ begin
 end;
 
 procedure CleanupTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
-  if DirectoryExists(TestRootDir) then
-    DeleteDirectory(TestRootDir);
-
   if Assigned(LazarusManager) then
     LazarusManager.Free;
   ConfigManager := nil;  // Interface will be freed automatically
+
+  CleanupTempDir(TestRootDir);
+
+  if OriginalLazarusConfigRoot <> '' then
+    set_env('FPDEV_LAZARUS_CONFIG_ROOT', OriginalLazarusConfigRoot)
+  else
+    unset_env('FPDEV_LAZARUS_CONFIG_ROOT');
 
   WriteLn;
   WriteLn('========================================');
@@ -94,6 +80,36 @@ end;
 procedure AssertFalse(const Condition: Boolean; const TestName, Message: string);
 begin
   AssertTrue(not Condition, TestName, Message);
+end;
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Config Manager Uses Isolated Config Path');
+  WriteLn('==================================================');
+
+  try
+    ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+    TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+    ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+    AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+      'Config path uses system temp root',
+      'Expected config path under temp root "' + TempRoot + '", got "' + ConfigPath + '"');
+
+    AssertTrue(ConfigPath = ExpectedPath,
+      'Config path uses isolated default override',
+      'Expected config path "' + ExpectedPath + '", got "' + ConfigPath + '"');
+  except
+    on E: Exception do
+      AssertTrue(False, 'Config path isolation check',
+        'Exception: ' + E.Message);
+  end;
 end;
 
 // ============================================================================
@@ -216,18 +232,12 @@ begin
 
     {$IFDEF MSWINDOWS}
     LazarusExe := LazarusPath + PathDelim + 'lazarus.exe';
-    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.1'
-    else
-      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.1';
+    ConfigRoot := IncludeTrailingPathDelimiter(TestRootDir) + 'lazarus-config-root';
+    ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.1';
     {$ELSE}
     LazarusExe := LazarusPath + PathDelim + 'lazarus';
-    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.1'
-    else
-      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.1';
+    ConfigRoot := IncludeTrailingPathDelimiter(TestRootDir) + 'lazarus-config-root';
+    ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.1';
     {$ENDIF}
 
     // Create mock lazarus executable
@@ -277,18 +287,12 @@ begin
 
     {$IFDEF MSWINDOWS}
     LazarusExe := LazarusPath + PathDelim + 'lazarus.exe';
-    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.2'
-    else
-      ConfigDir := GetEnvironmentVariable('APPDATA') + PathDelim + 'lazarus-3.2';
+    ConfigRoot := IncludeTrailingPathDelimiter(TestRootDir) + 'lazarus-config-root';
+    ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + 'lazarus-3.2';
     {$ELSE}
     LazarusExe := LazarusPath + PathDelim + 'lazarus';
-    ConfigRoot := GetEnvironmentVariable('FPDEV_LAZARUS_CONFIG_ROOT');
-    if ConfigRoot <> '' then
-      ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.2'
-    else
-      ConfigDir := GetEnvironmentVariable('HOME') + PathDelim + '.lazarus-3.2';
+    ConfigRoot := IncludeTrailingPathDelimiter(TestRootDir) + 'lazarus-config-root';
+    ConfigDir := ExcludeTrailingPathDelimiter(ConfigRoot) + PathDelim + '.lazarus-3.2';
     {$ENDIF}
 
     ForceDirectories(ConfigDir);
@@ -345,6 +349,7 @@ begin
     InitTestEnvironment;
     try
       // Run all tests
+      TestConfigManagerUsesIsolatedDefaultConfigPath;
       TestConfigureIDEFailsWhenNotInstalled;
       TestConfigureIDESucceedsWhenInstalled;
       TestConfigureIDECreatesConfigDir;

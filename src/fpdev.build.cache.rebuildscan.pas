@@ -5,10 +5,17 @@ unit fpdev.build.cache.rebuildscan;
 interface
 
 uses
-  SysUtils;
+  SysUtils,
+  fpdev.build.cache.types;
+
+type
+  TBuildCacheRebuildInfoLoader = function(const AVersion: string; out AInfo: TArtifactInfo): Boolean of object;
+  TBuildCacheRebuildInfoArray = array of TArtifactInfo;
 
 function BuildCacheExtractVersionFromMetadataFilename(const AFileName: string): string;
 function BuildCacheListMetadataVersions(const ACacheDirWithDelim: string): SysUtils.TStringArray;
+function BuildCacheCollectRebuildInfos(const AVersions: array of string;
+  AInfoLoader: TBuildCacheRebuildInfoLoader): TBuildCacheRebuildInfoArray;
 
 implementation
 
@@ -55,6 +62,29 @@ begin
       FindClose(SR);
     end;
   end;
+end;
+
+function BuildCacheCollectRebuildInfos(const AVersions: array of string;
+  AInfoLoader: TBuildCacheRebuildInfoLoader): TBuildCacheRebuildInfoArray;
+var
+  Count: Integer;
+  Index: Integer;
+  Info: TArtifactInfo;
+begin
+  Result := nil;
+  if not Assigned(AInfoLoader) then
+    Exit;
+
+  Count := 0;
+  SetLength(Result, Length(AVersions));
+  for Index := 0 to High(AVersions) do
+    if AInfoLoader(AVersions[Index], Info) then
+    begin
+      Result[Count] := Info;
+      Inc(Count);
+    end;
+
+  SetLength(Result, Count);
 end;
 
 end.

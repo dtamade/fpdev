@@ -230,9 +230,17 @@ begin
       for i := 0 to AContext.CustomFields.Count - 1 do
       begin
         if i < AContext.CustomFields.Count - 1 then
-          WriteLn(LogFile, '    "', AContext.CustomFields.Names[i], '": "', AContext.CustomFields.ValueFromIndex[i], '",')
+          WriteLn(
+            LogFile,
+            '    "', AContext.CustomFields.Names[i], '": "',
+            AContext.CustomFields.ValueFromIndex[i], '",'
+          )
         else
-          WriteLn(LogFile, '    "', AContext.CustomFields.Names[i], '": "', AContext.CustomFields.ValueFromIndex[i], '"');
+          WriteLn(
+            LogFile,
+            '    "', AContext.CustomFields.Names[i], '": "',
+            AContext.CustomFields.ValueFromIndex[i], '"'
+          );
       end;
       WriteLn(LogFile, '  },');
     end

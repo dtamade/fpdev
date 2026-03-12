@@ -1,6 +1,7 @@
 unit fpdev.utils.git;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 {
   Unified Git operations wrapper.

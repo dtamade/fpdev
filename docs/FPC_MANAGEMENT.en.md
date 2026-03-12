@@ -66,7 +66,7 @@ fpdev fpc uninstall 3.2.2
 
 ```bash
 # Set default version
-fpdev fpc default 3.2.2
+fpdev fpc use 3.2.2
 
 # View version information
 fpdev fpc info 3.2.2
@@ -166,7 +166,7 @@ After installation, FPDev automatically configures the following environment var
 
 3. **Version conflicts**
    - Use `fpdev fpc list` to check installed versions
-   - Use `fpdev fpc default` to switch versions
+   - Use `fpdev fpc use` to switch versions
 
 ### Logging and Diagnostics
 

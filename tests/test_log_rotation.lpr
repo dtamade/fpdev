@@ -3,11 +3,24 @@ program test_log_rotation;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, DateUtils, fpdev.logger.structured, fpdev.logger.rotator;
+  Classes, SysUtils, DateUtils, test_temp_paths, fpdev.logger.structured, fpdev.logger.rotator;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GRotationTestRoot: string = '';
+
+function GetRotationTestRoot: string;
+begin
+  if GRotationTestRoot = '' then
+    GRotationTestRoot := CreateUniqueTempDir('test_rotation_logs');
+  Result := GRotationTestRoot;
+end;
+
+function BuildRotationTestPath(const ARelativePath: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetRotationTestRoot) + ARelativePath;
+end;
 
 procedure AssertTrue(const ACondition: Boolean; const AMessage: string);
 begin
@@ -130,10 +143,10 @@ begin
   Config.RotationInterval := 24 * 365; // Very long interval
 
   Rotator := TLogRotator.Create(Config);
-  TestFile := 'test_rotation_logs/size_test.log';
+  TestFile := BuildRotationTestPath('size_test.log');
 
   // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(GetRotationTestRoot);
 
   try
     // Create small file (500 bytes)
@@ -164,10 +177,10 @@ begin
   Config.RotationInterval := 1; // 1 hour
 
   Rotator := TLogRotator.Create(Config);
-  TestFile := 'test_rotation_logs/time_test.log';
+  TestFile := BuildRotationTestPath('time_test.log');
 
   // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(GetRotationTestRoot);
 
   try
     // Create recent file
@@ -195,10 +208,10 @@ begin
 
   Config := CreateDefaultRotationConfig;
   Rotator := TLogRotator.Create(Config);
-  TestFile := 'test_rotation_logs/rotate_test.log';
+  TestFile := BuildRotationTestPath('rotate_test.log');
 
   // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(GetRotationTestRoot);
 
   try
     // Create test file
@@ -239,7 +252,7 @@ begin
   Config.MaxFiles := 3;
 
   Rotator := TLogRotator.Create(Config);
-  LogDir := 'test_rotation_logs/cleanup';
+  LogDir := BuildRotationTestPath('cleanup');
 
   // Ensure directory exists
   ForceDirectories(LogDir);
@@ -287,10 +300,10 @@ begin
   Config.MaxFileSize := 100;
 
   Rotator := TLogRotator.Create(Config);
-  TestFile := 'test_rotation_logs/maxfiles_test.log';
+  TestFile := BuildRotationTestPath('maxfiles_test.log');
 
   // Ensure directory exists
-  ForceDirectories('test_rotation_logs');
+  ForceDirectories(GetRotationTestRoot);
 
   try
     // Rotate 3 times
@@ -329,7 +342,7 @@ begin
   Config.MaxAge := 1; // 1 day
 
   Rotator := TLogRotator.Create(Config);
-  LogDir := 'test_rotation_logs/age';
+  LogDir := BuildRotationTestPath('age');
 
   // Ensure directory exists
   ForceDirectories(LogDir);
@@ -385,11 +398,15 @@ begin
   if TestsFailed > 0 then
   begin
     WriteLn('FAILED: ', TestsFailed, ' test(s) failed');
+    if GRotationTestRoot <> '' then
+      CleanupTempDir(GRotationTestRoot);
     Halt(1);
   end
   else
   begin
     WriteLn('SUCCESS: All tests passed');
+    if GRotationTestRoot <> '' then
+      CleanupTempDir(GRotationTestRoot);
     Halt(0);
   end;
 end.

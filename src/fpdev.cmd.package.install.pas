@@ -6,7 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
+  fpdev.package.types,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -20,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TPackageInstallCommand.Name: string; begin Result := 'install'; end;
 function TPackageInstallCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -36,9 +37,12 @@ var
   LMgr: TPackageManager;
   Pkg, Ver: string;
   Keep, NoDeps, DryRun: Boolean;
+  AvailablePkgs: TPackageArray;
+  HasPkg, HasVersion: Boolean;
+  UnknownOption: string;
   i: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -50,10 +54,17 @@ begin
     Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_VERSION));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_KEEP));
-    Ctx.Out.WriteLn('  --no-deps              Skip dependency resolution');
-    Ctx.Out.WriteLn('  --dry-run              Show what would be installed without installing');
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_NODEPS));
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_DRYRUN));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams,
+    ['--keep-build-artifacts', '--no-deps', '--dry-run'], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_INSTALL_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   if Length(AParams) < 1 then
@@ -64,6 +75,12 @@ begin
   end;
 
   Pkg := AParams[0];
+  if Trim(Pkg) = '' then
+  begin
+    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_INSTALL_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
   Ver := '';
   Keep := False;
   NoDeps := False;
@@ -77,8 +94,16 @@ begin
       NoDeps := True
     else if SameText(AParams[i], '--dry-run') then
       DryRun := True
-    else if (Ver = '') and (Copy(AParams[i], 1, 2) <> '--') then
-      Ver := AParams[i];
+    else if (Trim(AParams[i]) <> '') and (Copy(AParams[i], 1, 2) <> '--') then
+    begin
+      if Ver = '' then
+        Ver := AParams[i]
+      else
+      begin
+        Ctx.Err.WriteLn(_(HELP_PACKAGE_INSTALL_USAGE));
+        Exit(EXIT_USAGE_ERROR);
+      end;
+    end;
   end;
 
   LMgr := TPackageManager.Create(Ctx.Config);
@@ -89,21 +114,21 @@ begin
     if DryRun then
     begin
       Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Dry-run mode: showing what would be installed');
+      Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_DRYRUN_HEADER));
       Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Package: ' + Pkg);
+      Ctx.Out.WriteLn(_Fmt(CMD_PKG_INSTALL_DRYRUN_PACKAGE, [Pkg]));
       if Ver <> '' then
-        Ctx.Out.WriteLn('Version: ' + Ver)
+        Ctx.Out.WriteLn(_Fmt(CMD_PKG_INSTALL_DRYRUN_VERSION, [Ver]))
       else
-        Ctx.Out.WriteLn('Version: latest');
+        Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_DRYRUN_VERSION_LATEST));
 
       if NoDeps then
-        Ctx.Out.WriteLn('Dependencies: skipped (--no-deps)')
+        Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_DRYRUN_DEPS_SKIPPED))
       else
-        Ctx.Out.WriteLn('Dependencies: will be resolved during installation');
+        Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_DRYRUN_DEPS_RESOLVED));
 
       Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('No packages will be installed (dry-run mode)');
+      Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_DRYRUN_NO_CHANGES));
       Exit(EXIT_OK);
     end;
 
@@ -113,10 +138,33 @@ begin
     if NoDeps then
     begin
       Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Warning: --no-deps flag is recognized but dependency resolution');
-      Ctx.Out.WriteLn('is currently integrated into the install process.');
-      Ctx.Out.WriteLn('Installing with dependencies...');
+      Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_NODEPS_WARN1));
+      Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_NODEPS_WARN2));
+      Ctx.Out.WriteLn(_(CMD_PKG_INSTALL_NODEPS_WARN3));
       Ctx.Out.WriteLn('');
+    end;
+
+    // Validate package existence in available index before installation
+    AvailablePkgs := LMgr.GetAvailablePackageList;
+    HasPkg := False;
+    HasVersion := False;
+    for i := 0 to High(AvailablePkgs) do
+    begin
+      if SameText(AvailablePkgs[i].Name, Pkg) then
+      begin
+        HasPkg := True;
+        if (Ver = '') or SameText(AvailablePkgs[i].Version, Ver) then
+        begin
+          HasVersion := True;
+          Break;
+        end;
+      end;
+    end;
+
+    if (not HasPkg) or ((Ver <> '') and (not HasVersion)) then
+    begin
+      Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_IN_INDEX, [Pkg]));
+      Exit(EXIT_NOT_FOUND);
     end;
 
     // Normal installation

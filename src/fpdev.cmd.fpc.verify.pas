@@ -5,7 +5,14 @@ unit fpdev.cmd.fpc.verify;
 interface
 
 uses
-  Classes, SysUtils, fpdev.command.intf, fpdev.fpc.verify, fpdev.exitcodes;
+  Classes, SysUtils,
+  fpdev.command.intf,
+  fpdev.config.interfaces,
+  fpdev.fpc.verify,
+  fpdev.paths,
+  fpdev.constants,
+  fpdev.fpc.utils,
+  fpdev.exitcodes;
 
 type
   { TFPCVerifyCommand - Verify FPC installation }
@@ -22,7 +29,7 @@ function CreateFPCVerifyCommand: ICommand;
 implementation
 
 uses
-  fpdev.command.registry, fpdev.cmd.utils;
+  fpdev.command.registry, fpdev.command.utils;
 
 function CreateFPCVerifyCommand: ICommand;
 begin
@@ -50,7 +57,16 @@ end;
 function TFPCVerifyCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   Verifier: TFPCVerifier;
-  FPCPath, Version: string;
+  InstallRoot: string;
+  InstallPath: string;
+  RootDir: string;
+  LegacyInstallPath: string;
+  ProjectRoot: string;
+  FPCPath: string;
+  LegacyFPCPath: string;
+  MetaPath: string;
+  Version: string;
+  Settings: TFPDevSettings;
 begin
   Result := EXIT_ERROR;
 
@@ -70,11 +86,47 @@ begin
 
   Version := AParams[0];
 
-  // Assume FPC is in standard location
-  FPCPath := GetUserDir + '.fpdev' + PathDelim + 'fpc' + PathDelim + Version + PathDelim + 'bin' + PathDelim + 'fpc';
+  // Resolve install path (project scope prefers .fpdev/toolchains; otherwise use install_root/toolchains).
+  ProjectRoot := fpdev.fpc.utils.FindProjectRoot(GetCurrentDir);
+  if ProjectRoot <> '' then
+    InstallPath := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim +
+      'toolchains' + PathDelim + 'fpc' + PathDelim + Version
+  else
+  begin
+    InstallRoot := '';
+    if (Ctx <> nil) and (Ctx.Config <> nil) then
+    begin
+      Settings := Ctx.Config.GetSettingsManager.GetSettings;
+      InstallRoot := Settings.InstallRoot;
+    end;
+    if InstallRoot = '' then
+      InstallRoot := GetDataRoot;
+    InstallPath := BuildFPCInstallDirFromInstallRoot(InstallRoot, Version);
+  end;
+
+  FPCPath := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
   {$IFDEF WINDOWS}
   FPCPath := FPCPath + '.exe';
   {$ENDIF}
+
+  if not FileExists(FPCPath) then
+  begin
+    // Legacy fallback: <root>/fpc/<version>/bin/fpc(.exe)
+    RootDir := ExtractFileDir(ExtractFileDir(ExtractFileDir(InstallPath)));
+    if RootDir <> '' then
+    begin
+      LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + Version;
+      LegacyFPCPath := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+      {$IFDEF WINDOWS}
+      LegacyFPCPath := LegacyFPCPath + '.exe';
+      {$ENDIF}
+      if FileExists(LegacyFPCPath) then
+      begin
+        InstallPath := LegacyInstallPath;
+        FPCPath := LegacyFPCPath;
+      end;
+    end;
+  end;
 
   if not FileExists(FPCPath) then
   begin
@@ -112,14 +164,15 @@ begin
 
     // Check metadata
     Ctx.Out.WriteLn('[3/3] Checking metadata...');
-    if FileExists(GetUserDir + '.fpdev' + PathDelim + 'fpc' + PathDelim + Version + PathDelim + '.fpdev-meta.json') then
+    MetaPath := InstallPath + PathDelim + '.fpdev-meta.json';
+    if FileExists(MetaPath) then
       Ctx.Out.WriteLn('PASS: Metadata file exists')
     else
       Ctx.Out.WriteLn('WARN: Metadata file not found (non-critical)');
 
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Verification complete: FPC ' + Version + ' is working correctly');
-    Result := 0;
+    Result := EXIT_OK;
 
   finally
     Verifier.Free;

@@ -5,7 +5,7 @@ program test_cross_search;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces,
-  fpdev.cross.search;
+  fpdev.cross.search, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -237,11 +237,11 @@ var
   Res: TCrossSearchResult;
   TmpDir, ToolPath: string;
 begin
+  TmpDir := '';
   S := TCrossToolchainSearch.Create;
   try
     // Create a temp directory with a fake tool
-    TmpDir := GetTempDir(False) + 'fpdev_test_search_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := CreateUniqueTempDir('fpdev_test_search');
     ToolPath := TmpDir + PathDelim + 'arm-linux-gnueabihf-as';
     // Create a dummy file
     with TFileStream.Create(ToolPath, fmCreate) do Free;
@@ -254,11 +254,9 @@ begin
     Check(Res.BinutilsPath = TmpDir, 'ConfiguredPath: correct path');
     Check(Res.BinutilsPrefix = 'arm-linux-gnueabihf-', 'ConfiguredPath: correct prefix');
 
-    // Cleanup
-    DeleteFile(ToolPath);
-    RemoveDir(TmpDir);
   finally
     S.Free;
+    CleanupTempDir(TmpDir);
   end;
 end;
 
@@ -310,25 +308,27 @@ procedure TestLayer6_ConfigHints_WithMatch;
 var
   S: TCrossToolchainSearch;
   T: TCrossTarget;
-  TmpCfg, BinDir, ToolPath: string;
+  TempRoot, TmpCfg, BinDir, ToolPath: string;
   SL: TStringList;
   Log: TStringArray;
   HasConfigHints: Boolean;
   I: Integer;
 begin
+  TempRoot := '';
   S := TCrossToolchainSearch.Create;
   try
     // Use a very unusual target that won't be found on the system
     // so search reaches Layer 6
 
     // Create a temp binutils dir with a dummy tool
-    BinDir := GetTempDir(False) + 'fpdev_test_bindir_' + IntToStr(GetProcessID);
+    TempRoot := CreateUniqueTempDir('fpdev_test_bindir');
+    BinDir := TempRoot + PathDelim + 'bin';
     ForceDirectories(BinDir);
     ToolPath := BinDir + PathDelim + 'sparc64-solaris-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
     // Create a temp fpc.cfg pointing to it
-    TmpCfg := GetTempDir(False) + 'fpdev_test_fpc_' + IntToStr(GetProcessID) + '.cfg';
+    TmpCfg := TempRoot + PathDelim + 'fpdev_test_fpc.cfg';
     SL := TStringList.Create;
     try
       SL.Add('# FPC configuration');
@@ -355,12 +355,9 @@ begin
         HasConfigHints := True;
     Check(HasConfigHints, 'ConfigHints: config-hints layer present in log');
 
-    // Cleanup
-    DeleteFile(ToolPath);
-    RemoveDir(BinDir);
-    DeleteFile(TmpCfg);
   finally
     S.Free;
+    CleanupTempDir(TempRoot);
   end;
 end;
 
@@ -472,11 +469,11 @@ var
   Res: TCrossSearchResult;
   TmpDir, ToolPath: string;
 begin
+  TmpDir := '';
   S := TCrossToolchainSearch.Create;
   try
     // Create temp dir simulating fpdev-managed cross toolchain
-    TmpDir := GetTempDir(False) + 'fpdev_test_result_' + IntToStr(GetProcessID);
-    ForceDirectories(TmpDir);
+    TmpDir := CreateUniqueTempDir('fpdev_test_result');
     ToolPath := TmpDir + PathDelim + 'test-prefix-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
@@ -489,11 +486,9 @@ begin
     Check(Res.Layer >= 0, 'ResultRecord Found: layer >= 0');
     Check(Res.LayerName <> '', 'ResultRecord Found: layer name non-empty');
 
-    // Cleanup
-    DeleteFile(ToolPath);
-    RemoveDir(TmpDir);
   finally
     S.Free;
+    CleanupTempDir(TmpDir);
   end;
 end;
 

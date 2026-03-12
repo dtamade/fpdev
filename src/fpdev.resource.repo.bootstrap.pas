@@ -1,16 +1,28 @@
 unit fpdev.resource.repo.bootstrap;
 
 {$mode objfpc}{$H+}
+// acq:allow-hardcoded-constants-file
 
 interface
 
 uses
   SysUtils, fpjson;
 
+type
+  TRepoHasBootstrapCompilerFunc = function(
+    const AVersion, APlatform: string
+  ): Boolean of object;
+
 function ResourceRepoGetRequiredBootstrapVersion(const AManifestData: TJSONObject;
   const AFPCVersion: string): string;
 function ResourceRepoGetBootstrapVersionFromMakefile(const ASourcePath: string): string;
 function ResourceRepoListBootstrapVersions(const AManifestData: TJSONObject): SysUtils.TStringArray;
+function SelectBestBootstrapVersionCore(
+  const ARequiredVersion, APlatform: string;
+  const AAvailableVersions: SysUtils.TStringArray;
+  AHasBootstrapCompiler: TRepoHasBootstrapCompilerFunc;
+  out ALogLines: SysUtils.TStringArray
+): string;
 
 implementation
 
@@ -167,6 +179,100 @@ begin
   SetLength(Result, BootstrapCompilers.Count);
   for i := 0 to BootstrapCompilers.Count - 1 do
     Result[i] := BootstrapCompilers.Names[i];
+end;
+
+const
+  DEFAULT_BOOTSTRAP_VERSION = '3.2.2';
+  BOOTSTRAP_FALLBACK_CHAIN: array[0..7] of string = (
+    '3.2.2',
+    '3.2.0',
+    '3.0.4',
+    '3.0.2',
+    '3.0.0',
+    '2.6.4',
+    '2.6.2',
+    '2.6.0'
+  );
+
+procedure AddBootstrapLogLine(var ALogLines: SysUtils.TStringArray; const ALine: string);
+var
+  Index: Integer;
+begin
+  Index := Length(ALogLines);
+  SetLength(ALogLines, Index + 1);
+  ALogLines[Index] := ALine;
+end;
+
+function SelectBestBootstrapVersionCore(
+  const ARequiredVersion, APlatform: string;
+  const AAvailableVersions: SysUtils.TStringArray;
+  AHasBootstrapCompiler: TRepoHasBootstrapCompilerFunc;
+  out ALogLines: SysUtils.TStringArray
+): string;
+var
+  EffectiveRequiredVersion: string;
+  ChainIdx: Integer;
+  Index: Integer;
+begin
+  Result := '';
+  ALogLines := Default(SysUtils.TStringArray);
+  SetLength(ALogLines, 0);
+
+  EffectiveRequiredVersion := ARequiredVersion;
+  if EffectiveRequiredVersion = '' then
+  begin
+    AddBootstrapLogLine(ALogLines,
+      Format('Warning: No bootstrap version mapping found for FPC %s', [ARequiredVersion]));
+    EffectiveRequiredVersion := DEFAULT_BOOTSTRAP_VERSION;
+  end;
+
+  if Assigned(AHasBootstrapCompiler) and
+     AHasBootstrapCompiler(EffectiveRequiredVersion, APlatform) then
+    Exit(EffectiveRequiredVersion);
+
+  ChainIdx := -1;
+  for Index := Low(BOOTSTRAP_FALLBACK_CHAIN) to High(BOOTSTRAP_FALLBACK_CHAIN) do
+  begin
+    if BOOTSTRAP_FALLBACK_CHAIN[Index] = EffectiveRequiredVersion then
+    begin
+      ChainIdx := Index;
+      Break;
+    end;
+  end;
+  if ChainIdx < 0 then
+    ChainIdx := 0;
+
+  for Index := ChainIdx to High(BOOTSTRAP_FALLBACK_CHAIN) do
+  begin
+    if Assigned(AHasBootstrapCompiler) and
+       AHasBootstrapCompiler(BOOTSTRAP_FALLBACK_CHAIN[Index], APlatform) then
+    begin
+      if BOOTSTRAP_FALLBACK_CHAIN[Index] <> EffectiveRequiredVersion then
+        AddBootstrapLogLine(ALogLines,
+          Format('Note: Using bootstrap %s instead of %s (fallback due to availability)', [
+            BOOTSTRAP_FALLBACK_CHAIN[Index],
+            EffectiveRequiredVersion
+          ]));
+      Exit(BOOTSTRAP_FALLBACK_CHAIN[Index]);
+    end;
+  end;
+
+  for Index := Low(AAvailableVersions) to High(AAvailableVersions) do
+  begin
+    if Assigned(AHasBootstrapCompiler) and
+       AHasBootstrapCompiler(AAvailableVersions[Index], APlatform) then
+    begin
+      AddBootstrapLogLine(ALogLines,
+        Format('Warning: Using bootstrap %s (only available version for platform %s)', [
+          AAvailableVersions[Index],
+          APlatform
+        ]));
+      Exit(AAvailableVersions[Index]);
+    end;
+  end;
+
+  AddBootstrapLogLine(ALogLines,
+    Format('Error: No bootstrap compiler available for platform %s', [APlatform]));
 end;
 
 end.

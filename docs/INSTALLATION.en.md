@@ -71,7 +71,7 @@ brew install git wget
 
 3. Verify installation:
    ```cmd
-   fpdev --version
+   fpdev system version
    ```
 
 #### Linux
@@ -94,7 +94,7 @@ brew install git wget
 
 2. Verify installation:
    ```bash
-   fpdev --version
+   fpdev system version
    ```
 
 #### macOS
@@ -129,7 +129,7 @@ cd src
 fpc -FE../bin fpdev.lpr
 
 # Verify
-../bin/fpdev --version
+../bin/fpdev system version
 ```
 
 ### Method 3: Package Manager Installation (Planned)
@@ -152,8 +152,8 @@ sudo apt install fpdev
 
 ### Initial Configuration
 ```bash
-# Create default configuration
-fpdev help
+# Create the default configuration file
+fpdev system config show
 
 # Config file locations:
 # Windows: %USERPROFILE%\.fpdev\config.json
@@ -183,10 +183,10 @@ git config --global http.proxy http://proxy.example.com:8080
 ### Basic Functionality Test
 ```bash
 # Check version
-fpdev --version
+fpdev system version
 
 # Show help
-fpdev help
+fpdev system help
 
 # List available FPC versions
 fpdev fpc list --all
@@ -315,8 +315,7 @@ export FPDEV_HOME=/fast/ssd/fpdev
 ### Network Optimization
 ```bash
 # Use mirror sources (for users in China)
-fpdev config set mirror.fpc https://mirrors.tuna.tsinghua.edu.cn/freepascal
-fpdev config set mirror.lazarus https://mirrors.tuna.tsinghua.edu.cn/lazarus
+fpdev system config set mirror gitee
 ```
 
 ---

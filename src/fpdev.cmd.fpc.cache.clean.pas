@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.command.utils, fpdev.paths;
 
 function TFPCCacheCleanCommand.Name: string; begin Result := 'clean'; end;
 
@@ -46,15 +46,21 @@ var
   LCacheDir: string;
   LCache: TBuildCache;
   LVersions: TStringArray;
+  LParam: string;
   LVersion: string;
   LAll: Boolean;
-  i, LDeleted: Integer;
+  i, LDeleted, LFailed: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc cache clean [version] [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Clean cached FPC versions');
@@ -68,12 +74,33 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if Length(AParams) = 0 then
+  begin
+    Ctx.Err.WriteLn('Error: Please specify a version or use --all');
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [--all]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [--all]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LParam := AParams[0];
+  LAll := SameText(LParam, '--all');
+  if (not LAll) and (Length(LParam) > 0) and (LParam[1] = '-') then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [--all]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if not LAll then
+    LVersion := LParam;
+
   // Initialize cache
-  LCacheDir := GetAppConfigDir(False) + '.fpdev' + PathDelim + 'cache';
+  LCacheDir := GetCacheDir;
   LCache := TBuildCache.Create(LCacheDir);
   try
-    LAll := HasFlag(AParams, 'all');
-
     if LAll then
     begin
       // Clean all cached versions
@@ -86,6 +113,7 @@ begin
 
       Ctx.Out.WriteLn(Format('Found %d cached version(s). Cleaning...', [Length(LVersions)]));
       LDeleted := 0;
+      LFailed := 0;
 
       for i := 0 to High(LVersions) do
       begin
@@ -95,17 +123,21 @@ begin
           Inc(LDeleted);
         end
         else
+        begin
           Ctx.Err.WriteLn('  Failed to delete: ' + LVersions[i]);
+          Inc(LFailed);
+        end;
       end;
 
       Ctx.Out.WriteLn('');
       Ctx.Out.WriteLn(Format('Cleaned %d of %d cached version(s)', [LDeleted, Length(LVersions)]));
+      if LFailed > 0 then
+        Exit(EXIT_ERROR)
+      else
+        Exit(EXIT_OK);
     end
-    else if Length(AParams) > 0 then
+    else
     begin
-      // Clean specific version
-      LVersion := AParams[0];
-
       if not LCache.HasArtifacts(LVersion) then
       begin
         Ctx.Err.WriteLn('Version ' + LVersion + ' is not cached.');
@@ -122,12 +154,6 @@ begin
         Ctx.Err.WriteLn('Failed to clean cache for FPC ' + LVersion);
         Exit(EXIT_ERROR);
       end;
-    end
-    else
-    begin
-      Ctx.Err.WriteLn('Error: Please specify a version or use --all');
-      Ctx.Err.WriteLn('Usage: fpdev fpc cache clean [version] [--all]');
-      Exit(EXIT_USAGE_ERROR);
     end;
   finally
     LCache.Free;

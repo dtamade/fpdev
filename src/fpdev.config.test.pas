@@ -1,4 +1,5 @@
 unit fpdev.config.test;
+// acq:allow-hardcoded-constants-file
 
 {$codepage utf8}
 
@@ -119,12 +120,20 @@ end;
 
 procedure TFPDevConfigTest.AssertEquals(const AExpected, AActual: Integer; const AMessage: string);
 begin
-  AssertTrue(AExpected = AActual, AMessage + ' (Expected: ' + IntToStr(AExpected) + ', Actual: ' + IntToStr(AActual) + ')');
+  AssertTrue(
+    AExpected = AActual,
+    AMessage + ' (Expected: ' + IntToStr(AExpected) +
+      ', Actual: ' + IntToStr(AActual) + ')'
+  );
 end;
 
 procedure TFPDevConfigTest.AssertEquals(const AExpected, AActual: Boolean; const AMessage: string);
 begin
-  AssertTrue(AExpected = AActual, AMessage + ' (Expected: ' + BoolToStr(AExpected, True) + ', Actual: ' + BoolToStr(AActual, True) + ')');
+  AssertTrue(
+    AExpected = AActual,
+    AMessage + ' (Expected: ' + BoolToStr(AExpected, True) +
+      ', Actual: ' + BoolToStr(AActual, True) + ')'
+  );
 end;
 
 procedure TFPDevConfigTest.RunAllTests;
@@ -259,7 +268,10 @@ begin
 
   // Test removing Lazarus version
   AssertTrue(FConfigManager.RemoveLazarusVersion('lazarus-3.0'), 'Should remove Lazarus version');
-  AssertTrue(not FConfigManager.GetLazarusVersion('lazarus-3.0', LazarusInfo), 'Lazarus version should not exist after removal');
+  AssertTrue(
+    not FConfigManager.GetLazarusVersion('lazarus-3.0', LazarusInfo),
+    'Lazarus version should not exist after removal'
+  );
 
   WriteLn;
 end;
@@ -306,7 +318,11 @@ begin
   AssertTrue(FConfigManager.AddRepository('test_repo', 'https://example.com/test.git'), 'Should add repository');
 
   // Test getting repository
-  AssertEquals('https://example.com/test.git', FConfigManager.GetRepository('test_repo'), 'Repository URL should match');
+  AssertEquals(
+    'https://example.com/test.git',
+    FConfigManager.GetRepository('test_repo'),
+    'Repository URL should match'
+  );
 
   // Test listing repositories
   Repositories := FConfigManager.ListRepositories;

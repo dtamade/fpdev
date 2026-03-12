@@ -4,7 +4,8 @@ program test_fpc_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.cmd.fpc, fpdev.config.interfaces, fpdev.config.managers
+  SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config.interfaces, fpdev.config.managers
+  , test_temp_paths
   {$IFDEF UNIX}
   , BaseUnix
   {$ENDIF};
@@ -23,8 +24,7 @@ var
   SettingsMgr: ISettingsManager;
 begin
   // 创建临时安装根目录
-  TestInstallRoot := 'test_install_root_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestInstallRoot);
+  TestInstallRoot := CreateUniqueTempDir('test_install_root');
 
   // 设置配置管理器使用测试目录
   SettingsMgr := ConfigManager.GetSettingsManager;
@@ -84,41 +84,45 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-var
-  SR: TSearchRec;
-  FilePath: string;
-
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR2: TSearchRec;
-    FilePath2: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR2) = 0 then
-    begin
-      repeat
-        if (SR2.Name <> '.') and (SR2.Name <> '..') then
-        begin
-          FilePath2 := DirPath + PathDelim + SR2.Name;
-          if (SR2.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath2)
-          else
-            DeleteFile(FilePath2);
-        end;
-      until FindNext(SR2) <> 0;
-      FindClose(SR2);
-    end;
-    RemoveDir(DirPath);
-  end;
-
 begin
   // 清理测试安装根目录（包含所有子目录）
   if DirectoryExists(TestInstallRoot) then
   begin
-    DeleteDirectory(TestInstallRoot);
+    CleanupTempDir(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
   end;
+end;
+
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Config manager uses isolated config path');
+  WriteLn('==================================================');
+
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  if Pos(TempRoot, ConfigPath) <> 1 then
+  begin
+    WriteLn('Failed: Expected config path under temp root ', TempRoot);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  if ConfigPath <> ExpectedPath then
+  begin
+    WriteLn('Failed: Expected isolated config path ', ExpectedPath);
+    WriteLn('Actual: ', ConfigPath);
+    Halt(1);
+  end;
+
+  WriteLn('Passed: Config manager uses isolated temp config path');
 end;
 
 procedure TestCleanRemovesBuildArtifacts;
@@ -251,9 +255,7 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TConfigManager.Create('');
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+    ConfigManager := CreateIsolatedConfigManager;
 
     // Setup test environment (before creating FPCManager)
     SetupTestEnvironment;
@@ -261,7 +263,10 @@ begin
       // Create FPC manager (will use updated config)
       FPCManager := TFPCManager.Create(ConfigManager);
       try
-        // Test 1: Clean build artifacts
+        // Test 1: Config isolation
+        TestConfigManagerUsesIsolatedDefaultConfigPath;
+
+        // Test 2: Clean build artifacts
         TestCleanRemovesBuildArtifacts;
 
         // Test 2: Handle non-existent directory

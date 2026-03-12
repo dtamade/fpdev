@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TRepoShowCommand.Name: string; begin Result := 'show'; end;
 function TRepoShowCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -30,7 +30,7 @@ function TRepoShowCommand.Execute(const AParams: array of string; const Ctx: ICo
 var
   RepoName, URL: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -43,17 +43,24 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if Length(AParams) <> 1 then
   begin
     Ctx.Err.WriteLn(_(HELP_REPO_SHOW_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
   RepoName := AParams[0];
+  if SameText(RepoName, 'current') then
+    RepoName := Ctx.Config.GetSettingsManager.GetSettings.DefaultRepo;
+  if RepoName = '' then
+  begin
+    Ctx.Err.WriteLn('Error: No current repository selected. Use "fpdev system repo use <name>".');
+    Exit(EXIT_NOT_FOUND);
+  end;
   URL := Ctx.Config.GetRepositoryManager.GetRepository(RepoName);
   if URL='' then
   begin
     Ctx.Err.WriteLn(_Fmt(CMD_REPO_NOT_FOUND, [RepoName]));
-    Exit(EXIT_USAGE_ERROR);
+    Exit(EXIT_NOT_FOUND);
   end;
 
   Ctx.Out.WriteLn(RepoName + ' = ' + URL);
@@ -67,8 +74,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['repo','show'], @RepoShowFactory, []);
+  GlobalCommandRegistry.RegisterPath(['system', 'repo', 'show'], @RepoShowFactory, []);
 
 end.
-
-

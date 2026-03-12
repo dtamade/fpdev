@@ -16,7 +16,7 @@
 ```bash
 lazbuild -B fpdev.lpi                 # 首选：Lazarus clean rebuild
 lazbuild -B --build-mode=Release fpdev.lpi
-./bin/fpdev --help                    # 运行本地构建产物
+./bin/fpdev system help               # 运行本地构建产物
 scripts/check_toolchain.sh            # 检查 fpc/lazbuild/git 等依赖
 scripts/run_all_tests.sh              # 构建并运行顶层测试集
 lazbuild -B tests/test_config_management.lpi && ./bin/test_config_management

@@ -5,13 +5,12 @@ unit fpdev.cmd.fpc.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  // Register fpc root node (for auto-help)
-  GlobalCommandRegistry.RegisterPath(['fpc'], nil, []);
+  GlobalCommandRegistry.RegisterSingletonPath(['fpc'], CreateNamespaceRootShellCommand(['fpc']), []);
 
 end.
-

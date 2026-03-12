@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.cmd.utils;
+uses fpdev.command.registry, fpdev.command.utils, fpdev.paths;
 
 function TFPCCacheStatsCommand.Name: string; begin Result := 'stats'; end;
 
@@ -49,11 +49,16 @@ var
   LTotalSize: Int64;
   LSizeStr: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc cache stats [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc cache stats [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Show cache statistics');
@@ -63,8 +68,14 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if Length(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc cache stats [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Initialize cache
-  LCacheDir := GetAppConfigDir(False) + '.fpdev' + PathDelim + 'cache';
+  LCacheDir := GetCacheDir;
   LCache := TBuildCache.Create(LCacheDir);
   try
     LVersions := LCache.ListCachedVersions;

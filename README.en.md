@@ -6,7 +6,9 @@
 
 [![Release](https://img.shields.io/badge/release-v2.0.6-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-140%20passed-brightgreen.svg)](#testing)
+<!-- TEST-INVENTORY-BADGE:BEGIN -->
+[![Tests](https://img.shields.io/badge/tests-255%20discoverable-brightgreen.svg)](#testing)
+<!-- TEST-INVENTORY-BADGE:END -->
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
 [Quick Start](#-quick-start) • [Installation](docs/INSTALLATION.md) • [FAQ](FAQ.md) • [Documentation](docs/QUICKSTART.md)
@@ -32,7 +34,7 @@
 
 ```
 ✅ Feature Completeness: 100% (Phase 4 M12 Complete)
-✅ Test Coverage: 100% (140 test cases, 100% pass rate)
+✅ Discoverable test programs: 255 (same inventory rules as CI)
 ✅ Documentation: 100% (Complete user and developer docs)
 ✅ Cross-platform: Windows, Linux, macOS
 ✅ Code Quality: Production Ready (0 Warning, 0 Error)
@@ -49,7 +51,7 @@
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
 lazbuild -B fpdev.lpi
-./bin/fpdev --version
+./bin/fpdev system version
 ```
 
 ### 2. Install FPC Compiler
@@ -132,9 +134,9 @@ fpdev project build                   # Build project
 ### System Diagnostics
 
 ```bash
-fpdev doctor                          # Run diagnostics
-fpdev doctor --json                   # JSON output
-fpdev doctor --quick                  # Quick check
+fpdev system doctor                   # Run diagnostics
+fpdev system doctor --json            # JSON output
+fpdev system doctor --quick           # Quick check
 ```
 
 ---
@@ -175,7 +177,9 @@ autoload -Uz compinit && compinit
 FPDev follows **TDD (Test-Driven Development)** methodology:
 
 ```
-✅ 140 tests, 100% pass rate
+<!-- TEST-INVENTORY-SUMMARY:BEGIN -->
+✅ 255 discoverable test_*.lpr programs (same rules as CI)
+<!-- TEST-INVENTORY-SUMMARY:END -->
 ✅ Zero compilation warnings
 ✅ GitHub Actions CI ready
 ```

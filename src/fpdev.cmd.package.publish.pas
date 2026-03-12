@@ -25,8 +25,9 @@ interface
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.utils.fs, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.package.types,
+  fpdev.utils.fs, fpdev.exitcodes;
 
 type
   { TPackagePublishCommand - Functional class for package publishing }
@@ -75,7 +76,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 { TPackagePublishCommand }
 
@@ -102,13 +103,13 @@ begin
 
   if AArchivePath = '' then
   begin
-    FLastError := 'Archive path is empty';
+    FLastError := _(CMD_PKG_PUBLISH_ARCHIVE_PATH_EMPTY);
     Exit;
   end;
 
   if not FileExists(AArchivePath) then
   begin
-    FLastError := 'Archive file not found: ' + AArchivePath;
+    FLastError := _Fmt(CMD_PKG_PUBLISH_ARCHIVE_NOT_FOUND, [AArchivePath]);
     Exit;
   end;
 
@@ -125,7 +126,7 @@ begin
 
   if AName = '' then
   begin
-    FLastError := 'Package name is empty';
+    FLastError := _(CMD_PKG_PUBLISH_NAME_EMPTY);
     Exit;
   end;
 
@@ -136,7 +137,7 @@ begin
     C := AName[I];
     if not (C in ['a'..'z', '0'..'9', '-', '_']) then
     begin
-      FLastError := 'Invalid package name: ' + AName + ' (contains invalid character: ' + C + ')';
+      FLastError := _Fmt(CMD_PKG_PUBLISH_NAME_INVALID_CHAR, [AName, C]);
       Exit;
     end;
   end;
@@ -155,7 +156,7 @@ begin
 
   if AVersion = '' then
   begin
-    FLastError := 'Version is empty';
+    FLastError := _(CMD_PKG_PUBLISH_VERSION_EMPTY);
     Exit;
   end;
 
@@ -168,7 +169,7 @@ begin
 
     if Parts.Count < 3 then
     begin
-      FLastError := 'Invalid version format: ' + AVersion + ' (expected major.minor.patch)';
+      FLastError := _Fmt(CMD_PKG_PUBLISH_VERSION_INVALID, [AVersion]);
       Exit;
     end;
 
@@ -177,7 +178,7 @@ begin
     begin
       if not TryStrToInt(Parts[I], Num) then
       begin
-        FLastError := 'Invalid version format: ' + AVersion + ' (non-numeric part: ' + Parts[I] + ')';
+        FLastError := _Fmt(CMD_PKG_PUBLISH_VERSION_NON_NUMERIC, [AVersion, Parts[I]]);
         Exit;
       end;
     end;
@@ -206,7 +207,7 @@ begin
     FileName := Copy(FileName, 1, Pos('.tar.gz', FileName) - 1)
   else
   begin
-    FLastError := 'Archive must have .tar.gz extension';
+    FLastError := _(CMD_PKG_PUBLISH_ARCHIVE_EXT_INVALID);
     Exit;
   end;
 
@@ -220,7 +221,7 @@ begin
 
   if DashPos = 0 then
   begin
-    FLastError := 'Archive filename must be in format: name-version.tar.gz';
+    FLastError := _(CMD_PKG_PUBLISH_ARCHIVE_NAME_INVALID);
     Exit;
   end;
 
@@ -251,7 +252,7 @@ begin
 
   if not FileExists(MetadataPath) then
   begin
-    FLastError := 'Metadata file not found: ' + MetadataPath;
+    FLastError := _Fmt(CMD_PKG_PUBLISH_METADATA_NOT_FOUND, [MetadataPath]);
     Exit;
   end;
 
@@ -264,7 +265,7 @@ begin
       else
       begin
         J.Free;
-        FLastError := 'Metadata file is not a valid JSON object';
+        FLastError := _(CMD_PKG_PUBLISH_METADATA_NOT_JSON);
       end;
     finally
       FS.Free;
@@ -272,7 +273,7 @@ begin
   except
     on E: Exception do
     begin
-      FLastError := 'Failed to load metadata: ' + E.Message;
+      FLastError := _Fmt(CMD_PKG_PUBLISH_METADATA_LOAD_FAILED, [E.Message]);
       Result := nil;
     end;
   end;
@@ -298,7 +299,7 @@ begin
     DestArchive := PackagePath + PathDelim + AName + '-' + AVersion + '.tar.gz';
     if not CopyFileSafe(AArchivePath, DestArchive) then
     begin
-      FLastError := 'Failed to copy archive to registry';
+      FLastError := _(CMD_PKG_PUBLISH_COPY_ARCHIVE_FAILED);
       Exit;
     end;
 
@@ -309,7 +310,7 @@ begin
       DestChecksum := DestArchive + '.sha256';
       if not CopyFileSafe(SrcChecksum, DestChecksum) then
       begin
-        FLastError := 'Failed to copy checksum to registry';
+        FLastError := _(CMD_PKG_PUBLISH_COPY_CHECKSUM_FAILED);
         Exit;
       end;
     end;
@@ -322,7 +323,7 @@ begin
       DestMetadata := PackagePath + PathDelim + 'package.json';
       if not CopyFileSafe(SrcMetadata, DestMetadata) then
       begin
-        FLastError := 'Failed to copy metadata to registry';
+        FLastError := _(CMD_PKG_PUBLISH_COPY_METADATA_FAILED);
         Exit;
       end;
     end;
@@ -331,7 +332,7 @@ begin
   except
     on E: Exception do
     begin
-      FLastError := 'Failed to copy files to registry: ' + E.Message;
+      FLastError := _Fmt(CMD_PKG_PUBLISH_COPY_FILES_FAILED, [E.Message]);
       Result := False;
     end;
   end;
@@ -370,14 +371,14 @@ begin
     // Initialize registry if needed
     if not FRegistry.Initialize then
     begin
-      FLastError := 'Failed to initialize registry: ' + FRegistry.GetLastError;
+      FLastError := _Fmt(CMD_PKG_PUBLISH_INIT_FAILED, [FRegistry.GetLastError]);
       Exit;
     end;
 
     // Check for duplicate version (unless force mode)
     if not FForcePub and FRegistry.HasPackageVersion(Name, Version) then
     begin
-      FLastError := 'Package version already exists: ' + Name + ' ' + Version;
+      FLastError := _Fmt(CMD_PKG_PUBLISH_VERSION_EXISTS, [Name, Version]);
       Exit;
     end;
 
@@ -393,7 +394,7 @@ begin
     begin
       if not FRegistry.RemovePackage(Name, Version) then
       begin
-        FLastError := 'Failed to remove existing version: ' + FRegistry.GetLastError;
+        FLastError := _Fmt(CMD_PKG_PUBLISH_REMOVE_EXISTING_FAILED, [FRegistry.GetLastError]);
         Exit;
       end;
     end;
@@ -405,7 +406,7 @@ begin
     // Add package to registry index
     if not FRegistry.AddPackage(AArchivePath) then
     begin
-      FLastError := 'Failed to add package to registry: ' + FRegistry.GetLastError;
+      FLastError := _Fmt(CMD_PKG_PUBLISH_ADD_REGISTRY_FAILED, [FRegistry.GetLastError]);
       Exit;
     end;
 
@@ -445,8 +446,14 @@ function TPackagePublishCmd.Execute(const AParams: array of string; const Ctx: I
 var
   LMgr: TPackageManager;
   Pkg: string;
+  InstalledPkgs: TPackageArray;
+  IsInstalled: Boolean;
+  PkgInstallPath: string;
+  MetadataPath: string;
+  UnknownOption: string;
+  i: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -459,6 +466,12 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
@@ -466,12 +479,52 @@ begin
     Exit(EXIT_USAGE_ERROR);
   end;
   Pkg := AParams[0];
+  if Trim(Pkg) = '' then
+  begin
+    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  for i := 1 to High(AParams) do
+    if (AParams[i] <> '') and (AParams[i][1] <> '-') then
+    begin
+      Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
+    InstalledPkgs := LMgr.GetInstalledPackageList;
+    IsInstalled := False;
+    PkgInstallPath := '';
+    for i := 0 to High(InstalledPkgs) do
+      if SameText(InstalledPkgs[i].Name, Pkg) then
+      begin
+        IsInstalled := True;
+        PkgInstallPath := InstalledPkgs[i].InstallPath;
+        Break;
+      end;
+    if not IsInstalled then
+    begin
+      Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [Pkg]));
+      Exit(EXIT_NOT_FOUND);
+    end;
+    if PkgInstallPath <> '' then
+    begin
+      MetadataPath := IncludeTrailingPathDelimiter(PkgInstallPath) + 'package.json';
+      if not FileExists(MetadataPath) then
+      begin
+        Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND,
+          [_(MSG_PKG_META_HINT)]));
+        Exit(EXIT_NOT_FOUND);
+      end;
+    end;
+
     if LMgr.PublishPackage(Pkg, Ctx.Out, Ctx.Err) then
       Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := LMgr.GetLastPublishExitCode;
+    if Result = EXIT_OK then
+      Result := EXIT_ERROR;
   finally
     LMgr.Free;
   end;

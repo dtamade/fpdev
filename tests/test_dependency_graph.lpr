@@ -4,7 +4,8 @@ program test_dependency_graph;
 
 uses
   SysUtils, Classes,
-  fpdev.cmd.package, fpdev.package.types;
+  fpdev.cmd.package, fpdev.package.depgraph, fpdev.package.types,
+  fpdev.pkg.version;
 
 var
   TestsPassed: Integer = 0;
@@ -27,6 +28,7 @@ end;
 { Helper: Create test package index }
 function CreateTestPackageIndex: TPackageArray;
 begin
+  Initialize(Result);
   SetLength(Result, 5);
 
   // Package A - no dependencies (leaf)
@@ -59,11 +61,229 @@ begin
   SetLength(Result[4].Dependencies, 0);
 end;
 
+
+function CreateDepDescriptor(const AName, AVersion: string;
+  const ADeps: array of string): TPackageDepDescriptor;
+var
+  I: Integer;
+begin
+  Initialize(Result);
+  Result.Name := AName;
+  Result.Version := AVersion;
+  SetLength(Result.Dependencies, Length(ADeps));
+  for I := 0 to High(ADeps) do
+    Result.Dependencies[I] := ADeps[I];
+end;
+
+procedure TestResolvePackageDependencyOrderUsesInstalledFallback;
+var
+  Available: TPackageDepDescriptorArray;
+  Installed: TPackageDepDescriptorArray;
+  Order: TStringArray;
+begin
+  WriteLn('');
+  WriteLn('=== Test: ResolvePackageDependencyOrder uses installed fallback ===');
+
+  SetLength(Available, 1);
+  Available[0] := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgInstalled>=1.0.0']);
+
+  SetLength(Installed, 1);
+  Installed[0] := CreateDepDescriptor('pkgInstalled', '2.0.0', []);
+
+  Order := ResolvePackageDependencyOrderCore(
+    'pkgRoot',
+    Available,
+    Installed,
+    @ExtractPackageName
+  );
+
+  Assert(Length(Order) = 2, 'Installed fallback order contains root and installed dependency');
+  Assert((Length(Order) >= 2) and SameText(Order[0], 'pkgInstalled'),
+    'Installed dependency resolves first');
+  Assert((Length(Order) >= 2) and SameText(Order[1], 'pkgRoot'),
+    'Root package resolves last');
+end;
+
+procedure TestResolvePackageDependencyOrderFallsBackToRootOnMissingDependency;
+var
+  Available: TPackageDepDescriptorArray;
+  Installed: TPackageDepDescriptorArray;
+  Order: TStringArray;
+begin
+  WriteLn('');
+  WriteLn('=== Test: ResolvePackageDependencyOrder falls back to root on missing dependency ===');
+
+  SetLength(Available, 1);
+  Available[0] := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgMissing>=1.0.0']);
+  SetLength(Installed, 0);
+
+  Order := ResolvePackageDependencyOrderCore(
+    'pkgRoot',
+    Available,
+    Installed,
+    @ExtractPackageName
+  );
+
+  Assert(Length(Order) = 1, 'Missing dependency falls back to root-only result');
+  Assert((Length(Order) = 1) and SameText(Order[0], 'pkgRoot'),
+    'Fallback result preserves root package name');
+end;
+
+procedure TestBuildDependencyInstallPlanCoreBuildsInstallOrder;
+var
+  Root: TPackageDepDescriptor;
+  Available: TPackageDepDescriptorArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildDependencyInstallPlanCore builds install order ===');
+
+  Root := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgB>=1.0.0', 'pkgA>=1.0.0']);
+  SetLength(Available, 2);
+  Available[0] := CreateDepDescriptor('pkgA', '1.0.0', []);
+  Available[1] := CreateDepDescriptor('pkgB', '2.0.0', ['pkgA>=1.0.0']);
+
+  Status := BuildDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsOk, 'Install plan build returns ok status');
+  Assert(Length(Plan) = 2, 'Install plan contains direct dependencies only');
+  Assert((Length(Plan) >= 2) and SameText(Plan[0].Name, 'pkgA'),
+    'Install plan orders pkgA before pkgB');
+  Assert((Length(Plan) >= 2) and SameText(Plan[1].Name, 'pkgB'),
+    'Install plan orders pkgB last among direct dependencies');
+  Assert((Length(Plan) >= 2) and Plan[1].HasNestedDependencies,
+    'Install plan flags dependency that has nested deps');
+end;
+
+procedure TestBuildPackageDependencyInstallPlanCoreBuildsPlanFromPackageInfo;
+var
+  Root: TPackageInfo;
+  Available: TPackageArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildPackageDependencyInstallPlanCore builds plan from package info ===');
+
+  Initialize(Root);
+  Root.Name := 'pkgRoot';
+  Root.Version := '1.0.0';
+  SetLength(Root.Dependencies, 2);
+  Root.Dependencies[0] := 'pkgB>=1.0.0';
+  Root.Dependencies[1] := 'pkgA>=1.0.0';
+
+  Initialize(Available);
+  SetLength(Available, 2);
+  Available[0].Name := 'pkgA';
+  Available[0].Version := '1.0.0';
+  SetLength(Available[0].Dependencies, 0);
+  Available[1].Name := 'pkgB';
+  Available[1].Version := '2.0.0';
+  SetLength(Available[1].Dependencies, 1);
+  Available[1].Dependencies[0] := 'pkgA>=1.0.0';
+
+  Status := BuildPackageDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsOk, 'Package install plan helper returns ok status');
+  Assert(Length(Plan) = 2, 'Package install plan helper returns dependency plan');
+  Assert((Length(Plan) >= 2) and SameText(Plan[0].Name, 'pkgA'),
+    'Package install plan helper orders pkgA before pkgB');
+  Assert((Length(Plan) >= 2) and SameText(Plan[1].Name, 'pkgB'),
+    'Package install plan helper orders pkgB last');
+  Assert((Length(Plan) >= 2) and Plan[1].HasNestedDependencies,
+    'Package install plan helper preserves nested dependency flag');
+end;
+
+procedure TestBuildPackageDependencyInstallPlanCoreReportsMissingDependency;
+var
+  Root: TPackageInfo;
+  Available: TPackageArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildPackageDependencyInstallPlanCore reports missing dependency ===');
+
+  Initialize(Root);
+  Root.Name := 'pkgRoot';
+  Root.Version := '1.0.0';
+  SetLength(Root.Dependencies, 1);
+  Root.Dependencies[0] := 'pkgMissing>=1.0.0';
+
+  Initialize(Available);
+  SetLength(Available, 0);
+
+  Status := BuildPackageDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsMissingDependency, 'Package install plan helper returns missing-dependency status');
+  Assert(SameText(MissingDependency, 'pkgMissing>=1.0.0'),
+    'Package install plan helper returns original missing dependency token');
+  Assert(Length(Plan) = 0, 'Package install plan helper leaves plan empty on missing dependency');
+end;
+
+procedure TestBuildDependencyInstallPlanCoreReportsMissingDependency;
+var
+  Root: TPackageDepDescriptor;
+  Available: TPackageDepDescriptorArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildDependencyInstallPlanCore reports missing dependency ===');
+
+  Root := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgMissing>=1.0.0']);
+  SetLength(Available, 0);
+
+  Status := BuildDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsMissingDependency, 'Install plan build returns missing-dependency status');
+  Assert(SameText(MissingDependency, 'pkgMissing>=1.0.0'),
+    'Install plan build returns original missing dependency token');
+  Assert(Length(Plan) = 0, 'Install plan remains empty on missing dependency');
+end;
+
 procedure TestBuildDependencyGraph;
 var
   Index: TPackageArray;
   Graph: TDependencyGraph;
-  i, j, k, m: Integer;
+  j, k, m: Integer;
   DepName: string;
   DepParts: TStringArray;
   DepFound: Boolean;
@@ -169,6 +389,12 @@ begin
 
   TestBuildDependencyGraph;
   TestTopologicalSort;
+  TestResolvePackageDependencyOrderUsesInstalledFallback;
+  TestResolvePackageDependencyOrderFallsBackToRootOnMissingDependency;
+  TestBuildDependencyInstallPlanCoreBuildsInstallOrder;
+  TestBuildDependencyInstallPlanCoreReportsMissingDependency;
+  TestBuildPackageDependencyInstallPlanCoreBuildsPlanFromPackageInfo;
+  TestBuildPackageDependencyInstallPlanCoreReportsMissingDependency;
 
   WriteLn('');
   WriteLn('========================================');

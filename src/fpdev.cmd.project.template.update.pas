@@ -22,7 +22,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TProjectTemplateUpdateCommand.Name: string; begin Result := 'update'; end;
 function TProjectTemplateUpdateCommand.Aliases: TStringArray; begin Result := nil; end;

@@ -5,12 +5,12 @@ unit fpdev.cmd.fpc.cache;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  // Register fpc cache root node (for auto-help)
-  GlobalCommandRegistry.RegisterPath(['fpc', 'cache'], nil, []);
+  GlobalCommandRegistry.RegisterSingletonPath(['fpc', 'cache'], CreateNamespaceRootShellCommand(['fpc', 'cache']), []);
 
 end.

@@ -138,11 +138,13 @@ var
 begin
   Result := False;
 
-  if not ExecuteCommand(AFPCPath, ['-version'], Output) then
+  // Use `-iV` which prints the version and exits with code 0.
+  // `-version` prints version but still fails due to missing source file.
+  if not ExecuteCommand(AFPCPath, ['-iV'], Output) then
     Exit;
 
-  ActualVersion := ParseVersion(Output);
-  Result := ActualVersion = AExpectedVersion;
+  ActualVersion := Trim(Output);
+  Result := SameText(ActualVersion, AExpectedVersion);
 
   if not Result then
     FLastError := Format('Version mismatch: expected %s, got %s', [AExpectedVersion, ActualVersion]) + LineEnding +

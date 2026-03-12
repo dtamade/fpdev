@@ -70,10 +70,16 @@ type
     function UpdateVSCodeSettings(const AProjectRoot, ABinPath: string): Boolean;
 
     { Creates project-scoped activation at .fpdev/env/activate.sh|cmd }
-    function ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+    function ActivateProjectScope(
+      const AVersion, ABinPath: string;
+      var AResult: TActivationResult
+    ): Boolean;
 
     { Creates user-scoped activation at ~/.fpdev/env/activate-<version>.sh|cmd }
-    function ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+    function ActivateUserScope(
+      const AVersion, ABinPath: string;
+      var AResult: TActivationResult
+    ): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager);
@@ -162,9 +168,13 @@ begin
   if UserConfigDir <> '' then
     UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + FPDEV_CONFIG_DIR))
   else
-    UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR));
+    UserConfigDir := ExcludeTrailingPathDelimiter(
+      ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR)
+    );
   {$ELSE}
-  UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR));
+  UserConfigDir := ExcludeTrailingPathDelimiter(
+    ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR)
+  );
   {$ENDIF}
 
   while Dir <> '' do
@@ -318,7 +328,10 @@ begin
   end;
 end;
 
-function TFPCActivationManager.ActivateProjectScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+function TFPCActivationManager.ActivateProjectScope(
+  const AVersion, ABinPath: string;
+  var AResult: TActivationResult
+): Boolean;
 var
   ProjectRoot, EnvDir, ScriptPath: string;
 begin
@@ -366,7 +379,10 @@ begin
   Result := True;
 end;
 
-function TFPCActivationManager.ActivateUserScope(const AVersion, ABinPath: string; var AResult: TActivationResult): Boolean;
+function TFPCActivationManager.ActivateUserScope(
+  const AVersion, ABinPath: string;
+  var AResult: TActivationResult
+): Boolean;
 var
   EnvDir, ScriptPath: string;
 begin

@@ -11,7 +11,8 @@ program test_fpc_show;
 }
 
 uses
-  SysUtils, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.fpc;
+  SysUtils, test_config_isolation, Classes, fpdev.command.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.fpc.manager,
+  test_temp_paths;
 
 var
   TestInstallRoot: string;
@@ -38,13 +39,33 @@ begin
   AssertTrue(not ACondition, AMessage);
 end;
 
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Config manager uses isolated config path');
+  WriteLn('==================================================');
+
+  ConfigPath := ExpandFileName(ConfigManager.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  AssertTrue(Pos(TempRoot, ConfigPath) = 1,
+    'Config path should live under system temp root');
+  AssertTrue(ConfigPath = ExpectedPath,
+    'Config path should use isolated default override');
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
   SettingsMgr: ISettingsManager;
 begin
-  TestInstallRoot := 'test_show_root_' + IntToStr(GetTickCount64);
-  ForceDirectories(TestInstallRoot);
+  TestInstallRoot := CreateUniqueTempDir('test_show_root');
 
   SettingsMgr := ConfigManager.GetSettingsManager;
   Settings := SettingsMgr.GetSettings;
@@ -55,32 +76,10 @@ begin
 end;
 
 procedure TeardownTestEnvironment;
-  procedure DeleteDirectory(const DirPath: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if not DirectoryExists(DirPath) then Exit;
-    if FindFirst(DirPath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') then
-        begin
-          FilePath := DirPath + PathDelim + SR.Name;
-          if (SR.Attr and faDirectory) <> 0 then
-            DeleteDirectory(FilePath)
-          else
-            DeleteFile(FilePath);
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-    RemoveDir(DirPath);
-  end;
 begin
   if DirectoryExists(TestInstallRoot) then
   begin
-    DeleteDirectory(TestInstallRoot);
+    CleanupTempDir(TestInstallRoot);
     WriteLn('[Teardown] Deleted test directory: ', TestInstallRoot);
   end;
 end;
@@ -151,9 +150,9 @@ begin
   WriteLn;
 
   try
-    ConfigManager := TConfigManager.Create('');
-    if not ConfigManager.LoadConfig then
-      ConfigManager.CreateDefaultConfig;
+    ConfigManager := CreateIsolatedConfigManager;
+
+    TestConfigManagerUsesIsolatedDefaultConfigPath;
 
     SetupTestEnvironment;
     try

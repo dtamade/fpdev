@@ -355,10 +355,13 @@ begin
 end;
 
 function TGitManager.Commit(const ARepoDir, AMessage: string): Boolean;
+var
+  CommitMessage: string;
 begin
-  if AMessage = '' then
-    AMessage := 'update index.json';
-  Result := ExecuteGitParams(['commit', '-m', AMessage], ARepoDir);
+  CommitMessage := AMessage;
+  if CommitMessage = '' then
+    CommitMessage := 'update index.json';
+  Result := ExecuteGitParams(['commit', '-m', CommitMessage], ARepoDir);
 end;
 
 function TGitManager.Push(const ARepoDir: string; const ARemote: string; const ABranch: string): Boolean;

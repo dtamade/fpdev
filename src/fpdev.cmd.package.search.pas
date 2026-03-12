@@ -23,7 +23,7 @@ interface
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.exitcodes;
 
 type
@@ -67,7 +67,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 { TPackageSearchCommand }
 
@@ -112,6 +112,7 @@ var
   Versions: TStringList;
   I: Integer;
   Description, Author: string;
+  VersionsText: string;
 begin
   Result := '';
 
@@ -125,24 +126,23 @@ begin
   // Get all versions
   Versions := FRegistry.GetPackageVersions(AName);
   try
-    Result := 'Package: ' + AName + LineEnding;
-    Result := Result + 'Description: ' + Description + LineEnding;
-    Result := Result + 'Author: ' + Author + LineEnding;
-    Result := Result + 'Versions: ';
+    VersionsText := _(CMD_PKG_SEARCH_INFO_NONE);
 
     if Versions.Count > 0 then
     begin
+      VersionsText := '';
       for I := 0 to Versions.Count - 1 do
       begin
-        Result := Result + Versions[I];
+        VersionsText := VersionsText + Versions[I];
         if I < Versions.Count - 1 then
-          Result := Result + ', ';
+          VersionsText := VersionsText + ', ';
       end;
-    end
-    else
-      Result := Result + 'none';
+    end;
 
-    Result := Result + LineEnding;
+    Result := _Fmt(CMD_PKG_SEARCH_INFO_PACKAGE, [AName]) + LineEnding;
+    Result := Result + _Fmt(CMD_PKG_SEARCH_INFO_DESCRIPTION, [Description]) + LineEnding;
+    Result := Result + _Fmt(CMD_PKG_SEARCH_INFO_AUTHOR, [Author]) + LineEnding;
+    Result := Result + _Fmt(CMD_PKG_SEARCH_INFO_VERSIONS, [VersionsText]) + LineEnding;
   finally
     Versions.Free;
   end;
@@ -162,7 +162,7 @@ begin
   // Initialize registry
   if not FRegistry.Initialize then
   begin
-    FLastError := 'Failed to initialize registry: ' + FRegistry.GetLastError;
+    FLastError := _Fmt(CMD_PKG_SEARCH_INIT_FAILED, [FRegistry.GetLastError]);
     Exit;
   end;
 
@@ -209,14 +209,14 @@ begin
   // Initialize registry
   if not FRegistry.Initialize then
   begin
-    FLastError := 'Failed to initialize registry: ' + FRegistry.GetLastError;
+    FLastError := _Fmt(CMD_PKG_SEARCH_INIT_FAILED, [FRegistry.GetLastError]);
     Exit;
   end;
 
   // Check if package exists
   if not FRegistry.HasPackage(AName) then
   begin
-    FLastError := 'Package not found: ' + AName;
+    FLastError := _Fmt(CMD_PKG_NOT_FOUND, [AName]);
     Exit;
   end;
 
@@ -224,7 +224,7 @@ begin
   Metadata := FRegistry.GetPackageMetadata(AName);
   if Metadata = nil then
   begin
-    FLastError := 'Failed to get package metadata: ' + FRegistry.GetLastError;
+    FLastError := _Fmt(CMD_PKG_SEARCH_META_FAILED, [FRegistry.GetLastError]);
     Exit;
   end;
 
@@ -255,14 +255,16 @@ function TPackageSearchCmd.Execute(const AParams: array of string; const Ctx: IC
 var
   LMgr: TPackageManager;
   Q: string;
+  Arg: string;
   LJsonOutput: Boolean;
   LSearch: TPackageSearchCommand;
   LResults: TStringList;
   LJson: TJSONObject;
   LArr: TJSONArray;
+  UnknownOption: string;
   I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -273,20 +275,29 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_EXAMPLE));
     Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_HELP));
     Exit(EXIT_OK);
   end;
 
   LJsonOutput := HasFlag(AParams, 'json');
+  if FindUnknownOption(AParams, ['--json'], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
 
   // Get query (first non-flag argument)
   Q := '';
   for I := 0 to High(AParams) do
     if (AParams[I] <> '') and (AParams[I][1] <> '-') then
     begin
-      Q := AParams[I];
-      Break;
+      Arg := Trim(AParams[I]);
+      if Arg <> '' then
+      begin
+        Q := Arg;
+        Break;
+      end;
     end;
 
   if Q = '' then

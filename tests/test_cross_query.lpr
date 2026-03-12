@@ -3,14 +3,23 @@ program test_cross_query;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, test_config_isolation, test_temp_paths, Classes,
   fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.cmd.cross.query;
+  fpdev.cross.query, fpdev.utils.fs;
 
 var
   PassCount: Integer = 0;
   FailCount: Integer = 0;
   TestName: string;
+  GTestInstallRoot: string = '';
+
+function GetTestInstallRoot: string;
+begin
+  if GTestInstallRoot = '' then
+    GTestInstallRoot := CreateUniqueTempDir('fpdev-cross-query');
+  Result := GTestInstallRoot;
+end;
+
 
 procedure StartTest(const AName: string);
 begin
@@ -30,20 +39,40 @@ begin
   Inc(FailCount);
 end;
 
+procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
+var
+  Config: IConfigManager;
+  ConfigPath: string;
+  TempRoot: string;
+  ExpectedPath: string;
+begin
+  Config := CreateIsolatedConfigManager;
+  ConfigPath := ExpandFileName(Config.GetConfigPath);
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
+
+  StartTest('Config path uses system temp root');
+  if Pos(TempRoot, ConfigPath) = 1 then Pass
+  else Fail('Expected temp root ' + TempRoot + ', got ' + ConfigPath);
+
+  StartTest('Config path uses isolated default override');
+  if ConfigPath = ExpectedPath then Pass
+  else Fail('Expected ' + ExpectedPath + ', got ' + ConfigPath);
+end;
+
 procedure TestGetTargetInstallPath;
 var
   Query: TCrossTargetQuery;
   Config: IConfigManager;
   Path: string;
 begin
-  Config := TConfigManager.Create('');
-  Config.LoadConfig;
-  Query := TCrossTargetQuery.Create(Config, nil, '/tmp/fpdev-test');
+  Config := CreateIsolatedConfigManager;
+  Query := TCrossTargetQuery.Create(Config, nil, GetTestInstallRoot);
   try
     StartTest('GetTargetInstallPath returns correct path');
     Path := Query.GetTargetInstallPath('win64');
-    if Pos('/tmp/fpdev-test', Path) > 0 then Pass
-    else Fail('Expected /tmp/fpdev-test in path');
+    if Pos(GetTestInstallRoot, Path) > 0 then Pass
+    else Fail('Expected ' + GetTestInstallRoot + ' in path');
 
     StartTest('GetTargetInstallPath includes cross subdirectory');
     if Pos('cross', Path) > 0 then Pass
@@ -62,9 +91,8 @@ var
   Query: TCrossTargetQuery;
   Config: IConfigManager;
 begin
-  Config := TConfigManager.Create('');
-  Config.LoadConfig;
-  Query := TCrossTargetQuery.Create(Config, nil, '/tmp/fpdev-test');
+  Config := CreateIsolatedConfigManager;
+  Query := TCrossTargetQuery.Create(Config, nil, GetTestInstallRoot);
   try
     StartTest('ValidateTarget returns true for x86_64-win64');
     if Query.ValidateTarget('x86_64-win64') then Pass
@@ -92,9 +120,8 @@ var
   Config: IConfigManager;
   Info: TCrossTargetQueryInfo;
 begin
-  Config := TConfigManager.Create('');
-  Config.LoadConfig;
-  Query := TCrossTargetQuery.Create(Config, nil, '/tmp/fpdev-test');
+  Config := CreateIsolatedConfigManager;
+  Query := TCrossTargetQuery.Create(Config, nil, GetTestInstallRoot);
   try
     StartTest('GetTargetInfo returns valid info for x86_64-win64');
     Info := Query.GetTargetInfo('x86_64-win64');
@@ -123,9 +150,8 @@ var
   Config: IConfigManager;
   Targets: TCrossTargetQueryArray;
 begin
-  Config := TConfigManager.Create('');
-  Config.LoadConfig;
-  Query := TCrossTargetQuery.Create(Config, nil, '/tmp/fpdev-test');
+  Config := CreateIsolatedConfigManager;
+  Query := TCrossTargetQuery.Create(Config, nil, GetTestInstallRoot);
   try
     StartTest('GetAvailableTargets returns non-empty array');
     Targets := Query.GetAvailableTargets;
@@ -146,9 +172,8 @@ var
   Config: IConfigManager;
   Targets: TCrossTargetQueryArray;
 begin
-  Config := TConfigManager.Create('');
-  Config.LoadConfig;
-  Query := TCrossTargetQuery.Create(Config, nil, '/tmp/fpdev-test');
+  Config := CreateIsolatedConfigManager;
+  Query := TCrossTargetQuery.Create(Config, nil, GetTestInstallRoot);
   try
     StartTest('GetInstalledTargets returns array (may be empty)');
     Targets := Query.GetInstalledTargets;
@@ -164,6 +189,15 @@ begin
   WriteLn('========================================');
   WriteLn('Cross Query Helper Unit Tests');
   WriteLn('========================================');
+  WriteLn;
+
+  StartTest('Test install root lives under system temp');
+  if PathUsesSystemTempRoot(GetTestInstallRoot) then Pass
+  else Fail('Expected temp root, got ' + ExpandFileName(GetTestInstallRoot));
+  WriteLn;
+
+  WriteLn('[0] Config Isolation Tests');
+  TestConfigManagerUsesIsolatedDefaultConfigPath;
   WriteLn;
 
   WriteLn('[1] GetTargetInstallPath Tests');
@@ -193,6 +227,8 @@ begin
   WriteLn('Passed:  ', PassCount);
   WriteLn('Failed:  ', FailCount);
   WriteLn;
+
+  CleanupTempDir(GTestInstallRoot);
 
   if FailCount = 0 then
     WriteLn('All tests passed!')

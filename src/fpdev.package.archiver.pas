@@ -28,6 +28,15 @@ uses
   SysUtils, Classes, StrUtils, Process;
 
 type
+  TPackageArchiverErrorCode = (
+    paecNone,
+    paecNoSourceFiles,
+    paecIgnoreFileLoadFailed,
+    paecTarCommandFailed,
+    paecArchiveNotCreated,
+    paecTarExecutionFailed
+  );
+
   { TPackageArchiver }
   TPackageArchiver = class
   private
@@ -37,6 +46,7 @@ type
     FChecksum: string;
     FIgnorePatterns: TStringList;
     FLastError: string;
+    FLastErrorCode: TPackageArchiverErrorCode;
 
     function LoadIgnorePatterns: Boolean;
     function MatchesIgnorePattern(const AFilePath: string): Boolean;
@@ -58,6 +68,7 @@ type
 
     { Get last error message }
     function GetLastError: string;
+    function GetLastErrorCode: TPackageArchiverErrorCode;
 
     property SourceDir: string read FSourceDir;
     property OutputFile: string read FOutputFile;
@@ -78,6 +89,7 @@ begin
   FOutputFile := '';
   FChecksum := '';
   FLastError := '';
+  FLastErrorCode := paecNone;
   FIgnorePatterns := TStringList.Create;
   LoadIgnorePatterns;
 end;
@@ -104,6 +116,7 @@ begin
       on E: Exception do
       begin
         FLastError := 'Failed to load .fpdevignore: ' + E.Message;
+        FLastErrorCode := paecIgnoreFileLoadFailed;
         Result := False;
       end;
     end;
@@ -228,6 +241,7 @@ begin
   FOutputFile := ExpandFileName(AOutputFile);
   FChecksum := '';
   FLastError := '';
+  FLastErrorCode := paecNone;
 
   // Collect all source files
   Files := DetectSourceFiles(True);
@@ -235,6 +249,7 @@ begin
     if Files.Count = 0 then
     begin
       FLastError := 'No source files found to archive';
+      FLastErrorCode := paecNoSourceFiles;
       Exit;
     end;
 
@@ -264,9 +279,15 @@ begin
         if not Result then
         begin
           if ExitCode <> 0 then
-            FLastError := Format('tar command failed with exit code %d', [ExitCode])
+          begin
+            FLastError := Format('tar command failed with exit code %d', [ExitCode]);
+            FLastErrorCode := paecTarCommandFailed;
+          end
           else
+          begin
             FLastError := 'Archive file was not created';
+            FLastErrorCode := paecArchiveNotCreated;
+          end;
         end
         else
         begin
@@ -277,6 +298,7 @@ begin
         on E: Exception do
         begin
           FLastError := 'Failed to execute tar command: ' + E.Message;
+          FLastErrorCode := paecTarExecutionFailed;
           Result := False;
         end;
       end;
@@ -296,6 +318,11 @@ end;
 function TPackageArchiver.GetLastError: string;
 begin
   Result := FLastError;
+end;
+
+function TPackageArchiver.GetLastErrorCode: TPackageArchiverErrorCode;
+begin
+  Result := FLastErrorCode;
 end;
 
 end.

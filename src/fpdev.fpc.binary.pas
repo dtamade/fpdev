@@ -1,6 +1,7 @@
 unit fpdev.fpc.binary;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 

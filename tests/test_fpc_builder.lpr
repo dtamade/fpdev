@@ -4,13 +4,13 @@ program test_fpc_builder;
 
 {
   Unit tests for TFPCBuilder
-  
+
   Tests:
   - DownloadSource: Downloads FPC source from Git repository
   - BuildFromSource: Builds FPC from source code
   - UpdateSources: Updates FPC source from remote repository
   - CleanSources: Cleans build artifacts from source directory
-  
+
   Note: These tests use mock implementations for file system and process runner
   to avoid dependency on real Git and make commands.
 }
@@ -29,12 +29,19 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+function BuildTempRoot(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + IntToStr(GetTickCount64);
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_builder_root_' + IntToStr(GetTickCount64);
+  if TestInstallRoot = '' then
+    TestInstallRoot := BuildTempRoot('test_builder_root_');
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
@@ -126,6 +133,22 @@ begin
   end;
 end;
 
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  AssertTrue(Pos(TempRoot, ExpandFileName(TestInstallRoot)) = 1,
+    'Test install root should live under system temp');
+  AssertTrue(Pos(TempRoot, ExpandFileName(ConfigManager.ConfigPath)) = 1,
+    'Config path should live under system temp');
+end;
+
 procedure ResetMocks;
 begin
   MockFileSystem.Clear;
@@ -145,10 +168,10 @@ begin
 
   ResetMocks;
   TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
-  
+
   // Setup mock: git clone succeeds
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
-  
+
   Result := Builder.DownloadSource('3.2.2', TargetDir);
 
   AssertTrue(Result.Success, 'DownloadSource should succeed');
@@ -170,7 +193,7 @@ begin
 
   ResetMocks;
   TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-invalid';
-  
+
   // Version 'invalid' should not have a valid Git tag
   Result := Builder.DownloadSource('invalid', TargetDir);
 
@@ -191,10 +214,10 @@ begin
 
   ResetMocks;
   TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
-  
+
   // Setup mock: git clone fails
   MockProcessRunner.SetResult('git', 128, '', 'fatal: repository not found');
-  
+
   Result := Builder.DownloadSource('3.2.2', TargetDir);
 
   AssertFalse(Result.Success, 'DownloadSource should fail when git fails');
@@ -216,11 +239,11 @@ begin
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock: source directory exists, make succeeds
   MockFileSystem.AddDirectory(SourceDir);
   MockProcessRunner.SetResult('make', 0, 'Build complete', '');
-  
+
   Result := Builder.BuildFromSource(SourceDir, InstallDir);
 
   AssertTrue(Result.Success, 'BuildFromSource should succeed');
@@ -242,9 +265,9 @@ begin
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'nonexistent';
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Source directory does not exist (not added to mock)
-  
+
   Result := Builder.BuildFromSource(SourceDir, InstallDir);
 
   AssertFalse(Result.Success, 'BuildFromSource should fail when source does not exist');
@@ -266,11 +289,11 @@ begin
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
   InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
-  
+
   // Setup mock: source directory exists, make fails
   MockFileSystem.AddDirectory(SourceDir);
   MockProcessRunner.SetResult('make', 2, '', 'Error: compilation failed');
-  
+
   Result := Builder.BuildFromSource(SourceDir, InstallDir);
 
   AssertFalse(Result.Success, 'BuildFromSource should fail when make fails');
@@ -292,12 +315,12 @@ begin
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
   GitDir := SourceDir + PathDelim + '.git';
-  
+
   // Setup mock: source directory and .git exist, git commands succeed
   MockFileSystem.AddDirectory(SourceDir);
   MockFileSystem.AddDirectory(GitDir);
   MockProcessRunner.SetResult('git', 0, 'origin', '');  // git remote returns origin
-  
+
   Result := Builder.UpdateSources('3.2.2');
 
   AssertTrue(Result.Success, 'UpdateSources should succeed');
@@ -317,11 +340,11 @@ begin
 
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
-  
+
   // Setup mock: source directory exists but no .git
   MockFileSystem.AddDirectory(SourceDir);
   // .git directory NOT added
-  
+
   Result := Builder.UpdateSources('3.2.2');
 
   AssertFalse(Result.Success, 'UpdateSources should fail when not a git repo');
@@ -342,10 +365,10 @@ begin
 
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
-  
+
   // Setup mock: source directory exists
   MockFileSystem.AddDirectory(SourceDir);
-  
+
   Result := Builder.CleanSources('3.2.2');
 
   AssertTrue(Result.Success, 'CleanSources should succeed');
@@ -364,7 +387,7 @@ begin
 
   ResetMocks;
   // Source directory does not exist (not added to mock)
-  
+
   Result := Builder.CleanSources('nonexistent');
 
   AssertFalse(Result.Success, 'CleanSources should fail when directory does not exist');
@@ -397,15 +420,15 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  
+
   // Test ecVersionNotFound
   Result := Builder.DownloadSource('invalid_version_xyz', '/tmp/test');
   AssertEquals(Ord(ecVersionNotFound), Ord(Result.ErrorCode), 'Invalid version should return ecVersionNotFound');
-  
+
   // Test ecBuildFailed for missing source
   Result := Builder.BuildFromSource('/nonexistent/path', '/tmp/install');
   AssertEquals(Ord(ecBuildFailed), Ord(Result.ErrorCode), 'Missing source should return ecBuildFailed');
-  
+
   // Test ecFileSystemError for missing source in CleanSources
   Result := Builder.CleanSources('nonexistent_version');
   AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode), 'Missing source in CleanSources should return ecFileSystemError');
@@ -419,7 +442,9 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TFPDevConfigManager.Create;
+    TestInstallRoot := BuildTempRoot('test_builder_root_');
+    ForceDirectories(TestInstallRoot);
+    ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestInstallRoot) + 'config.json');
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;
@@ -427,13 +452,14 @@ begin
       // Setup test environment
       SetupTestEnvironment;
       try
+        TestTempPathsUseSystemTempRoot;
         // Create version manager
         VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;
           MockProcessRunner := TMockProcessRunner.Create;
-          
+
           // Create builder with mock dependencies
           Builder := TFPCBuilder.Create(VersionManager, ConfigManager,
             MockFileSystem, MockProcessRunner);

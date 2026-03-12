@@ -17,7 +17,11 @@ type
     FErr: IOutput;
     FLogger: ILogger;
   public
-    constructor Create;
+    constructor Create(
+      const AConfigPath: string = '';
+      const AOut: IOutput = nil;
+      const AErr: IOutput = nil
+    );
     destructor Destroy; override;
     function Config: IConfigManager;
     function Out: IOutput;
@@ -30,14 +34,24 @@ implementation
 
 { TDefaultCommandContext }
 
-constructor TDefaultCommandContext.Create;
+constructor TDefaultCommandContext.Create(
+  const AConfigPath: string;
+  const AOut: IOutput;
+  const AErr: IOutput
+);
 begin
   inherited Create;
-  FConfig := TConfigManager.Create('') as IConfigManager;
+  FConfig := TConfigManager.Create(AConfigPath) as IConfigManager;
   FConfig.LoadConfig;
 
-  FOut := TConsoleOutput.Create(False) as IOutput;
-  FErr := TConsoleOutput.Create(True) as IOutput;
+  FOut := AOut;
+  if FOut = nil then
+    FOut := TConsoleOutput.Create(False) as IOutput;
+
+  FErr := AErr;
+  if FErr = nil then
+    FErr := TConsoleOutput.Create(True) as IOutput;
+
   FLogger := TConsoleLogger.Create(FErr) as ILogger;
 end;
 
@@ -76,4 +90,3 @@ begin
 end;
 
 end.
-

@@ -15,6 +15,7 @@ const
   MAX_RETRY_COUNT = 3;
   RETRY_DELAYS: array[0..2] of Integer = (1000, 2000, 4000); // Exponential backoff
   MANIFEST_UPDATE_DAYS = 7; // Manifest update check interval in days
+  HOST_PLATFORM_SEPARATOR = '/';
 
 type
   { TCacheMode - Cache operation mode }
@@ -291,7 +292,10 @@ begin
   {$ENDIF}
 end;
 
-function TCrossToolchainDownloader.SelectToolchainVariant(const ATarget: string; const AHost: THostPlatform): TCrossToolchainEntry;
+function TCrossToolchainDownloader.SelectToolchainVariant(
+  const ATarget: string;
+  const AHost: THostPlatform
+): TCrossToolchainEntry;
 begin
   Result := FManifest.FindEntry(ATarget, 'binutils', AHost);
 end;
@@ -306,7 +310,10 @@ begin
   Result := Entry.Target <> '';
 end;
 
-function TCrossToolchainDownloader.DownloadWithRetry(const AURLs: TStringDynArray; const ADestFile, ASHA256: string): Boolean;
+function TCrossToolchainDownloader.DownloadWithRetry(
+  const AURLs: TStringDynArray;
+  const ADestFile, ASHA256: string
+): Boolean;
 var
   Retry, MirrorIdx: Integer;
   Progress: TDownloadProgress;
@@ -381,12 +388,13 @@ begin
   
   if Entry.Target = '' then
   begin
-    FLastError := 'No binutils available for target ' + ATarget + ' on ' + Host.OS + '/' + Host.Arch;
+    FLastError := 'No binutils available for target ' + ATarget + ' on ' +
+      Host.OS + HOST_PLATFORM_SEPARATOR + Host.Arch;
     Exit;
   end;
   
   // Check cache first (unless refresh mode)
-  if (FOptions.CacheMode <> cmRefresh) and 
+  if (FOptions.CacheMode <> cmRefresh) and
      FCache.HasValidCache(ATarget, 'binutils', Entry.SHA256) then
   begin
     CachePath := FCache.GetCachedArchive(ATarget, 'binutils');
@@ -452,12 +460,13 @@ begin
   
   if Entry.Target = '' then
   begin
-    FLastError := 'No libraries available for target ' + ATarget + ' on ' + Host.OS + '/' + Host.Arch;
+    FLastError := 'No libraries available for target ' + ATarget + ' on ' +
+      Host.OS + HOST_PLATFORM_SEPARATOR + Host.Arch;
     Exit;
   end;
   
   // Check cache first (unless refresh mode)
-  if (FOptions.CacheMode <> cmRefresh) and 
+  if (FOptions.CacheMode <> cmRefresh) and
      FCache.HasValidCache(ATarget, 'libraries', Entry.SHA256) then
   begin
     CachePath := FCache.GetCachedArchive(ATarget, 'libraries');
@@ -634,7 +643,10 @@ begin
   end;
 end;
 
-procedure TCrossToolchainDownloader.UpdateVerificationMetadata(const ATarget, AVersion, ASHA256: string; AVerified: Boolean);
+procedure TCrossToolchainDownloader.UpdateVerificationMetadata(
+  const ATarget, AVersion, ASHA256: string;
+  AVerified: Boolean
+);
 var
   MetaPath, InstallDir: string;
   MetaJSON: TJSONObject;

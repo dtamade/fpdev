@@ -61,7 +61,7 @@ end;
 
 procedure TestTemplateAliasRegistered;
 begin
-  Check(HasSubcommand(['project'], 'tpl'), 'project tpl: alias registered');
+  Check(not HasSubcommand(['project'], 'tpl'), 'project tpl alias removed');
 end;
 
 { --- Subcommand Registration Tests --- }
@@ -73,7 +73,7 @@ end;
 
 procedure TestTemplateListAliasRegistered;
 begin
-  Check(HasSubcommand(['project','template'], 'ls'), 'project template ls: alias registered');
+  Check(not HasSubcommand(['project','template'], 'ls'), 'project template ls alias removed');
 end;
 
 procedure TestTemplateInstallRegistered;
@@ -88,7 +88,7 @@ end;
 
 procedure TestTemplateRemoveAliasRegistered;
 begin
-  Check(HasSubcommand(['project','template'], 'rm'), 'project template rm: alias registered');
+  Check(not HasSubcommand(['project','template'], 'rm'), 'project template rm alias removed');
 end;
 
 procedure TestTemplateUpdateRegistered;

@@ -15,8 +15,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.config.interfaces, fpdev.cmd.fpc, fpdev.fpc.activation,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.paths, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.config.interfaces, fpdev.fpc.manager, fpdev.fpc.activation,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
   { TFPCUseCommand }
@@ -29,15 +29,13 @@ type
   end;
 
 implementation
-uses fpdev.command.registry, fpdev.cmd.utils, fpdev.config.project;
+uses fpdev.command.registry, fpdev.command.utils, fpdev.config.project;
 
 function TFPCUseCommand.Name: string; begin Result := 'use'; end;
 
 function TFPCUseCommand.Aliases: TStringArray;
 begin
   Result := nil;
-  SetLength(Result, 1);
-  Result[0] := 'default';
 end;
 
 function TFPCUseCommand.FindSub(const AName: string): ICommand;
@@ -55,19 +53,26 @@ end;
 function GuessInstalled(const AVer: string; const Ctx: IContext): Boolean;
 var
   LInfo: TToolchainInfo;
+  LMgr: TFPCManager;
+  InstallPath: string;
   LExe: string;
 begin
   // First check if registered in config
   if Ctx.Config.GetToolchainManager.GetToolchain('fpc-' + AVer, LInfo) then Exit(True);
 
-  // Use GetToolchainsDir() for consistent path with installer
-  // Path: ~/.fpdev/toolchains/fpc/<version>/bin/fpc
-  {$IFDEF MSWINDOWS}
-  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-  {$ELSE}
-  LExe := GetToolchainsDir + PathDelim + 'fpc' + PathDelim + AVer + PathDelim + 'bin' + PathDelim + 'fpc';
-  {$ENDIF}
-  Result := FileExists(LExe);
+  // Fallback: check resolved install path (respects project scope + install_root)
+  LMgr := TFPCManager.Create(Ctx.Config);
+  try
+    InstallPath := LMgr.GetVersionInstallPath(AVer);
+    {$IFDEF MSWINDOWS}
+    LExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    LExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    Result := FileExists(LExe);
+  finally
+    LMgr.Free;
+  end;
 end;
 
 
@@ -125,7 +130,7 @@ begin
         Ctx.Err.WriteLn('');
         Ctx.Err.WriteLn('Usage: fpdev fpc use <version>');
         Ctx.Err.WriteLn('');
-        Ctx.Err.WriteLn('Or set a default: fpdev default fpc <version>');
+        Ctx.Err.WriteLn('Or set a global fallback with: fpdev fpc use <version>');
         Ctx.Err.WriteLn('Or create a .fpdevrc file in your project.');
         Exit(EXIT_USAGE_ERROR);
       end;
@@ -220,7 +225,7 @@ end;
 
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['fpc','use'], @FPCUseFactory, ['default']);
+  GlobalCommandRegistry.RegisterPath(['fpc','use'], @FPCUseFactory, []);
 
 end.
 

@@ -1,12 +1,16 @@
 unit fpdev.build.manager;
 
 {$mode objfpc}{$H+}
+// acq:allow-style-file
+// acq:allow-hardcoded-constants-file
 
 interface
 
 uses
-  SysUtils, Classes, fpdev.build.config, fpdev.build.logger, fpdev.build.toolchain,
-  fpdev.build.cache.types, fpdev.build.interfaces, fpdev.perf.monitor;
+  SysUtils, Classes, fpdev.build.config, fpdev.build.logger, fpdev.build.makeflow,
+  fpdev.build.toolchain, fpdev.build.cache.types, fpdev.build.interfaces,
+  fpdev.build.packageselection,
+  fpdev.perf.monitor;
 
 type
   { TBuildManager }
@@ -42,17 +46,23 @@ type
     function HasTool(const AExe: string; const AArgs: array of string): Boolean;
     function ResolveMakeCmd: string;
     function RunMake(const ASourcePath: string; const ATargets: array of string): Boolean;
+    function RunMakeTargets(const ASourcePath: string; const ATargets: TBuildMakeTargetArray): Boolean;
     procedure Log(const ALine: string);
     procedure EnsureDir(const APath: string);
     function GetLogFileName: string;
-    function DirHasAnyFile(const APath: string): Boolean;
-    function DirHasAnySubdir(const APath: string): Boolean;
-    function HasFileLike(const ADir: string; const APrefixes: array of string; const AExts: array of string): Boolean;
     procedure LogDirSample(const ADir: string; ALimit: Integer);
     procedure LogEnvSnapshot;
     function ApplyStrictConfig(const ASandboxDest: string): Boolean;
     function CanWriteDir(const APath: string): Boolean;
     procedure LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
+    procedure SetCurrentStepValue(AStep: TBuildStep);
+    procedure StartPerfOperation(const AOperation, ACategory: string);
+    procedure SetPerfMetadata(const AOperation, AMetadata: string);
+    procedure EndPerfOperation(const AOperation: string; ASuccess: Boolean);
+    function DetectMakeAvailable: Boolean;
+    function RunPreflightPolicyCheck(const AVersion: string; out AStatus, AReason,
+      AMin, ARecommended, ACurrentFpcVersion: string): Boolean;
+    function BuildToolchainReportJSONValue: string;
   public
     constructor Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
     destructor Destroy; override;
@@ -108,7 +118,14 @@ type
 implementation
 
 uses
-  Process, IniFiles, DateUtils, StrUtils, fpdev.toolchain;
+  Process, DateUtils, fpdev.toolchain, fpdev.build.probe,
+  fpdev.build.fullbuildflow, fpdev.build.preflight, fpdev.build.preflightflow,
+  fpdev.build.pipeline, fpdev.build.strict, fpdev.build.testresultsflow;
+
+function BuildManagerDirectoryExists(const APath: string): Boolean;
+begin
+  Result := DirectoryExists(APath);
+end;
 
 constructor TBuildManager.Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
 begin
@@ -198,62 +215,6 @@ begin
   Log('ToolchainStrict set to ' + BoolToStr(FToolchainStrict, True));
 end;
 
-function TBuildManager.DirHasAnyFile(const APath: string): Boolean;
-var
-  SR: TSearchRec;
-begin
-  Result := False;
-  if not DirectoryExists(APath) then Exit(False);
-  if FindFirst(IncludeTrailingPathDelimiter(APath) + '*.*', faAnyFile - faDirectory, SR) = 0 then
-  begin
-    Result := True;
-    FindClose(SR);
-  end;
-end;
-
-function TBuildManager.DirHasAnySubdir(const APath: string): Boolean;
-var
-  SR: TSearchRec;
-begin
-  Result := False;
-  if not DirectoryExists(APath) then Exit(False);
-  if FindFirst(IncludeTrailingPathDelimiter(APath) + '*', faDirectory, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
-      begin
-        Result := True;
-        Break;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-end;
-
-function TBuildManager.HasFileLike(const ADir: string; const APrefixes: array of string; const AExts: array of string): Boolean;
-var
-  SR: TSearchRec;
-  i, j: Integer;
-  LName: string;
-begin
-  Result := False;
-  if not DirectoryExists(ADir) then Exit(False);
-  if FindFirst(IncludeTrailingPathDelimiter(ADir) + '*.*', faAnyFile - faDirectory, SR) = 0 then
-  begin
-    repeat
-      LName := LowerCase(SR.Name);
-      for i := Low(APrefixes) to High(APrefixes) do
-        for j := Low(AExts) to High(AExts) do
-          if (Pos(LowerCase(APrefixes[i]), LName) = 1) and (ExtractFileExt(LName) = LowerCase(AExts[j])) then
-          begin
-            Result := True;
-            Break;
-          end;
-    until Result or (FindNext(SR) <> 0);
-    FindClose(SR);
-  end;
-end;
-
 procedure TBuildManager.LogDirSample(const ADir: string; ALimit: Integer);
 begin
   // Delegate to logger service
@@ -269,212 +230,19 @@ end;
 function TBuildManager.ApplyStrictConfig(const ASandboxDest: string): Boolean;
 var
   LIniPath: string;
-  Ini: TIniFile;
-  LBin, LLib: string;
-  LReqPrefix, LReqExt: TStringList;
-  LMinCountBin, LMinCountLib: Integer;
-  LRequireSubdir: Boolean;
-  // added non-inline locals
-  LDemoPath: string;
-  LSandboxCfg: string;
-  LShareRequired: Boolean;
-  LShareMin: Integer;
-  LShareRequireSubdir: Boolean;
-  LShareReqSub: string;
-  LShare: string;
-  LHasCfg: Boolean;
-  LRequireCfg: Boolean;
-  LCfgFound: string;
-  k: Integer;
-  SR: TSearchRec;
-  LCfgList: TStringList;
-  LRel, LFull: string;
-  LIncRel: string;
-  LIncRequired: Boolean;
-  LIncMin: Integer;
-  LIncRequireSubdir: Boolean;
-  LIncReqSub: string;
-  LIncDir: string;
-  LDocRel: string;
-  LDocRequired: Boolean;
-  LDocMin: Integer;
-  LDocRequireSubdir: Boolean;
-  LDocReqSub: string;
-  LDocDir: string;
-  function ReadCSV(const S: string): TStringList;
-  var L: TStringList;
-  begin
-    L := TStringList.Create;
-    L.Delimiter := ',';
-    L.StrictDelimiter := True;
-    L.DelimitedText := StringReplace(S, ' ', '', [rfReplaceAll]);
-    Result := L;
-  end;
 begin
-  Result := True;
-  // Resolve strict config path with first-match priority
-  LIniPath := '';
-  if (FStrictConfigPath <> '') and FileExists(FStrictConfigPath) then
-    LIniPath := FStrictConfigPath;
-  if (LIniPath = '') then
-  begin
-    if FileExists('build-manager.strict.ini') then
-      LIniPath := 'build-manager.strict.ini';
-  end;
-  if (LIniPath = '') then
-  begin
-    LDemoPath := IncludeTrailingPathDelimiter('plays') + 'fpdev.build.manager.demo' + PathDelim + 'build-manager.strict.ini';
-    if FileExists(LDemoPath) then
-      LIniPath := LDemoPath;
-  end;
-  if (LIniPath = '') then
-  begin
-    LSandboxCfg := IncludeTrailingPathDelimiter(ASandboxDest) + 'build-manager.strict.ini';
-    if FileExists(LSandboxCfg) then
-      LIniPath := LSandboxCfg;
-  end;
-  if (LIniPath = '') then Exit(True);
+  LIniPath := BuildManagerResolveStrictConfigPathCore(FStrictConfigPath, ASandboxDest);
+  if LIniPath = '' then
+    Exit(True);
+
   Log('Strict config detected: ' + LIniPath);
-  Ini := TIniFile.Create(LIniPath);
-  LReqPrefix := nil; LReqExt := nil;
-  try
-    LBin := IncludeTrailingPathDelimiter(ASandboxDest) + 'bin';
-    LLib := IncludeTrailingPathDelimiter(ASandboxDest) + 'lib';
-    // bin rules
-    LMinCountBin := Ini.ReadInteger('bin', 'min_count', 1);
-    LReqPrefix := ReadCSV(Ini.ReadString('bin', 'required_prefix', 'fpc,ppc'));
-    LReqExt := ReadCSV(Ini.ReadString('bin', 'required_ext', '.exe,.sh,'));
-    if DirectoryExists(LBin) then
-    begin
-      if LMinCountBin > 0 then
-      begin
-        if not DirHasAnyFile(LBin) then begin Log('FAIL: [bin] no files'); Exit(False); end;
-      end;
-      if not HasFileLike(LBin, LReqPrefix.ToStringArray, LReqExt.ToStringArray) then
-      begin
-        Log('FAIL: [bin] missing required executable (prefix/ext)');
-        if FLogger.Verbosity > 0 then
-        begin
-          Log('hint: [bin] required_prefix=' + StringReplace(Ini.ReadString('bin','required_prefix','fpc,ppc'), ' ', '', [rfReplaceAll]));
-          Log('hint: [bin] required_ext=' + StringReplace(Ini.ReadString('bin','required_ext','.exe,.sh,'), ' ', '', [rfReplaceAll]));
-          Log('hint: [bin] sample:');
-          LogDirSample(LBin, 20);
-        end;
-        Exit(False);
-      end;
-    end
-    else begin Log('FAIL: [bin] directory not found: ' + LBin); Exit(False); end;
-    // lib rules
-    LMinCountLib := Ini.ReadInteger('lib', 'min_count', 1);
-    LRequireSubdir := Ini.ReadBool('lib', 'require_subdir', True);
-    if DirectoryExists(LLib) then
-    begin
-      if LMinCountLib > 0 then
-      begin
-        if not DirHasAnyFile(LLib) then
-        begin
-          Log('FAIL: [lib] no files');
-          if FLogger.Verbosity > 0 then begin Log('hint: [lib] sample:'); LogDirSample(LLib, 20); end;
-          Exit(False);
-        end;
-      end;
-      if LRequireSubdir and (not DirHasAnySubdir(LLib)) then
-      begin
-        Log('FAIL: [lib] require_subdir but none found');
-        if FLogger.Verbosity > 0 then begin Log('hint: [lib] expected a subdirectory (e.g. fpc/<ver>)'); LogDirSample(LLib, 20); end;
-        Exit(False);
-      end;
-    end
-    else begin Log('FAIL: [lib] directory not found: ' + LLib); Exit(False); end;
-
-    // share rules (optional)
-    LShareRequired := Ini.ReadBool('share', 'required', False);
-    LShareMin := Ini.ReadInteger('share', 'min_count', 0);
-    LShareRequireSubdir := Ini.ReadBool('share', 'require_subdir', False);
-    LShareReqSub := Ini.ReadString('share', 'required_subdir', '');
-    LShare := IncludeTrailingPathDelimiter(ASandboxDest) + 'share';
-    if LShareRequired then
-    begin
-      if not DirectoryExists(LShare) then begin Log('FAIL: [share] directory not found: ' + LShare); if FLogger.Verbosity > 0 then Log('hint: [share] expected dir: ' + LShare); Exit(False); end;
-      if (LShareMin > 0) and (not DirHasAnyFile(LShare)) then begin Log('FAIL: [share] no files'); if FLogger.Verbosity > 0 then begin Log('hint: [share] sample:'); LogDirSample(LShare, 20); end; Exit(False); end;
-      if LShareRequireSubdir and (not DirHasAnySubdir(LShare)) then begin Log('FAIL: [share] require_subdir but none found'); if FLogger.Verbosity > 0 then begin Log('hint: [share] expected child dirs'); LogDirSample(LShare, 20); end; Exit(False); end;
-      if (LShareReqSub <> '') and (not DirectoryExists(IncludeTrailingPathDelimiter(LShare) + LShareReqSub)) then begin Log('FAIL: [share] required_subdir missing: ' + LShareReqSub); if FLogger.Verbosity > 0 then Log('hint: [share] expected subdir: ' + LShareReqSub); Exit(False); end;
-    end
-    else
-    begin
-      if DirectoryExists(LShare) and (FLogger.Verbosity > 0) then Log('info: [share] present but not required');
-    end;
-
-    // fpc.cfg rules (optional)
-    LRequireCfg := Ini.ReadBool('fpc', 'require_cfg', False);
-    LCfgList := ReadCSV(Ini.ReadString('fpc', 'cfg_relative_list', 'etc/fpc.cfg,lib/fpc/fpc.cfg'));
-    if LRequireCfg then
-    begin
-      LHasCfg := False;
-      LCfgFound := '';
-      for k := 0 to LCfgList.Count-1 do
-      begin
-        LRel := StringReplace(LCfgList[k], '/', PathDelim, [rfReplaceAll]);
-        LFull := IncludeTrailingPathDelimiter(ASandboxDest) + LRel;
-        if FileExists(LFull) then begin LHasCfg := True; LCfgFound := LFull; Break; end;
-      end;
-      if not LHasCfg then begin Log('FAIL: [fpc] missing fpc.cfg in cfg_relative_list'); if FLogger.Verbosity > 0 then begin Log('hint: [fpc] tried list=' + Ini.ReadString('fpc','cfg_relative_list','etc/fpc.cfg,lib/fpc/fpc.cfg')); Log('hint: [fpc] root=' + ASandboxDest); end; Exit(False); end;
-      // Lightweight content check: require fpc.cfg to be non-empty
-      if LCfgFound <> '' then
-      begin
-        if FindFirst(LCfgFound, faAnyFile, SR) = 0 then
-        begin
-          try
-            if SR.Size <= 0 then begin Log('FAIL: [fpc] fpc.cfg is empty: ' + LCfgFound); Exit(False); end;
-          finally
-            FindClose(SR);
-          end;
-        end;
-      end;
-    end;
-
-    // include rules (optional; relative directory configurable)
-    LIncRel := Ini.ReadString('include', 'relative_dir', 'include');
-    LIncRequired := Ini.ReadBool('include', 'required', False);
-    LIncMin := Ini.ReadInteger('include', 'min_count', 0);
-    LIncRequireSubdir := Ini.ReadBool('include', 'require_subdir', False);
-    LIncReqSub := Ini.ReadString('include', 'required_subdir', '');
-    LIncDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LIncRel, '/', PathDelim, [rfReplaceAll]);
-    if LIncRequired then
-    begin
-      if not DirectoryExists(LIncDir) then begin Log('FAIL: [include] directory not found: ' + LIncDir); if FLogger.Verbosity > 0 then Log('hint: [include] expected dir: ' + LIncDir); Exit(False); end;
-      if (LIncMin > 0) and (not DirHasAnyFile(LIncDir)) then begin Log('FAIL: [include] no files'); if FLogger.Verbosity > 0 then begin Log('hint: [include] sample:'); LogDirSample(LIncDir, 20); end; Exit(False); end;
-      if LIncRequireSubdir and (not DirHasAnySubdir(LIncDir)) then begin Log('FAIL: [include] require_subdir but none found'); if FLogger.Verbosity > 0 then begin Log('hint: [include] expected child dirs'); LogDirSample(LIncDir, 20); end; Exit(False); end;
-      if (LIncReqSub <> '') and (not DirectoryExists(IncludeTrailingPathDelimiter(LIncDir) + LIncReqSub)) then begin Log('FAIL: [include] required_subdir missing: ' + LIncReqSub); if FLogger.Verbosity > 0 then Log('hint: [include] expected subdir: ' + LIncReqSub); Exit(False); end;
-    end
-    else
-    begin
-      if DirectoryExists(LIncDir) and (FLogger.Verbosity > 0) then Log('info: [include] present but not required');
-    end;
-
-    // doc rules (optional; relative directory configurable)
-    LDocRel := Ini.ReadString('doc', 'relative_dir', 'doc');
-    LDocRequired := Ini.ReadBool('doc', 'required', False);
-    LDocMin := Ini.ReadInteger('doc', 'min_count', 0);
-    LDocRequireSubdir := Ini.ReadBool('doc', 'require_subdir', False);
-    LDocReqSub := Ini.ReadString('doc', 'required_subdir', '');
-    LDocDir := IncludeTrailingPathDelimiter(ASandboxDest) + StringReplace(LDocRel, '/', PathDelim, [rfReplaceAll]);
-    if LDocRequired then
-    begin
-      if not DirectoryExists(LDocDir) then begin Log('FAIL: [doc] directory not found: ' + LDocDir); if FLogger.Verbosity > 0 then Log('hint: [doc] expected dir: ' + LDocDir); Exit(False); end;
-      if (LDocMin > 0) and (not DirHasAnyFile(LDocDir)) then begin Log('FAIL: [doc] no files'); if FLogger.Verbosity > 0 then begin Log('hint: [doc] sample:'); LogDirSample(LDocDir, 20); end; Exit(False); end;
-      if LDocRequireSubdir and (not DirHasAnySubdir(LDocDir)) then begin Log('FAIL: [doc] require_subdir but none found'); if FLogger.Verbosity > 0 then begin Log('hint: [doc] expected child dirs'); LogDirSample(LDocDir, 20); end; Exit(False); end;
-      if (LDocReqSub <> '') and (not DirectoryExists(IncludeTrailingPathDelimiter(LDocDir) + LDocReqSub)) then begin Log('FAIL: [doc] required_subdir missing: ' + LDocReqSub); if FLogger.Verbosity > 0 then Log('hint: [doc] expected subdir: ' + LDocReqSub); Exit(False); end;
-    end
-    else
-    begin
-      if DirectoryExists(LDocDir) and (FLogger.Verbosity > 0) then Log('info: [doc] present but not required');
-    end;
-  finally
-    if Assigned(LReqPrefix) then LReqPrefix.Free;
-    if Assigned(LReqExt) then LReqExt.Free;
-    Ini.Free;
-  end;
+  Result := BuildManagerApplyStrictConfigCore(
+    LIniPath,
+    ASandboxDest,
+    FLogger.Verbosity,
+    @Log,
+    @LogDirSample
+  );
 end;
 
 function TBuildManager.GetSourcePath(const AVersion: string): string;
@@ -513,6 +281,43 @@ end;
 procedure TBuildManager.LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
 begin
   Log('Summary: version=' + AVersion + ' context=' + AContext + ' result=' + AResult + ' elapsed_ms=' + IntToStr(AElapsedMs));
+end;
+
+procedure TBuildManager.SetCurrentStepValue(AStep: TBuildStep);
+begin
+  FCurrentStep := AStep;
+end;
+
+procedure TBuildManager.StartPerfOperation(const AOperation, ACategory: string);
+begin
+  PerfMon.StartOperation(AOperation, ACategory);
+end;
+
+procedure TBuildManager.SetPerfMetadata(const AOperation, AMetadata: string);
+begin
+  PerfMon.SetMetadata(AOperation, AMetadata);
+end;
+
+procedure TBuildManager.EndPerfOperation(const AOperation: string; ASuccess: Boolean);
+begin
+  PerfMon.EndOperation(AOperation, ASuccess);
+end;
+
+function TBuildManager.DetectMakeAvailable: Boolean;
+begin
+  Result := HasTool('make', ['--version']);
+end;
+
+function TBuildManager.RunPreflightPolicyCheck(const AVersion: string;
+  out AStatus, AReason, AMin, ARecommended, ACurrentFpcVersion: string): Boolean;
+begin
+  Result := CheckFPCVersionPolicy(AVersion, AStatus, AReason, AMin,
+    ARecommended, ACurrentFpcVersion);
+end;
+
+function TBuildManager.BuildToolchainReportJSONValue: string;
+begin
+  Result := BuildToolchainReportJSON;
 end;
 
 function TBuildManager.CheckToolchain: Boolean;
@@ -814,126 +619,121 @@ begin
   end;
 end;
 
+function TBuildManager.RunMakeTargets(const ASourcePath: string; const ATargets: TBuildMakeTargetArray): Boolean;
+begin
+  Result := RunMake(ASourcePath, ATargets);
+end;
+
 function TBuildManager.BuildCompiler(const AVersion: string): Boolean;
 var
-  LSrc: string;
-  LStart: TDateTime;
-  LMs: Integer;
+  LPlan: TBuildMakeStepPlan;
 begin
-  FCurrentStep := bsCompiler;
-  LSrc := GetSourcePath(AVersion);
-  Log('== BuildCompiler START version=' + AVersion + ' src=' + LSrc);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LStart := Now;
-  PerfMon.StartOperation('BuildCompiler', 'Build');
-  PerfMon.SetMetadata('BuildCompiler', 'version=' + AVersion);
-  Result := RunMake(LSrc, ['clean','compiler']);
-  PerfMon.EndOperation('BuildCompiler', Result);
-  LMs := MilliSecondsBetween(Now, LStart);
-  if Result then Log('== BuildCompiler END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildCompiler END FAIL elapsed_ms=' + IntToStr(LMs));
+  LPlan := CreateBuildCompilerStepPlanCore(AVersion, GetSourcePath(AVersion));
+  Result := ExecuteBuildMakeStepCore(
+    LPlan,
+    FAllowInstall,
+    FLogger.Verbosity,
+    @SetCurrentStepValue,
+    @EnsureDir,
+    @RunMakeTargets,
+    @Log,
+    @LogEnvSnapshot,
+    @StartPerfOperation,
+    @SetPerfMetadata,
+    @EndPerfOperation
+  );
 end;
 
 function TBuildManager.BuildRTL(const AVersion: string): Boolean;
 var
-  LSrc: string;
-  LStart: TDateTime;
-  LMs: Integer;
+  LPlan: TBuildMakeStepPlan;
 begin
-  FCurrentStep := bsRTL;
-  LSrc := GetSourcePath(AVersion);
-  Log('== BuildRTL START version=' + AVersion + ' src=' + LSrc);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LStart := Now;
-  PerfMon.StartOperation('BuildRTL', 'Build');
-  PerfMon.SetMetadata('BuildRTL', 'version=' + AVersion);
-  Result := RunMake(LSrc, ['rtl']);
-  PerfMon.EndOperation('BuildRTL', Result);
-  LMs := MilliSecondsBetween(Now, LStart);
-  if Result then Log('== BuildRTL END OK elapsed_ms=' + IntToStr(LMs)) else Log('== BuildRTL END FAIL elapsed_ms=' + IntToStr(LMs));
+  LPlan := CreateBuildRTLStepPlanCore(AVersion, GetSourcePath(AVersion));
+  Result := ExecuteBuildMakeStepCore(
+    LPlan,
+    FAllowInstall,
+    FLogger.Verbosity,
+    @SetCurrentStepValue,
+    @EnsureDir,
+    @RunMakeTargets,
+    @Log,
+    @LogEnvSnapshot,
+    @StartPerfOperation,
+    @SetPerfMetadata,
+    @EndPerfOperation
+  );
 end;
 
 function TBuildManager.BuildPackages(const AVersion: string): Boolean;
 var
-  LSrc: string;
-  LStart: TDateTime;
-  LMs: Integer;
+  LPlan: TBuildMakeStepPlan;
 begin
-  FCurrentStep := bsPackages;
-  LSrc := GetSourcePath(AVersion);
-  Log('== BuildPackages START version=' + AVersion + ' src=' + LSrc);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LStart := Now;
-  PerfMon.StartOperation('BuildPackages', 'Build');
-  PerfMon.SetMetadata('BuildPackages', 'version=' + AVersion);
-  Result := RunMake(LSrc, ['packages']);
-  PerfMon.EndOperation('BuildPackages', Result);
-  LMs := MilliSecondsBetween(Now, LStart);
-  if Result then
-    Log('== BuildPackages END OK elapsed_ms=' + IntToStr(LMs))
-  else
-    Log('== BuildPackages END FAIL elapsed_ms=' + IntToStr(LMs));
+  LPlan := CreateBuildPackagesStepPlanCore(AVersion, GetSourcePath(AVersion));
+  Result := ExecuteBuildMakeStepCore(
+    LPlan,
+    FAllowInstall,
+    FLogger.Verbosity,
+    @SetCurrentStepValue,
+    @EnsureDir,
+    @RunMakeTargets,
+    @Log,
+    @LogEnvSnapshot,
+    @StartPerfOperation,
+    @SetPerfMetadata,
+    @EndPerfOperation
+  );
 end;
 
 function TBuildManager.InstallPackages(const AVersion: string): Boolean;
 var
-  LSrc, LDest: string;
-  LStart: TDateTime;
-  LMs: Integer;
+  LPlan: TBuildMakeStepPlan;
+  LDest: string;
 begin
-  FCurrentStep := bsPackagesInstall;
-  if not FAllowInstall then
-  begin
-    Log('InstallPackages skipped (FAllowInstall=False)');
-    Exit(True);
-  end;
-  LSrc := GetSourcePath(AVersion);
   LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
-  EnsureDir(LDest);
-  Log('== InstallPackages START version=' + AVersion + ' src=' + LSrc + ' dest=' + LDest);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LStart := Now;
-  PerfMon.StartOperation('InstallPackages', 'Build');
-  PerfMon.SetMetadata('InstallPackages', 'version=' + AVersion);
-  // Use dynamic path replacement: INSTALL_UNITDIR=$$(packagename)
-  Result := RunMake(LSrc, [
-    'DESTDIR=' + LDest,
-    'PREFIX=' + LDest,
-    'INSTALL_PREFIX=' + LDest,
-    'INSTALL_UNITDIR=' + LDest + PathDelim + 'units' + PathDelim + '$$(packagename)',
-    'packages_install'
-  ]);
-  LMs := MilliSecondsBetween(Now, LStart);
-  PerfMon.EndOperation('InstallPackages', Result);
-  if Result then
-    Log('== InstallPackages END OK elapsed_ms=' + IntToStr(LMs))
-  else
-    Log('== InstallPackages END FAIL elapsed_ms=' + IntToStr(LMs));
+  LPlan := CreateBuildInstallPackagesStepPlanCore(
+    AVersion,
+    GetSourcePath(AVersion),
+    LDest
+  );
+  Result := ExecuteBuildMakeStepCore(
+    LPlan,
+    FAllowInstall,
+    FLogger.Verbosity,
+    @SetCurrentStepValue,
+    @EnsureDir,
+    @RunMakeTargets,
+    @Log,
+    @LogEnvSnapshot,
+    @StartPerfOperation,
+    @SetPerfMetadata,
+    @EndPerfOperation
+  );
 end;
 
 function TBuildManager.Install(const AVersion: string): Boolean;
 var
-  LSrc, LDest: string;
-  LStart: TDateTime;
-  LMs: Integer;
+  LPlan: TBuildMakeStepPlan;
+  LDest: string;
 begin
-  if not FAllowInstall then
-  begin
-    Log('Install skipped (FAllowInstall=False)');
-    Exit(True);
-  end;
-  LSrc := GetSourcePath(AVersion);
   LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
-  EnsureDir(LDest);
-  Log('== Install START version=' + AVersion + ' src=' + LSrc + ' dest=' + LDest);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LStart := Now;
-  PerfMon.StartOperation('Install', 'Build');
-  PerfMon.SetMetadata('Install', 'version=' + AVersion + ',dest=' + LDest);
-  // Direct install target to sandbox (try common variables: DESTDIR/PREFIX)
-  Result := RunMake(LSrc, ['DESTDIR=' + LDest, 'PREFIX=' + LDest, 'INSTALL_PREFIX=' + LDest, 'install']);
-  PerfMon.EndOperation('Install', Result);
-  LMs := MilliSecondsBetween(Now, LStart);
-  if Result then Log('== Install END OK elapsed_ms=' + IntToStr(LMs)) else Log('== Install END FAIL elapsed_ms=' + IntToStr(LMs));
+  LPlan := CreateBuildInstallStepPlanCore(
+    AVersion,
+    GetSourcePath(AVersion),
+    LDest
+  );
+  Result := ExecuteBuildMakeStepCore(
+    LPlan,
+    FAllowInstall,
+    FLogger.Verbosity,
+    @SetCurrentStepValue,
+    @EnsureDir,
+    @RunMakeTargets,
+    @Log,
+    @LogEnvSnapshot,
+    @StartPerfOperation,
+    @SetPerfMetadata,
+    @EndPerfOperation
+  );
 end;
 
 function TBuildManager.Configure(const {%H-} AVersion: string): Boolean;
@@ -945,236 +745,91 @@ begin
 end;
 
 function TBuildManager.TestResults(const AVersion: string): Boolean;
-var
-  LSrc, LCompilerPath, LRTLPath: string;
-  LDest, LBin, LLib: string;
-  LStart: TDateTime;
 begin
-  // Prioritize sandbox installation verification (only when install is allowed)
-  if FAllowInstall then
-  begin
-    // Elapsed time tracking (removed inline variables)
-    LStart := Now;
-    LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
-    LBin := IncludeTrailingPathDelimiter(LDest) + 'bin';
-    LLib := IncludeTrailingPathDelimiter(LDest) + 'lib';
-    if not DirectoryExists(LDest) then
-    begin
-      Log('TestResults: sandbox root missing: ' + LDest);
-      LogTestSummary(AVersion, 'sandbox', 'FAIL', MilliSecondsBetween(Now, LStart));
-      Exit(False);
-    end;
-    if (not DirectoryExists(LBin)) and (not DirectoryExists(LLib)) then
-    begin
-      Log('TestResults: sandbox missing bin/lib under: ' + LDest);
-      LogTestSummary(AVersion, 'sandbox', 'FAIL', MilliSecondsBetween(Now, LStart));
-      Exit(False);
-    end;
-    // Verbose: Output directory sample for debugging
-    if FLogger.Verbosity > 0 then
-    begin
-      if DirectoryExists(LBin) then begin Log('sample of sandbox/bin:'); LogDirSample(LBin, 10); end;
-      if DirectoryExists(LLib) then begin Log('sample of sandbox/lib:'); LogDirSample(LLib, 10); end;
-    end;
-    // Refined checks: if bin exists but is empty, or lib exists but is empty
-    if DirectoryExists(LBin) and (not DirHasAnyFile(LBin)) then
-    begin
-      if FStrictResults then begin Log('FAIL: sandbox bin empty under strict mode: ' + LBin); LogTestSummary(AVersion, 'sandbox/bin', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
-      else Log('WARN: sandbox bin is empty: ' + LBin);
-    end;
-    if DirectoryExists(LLib) and (not DirHasAnyFile(LLib)) then
-    begin
-      if FStrictResults then begin Log('FAIL: sandbox lib empty under strict mode: ' + LLib); LogTestSummary(AVersion, 'sandbox/lib', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end
-      else Log('WARN: sandbox lib is empty: ' + LLib);
-    end;
-    // If strict mode configured, perform additional verification per manifest
-    if FStrictResults then
-    begin
-      if not ApplyStrictConfig(LDest) then begin LogTestSummary(AVersion, 'sandbox/strict', 'FAIL', MilliSecondsBetween(Now, LStart)); Exit(False); end;
-    end;
-    Log('TestResults: sandbox OK at ' + LDest);
-    LogTestSummary(AVersion, 'sandbox', 'OK', MilliSecondsBetween(Now, LStart));
-    Exit(True);
-  end;
-
-  // Fallback: validate key directories in the source tree (placeholder)
-  LSrc := GetSourcePath(AVersion);
-  LCompilerPath := LSrc + PathDelim + 'compiler';
-  LRTLPath := LSrc + PathDelim + 'rtl';
-  if not DirectoryExists(LCompilerPath) then begin Log('TestResults: missing compiler dir: ' + LCompilerPath); Exit(False); end;
-  if not DirectoryExists(LRTLPath) then begin Log('TestResults: missing rtl dir: ' + LRTLPath); Exit(False); end;
-  Log('TestResults: source tree OK at ' + LSrc);
-  Result := True;
+  Result := ExecuteBuildTestResultsCore(
+    AVersion,
+    FSandboxRoot,
+    FAllowInstall,
+    FStrictResults,
+    FLogger.Verbosity,
+    @GetSourcePath,
+    @ApplyStrictConfig,
+    @BuildManagerDirectoryExists,
+    @BuildManagerDirHasAnyFile,
+    @BuildManagerDirHasAnyEntry,
+    @Log,
+    @LogDirSample,
+    @LogTestSummary
+  );
 end;
 
 function TBuildManager.Preflight(const AVersion: string): Boolean;
 var
-  LSrc, LDestRoot: string;
-  LIssues: TStringList;
-  LHasMake, LSrcOk, LSandOk, LLogOk: Boolean;
-  LJson: string;
-  LStatus, LReason, LMin, LRec, LFpcVer: string;
   LStart: TDateTime;
-  i: integer;
+  LIssues: TStringArray;
+  LFailureLines: TStringArray;
+  LInputs: TBuildPreflightInputs;
+  I: Integer;
 begin
   FCurrentStep := bsPreflight;
   PerfMon.StartOperation('Preflight', 'Build');
   PerfMon.SetMetadata('Preflight', 'version=' + AVersion);
   LStart := Now;
   Log('== Preflight START version=' + AVersion + ' srcRoot=' + FSourceRoot + ' sandbox=' + FSandboxRoot + ' logDir=' + FLogDir);
-  if FLogger.Verbosity > 0 then LogEnvSnapshot;
-  LIssues := TStringList.Create;
-  try
-    // Source path check
-    LSrc := GetSourcePath(AVersion);
-    LSrcOk := DirectoryExists(LSrc);
-    if not LSrcOk then LIssues.Add('source not found: ' + LSrc);
+  if FLogger.Verbosity > 0 then
+    LogEnvSnapshot;
 
-    // Strict toolchain validation (optional)
-    if FToolchainStrict then
-    begin
-      // First apply FPC version policy check: if it fails, add an issue immediately
-      if not CheckFPCVersionPolicy(AVersion, LStatus, LReason, LMin, LRec, LFpcVer) then
-        LIssues.Add(Format('fpc policy FAIL: src=%s current=%s min=%s rec=%s reason=%s',[AVersion, LFpcVer, LMin, LRec, LReason]))
-      else if (LStatus <> 'OK') and (FLogger.Verbosity > 0) then
-        Log(Format('fpc policy %s: current=%s min=%s rec=%s',[LStatus, LFpcVer, LMin, LRec]));
+  LInputs := BuildBuildPreflightInputsCore(
+    AVersion,
+    GetSourcePath(AVersion),
+    FSandboxRoot,
+    FLogDir,
+    FToolchainStrict,
+    FAllowInstall,
+    @RunPreflightPolicyCheck,
+    @BuildToolchainReportJSONValue,
+    @DetectMakeAvailable,
+    @CanWriteDir
+  );
 
-      // Then run HostReady toolchain health check
-      LJson := BuildToolchainReportJSON; // Build JSON only; write it at a higher level if needed
-      if Pos('"level":"FAIL"', LJson) > 0 then
-        LIssues.Add('toolchain check failed');
-    end
-    else
-    begin
-      // Relaxed: only check that make is available
-      LHasMake := HasTool('make', ['--version']);
-      if not LHasMake then LIssues.Add('make not available');
-    end;
+  if LInputs.PolicyCheckPassed and (LInputs.PolicyStatus <> 'OK') and
+     (FLogger.Verbosity > 0) then
+    Log(Format('fpc policy %s: current=%s min=%s rec=%s', [
+      LInputs.PolicyStatus,
+      LInputs.CurrentFpcVersion,
+      LInputs.PolicyMin,
+      LInputs.PolicyRecommended
+    ]));
 
-    // Target and log directories are writable
-    EnsureDir(FSandboxRoot);
-    EnsureDir(FLogDir);
-    LSandOk := CanWriteDir(FSandboxRoot);
-    if not LSandOk then LIssues.Add('sandbox not writable: ' + FSandboxRoot);
-    LLogOk := CanWriteDir(FLogDir);
-    if not LLogOk then LIssues.Add('logs not writable: ' + FLogDir);
+  LIssues := CollectBuildPreflightIssuesCore(LInputs);
+  Result := Length(LIssues) = 0;
+  PerfMon.EndOperation('Preflight', Result);
 
-    // If install allowed, check if version install root can be created
-    if FAllowInstall then
-    begin
-      LDestRoot := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
-      if not DirectoryExists(LDestRoot) then
-      begin
-        EnsureDir(LDestRoot);
-        if not DirectoryExists(LDestRoot) then
-          LIssues.Add('cannot create sandbox dest: ' + LDestRoot)
-        else if not CanWriteDir(LDestRoot) then
-          LIssues.Add('sandbox dest not writable: ' + LDestRoot);
-      end
-      else if not CanWriteDir(LDestRoot) then
-        LIssues.Add('sandbox dest not writable: ' + LDestRoot);
-    end;
+  LFailureLines := FormatBuildPreflightLogLinesCore(LIssues, FLogger.Verbosity);
+  for I := 0 to High(LFailureLines) do
+    Log(LFailureLines[I]);
 
-    // Result
-    Result := (LIssues.Count = 0);
-    PerfMon.EndOperation('Preflight', Result);
-    if Result then
-    begin
-      Log('== Preflight END OK');
-      LogTestSummary(AVersion, 'preflight', 'OK', MilliSecondsBetween(Now, LStart));
-    end
-    else
-    begin
-      // Output all issues
-      Log('== Preflight END FAIL issues=' + IntToStr(LIssues.Count));
-      if FLogger.Verbosity > 0 then
-      begin
-        for i := 0 to LIssues.Count-1 do Log('issue: ' + LIssues[i]);
-      end;
-      LogTestSummary(AVersion, 'preflight', 'FAIL', MilliSecondsBetween(Now, LStart));
-    end;
-  finally
-    LIssues.Free;
-  end;
+  if Result then
+    LogTestSummary(AVersion, 'preflight', 'OK', MilliSecondsBetween(Now, LStart))
+  else
+    LogTestSummary(AVersion, 'preflight', 'FAIL', MilliSecondsBetween(Now, LStart));
 end;
 
 function TBuildManager.FullBuild(const AVersion: string): Boolean;
-var
-  LStart: TDateTime;
-  LMs: Integer;
 begin
-  LStart := Now;
-  Log('== FullBuild START version=' + AVersion);
-
-  // 1. Preflight
-  if not Preflight(AVersion) then
-  begin
-    Log('== FullBuild ABORT at Preflight');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 2. Build Compiler
-  if not BuildCompiler(AVersion) then
-  begin
-    Log('== FullBuild ABORT at BuildCompiler');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 3. Install Compiler (via Install for now)
-  FCurrentStep := bsCompilerInstall;
-
-  // 4. Build RTL
-  if not BuildRTL(AVersion) then
-  begin
-    Log('== FullBuild ABORT at BuildRTL');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 5. Install RTL (via Install for now)
-  FCurrentStep := bsRTLInstall;
-
-  // 6. Build Packages
-  if not BuildPackages(AVersion) then
-  begin
-    Log('== FullBuild ABORT at BuildPackages');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 7. Install Packages
-  if not InstallPackages(AVersion) then
-  begin
-    Log('== FullBuild ABORT at InstallPackages');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 8. Install (final)
-  if not Install(AVersion) then
-  begin
-    Log('== FullBuild ABORT at Install');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 9. Verify
-  FCurrentStep := bsVerify;
-  if not TestResults(AVersion) then
-  begin
-    Log('== FullBuild ABORT at TestResults');
-    FCurrentStep := bsIdle;
-    Exit(False);
-  end;
-
-  // 10. Complete
-  FCurrentStep := bsComplete;
-  LMs := MilliSecondsBetween(Now, LStart);
-  Log('== FullBuild END OK elapsed_ms=' + IntToStr(LMs));
-  LogTestSummary(AVersion, 'fullbuild', 'OK', LMs);
-  Result := True;
+  Result := RunFullBuildCore(
+    AVersion,
+    @Preflight,
+    @BuildCompiler,
+    @BuildRTL,
+    @BuildPackages,
+    @InstallPackages,
+    @Install,
+    @TestResults,
+    @SetCurrentStepValue,
+    @Log,
+    @LogTestSummary
+  );
 end;
 
 procedure TBuildManager.CreateBuildStamp(const AVersion: string);
@@ -1237,33 +892,12 @@ end;
 
 function TBuildManager.ListPackages: TStringArray;
 begin
-  // Default FPC package list (can be extended by reading from source)
-  Result := nil;
-  SetLength(Result, 15);
-  Result[0] := 'rtl';
-  Result[1] := 'rtl-extra';
-  Result[2] := 'rtl-unicode';
-  Result[3] := 'rtl-objpas';
-  Result[4] := 'fcl-base';
-  Result[5] := 'fcl-db';
-  Result[6] := 'fcl-fpcunit';
-  Result[7] := 'fcl-image';
-  Result[8] := 'fcl-json';
-  Result[9] := 'fcl-net';
-  Result[10] := 'fcl-passrc';
-  Result[11] := 'fcl-process';
-  Result[12] := 'fcl-registry';
-  Result[13] := 'fcl-xml';
-  Result[14] := 'paszlib';
+  Result := BuildDefaultPackageListCore;
 end;
 
 procedure TBuildManager.SetSelectedPackages(const APackages: TStringArray);
-var
-  i: Integer;
 begin
-  SetLength(FSelectedPackages, Length(APackages));
-  for i := 0 to High(APackages) do
-    FSelectedPackages[i] := APackages[i];
+  FSelectedPackages := CopyBuildPackageSelectionCore(APackages);
 end;
 
 function TBuildManager.GetSelectedPackageCount: Integer;
@@ -1272,12 +906,8 @@ begin
 end;
 
 procedure TBuildManager.SetSkippedPackages(const APackages: TStringArray);
-var
-  i: Integer;
 begin
-  SetLength(FSkippedPackages, Length(APackages));
-  for i := 0 to High(APackages) do
-    FSkippedPackages[i] := APackages[i];
+  FSkippedPackages := CopyBuildPackageSelectionCore(APackages);
 end;
 
 function TBuildManager.GetSkippedPackageCount: Integer;
@@ -1287,12 +917,7 @@ end;
 
 function TBuildManager.GetPackageBuildOrder: TStringArray;
 begin
-  // Return packages in dependency order (RTL first, then FCL)
-  // If selected packages specified, filter to those
-  if Length(FSelectedPackages) > 0 then
-    Result := FSelectedPackages
-  else
-    Result := ListPackages;
+  Result := ResolveBuildPackageOrderCore(FSelectedPackages, ListPackages);
 end;
 
 { IBuildManager interface implementation }

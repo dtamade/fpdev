@@ -4,11 +4,16 @@ program test_cache_index;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types;
+  fpdev.build.cache, fpdev.build.cache.types, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+function CreateTestCacheDir(const AName: string): string;
+begin
+  Result := CreateUniqueTempDir('fpdev-test-cache-index-' + AName);
+end;
 
 procedure Assert(Condition: Boolean; const TestName: string);
 begin
@@ -33,8 +38,7 @@ var
 begin
   WriteLn('=== TestIndexCreation ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-create-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('create');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -78,9 +82,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -95,8 +97,7 @@ var
 begin
   WriteLn('=== TestIndexLookup ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-lookup-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('lookup');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -137,9 +138,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -151,8 +150,7 @@ var
 begin
   WriteLn('=== TestIndexUpdate ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-update-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('update');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -193,9 +191,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -207,8 +203,7 @@ var
 begin
   WriteLn('=== TestIndexPersistence ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-persist-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('persist');
 
   try
     // Create cache and add entries
@@ -247,9 +242,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -262,8 +255,7 @@ var
 begin
   WriteLn('=== TestIndexStatistics ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-stats-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('stats');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -307,9 +299,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -322,8 +312,7 @@ var
 begin
   WriteLn('=== TestIndexRebuild ===');
 
-  CacheDir := GetTempDir + 'fpdev-test-cache-index-rebuild-' + IntToStr(Random(10000));
-  ForceDirectories(CacheDir);
+  CacheDir := CreateTestCacheDir('rebuild');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -359,9 +348,7 @@ begin
       Cache.Free;
     end;
   finally
-    // Cleanup
-    if DirectoryExists(CacheDir) then
-      RemoveDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 

@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TRepoListCommand.Name: string; begin Result := 'list'; end;
 function TRepoListCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -31,7 +31,7 @@ var
   Names: TStringArray;
   i: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -42,6 +42,12 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_REPO_LIST_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if Length(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_REPO_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   Names := Ctx.Config.GetRepositoryManager.ListRepositories;
@@ -55,10 +61,6 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['repo','list'], @RepoListFactory, ['ls']);
+  GlobalCommandRegistry.RegisterPath(['system', 'repo', 'list'], @RepoListFactory, []);
 
 end.
-
-
-
-

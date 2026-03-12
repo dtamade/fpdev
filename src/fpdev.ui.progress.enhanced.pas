@@ -1,6 +1,7 @@
 unit fpdev.ui.progress.enhanced;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 
@@ -105,6 +106,9 @@ type
   end;
 
 implementation
+
+const
+  PROGRESS_STAGE_SEPARATOR = '/';
 
 { TMultiStageProgress }
 
@@ -292,7 +296,7 @@ begin
   for I := 0 to High(FStages) do
   begin
     Stage := FStages[I];
-    Write('[', I + 1, '/', Length(FStages), '] ');
+    Write('[', I + 1, PROGRESS_STAGE_SEPARATOR, Length(FStages), '] ');
     Write(GetStatusSymbol(Stage.Status), ' ');
     Write(Stage.Name);
 
@@ -345,7 +349,13 @@ begin
     Exit;
 
   Stage := FStages[FCurrentStageIndex];
-  Write('[', FCurrentStageIndex + 1, '/', Length(FStages), '] ');
+  Write(
+    '[',
+    FCurrentStageIndex + 1,
+    PROGRESS_STAGE_SEPARATOR,
+    Length(FStages),
+    '] '
+  );
   Write(GetStatusSymbol(Stage.Status), ' ');
   Write(Stage.Name);
 

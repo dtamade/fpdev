@@ -58,7 +58,7 @@ end;
 
 procedure TestProjectProjAliasRegistered;
 begin
-  Check(HasSubcommand([], 'proj'), 'proj: alias registered');
+  Check(not HasSubcommand([], 'proj'), 'proj alias removed');
 end;
 
 { --- Project Subcommand Tests --- }

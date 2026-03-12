@@ -21,7 +21,7 @@ program test_fpc_post_install;
 
 uses
   SysUtils, Classes,
-  fpdev.output.intf, fpdev.fpc.installer.config, fpdev.utils.process;
+  fpdev.output.intf, fpdev.fpc.installer.config, test_temp_paths;
 
 var
   GTestCount: Integer = 0;
@@ -157,12 +157,6 @@ function MakeTempDir(const ASuffix: string): string;
 begin
   Result := GTempRoot + PathDelim + ASuffix;
   ForceDirectories(Result);
-end;
-
-procedure DeleteDirRecursive(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    TProcessExecutor.Execute('rm', ['-rf', ADir], '');
 end;
 
 function ReadFileContent(const APath: string): string;
@@ -535,8 +529,7 @@ begin
   WriteLn('=== FPC Post-Install Environment Tests ===');
   WriteLn;
 
-  GTempRoot := GetTempDir + 'fpdev_test_postinstall_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempRoot);
+  GTempRoot := CreateUniqueTempDir('fpdev_test_postinstall');
 
   try
     // Group 1: GenerateFpcConfig
@@ -570,7 +563,7 @@ begin
     WriteLn('--- Idempotency ---');
     TestGenerateFpcConfig_Idempotent;
   finally
-    DeleteDirRecursive(GTempRoot);
+    CleanupTempDir(GTempRoot);
   end;
 
   WriteLn('');

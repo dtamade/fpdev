@@ -54,7 +54,7 @@ type
     FLazarus: TLazarusConfig;
     FProject: TProjectMetadata;
     FLoadError: string;
-    
+
     procedure InitializeDefaults;
     procedure LoadToolchainSection;
     procedure LoadComponentsSection;
@@ -65,13 +65,13 @@ type
   public
     constructor Create(const AConfigPath: string);
     destructor Destroy; override;
-    
+
     function Load: Boolean;
     function Validate: Boolean;
-    
+
     property ConfigPath: string read FConfigPath;
     property LoadError: string read FLoadError;
-    
+
     property Toolchain: TToolchainConfig read FToolchain;
     property Components: TComponentsConfig read FComponents;
     property Targets: TTargetsConfig read FTargets;
@@ -94,7 +94,7 @@ var
 begin
   Result := '';
   Dir := AStartDir;
-  
+
   while Dir <> '' do
   begin
     ConfigFile := Dir + PathDelim + '.fpdev.toml';
@@ -103,14 +103,14 @@ begin
       Result := ConfigFile;
       Exit;
     end;
-    
+
     ConfigFile := Dir + PathDelim + 'fpdev.toml';
     if FileExists(ConfigFile) then
     begin
       Result := ConfigFile;
       Exit;
     end;
-    
+
     Dir := ExtractFileDir(Dir);
     if Dir = ExtractFileDir(Dir) then
       Break;
@@ -125,11 +125,11 @@ begin
   FConfigPath := AConfigPath;
   FDocument := nil;
   FLoadError := '';
-  
+
   FComponents.Packages := TStringList.Create;
   FTargets.Cross := TStringList.Create;
   FBuild.CustomOptions := TStringList.Create;
-  
+
   InitializeDefaults;
 end;
 
@@ -148,21 +148,21 @@ begin
   FToolchain.Version := '';
   FToolchain.Source := 'binary';
   FToolchain.Channel := 'stable';
-  
+
   FComponents.RTL := True;
   FComponents.FCL := True;
   FComponents.Packages.Clear;
-  
+
   FTargets.Cross.Clear;
-  
+
   FBuild.Mode := 'debug';
   FBuild.Optimization := '0';
   FBuild.TargetCPU := '';
   FBuild.CustomOptions.Clear;
-  
+
   FLazarus.Version := '';
   FLazarus.AutoConfigure := False;
-  
+
   FProject.Name := '';
   FProject.ProjectType := 'console';
   FProject.Main := '';
@@ -172,30 +172,30 @@ function TProjectConfig.Load: Boolean;
 begin
   Result := False;
   FLoadError := '';
-  
+
   if not FileExists(FConfigPath) then
   begin
     FLoadError := 'Config file not found: ' + FConfigPath;
     Exit;
   end;
-  
+
   if Assigned(FDocument) then
     FDocument.Free;
-  
+
   FDocument := TTOMLDocument.Create;
   if not FDocument.LoadFromFile(FConfigPath) then
   begin
     FLoadError := 'Failed to parse config: ' + FDocument.ParseError;
     Exit;
   end;
-  
+
   LoadToolchainSection;
   LoadComponentsSection;
   LoadTargetsSection;
   LoadBuildSection;
   LoadLazarusSection;
   LoadProjectSection;
-  
+
   Result := Validate;
 end;
 
@@ -206,7 +206,7 @@ begin
   Section := FDocument.GetSection('toolchain');
   if not Assigned(Section) then
     Exit;
-  
+
   FToolchain.Version := Section.GetString('version', '');
   FToolchain.Source := Section.GetString('source', 'binary');
   FToolchain.Channel := Section.GetString('channel', 'stable');
@@ -221,10 +221,10 @@ begin
   Section := FDocument.GetSection('components');
   if not Assigned(Section) then
     Exit;
-  
+
   FComponents.RTL := Section.GetBoolean('rtl', True);
   FComponents.FCL := Section.GetBoolean('fcl', True);
-  
+
   Packages := Section.GetArray('packages');
   if Assigned(Packages) then
   begin
@@ -243,7 +243,7 @@ begin
   Section := FDocument.GetSection('targets');
   if not Assigned(Section) then
     Exit;
-  
+
   Cross := Section.GetArray('cross');
   if Assigned(Cross) then
   begin
@@ -262,11 +262,11 @@ begin
   Section := FDocument.GetSection('build');
   if not Assigned(Section) then
     Exit;
-  
+
   FBuild.Mode := Section.GetString('mode', 'debug');
   FBuild.Optimization := Section.GetString('optimization', '0');
   FBuild.TargetCPU := Section.GetString('target-cpu', '');
-  
+
   Options := Section.GetArray('custom-options');
   if Assigned(Options) then
   begin
@@ -283,7 +283,7 @@ begin
   Section := FDocument.GetSection('lazarus');
   if not Assigned(Section) then
     Exit;
-  
+
   FLazarus.Version := Section.GetString('version', '');
   FLazarus.AutoConfigure := Section.GetBoolean('auto-configure', False);
 end;
@@ -295,7 +295,7 @@ begin
   Section := FDocument.GetSection('project');
   if not Assigned(Section) then
     Exit;
-  
+
   FProject.Name := Section.GetString('name', '');
   FProject.ProjectType := Section.GetString('type', 'console');
   FProject.Main := Section.GetString('main', '');
@@ -305,45 +305,45 @@ function TProjectConfig.Validate: Boolean;
 begin
   Result := False;
   FLoadError := '';
-  
+
   if FToolchain.Version = '' then
   begin
     FLoadError := 'Missing required field: [toolchain].version';
     Exit;
   end;
-  
+
   if not ((FToolchain.Source = 'binary') or (FToolchain.Source = 'source')) then
   begin
     FLoadError := 'Invalid [toolchain].source: must be "binary" or "source"';
     Exit;
   end;
-  
+
   if not ((FToolchain.Channel = 'stable') or (FToolchain.Channel = 'fixes') or (FToolchain.Channel = 'main')) then
   begin
     FLoadError := 'Invalid [toolchain].channel: must be "stable", "fixes", or "main"';
     Exit;
   end;
-  
+
   if not ((FBuild.Mode = 'debug') or (FBuild.Mode = 'release')) then
   begin
     FLoadError := 'Invalid [build].mode: must be "debug" or "release"';
     Exit;
   end;
-  
-  if not ((FBuild.Optimization = '0') or (FBuild.Optimization = '1') or 
+
+  if not ((FBuild.Optimization = '0') or (FBuild.Optimization = '1') or
           (FBuild.Optimization = '2') or (FBuild.Optimization = '3')) then
   begin
     FLoadError := 'Invalid [build].optimization: must be "0", "1", "2", or "3"';
     Exit;
   end;
-  
-  if not ((FProject.ProjectType = 'console') or (FProject.ProjectType = 'gui') or 
+
+  if not ((FProject.ProjectType = 'console') or (FProject.ProjectType = 'gui') or
           (FProject.ProjectType = 'library')) then
   begin
     FLoadError := 'Invalid [project].type: must be "console", "gui", or "library"';
     Exit;
   end;
-  
+
   Result := True;
 end;
 

@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.package.registry, fpdev.cmd.package.search;
+  fpdev.package.registry, fpdev.cmd.package.search, test_temp_paths;
 
 type
   { TPackageSearchTest }
@@ -63,19 +63,24 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test directories
-  FTestRegistryDir := 'test_package_search_registry';
-  FTestPackageDir := 'test_package_search_packages';
-
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  FTestRegistryDir := CreateUniqueTempDir('test_package_search_registry');
+  FTestPackageDir := CreateUniqueTempDir('test_package_search_packages');
 end;
 
 destructor TPackageSearchTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestRegistryDir <> '' then
+  begin
+    CleanupTempDir(FTestRegistryDir);
+    FTestRegistryDir := '';
+  end;
+
+  if FTestPackageDir <> '' then
+  begin
+    CleanupTempDir(FTestPackageDir);
+    FTestPackageDir := '';
+  end;
+
   inherited Destroy;
 end;
 
@@ -108,10 +113,8 @@ var
   Registry: TPackageRegistry;
 begin
   CleanupTestFiles;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
-  if not DirectoryExists(FTestPackageDir) then
-    CreateDir(FTestPackageDir);
+  ForceDirectories(FTestRegistryDir);
+  ForceDirectories(FTestPackageDir);
 
   Registry := TPackageRegistry.Create(FTestRegistryDir);
   try
@@ -229,37 +232,18 @@ begin
 end;
 
 procedure TPackageSearchTest.CleanupTestFiles;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
+begin
+  if FTestRegistryDir <> '' then
   begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
+    CleanupTempDir(FTestRegistryDir);
+    ForceDirectories(FTestRegistryDir);
   end;
 
-begin
-  if DirectoryExists(FTestRegistryDir) then
-    DeleteDirectory(FTestRegistryDir);
-  if DirectoryExists(FTestPackageDir) then
-    DeleteDirectory(FTestPackageDir);
+  if FTestPackageDir <> '' then
+  begin
+    CleanupTempDir(FTestPackageDir);
+    ForceDirectories(FTestPackageDir);
+  end;
 end;
 
 procedure TPackageSearchTest.TestSearchByName;

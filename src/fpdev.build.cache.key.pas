@@ -13,6 +13,9 @@ function BuildCacheGetArtifactKey(const AVersion: string): string;
 
 implementation
 
+const
+  BUILD_CACHE_UNIX_PATH_DELIM = '/';
+
 function BuildCacheGetCurrentCPU: string;
 begin
   {$IFDEF CPUX86_64}
@@ -54,7 +57,8 @@ end;
 function BuildCacheGetArtifactKey(const AVersion: string): string;
 begin
   if (Pos('..', AVersion) > 0) or (Pos(PathDelim, AVersion) > 0) or
-     (Pos('/', AVersion) > 0) or (Pos('\', AVersion) > 0) then
+     (Pos(BUILD_CACHE_UNIX_PATH_DELIM, AVersion) > 0) or
+     (Pos('\', AVersion) > 0) then
     raise Exception.Create('Invalid version string: contains path traversal characters');
 
   Result := 'fpc-' + AVersion + '-' + BuildCacheGetCurrentCPU + '-' + BuildCacheGetCurrentOS;

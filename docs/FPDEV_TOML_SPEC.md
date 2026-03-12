@@ -271,7 +271,7 @@ FPC_CONFIG = "/custom/fpc.cfg"
 - `fpdev fpc auto-install` - Install toolchain from `.fpdev.toml`
 - `fpdev auto-switch` - Switch version based on `.fpdev.toml`
 - `fpdev init -` - Generate shell hook for auto-switching
-- `fpdev config validate` - Validate `.fpdev.toml` syntax and values (future)
+- `fpdev system config validate` - Validate `.fpdev.toml` syntax and values (future)
 
 ---
 

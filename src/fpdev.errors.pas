@@ -1,6 +1,7 @@
 unit fpdev.errors;
 
 {$mode objfpc}{$H+}
+// acq:allow-debug-output-file
 
 interface
 
@@ -87,7 +88,11 @@ type
     class function Instance: TErrorRegistry; static;
 
     { Primary API (used by tests and recovery helpers) }
-    procedure RegisterError(ACode: TErrorCode; const AMessage: string; const ASuggestions: TRecoverySuggestions); overload;
+    procedure RegisterError(
+      ACode: TErrorCode;
+      const AMessage: string;
+      const ASuggestions: TRecoverySuggestions
+    ); overload;
     function CreateError(ACode: TErrorCode; const AMessage: string = ''): TEnhancedError; overload;
     function GetErrorMessage(ACode: TErrorCode): string; overload;
 
@@ -185,8 +190,8 @@ begin
   // Display help footer
   WriteLn;
   WriteLn('Need more help?');
-  WriteLn('  - fpdev doctor          - Run system diagnostics');
-  WriteLn('  - fpdev help            - View all commands');
+  WriteLn('  - fpdev system doctor   - Run system diagnostics');
+  WriteLn('  - fpdev system help     - View all commands');
 end;
 
 function TEnhancedError.ToString: string;

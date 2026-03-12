@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.fpc,
+  fpdev.command.intf, fpdev.command.registry, fpdev.fpc.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -21,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils, fpjson;
+uses fpdev.command.utils, fpjson;
 
 function TFPCCurrentCommand.Name: string; begin Result := 'current'; end;
 
@@ -43,11 +43,16 @@ var
   LJsonOutput: Boolean;
   LJson: TJSONObject;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_CURRENT_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_DESC));
@@ -57,7 +62,18 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_CURRENT_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   LJsonOutput := HasFlag(AParams, 'json');
+  if (Length(AParams) = 1) and (not LJsonOutput) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_CURRENT_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
 
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try

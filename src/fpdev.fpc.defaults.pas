@@ -58,6 +58,11 @@ type
 
 implementation
 
+const
+  WINDOWS_CMD_SWITCH = '/c';
+  WINDOWS_RMDIR_RECURSIVE = '/s';
+  WINDOWS_RMDIR_QUIET = '/q';
+
 { TDefaultFileSystem }
 
 function TDefaultFileSystem.FileExists(const APath: string): Boolean;
@@ -97,12 +102,12 @@ begin
     try
       {$IFDEF MSWINDOWS}
       Proc.Executable := 'cmd';
-      Proc.Parameters.Add('/c');
+      Proc.Parameters.Add(WINDOWS_CMD_SWITCH);
       Proc.Parameters.Add('rmdir');
       if ARecursive then
       begin
-        Proc.Parameters.Add('/s');
-        Proc.Parameters.Add('/q');
+        Proc.Parameters.Add(WINDOWS_RMDIR_RECURSIVE);
+        Proc.Parameters.Add(WINDOWS_RMDIR_QUIET);
       end;
       Proc.Parameters.Add(APath);
       {$ELSE}

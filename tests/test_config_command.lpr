@@ -10,7 +10,13 @@ uses
   SysUtils, Classes,
   fpdev.command.intf,
   fpdev.command.registry,
-  fpdev.cmd.config;
+  fpdev.cmd.config,
+  fpdev.cmd.config.show,
+  fpdev.cmd.config.get,
+  fpdev.cmd.config.setvalue,
+  fpdev.cmd.config.export,
+  fpdev.cmd.config.import,
+  fpdev.cmd.config.list;
 
 var
   TestsPassed: Integer = 0;
@@ -46,7 +52,13 @@ end;
 
 procedure TestConfigRegistered;
 begin
-  Check(HasCommand([], 'config'), 'config: root registered');
+  Check(HasCommand(['system'], 'config'), 'config: system root registered');
+  Check(HasCommand(['system', 'config'], 'show'), 'config: show registered');
+  Check(HasCommand(['system', 'config'], 'get'), 'config: get registered');
+  Check(HasCommand(['system', 'config'], 'set'), 'config: set registered');
+  Check(HasCommand(['system', 'config'], 'export'), 'config: export registered');
+  Check(HasCommand(['system', 'config'], 'import'), 'config: import registered');
+  Check(HasCommand(['system', 'config'], 'list'), 'config: list registered');
 end;
 
 { --- Command Interface Tests --- }

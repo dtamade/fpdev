@@ -4,7 +4,7 @@ program test_fpc_version;
 
 {
   Unit tests for TFPCVersionManager
-  
+
   Tests:
   - GetAvailableVersions: Returns all known FPC versions
   - ValidateVersion: Validates version strings against known releases
@@ -13,7 +13,7 @@ program test_fpc_version;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.config;
+  SysUtils, Classes, fpdev.fpc.version, fpdev.config, fpdev.paths;
 
 var
   TestInstallRoot: string;
@@ -22,12 +22,19 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+function BuildTempRoot(const APrefix: string): string;
+begin
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + APrefix + IntToStr(GetTickCount64);
+end;
+
 procedure SetupTestEnvironment;
 var
   Settings: TFPDevSettings;
 begin
   // Create temporary install root directory
-  TestInstallRoot := 'test_version_root_' + IntToStr(GetTickCount64);
+  if TestInstallRoot = '' then
+    TestInstallRoot := BuildTempRoot('test_version_root_');
   ForceDirectories(TestInstallRoot);
 
   // Setup config manager to use test directory
@@ -88,6 +95,22 @@ end;
 procedure AssertFalse(const ACondition: Boolean; const AMessage: string);
 begin
   AssertTrue(not ACondition, AMessage);
+end;
+
+procedure TestTempPathsUseSystemTempRoot;
+var
+  TempRoot: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: temp paths use system temp root');
+  WriteLn('==================================================');
+
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+  AssertTrue(Pos(TempRoot, ExpandFileName(TestInstallRoot)) = 1,
+    'Test install root should live under system temp');
+  AssertTrue(Pos(TempRoot, ExpandFileName(ConfigManager.ConfigPath)) = 1,
+    'Config path should live under system temp');
 end;
 
 procedure AssertEquals(const AExpected, AActual: Integer; const AMessage: string);
@@ -226,7 +249,7 @@ begin
   WriteLn('==================================================');
 
   // Create fake FPC installation
-  FPCDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+  FPCDir := BuildFPCInstallDirFromInstallRoot(TestInstallRoot, '3.2.2') + PathDelim + 'bin';
   ForceDirectories(FPCDir);
 
   {$IFDEF MSWINDOWS}
@@ -438,7 +461,9 @@ begin
 
   try
     // Initialize config manager
-    ConfigManager := TFPDevConfigManager.Create;
+    TestInstallRoot := BuildTempRoot('test_version_root_');
+    ForceDirectories(TestInstallRoot);
+    ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestInstallRoot) + 'config.json');
     try
       if not ConfigManager.LoadConfig then
         ConfigManager.CreateDefaultConfig;
@@ -446,6 +471,7 @@ begin
       // Setup test environment
       SetupTestEnvironment;
       try
+        TestTempPathsUseSystemTempRoot;
         // Create version manager
         VersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
         try

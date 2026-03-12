@@ -7,11 +7,12 @@ unit fpdev.cmd.project.template.root;
 interface
 
 uses
-  fpdev.command.registry;
+  fpdev.command.registry,
+  fpdev.command.rootshell;
 
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['project','template'], nil, ['tpl']);
+  GlobalCommandRegistry.RegisterSingletonPath(['project', 'template'], CreateNamespaceRootShellCommand(['project', 'template']), []);
 
 end.

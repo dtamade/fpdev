@@ -227,14 +227,14 @@ Err.AddSuggestion(
 ```pascal
 Err.AddSuggestion('Check network connection', '', 'Verify internet connectivity');
 Err.AddSuggestion('Use offline mode', 'fpdev fpc install 3.2.2 --offline', 'Install from cache');
-Err.AddSuggestion('Configure proxy', 'fpdev config set proxy http://proxy:8080', '');
+Err.AddSuggestion('Configure mirror', 'fpdev system config set mirror gitee', '');
 ```
 
 ✅ **包含诊断命令**
 ```pascal
 Err.AddSuggestion(
   'Run diagnostics',
-  'fpdev doctor',
+  'fpdev system doctor',
   'Check system configuration and dependencies'
 );
 ```

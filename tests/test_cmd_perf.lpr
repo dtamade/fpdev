@@ -3,12 +3,12 @@ program test_cmd_perf;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_config_isolation,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.output.console,
   fpdev.config.interfaces, fpdev.logger.intf,
   fpdev.perf.monitor,
-  fpdev.cmd.perf;
+  fpdev.cmd.perf, test_temp_paths;
 
 var
   GTestCount: Integer = 0;
@@ -358,9 +358,10 @@ var
   Ctx: IContext;
   Ret: Integer;
   Output: string;
-  TempFile: string;
+  TempDir, TempFile: string;
 begin
-  TempFile := GetTempDir + 'test_perf_save_' + IntToStr(Random(100000)) + '.json';
+  TempDir := CreateUniqueTempDir('test_perf_save');
+  TempFile := TempDir + PathDelim + 'perf-save.json';
   OutBuf := TStringOutput.Create;
   ErrBuf := TStringOutput.Create;
   Ctx := TTestContext.Create(OutBuf, ErrBuf);
@@ -374,8 +375,7 @@ begin
     Test('PerfSaveCommand confirms save', Pos('saved', LowerCase(Output)) > 0);
     Test('PerfSaveCommand creates file', FileExists(TempFile));
   finally
-    if FileExists(TempFile) then
-      DeleteFile(TempFile);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -388,10 +388,11 @@ begin
   Ctx := TDefaultCommandContext.Create;
 
   // Test perf command is accessible
-  SetLength(Args, 1);
-  Args[0] := 'perf';
-  Test('perf command registered in GlobalCommandRegistry',
-       GlobalCommandRegistry.Dispatch(Args, Ctx) = 0);
+  SetLength(Args, 2);
+  Args[0] := 'system';
+  Args[1] := 'perf';
+  Test('system perf command registered in GlobalCommandRegistry',
+       GlobalCommandRegistry.DispatchPath(Args, Ctx) = 0);
 end;
 
 procedure TestAliasesAreNil;

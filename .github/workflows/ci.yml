@@ -28,23 +28,14 @@ jobs:
     - name: Run tests
       run: bash scripts/run_all_tests.sh
 
-    - name: Verify test count
+    - name: Verify test inventory sync
       run: |
-        # Extract the number of tests found and passed
-        TEST_COUNT=$(find tests -name "test_*.lpr" \
-            ! -path "*/examples/*" \
-            ! -path "*/fpdev.git2.adapter/*" \
-            ! -path "*/fpdev.libgit2.base/*" \
-            ! -path "*/fpdev.core.misc/*" \
-            ! -path "*/migrated/*" \
-            | wc -l)
-        EXPECTED_MIN=170
-        echo "Found ${TEST_COUNT} test files (minimum expected: ${EXPECTED_MIN})"
-        if [ "${TEST_COUNT}" -lt "${EXPECTED_MIN}" ]; then
-          echo "::error::Test count regression: found ${TEST_COUNT}, expected at least ${EXPECTED_MIN}"
-          exit 1
-        fi
-        echo "Test count check passed."
+        python3 scripts/update_test_stats.py --check
+        TEST_COUNT=$(python3 scripts/update_test_stats.py --count)
+        echo "Discoverable test programs: ${TEST_COUNT}"
+
+    - name: Run Python script unit tests
+      run: python3 -m unittest discover -s tests -p 'test_*.py'
 
     - name: Upload test logs on failure
       if: failure()

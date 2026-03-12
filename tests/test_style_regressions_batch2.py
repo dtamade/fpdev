@@ -16,8 +16,8 @@ class StyleRegressionBatch2Tests(unittest.TestCase):
         ]
         self.assertEqual([], offenders, f'Overlong lines found: {offenders}')
 
-    def test_cmd_params_has_no_trailing_whitespace(self):
-        source_path = REPO_ROOT / 'src' / 'fpdev.cmd.params.pas'
+    def test_command_params_has_no_trailing_whitespace(self):
+        source_path = REPO_ROOT / 'src' / 'fpdev.command.params.pas'
         lines = source_path.read_text(encoding='utf-8').splitlines()
         offenders = [
             (lineno, line)

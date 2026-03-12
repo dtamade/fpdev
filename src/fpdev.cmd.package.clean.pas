@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.paths, fpdev.command.intf, fpdev.command.registry, fpdev.cmd.package,
+  fpdev.paths, fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses fpdev.cmd.utils;
+uses fpdev.command.utils;
 
 function TPackageCleanCommand.Name: string; begin Result := 'clean'; end;
 function TPackageCleanCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -37,8 +37,10 @@ var
   Scope: string;
   DryRun, Yes: Boolean;
   Ok: Boolean;
+  UnknownOption: string;
+  I: Integer;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
@@ -54,6 +56,12 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if FindUnknownOption(AParams, ['--dry-run', '--yes'], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['scope']));
@@ -67,6 +75,12 @@ begin
     Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
+  for I := 1 to High(AParams) do
+    if (AParams[I] <> '') and (AParams[I][1] <> '-') then
+    begin
+      Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
 
   DryRun := HasFlag(AParams, 'dry-run');
   Yes := HasFlag(AParams, 'yes');

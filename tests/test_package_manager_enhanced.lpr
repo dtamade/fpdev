@@ -11,7 +11,7 @@ uses
   fpdev.cmd.package,
   fpdev.config.interfaces,
   fpdev.config.managers,
-  fpdev.pkg.version;
+  fpdev.pkg.version, test_temp_paths;
 
 type
   { TPackageManagerEnhancedTest }
@@ -55,18 +55,18 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test data directory
-  FTestDataDir := 'test_package_manager_enhanced_data';
-  if not DirectoryExists(FTestDataDir) then
-    CreateDir(FTestDataDir);
+  FTestDataDir := CreateUniqueTempDir('test_package_manager_enhanced_data');
 
-  // Create test config manager
   FConfigManager := TConfigManager.Create(FTestDataDir + PathDelim + 'config.json');
 end;
 
 destructor TPackageManagerEnhancedTest.Destroy;
 begin
-  CleanupTestFiles;
+  if FTestDataDir <> '' then
+  begin
+    CleanupTempDir(FTestDataDir);
+    FTestDataDir := '';
+  end;
   inherited Destroy;
 end;
 
@@ -110,30 +110,11 @@ begin
 end;
 
 procedure TPackageManagerEnhancedTest.CleanupTestFiles;
-var
-  SR: TSearchRec;
-  FilePath: string;
 begin
-  if DirectoryExists(FTestDataDir) then
+  if FTestDataDir <> '' then
   begin
-    if FindFirst(FTestDataDir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := FTestDataDir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              RemoveDir(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(FTestDataDir);
+    CleanupTempDir(FTestDataDir);
+    ForceDirectories(FTestDataDir);
   end;
 end;
 

@@ -9,6 +9,7 @@ uses
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GTempPathSequence: Int64 = 0;
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -22,6 +23,30 @@ begin
     WriteLn('[FAIL] ', ATestName);
     Inc(TestsFailed);
   end;
+end;
+
+function BuildTempCompilerPath: string;
+begin
+  Inc(GTempPathSequence);
+  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+    + 'test_ppcross_validate-' + IntToStr(GetTickCount64) + '-'
+    + IntToStr(GTempPathSequence) + '.tmp';
+end;
+
+procedure TestBuildTempCompilerPathUsesSystemTempAndUniqueSuffix;
+var
+  FirstPath: string;
+  SecondPath: string;
+  TempRoot: string;
+begin
+  FirstPath := BuildTempCompilerPath;
+  SecondPath := BuildTempCompilerPath;
+  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
+
+  Check(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
+    'BuildTempCompilerPath: uses system temp root');
+  Check(FirstPath <> SecondPath,
+    'BuildTempCompilerPath: returns unique path');
 end;
 
 { GetCPUSuffix tests }
@@ -163,7 +188,7 @@ var
   TmpFile: string;
   F: TextFile;
 begin
-  TmpFile := GetTempDir + 'test_ppcross_validate.tmp';
+  TmpFile := BuildTempCompilerPath;
   AssignFile(F, TmpFile);
   try
     Rewrite(F);
@@ -207,6 +232,7 @@ begin
   TestFindCrossCompiler_UnknownCPU;
 
   // ValidateCompiler tests
+  TestBuildTempCompilerPathUsesSystemTempAndUniqueSuffix;
   TestValidateCompiler_EmptyPath;
   TestValidateCompiler_NonexistentPath;
   TestValidateCompiler_ExistingFile;

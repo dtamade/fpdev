@@ -5,7 +5,17 @@ program test_git_minimal;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils;
+  SysUtils, test_pause_control, test_temp_paths;
+
+var
+  GTestRootDir: string = '';
+
+function ResetTestRepoDir(const APrefix: string): string;
+begin
+  CleanupTempDir(GTestRootDir);
+  GTestRootDir := CreateUniqueTempDir(APrefix);
+  Result := GTestRootDir + PathDelim + 'repo';
+end;
 
 function IsGitInstalled: Boolean;
 var
@@ -79,7 +89,7 @@ begin
   WriteLn('=== 测试仓库操作 ===');
   WriteLn;
 
-  TestDir := 'test_minimal_repo';
+  TestDir := ResetTestRepoDir('test_minimal_repo');
 
   // 测试克隆小仓库
   WriteLn('测试克隆GitHub测试仓库...');
@@ -132,16 +142,14 @@ begin
 end;
 
 procedure CleanupTest;
-var
-  TestDir: string;
 begin
   WriteLn('=== 清理测试文件 ===');
 
-  TestDir := 'test_minimal_repo';
-  if DirectoryExists(TestDir) then
+  if GTestRootDir <> '' then
   begin
-    WriteLn('删除测试目录: ', TestDir);
-    ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', TestDir]);
+    WriteLn('删除测试目录: ', GTestRootDir);
+    CleanupTempDir(GTestRootDir);
+    GTestRootDir := '';
     WriteLn('✓ 清理完成');
   end;
   WriteLn;
@@ -189,7 +197,5 @@ begin
     end;
   end;
 
-  WriteLn;
-  WriteLn('按Enter键退出...');
-  ReadLn;
+  PauseIfRequested('按Enter键退出...');
 end.

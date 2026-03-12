@@ -36,8 +36,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
-  fpdev.manifest, fpdev.exitcodes;
+  fpdev.config.interfaces, fpdev.types, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
+  fpdev.manifest, fpdev.exitcodes, fpdev.paths, fpdev.fpc.utils;
 
 type
   { TFPCVersionInfo - Information about an FPC version }
@@ -172,15 +172,34 @@ begin
 end;
 
 function TFPCVersionManager.GetVersionInstallPath(const AVersion: string): string;
+var
+  Scope: TInstallScope;
+  ProjectRoot: string;
 begin
-  // Default to user scope installation path
-  Result := FInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  // Resolve based on current scope.
+  Scope := fpdev.fpc.utils.DetectInstallScope(GetCurrentDir);
+  if Scope = isProject then
+  begin
+    ProjectRoot := fpdev.fpc.utils.FindProjectRoot(GetCurrentDir);
+    if ProjectRoot <> '' then
+    begin
+      Result := ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim +
+        'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion;
+      Exit;
+    end;
+  end;
+
+  // User scope: toolchains under InstallRoot.
+  Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
 end;
 
 function TFPCVersionManager.CheckVersionInstalled(const AVersion: string): Boolean;
 var
   InstallPath: string;
   FPCExe: string;
+  RootDir: string;
+  LegacyInstallPath: string;
+  LegacyExe: string;
 begin
   // Only check the configured InstallRoot path
   // This ensures test environments with custom InstallRoot are isolated
@@ -192,6 +211,22 @@ begin
   {$ENDIF}
 
   Result := FileExists(FPCExe);
+  if Result then
+    Exit;
+
+  // Legacy fallback: older layouts used <root>/fpc/<version>/bin/fpc(.exe).
+  // Try resolving <root> from the preferred <root>/toolchains/fpc/<version> path.
+  RootDir := ExtractFileDir(ExtractFileDir(ExtractFileDir(InstallPath)));
+  if RootDir <> '' then
+  begin
+    LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + AVersion;
+    {$IFDEF MSWINDOWS}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    Result := FileExists(LegacyExe);
+  end;
 end;
 
 function TFPCVersionManager.ValidateVersionInternal(const AVersion: string): Boolean;
@@ -413,6 +448,9 @@ end;
 function TFPCVersionManager.GetFPCExecutablePath(const AVersion: string): string;
 var
   InstallPath: string;
+  RootDir: string;
+  LegacyInstallPath: string;
+  LegacyExe: string;
 begin
   InstallPath := GetVersionInstallPath(AVersion);
   {$IFDEF MSWINDOWS}
@@ -420,6 +458,23 @@ begin
   {$ELSE}
   Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
+
+  if FileExists(Result) then
+    Exit;
+
+  // Legacy fallback: <root>/fpc/<version>/bin/fpc(.exe)
+  RootDir := ExtractFileDir(ExtractFileDir(ExtractFileDir(InstallPath)));
+  if RootDir <> '' then
+  begin
+    LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + AVersion;
+    {$IFDEF MSWINDOWS}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    if FileExists(LegacyExe) then
+      Result := LegacyExe;
+  end;
 end;
 
 { Utility functions }

@@ -14,7 +14,7 @@ This document answers common questions about using FPDev.
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
 lazbuild -B fpdev.lpi
-./bin/fpdev --help
+./bin/fpdev system help
 ```
 
 ### Q: What dependencies are required?

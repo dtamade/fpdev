@@ -29,7 +29,7 @@ uses
   fpdev.cmd.fpc.use,
   fpdev.cmd.fpc.current,
   fpdev.cmd.fpc.show,
-  test_cli_helpers;
+  test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
@@ -192,8 +192,7 @@ begin
   Cmd := TFPCUseCommand.Create;
   try
     A := Cmd.Aliases;
-    Check('use: aliases is not nil', A <> nil);
-    Check('use: has "default" alias', (Length(A) > 0) and (A[0] = 'default'));
+    Check('use: aliases is nil', A = nil);
   finally
     Cmd.Free;
   end;
@@ -431,6 +430,40 @@ begin
   end;
 end;
 
+procedure TestCurrentUnexpectedArg;
+var
+  Cmd: TFPCCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('current unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestCurrentUnknownOption;
+var
+  Cmd: TFPCCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('current unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 13: fpc current - Registration ===== }
 
 procedure TestCurrentRegistration;
@@ -554,15 +587,14 @@ var
   StdOut, StdErr: TStringOutput;
   Ctx: IContext;
   Ret: Integer;
-  AllOutput: string;
 begin
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
   Cmd := TFPCShowCommand.Create;
   try
     Ret := Cmd.Execute(['99.99.99'], Ctx);
-    AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
-    Check('show non-existent produces output', Length(AllOutput) > 0);
-    Check('show non-existent returns valid code', Ret >= 0);
+    Check('show non-existent EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('show non-existent writes stderr', StdErr.Contains('Unsupported FPC version'));
+    Check('show non-existent does not write error to stdout', not StdOut.Contains('Unsupported FPC version'));
   finally
     Cmd.Free;
   end;
@@ -592,8 +624,8 @@ begin
   WriteLn('=== FPC Info Commands CLI Tests (list/use/current/show) ===');
   WriteLn;
 
-  GTempDir := GetTempDir + 'fpdev_test_fpc_info_' + IntToStr(GetTickCount64);
-  ForceDirectories(GTempDir);
+  GTempDir := CreateUniqueTempDir('fpdev_test_fpc_info');
+  Check('temp dir uses system temp root', PathUsesSystemTempRoot(GTempDir));
 
   try
     // Group 1: fpc list basics
@@ -665,6 +697,8 @@ begin
     WriteLn('--- fpc current: Execution ---');
     TestCurrentNoArgs;
     TestCurrentJsonFlag;
+    TestCurrentUnexpectedArg;
+    TestCurrentUnknownOption;
 
     // Group 13: fpc current registration
     WriteLn('');
@@ -699,11 +733,7 @@ begin
     WriteLn('--- fpc show: Registration ---');
     TestShowRegistration;
   finally
-    if DirectoryExists(GTempDir) then
-    begin
-      DeleteFile(GTempDir + PathDelim + 'config.json');
-      RemoveDir(GTempDir);
-    end;
+    CleanupTempDir(GTempDir);
   end;
 
   Halt(PrintTestSummary);

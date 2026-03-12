@@ -1,6 +1,7 @@
 unit fpdev.cross.search;
 
 {$mode objfpc}{$H+}
+// acq:allow-hardcoded-constants-file
 
 {
   TCrossToolchainSearch - Multi-layer toolchain search engine
@@ -88,6 +89,11 @@ uses
 
 const
   TOOL_AS = 'as';
+  SYSTEM_TOOLCHAIN_DIRS: array[0..2] of string = (
+    '/usr/bin',
+    '/usr/local/bin',
+    '/opt/cross/bin'
+  );
 
 { TCrossToolchainSearch }
 
@@ -314,32 +320,29 @@ end;
 function TCrossToolchainSearch.SearchLayer2_SystemPaths(
   const ATarget: TCrossTarget): TCrossSearchResult;
 var
-  SystemDirs: array[0..2] of string;
+  SystemDir: string;
   Prefixes: TStringArray;
   I, J: Integer;
 begin
   Result := Default(TCrossSearchResult);
 
-  SystemDirs[0] := '/usr/bin';
-  SystemDirs[1] := '/usr/local/bin';
-  SystemDirs[2] := '/opt/cross/bin';
-
   Prefixes := GetPrefixCandidates(ATarget);
-  for I := 0 to High(SystemDirs) do
+  for I := Low(SYSTEM_TOOLCHAIN_DIRS) to High(SYSTEM_TOOLCHAIN_DIRS) do
   begin
+    SystemDir := SYSTEM_TOOLCHAIN_DIRS[I];
     for J := 0 to High(Prefixes) do
     begin
-      if CheckTool(SystemDirs[I], Prefixes[J], TOOL_AS) then
+      if CheckTool(SystemDir, Prefixes[J], TOOL_AS) then
       begin
         Result.Found := True;
-        Result.BinutilsPath := SystemDirs[I];
+        Result.BinutilsPath := SystemDir;
         Result.BinutilsPrefix := Prefixes[J];
         Result.Layer := 2;
         Result.LayerName := 'system-paths';
-        AddLog(2, 'system-paths', SystemDirs[I], Prefixes[J], True);
+        AddLog(2, 'system-paths', SystemDir, Prefixes[J], True);
         Exit;
       end;
-      AddLog(2, 'system-paths', SystemDirs[I], Prefixes[J], False);
+      AddLog(2, 'system-paths', SystemDir, Prefixes[J], False);
     end;
   end;
 end;

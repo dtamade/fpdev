@@ -22,6 +22,13 @@ function GetTempRootDir: string;
 function GetConfigPath: string;
 function GetToolchainsDir: string;
 
+// Install-root derived paths (preferred when Settings.InstallRoot is available)
+function BuildToolchainsDirFromInstallRoot(const AInstallRoot: string): string;
+function BuildBuildCacheDirFromInstallRoot(const AInstallRoot: string): string;
+function BuildFPCInstallDirFromInstallRoot(const AInstallRoot, AVersion: string): string;
+function BuildBootstrapCompilerRootDirFromInstallRoot(const AInstallRoot, AVersion: string): string;
+function BuildBootstrapCompilerExecutablePathFromInstallRoot(const AInstallRoot, AVersion: string): string;
+
 implementation
 
 var
@@ -92,13 +99,14 @@ var
   AppData: string;
   {$ENDIF}
 begin
+  // Environment variable override takes priority, even over portable auto-detection.
+  R := get_env('FPDEV_DATA_ROOT');
+  if R <> '' then
+    Exit(R);
+
   // Portable mode: use data subdirectory under program directory
   if IsPortableMode then
     Exit(EnsureDir(GetProgramDir + 'data'));
-
-  // Environment variable override takes priority
-  R := get_env('FPDEV_DATA_ROOT');
-  if R<>'' then Exit(R);
 
   {$IFDEF MSWINDOWS}
   AppData := get_env('APPDATA');
@@ -162,5 +170,54 @@ begin
   Result := EnsureDir(IncludeTrailingPathDelimiter(GetDataRoot) + 'toolchains');
 end;
 
-end.
+function NormalizeInstallRootCore(const AInstallRoot: string): string;
+begin
+  Result := ExcludeTrailingPathDelimiter(Trim(AInstallRoot));
+end;
 
+function BuildToolchainsDirFromInstallRoot(const AInstallRoot: string): string;
+var
+  Root: string;
+begin
+  Root := NormalizeInstallRootCore(AInstallRoot);
+  if Root = '' then
+    Exit(GetToolchainsDir);
+  Result := EnsureDir(Root + PathDelim + 'toolchains');
+end;
+
+function BuildBuildCacheDirFromInstallRoot(const AInstallRoot: string): string;
+var
+  Root: string;
+begin
+  Root := NormalizeInstallRootCore(AInstallRoot);
+  if Root = '' then
+    Result := EnsureDir(GetCacheDir + PathDelim + 'builds')
+  else
+    Result := EnsureDir(Root + PathDelim + 'cache' + PathDelim + 'builds');
+end;
+
+function BuildFPCInstallDirFromInstallRoot(const AInstallRoot, AVersion: string): string;
+begin
+  Result := BuildToolchainsDirFromInstallRoot(AInstallRoot) + PathDelim + 'fpc' + PathDelim + AVersion;
+end;
+
+function BuildBootstrapCompilerRootDirFromInstallRoot(const AInstallRoot, AVersion: string): string;
+var
+  Root: string;
+begin
+  Root := NormalizeInstallRootCore(AInstallRoot);
+  if Root = '' then
+    Root := NormalizeInstallRootCore(GetDataRoot);
+  Result := EnsureDir(Root + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion);
+end;
+
+function BuildBootstrapCompilerExecutablePathFromInstallRoot(const AInstallRoot, AVersion: string): string;
+begin
+  Result := BuildBootstrapCompilerRootDirFromInstallRoot(AInstallRoot, AVersion) +
+    PathDelim + 'bin' + PathDelim + 'fpc';
+  {$IFDEF MSWINDOWS}
+  Result := Result + '.exe';
+  {$ENDIF}
+end;
+
+end.

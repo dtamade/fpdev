@@ -6,26 +6,32 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils,
+  SysUtils, test_pause_control,
   Classes,
-  fpdev.config;
+  fpdev.config,
+  test_temp_paths;
 
 var
   ConfigManager: TFPDevConfigManager;
   ToolchainInfo: TToolchainInfo;
   Settings: TFPDevSettings;
+  TempRoot: string;
+  ConfigPath: string;
 
 begin
+  TempRoot := CreateUniqueTempDir('simple_test');
+  ConfigPath := IncludeTrailingPathDelimiter(TempRoot) + 'config.json';
+
   try
     WriteLn('FPDev Configuration Management Simple Test');
     WriteLn('==========================================');
     WriteLn;
-    
+
     // 创建配置管理器
-    ConfigManager := TFPDevConfigManager.Create('test_config.json');
+    ConfigManager := TFPDevConfigManager.Create(ConfigPath);
     try
       WriteLn('✓ Configuration manager created');
-      
+
       // 测试设置管理
       Settings := ConfigManager.GetSettings;
       WriteLn('✓ Default settings loaded');
@@ -33,7 +39,7 @@ begin
       WriteLn('  - Parallel Jobs: ', Settings.ParallelJobs);
       WriteLn('  - Keep Sources: ', Settings.KeepSources);
       WriteLn('  - Install Root: ', Settings.InstallRoot);
-      
+
       // 测试工具链信息结构
       FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
       ToolchainInfo.ToolchainType := ttRelease;
@@ -43,7 +49,7 @@ begin
       ToolchainInfo.Branch := 'fixes_3_2';
       ToolchainInfo.Installed := True;
       ToolchainInfo.InstallDate := Now;
-      
+
       WriteLn('✓ Toolchain info structure created');
       WriteLn('  - Type: ', Ord(ToolchainInfo.ToolchainType));
       WriteLn('  - Version: ', ToolchainInfo.Version);
@@ -51,13 +57,13 @@ begin
       WriteLn('  - Source URL: ', ToolchainInfo.SourceURL);
       WriteLn('  - Branch: ', ToolchainInfo.Branch);
       WriteLn('  - Installed: ', ToolchainInfo.Installed);
-      
+
       // 测试添加工具链
       if ConfigManager.AddToolchain('fpc-3.2.2', ToolchainInfo) then
         WriteLn('✓ Toolchain added successfully')
       else
         WriteLn('✗ Failed to add toolchain');
-      
+
       // 测试获取工具链
       FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
       if ConfigManager.GetToolchain('fpc-3.2.2', ToolchainInfo) then
@@ -67,22 +73,23 @@ begin
       end
       else
         WriteLn('✗ Failed to retrieve toolchain');
-      
+
       // 测试设置默认工具链
       if ConfigManager.SetDefaultToolchain('fpc-3.2.2') then
         WriteLn('✓ Default toolchain set successfully')
       else
         WriteLn('✗ Failed to set default toolchain');
-      
+
       WriteLn('  - Default toolchain: ', ConfigManager.GetDefaultToolchain);
-      
+
       WriteLn;
       WriteLn('✓ All basic tests completed successfully!');
-      
+
     finally
       ConfigManager.Free;
+      CleanupTempDir(TempRoot);
     end;
-    
+
   except
     on E: Exception do
     begin
@@ -90,10 +97,6 @@ begin
       ExitCode := 1;
     end;
   end;
-  
-  {$IFDEF MSWINDOWS}
-  WriteLn;
-  WriteLn('Press Enter to continue...');
-  ReadLn;
-  {$ENDIF}
+
+  PauseIfRequested('Press Enter to continue...');
 end.

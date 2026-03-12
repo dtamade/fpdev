@@ -7,7 +7,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpjson, jsonparser, fpdev.package.registry;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.package.registry,
+  test_temp_paths;
 
 type
   { TPackageRegistryTest }
@@ -65,15 +66,13 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  // Create temporary test registry directory
-  FTestRegistryDir := 'test_package_registry_data';
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
+  FTestRegistryDir := CreateUniqueTempDir('test_package_registry_data');
 end;
 
 destructor TPackageRegistryTest.Destroy;
 begin
   CleanupTestRegistry;
+  FTestRegistryDir := '';
   inherited Destroy;
 end;
 
@@ -104,40 +103,13 @@ end;
 procedure TPackageRegistryTest.CreateTestRegistry;
 begin
   CleanupTestRegistry;
-  if not DirectoryExists(FTestRegistryDir) then
-    CreateDir(FTestRegistryDir);
+  ForceDirectories(FTestRegistryDir);
 end;
 
 procedure TPackageRegistryTest.CleanupTestRegistry;
-
-  procedure DeleteDirectory(const ADir: string);
-  var
-    SR: TSearchRec;
-    FilePath: string;
-  begin
-    if FindFirst(ADir + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      try
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') then
-          begin
-            FilePath := ADir + PathDelim + SR.Name;
-            if (SR.Attr and faDirectory) <> 0 then
-              DeleteDirectory(FilePath)
-            else
-              DeleteFile(FilePath);
-          end;
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
-      end;
-    end;
-    RemoveDir(ADir);
-  end;
-
 begin
-  if DirectoryExists(FTestRegistryDir) then
-    DeleteDirectory(FTestRegistryDir);
+  if FTestRegistryDir <> '' then
+    CleanupTempDir(FTestRegistryDir);
 end;
 
 procedure TPackageRegistryTest.CreateTestPackage(const AName, AVersion: string);
