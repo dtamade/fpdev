@@ -9,7 +9,10 @@ uses
   fpdev.resource.repo.types;
 
 function ResourceRepoResolvePackageMetaPath(const ALocalPath, AName: string): string;
-function ResourceRepoLoadPackageInfoFromFile(const APackageMetaPath, AName: string; out AInfo: TRepoPackageInfo): Boolean;
+function ResourceRepoLoadPackageInfoFromFile(
+  const APackageMetaPath, AName: string;
+  out AInfo: TRepoPackageInfo
+): Boolean;
 function ResourceRepoListPackagesCore(const ALocalPath, ACategory: string): SysUtils.TStringArray;
 
 implementation
@@ -55,7 +58,10 @@ end;
 
 
 
-function ResourceRepoLoadPackageInfoFromFile(const APackageMetaPath, AName: string; out AInfo: TRepoPackageInfo): Boolean;
+function ResourceRepoLoadPackageInfoFromFile(
+  const APackageMetaPath, AName: string;
+  out AInfo: TRepoPackageInfo
+): Boolean;
 var
   MetaContent: string;
   Parser: TJSONParser;

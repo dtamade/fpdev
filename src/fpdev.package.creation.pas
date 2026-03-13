@@ -28,6 +28,9 @@ function CreatePackageZipArchiveCore(const SourceDir: string;
 
 implementation
 
+const
+  DEFAULT_PACKAGE_VERSION = '1.0.0';
+
 function IsBuildArtifactCore(const FileName: string): Boolean;
 var
   Ext: string;
@@ -146,11 +149,11 @@ begin
   if (MetaDir <> '') and (not DirectoryExists(MetaDir)) then
     EnsureDir(MetaDir);
 
-  MetaText := TStringList.Create;
+    MetaText := TStringList.Create;
   try
     Initialize(Options);
     Options.Name := APackageName;
-    Options.Version := '1.0.0';
+    Options.Version := DEFAULT_PACKAGE_VERSION;
     Options.SourcePath := ASourceDir;
     MetaText.Text := GeneratePackageMetadataJsonCore(Options);
     MetaText.SaveToFile(AMetaPath);

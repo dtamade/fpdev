@@ -16,7 +16,10 @@ uses
   SysUtils, fpdev.resource.repo.types;
 
 type
-  TResourceRepoPackageInfoGetter = function(const AName, AVersion: string; out AInfo: TRepoPackageInfo): Boolean of object;
+  TResourceRepoPackageInfoGetter = function(
+    const AName, AVersion: string;
+    out AInfo: TRepoPackageInfo
+  ): Boolean of object;
 
 { Check if a package matches keyword (name or description) }
 function ResourceRepoPackageMatchesKeyword(

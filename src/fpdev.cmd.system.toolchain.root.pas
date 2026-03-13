@@ -11,6 +11,10 @@ uses
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterSingletonPath(['system', 'toolchain'], CreateNamespaceRootShellCommand(['system', 'toolchain']), []);
+  GlobalCommandRegistry.RegisterSingletonPath(
+    ['system', 'toolchain'],
+    CreateNamespaceRootShellCommand(['system', 'toolchain']),
+    []
+  );
 
 end.

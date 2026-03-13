@@ -52,6 +52,10 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['system', 'toolchain', 'import-bundle'], @CreateSystemToolchainImportBundleCommand, []);
+  GlobalCommandRegistry.RegisterPath(
+    ['system', 'toolchain', 'import-bundle'],
+    @CreateSystemToolchainImportBundleCommand,
+    []
+  );
 
 end.

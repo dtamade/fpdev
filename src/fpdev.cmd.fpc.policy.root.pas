@@ -11,6 +11,10 @@ uses
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterSingletonPath(['fpc', 'policy'], CreateNamespaceRootShellCommand(['fpc', 'policy']), []);
+  GlobalCommandRegistry.RegisterSingletonPath(
+    ['fpc', 'policy'],
+    CreateNamespaceRootShellCommand(['fpc', 'policy']),
+    []
+  );
 
 end.

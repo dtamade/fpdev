@@ -57,6 +57,9 @@ implementation
 uses
   Classes, IniFiles, fpdev.build.probe;
 
+const
+  STRICT_RULE_PATH_SEPARATOR: string = '/';
+
 function BuildStrictReadCSV(const S: string): TStringList;
 var
   L: TStringList;
@@ -120,7 +123,7 @@ var
   end;
 begin
   LDir := IncludeTrailingPathDelimiter(ASandboxDest) +
-    StringReplace(ARule.RelativeDir, '/', PathDelim, [rfReplaceAll]);
+    StringReplace(ARule.RelativeDir, STRICT_RULE_PATH_SEPARATOR, PathDelim, [rfReplaceAll]);
 
   if ARule.Required then
   begin
@@ -269,7 +272,7 @@ begin
     LCfgFound := '';
     for K := 0 to LCfgList.Count - 1 do
     begin
-      LRel := StringReplace(LCfgList[K], '/', PathDelim, [rfReplaceAll]);
+      LRel := StringReplace(LCfgList[K], STRICT_RULE_PATH_SEPARATOR, PathDelim, [rfReplaceAll]);
       LFull := IncludeTrailingPathDelimiter(ASandboxDest) + LRel;
       if FileExists(LFull) then
       begin

@@ -13,6 +13,10 @@ uses
 implementation
 
 initialization
-  GlobalCommandRegistry.RegisterSingletonPath(['project', 'template'], CreateNamespaceRootShellCommand(['project', 'template']), []);
+  GlobalCommandRegistry.RegisterSingletonPath(
+    ['project', 'template'],
+    CreateNamespaceRootShellCommand(['project', 'template']),
+    []
+  );
 
 end.

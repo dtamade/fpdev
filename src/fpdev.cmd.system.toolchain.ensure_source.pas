@@ -52,6 +52,10 @@ begin
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['system', 'toolchain', 'ensure-source'], @CreateSystemToolchainEnsureSourceCommand, []);
+  GlobalCommandRegistry.RegisterPath(
+    ['system', 'toolchain', 'ensure-source'],
+    @CreateSystemToolchainEnsureSourceCommand,
+    []
+  );
 
 end.
