@@ -150,7 +150,7 @@ begin
   
   if not FileExists(AArchivePath) then
   begin
-    Result := OperationError(ecFileSystemError, '归档文件不存在: ' + AArchivePath);
+    Result := OperationError(ecFileSystemError, 'Archive file not found: ' + AArchivePath);
     Exit;
   end;
   
@@ -169,7 +169,7 @@ begin
     end;
   except
     on E: Exception do
-      Result := OperationError(ecExtractionFailed, 'ZIP 解压失败: ' + E.Message);
+      Result := OperationError(ecExtractionFailed, 'ZIP extraction failed: ' + E.Message);
   end;
 end;
 
@@ -183,7 +183,7 @@ begin
   
   if not FileExists(AArchivePath) then
   begin
-    Result := OperationError(ecFileSystemError, '归档文件不存在: ' + AArchivePath);
+    Result := OperationError(ecFileSystemError, 'Archive file not found: ' + AArchivePath);
     Exit;
   end;
   
@@ -215,13 +215,13 @@ begin
       ExitCode := Process.ExitStatus;
       if ExitCode <> 0 then
         Result := OperationError(ecExtractionFailed,
-          'TAR.GZ 解压失败，退出码: ' + IntToStr(ExitCode));
+          'TAR.GZ extraction failed (exit code: ' + IntToStr(ExitCode) + ')');
     finally
       Process.Free;
     end;
   except
     on E: Exception do
-      Result := OperationError(ecExtractionFailed, 'TAR.GZ 解压异常: ' + E.Message);
+      Result := OperationError(ecExtractionFailed, 'TAR.GZ extraction exception: ' + E.Message);
   end;
 end;
 

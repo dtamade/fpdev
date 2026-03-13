@@ -284,10 +284,7 @@ begin
   end;
   Result := Repo.SwitchFPCVersion(AVersion);
   if Result then
-  begin
     FCurrentVersion := AVersion;
-  end
-  else
 end;
 
 function TFPCSourceManager.ListAvailableVersions: TStringArray;
@@ -414,7 +411,7 @@ begin
 
   // Step 1: Initialize build environment
   FCurrentStep := bsInit;
-  if not ReportBuildStep(bsInit, '初始化构建环境') then Exit;
+  if not ReportBuildStep(bsInit, 'Initialize build environment') then Exit;
   if not InitializeInstall(Version) then
   begin
     Exit;
@@ -430,7 +427,7 @@ begin
 
   // Step 3: Smart clone source code (only if needed)
   FCurrentStep := bsClone;
-  if not ReportBuildStep(bsClone, '智能克隆FPC源码') then Exit;
+  if not ReportBuildStep(bsClone, 'Clone FPC sources') then Exit;
   if not CloneFPCSource(Version) then
   begin
     Exit;
@@ -442,7 +439,7 @@ begin
     if UseCachedBuild(Version) then
     begin
       FCurrentStep := bsConfig;
-      if not ReportBuildStep(bsConfig, '测试构建结果') then Exit;
+      if not ReportBuildStep(bsConfig, 'Test build results') then Exit;
       if not TestBuildResults(Version) then
       begin
         Exit;
@@ -450,7 +447,7 @@ begin
 
       // Finished (cache path)
       FCurrentStep := bsFinished;
-      ReportBuildStep(bsFinished, 'FPC构建测试完成');
+      ReportBuildStep(bsFinished, 'FPC build/test completed');
 
       WriteLn;
       Result := True;
@@ -468,7 +465,7 @@ begin
 
   // Step 4: Build RTL
   FCurrentStep := bsRTL;
-  if not ReportBuildStep(bsRTL, '构建FPC RTL') then Exit;
+  if not ReportBuildStep(bsRTL, 'Build FPC RTL') then Exit;
   if not BuildFPCRTL(Version) then
   begin
     Exit;
@@ -476,13 +473,13 @@ begin
 
   // Build packages
   FCurrentStep := bsPackages;
-  if not ReportBuildStep(bsPackages, '构建FPC包') then Exit;
+  if not ReportBuildStep(bsPackages, 'Build FPC packages') then Exit;
   if not BuildFPCPackages(Version) then
     Exit;
 
   // Step 6: Test build results
   FCurrentStep := bsConfig;
-  if not ReportBuildStep(bsConfig, '测试构建结果') then Exit;
+  if not ReportBuildStep(bsConfig, 'Test build results') then Exit;
   if not TestBuildResults(Version) then
   begin
     Exit;
@@ -504,7 +501,7 @@ begin
 
   // Finished
   FCurrentStep := bsFinished;
-  ReportBuildStep(bsFinished, 'FPC构建测试完成');
+  ReportBuildStep(bsFinished, 'FPC build/test completed');
 
   WriteLn;
   Result := True;
@@ -676,11 +673,10 @@ var
   LBM: TBuildManager;
 begin
 
-  // Delegate to BuildManager (currently placeholder implementation, will gradually migrate real logic later)
+  // Delegate to BuildManager for consistent build behavior and log output.
   LBM := TBuildManager.Create(FSourceRoot, FParallelJobs, FVerboseOutput);
   try
     Result := LBM.BuildCompiler(AVersion);
-    WriteLn('Log file: ', LBM.LogFileName);
   finally
     LBM.Free;
   end;
