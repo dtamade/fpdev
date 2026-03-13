@@ -5,7 +5,7 @@ program test_git_operations;
 { Unit tests for TGitOperations class in fpdev.utils.git }
 
 uses
-  SysUtils, Classes, fpdev.utils.git, git2.api, git2.impl, test_temp_paths;
+  SysUtils, Classes, fpdev.utils.git, git2.api, git2.impl, libgit2, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -180,6 +180,28 @@ begin
   end;
 end;
 
+procedure EnsureRepoRemoteConfig(const ARepoDir, ARemoteName, ARemoteUrl: string);
+var
+  ConfigPath: string;
+  Lines: TStringList;
+begin
+  ConfigPath := IncludeTrailingPathDelimiter(ARepoDir) + '.git' + PathDelim + 'config';
+
+  Lines := TStringList.Create;
+  try
+    if FileExists(ConfigPath) then
+      Lines.LoadFromFile(ConfigPath);
+
+    Lines.Add('');
+    Lines.Add(Format('[remote "%s"]', [ARemoteName]));
+    Lines.Add('  url = ' + ARemoteUrl);
+    Lines.Add('  fetch = +refs/heads/*:refs/remotes/' + ARemoteName + '/*');
+    Lines.SaveToFile(ConfigPath);
+  finally
+    Lines.Free;
+  end;
+end;
+
 procedure TestCommitLocalRepo;
 var
   Git: TGitOperations;
@@ -258,12 +280,139 @@ begin
   end;
 end;
 
+procedure TestPushLocalBareRemote;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  LocalRepoDir: string;
+  RemoteBareDir: string;
+  Mgr: IGitManager;
+  LocalRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  SL: TStringList;
+  Branch: string;
+  LocalHandle: git_repository;
+  RemoteHandle: git_repository;
+  LocalRef: git_reference;
+  RemoteRef: git_reference;
+  LocalOid: Pgit_oid;
+  RemoteOid: Pgit_oid;
+  RC: Integer;
+  RefName: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 7: Push (libgit2 local bare remote) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_push');
+    LocalRepoDir := TempRoot + PathDelim + 'local';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    ForceDirectories(LocalRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    LocalRepo := Mgr.InitRepository(LocalRepoDir, False);
+    Check('Init local repository succeeds', LocalRepo <> nil);
+    if LocalRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(LocalRepoDir);
+    EnsureRepoRemoteConfig(LocalRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'push-test';
+      SL.SaveToFile(LocalRepoDir + PathDelim + 'p.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add p.txt', Git.Add(LocalRepoDir, 'p.txt'));
+    Check('Commit', Git.Commit(LocalRepoDir, 'test push commit'));
+    Check('Push to origin', Git.Push(LocalRepoDir, 'origin', ''));
+
+    Branch := Git.GetCurrentBranch(LocalRepoDir);
+    Check('Branch is not empty', Branch <> '');
+    if Branch = '' then
+      Exit;
+
+    RefName := 'refs/heads/' + Branch;
+
+    LocalHandle := nil;
+    RemoteHandle := nil;
+    LocalRef := nil;
+    RemoteRef := nil;
+    try
+      RC := git_repository_open(LocalHandle, PChar(LocalRepoDir));
+      Check('Open local repository handle', RC = GIT_OK);
+      if RC <> GIT_OK then
+        Exit;
+
+      RC := git_repository_open(RemoteHandle, PChar(RemoteBareDir));
+      Check('Open remote repository handle', RC = GIT_OK);
+      if RC <> GIT_OK then
+        Exit;
+
+      RC := git_reference_lookup(LocalRef, LocalHandle, PChar(RefName));
+      Check('Lookup local branch ref', RC = GIT_OK);
+      if RC <> GIT_OK then
+        Exit;
+
+      RC := git_reference_lookup(RemoteRef, RemoteHandle, PChar(RefName));
+      Check('Lookup remote branch ref', RC = GIT_OK);
+      if RC <> GIT_OK then
+        Exit;
+
+      LocalOid := git_reference_target(LocalRef);
+      RemoteOid := git_reference_target(RemoteRef);
+      Check('Local branch OID is not nil', LocalOid <> nil);
+      Check('Remote branch OID is not nil', RemoteOid <> nil);
+      if (LocalOid <> nil) and (RemoteOid <> nil) then
+        Check('Remote matches local', git_oid_equal(LocalOid, RemoteOid) <> 0);
+    finally
+      if RemoteRef <> nil then
+        git_reference_free(RemoteRef);
+      if LocalRef <> nil then
+        git_reference_free(LocalRef);
+      if RemoteHandle <> nil then
+        git_repository_free(RemoteHandle);
+      if LocalHandle <> nil then
+        git_repository_free(LocalHandle);
+    end;
+
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestMultipleInstances;
 var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 7: Multiple Instances ===');
+  WriteLn('=== Test 8: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -287,7 +436,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 8: GitBackendToString ===');
+  WriteLn('=== Test 9: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -305,6 +454,7 @@ begin
   TestGetCurrentBranch;
   TestVerboseProperty;
   TestCommitLocalRepo;
+  TestPushLocalBareRemote;
   TestMultipleInstances;
   TestGitBackendToString;
 

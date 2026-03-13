@@ -241,6 +241,7 @@ function git_clone(out repo: git_repository; const url: PChar; const local_path:
 // Remote operations
 function git_remote_lookup(out remote: git_remote; repo: git_repository; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_fetch(remote: git_remote; const refspecs: Pointer; const opts: Pointer; const reflog_message: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_remote_push(remote: git_remote; const refspecs: Pgit_strarray; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_list(out out_list: git_strarray; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_url(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;
 function git_remote_name(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;

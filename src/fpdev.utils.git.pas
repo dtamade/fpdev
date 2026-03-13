@@ -48,6 +48,7 @@ type
     function CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
     function AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
     function CommitWithLibgit2(const ARepoPath, AMessage: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+    function PushWithLibgit2(const ARepoPath, ARemote, ABranch: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
 
   public
     constructor Create;
@@ -975,6 +976,122 @@ begin
   end;
 end;
 
+function TGitOperations.PushWithLibgit2(const ARepoPath, ARemote, ABranch: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+var
+  RepoHandle: git_repository;
+  RemoteHandle: git_remote;
+  HeadRef: git_reference;
+  SymTargetP: PChar;
+  BranchParam: string;
+  RemoteName: string;
+  LocalRef: string;
+  RemoteRef: string;
+  RefSpecStr: AnsiString;
+  RefSpecPtrs: array[0..0] of PChar;
+  RefSpecs: git_strarray;
+  RC: cint;
+  LErr: string;
+begin
+  Result := False;
+  AError := '';
+  ANeedsFallback := False;
+
+  RepoHandle := nil;
+  RemoteHandle := nil;
+  HeadRef := nil;
+
+  BranchParam := Trim(ABranch);
+  RemoteName := Trim(ARemote);
+  if RemoteName = '' then
+    RemoteName := 'origin';
+
+  try
+    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open repository failed: ' + LErr
+      else
+        AError := 'libgit2 open repository failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar(RemoteName));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 remote lookup failed: ' + LErr
+      else
+        AError := 'libgit2 remote lookup failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    LocalRef := '';
+    RemoteRef := '';
+
+    if (BranchParam = '') or SameText(BranchParam, 'HEAD') then
+    begin
+      RC := git_reference_lookup(HeadRef, RepoHandle, PChar('HEAD'));
+      if RC = GIT_OK then
+      begin
+        SymTargetP := git_reference_symbolic_target(HeadRef);
+        if SymTargetP <> nil then
+        begin
+          LocalRef := string(SymTargetP);
+          RemoteRef := LocalRef;
+        end;
+      end;
+
+      if (LocalRef = '') or (RemoteRef = '') then
+      begin
+        AError := 'libgit2 push requires a branch (detached HEAD?)';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+    end
+    else if Pos('refs/', BranchParam) = 1 then
+    begin
+      LocalRef := BranchParam;
+      RemoteRef := BranchParam;
+    end
+    else
+    begin
+      LocalRef := 'refs/heads/' + BranchParam;
+      RemoteRef := 'refs/heads/' + BranchParam;
+    end;
+
+    RefSpecStr := AnsiString(LocalRef + ':' + RemoteRef);
+    RefSpecPtrs[0] := PChar(RefSpecStr);
+    RefSpecs.strings := @RefSpecPtrs[0];
+    RefSpecs.count := 1;
+
+    RC := git_remote_push(RemoteHandle, @RefSpecs, nil);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 push failed: ' + LErr
+      else
+        AError := 'libgit2 push failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    Result := True;
+  finally
+    if HeadRef <> nil then
+      git_reference_free(HeadRef);
+    if RemoteHandle <> nil then
+      git_remote_free(RemoteHandle);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
+  end;
+end;
+
 function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;
 var
   RepoHandle: git_repository;
@@ -1176,6 +1293,8 @@ end;
 function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
 var
   BranchParam: string;
+  LErr: string;
+  LNeedsFallback: Boolean;
 begin
   Result := False;
   FLastError := '';
@@ -1198,8 +1317,25 @@ begin
   if Trim(BranchParam) = '' then
     BranchParam := 'HEAD';
 
-  // NOTE: libgit2 push is not implemented in our high-level adapter yet.
-  // Use command-line git as fallback.
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    LErr := '';
+    LNeedsFallback := False;
+    Result := PushWithLibgit2(ARepoPath, ARemote, BranchParam, LErr, LNeedsFallback);
+    if Result then
+      Exit(True);
+    if not LNeedsFallback then
+    begin
+      if LErr <> '' then
+        FLastError := LErr
+      else
+        FLastError := 'libgit2 push failed';
+      Exit(False);
+    end;
+    if LErr <> '' then
+      FLastError := LErr;
+  end;
+
   if not CommandLineGitAvailable then
   begin
     FLastError := 'Command-line git is required for push; please install git';
