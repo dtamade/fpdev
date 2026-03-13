@@ -52,7 +52,7 @@ uses
   fpdev.i18n, fpdev.i18n.strings;
 
 const
-  LIB_EXPORT_PLACEHOLDER_COMMENT = '// Export your functions here';
+  LIB_EXPORT_EXPORTS_HINT = '// Export your functions here';
   LIB_EXPORT_SAMPLE_SIGNATURE = '// function MyExportedFunction: Integer; cdecl;';
 
 { TProjectTemplateGenerator }
@@ -289,7 +289,7 @@ begin
   WriteLn(MainFile, 'uses');
   WriteLn(MainFile, '  SysUtils;');
   WriteLn(MainFile, '');
-  WriteLn(MainFile, LIB_EXPORT_PLACEHOLDER_COMMENT);
+  WriteLn(MainFile, LIB_EXPORT_EXPORTS_HINT);
   WriteLn(MainFile, LIB_EXPORT_SAMPLE_SIGNATURE);
   WriteLn(MainFile, '');
   WriteLn(MainFile, 'exports');

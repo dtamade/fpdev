@@ -34,7 +34,7 @@ type
   IAuthProvider = interface
     ['{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}']
     function GetAuthType: TAuthType;
-    function GetAuthHeader: string;  // Returns "Authorization: Bearer xxx"
+    function GetAuthHeader: string;  // Returns e.g. "Authorization: Bearer <token>"
     function IsValid: Boolean;
     function Refresh: Boolean;  // For OAuth2 token refresh
   end;
