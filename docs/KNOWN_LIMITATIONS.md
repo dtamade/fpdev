@@ -17,7 +17,7 @@
 ❌ **未实现**
 
 ### 位置
-- 消息定义: `src/fpdev.i18n.strings.pas:1201`
+- 消息定义: `src/fpdev.i18n.strings.pas:1351`
 - 消息键: `CMD_LAZARUS_BINARY_NOT_IMPL`
 
 ### 原因
@@ -79,64 +79,23 @@ fpdev lazarus install 3.0 --from-source --fpc-version 3.2.2
 ## 2. Windows 内存报告
 
 ### 状态
-❌ **有意未实现**
+✅ **已实现**
 
 ### 位置
-- 代码位置: `src/fpdev.perf.monitor.pas:199`
-- 注释: "Windows memory reporting is intentionally not implemented."
-
-### 原因
-
-1. **Windows API 复杂性**
-   - Windows 内存管理 API 复杂
-   - 需要处理多种内存类型（物理内存、虚拟内存、页面文件等）
-   - 不同 Windows 版本的 API 差异
-
-2. **Free Pascal 限制**
-   - Free Pascal 的 Windows API 绑定不完整
-   - 需要直接调用 Windows API
-   - 跨平台代码难以维护
-
-3. **优先级低**
-   - 内存报告主要用于性能监控
-   - Windows 用户可以使用系统自带的任务管理器
-   - 不影响核心功能
-
-### 替代方案
-
-**Windows 用户可以使用以下工具**:
-
-1. **任务管理器**
-   - 按 `Ctrl+Shift+Esc` 打开
-   - 查看"性能"标签页
-   - 实时监控内存使用
-
-2. **资源监视器**
-   - 按 `Win+R`，输入 `resmon`
-   - 查看详细的内存使用情况
-   - 可以按进程查看
-
-3. **PowerShell 命令**
-   ```powershell
-   # 查看内存使用情况
-   Get-Process | Sort-Object -Property WS -Descending | Select-Object -First 10
-
-   # 查看系统内存信息
-   Get-WmiObject -Class Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory
-   ```
+- 代码位置: `src/fpdev.perf.monitor.pas:GetCurrentMemory`
+- 实现: Windows 下使用 `GetProcessMemoryInfo` (psapi.dll) 获取 WorkingSetSize
 
 ### 当前实现
 
-FPDev 在 Windows 上的性能监控功能：
+FPDev 性能监控功能：
 
 - ✅ **CPU 使用率** - 已实现
 - ✅ **磁盘使用情况** - 已实现
 - ✅ **构建时间统计** - 已实现
-- ❌ **内存使用情况** - 未实现（仅 Windows）
+- ✅ **内存使用情况** - Linux/Windows 已实现（其他平台返回 0 表示不可用）
 
-**Linux/macOS 用户**:
-- ✅ 完整的内存报告功能
-- 使用 `/proc/meminfo` (Linux) 或 `vm_stat` (macOS)
+**Linux 用户**:
+- ✅ 使用 `/proc/self/status` 的 `VmRSS`
 
 ### 未来计划
 

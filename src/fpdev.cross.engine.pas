@@ -157,9 +157,9 @@ begin
   else
     Result := TCrossCompilerResolver.FindCrossCompiler(ATarget.CPU, ASourceRoot);
 
-  // In dry-run mode, return a placeholder path if not found
+  // In dry-run mode, assume the compiler would be produced in the compiler output directory.
   if (Result = '') and FDryRun then
-    Result := '<' + PPName + '>';
+    Result := CompilerDir + PathDelim + PPName;
 end;
 
 function TCrossBuildEngine.GetCurrentStage: TCrossBuildStage;

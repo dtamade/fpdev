@@ -8,7 +8,7 @@ uses
   SysUtils, git2.types;
 
 type
-  // Authentication and certificate events (placeholder, to be wired later)
+  // Optional authentication and certificate callbacks (may be ignored by some backends).
   TCredentialAcquireEvent = function(const Url, UserFromURL: string; AllowedTypes: Cardinal): Boolean of object;
   TCertificateCheckEvent = function(const Host: string; Valid: Boolean): Boolean of object;
 
@@ -99,4 +99,3 @@ type
 implementation
 
 end.
-

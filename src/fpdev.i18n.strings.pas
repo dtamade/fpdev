@@ -1348,7 +1348,7 @@ begin
   T(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED, 'Source download failed',          '源码下载失败');
   T(CMD_LAZARUS_SOURCE_BUILD_FAILED, 'Source compilation failed',          '源码编译失败');
   T(CMD_LAZARUS_ENV_SETUP_FAILED, 'Environment setup failed',              '环境设置失败');
-  T(CMD_LAZARUS_BINARY_NOT_IMPL, 'Pre-compiled binary installation not implemented, please use --from-source option', '预编译二进制安装未实现，请使用 --from-source 选项');
+  T(CMD_LAZARUS_BINARY_NOT_IMPL, 'Pre-compiled binary installation is currently unavailable; please use --from-source option', '预编译二进制安装当前不可用，请使用 --from-source 选项');
   T(CMD_LAZARUS_LIST_HEADER,     'Installed Lazarus versions:',            '已安装的 Lazarus 版本:');
   T(CMD_LAZARUS_LIST_EMPTY,      'No Lazarus versions installed',          '未安装任何 Lazarus 版本');
   T(CMD_LAZARUS_USE_SET,         'Default Lazarus version set to: %s',     '默认 Lazarus 版本已设置为: %s');

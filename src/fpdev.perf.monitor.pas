@@ -94,6 +94,32 @@ function FormatElapsedTime(AMs: Int64): string;
 
 implementation
 
+{$IFDEF MSWINDOWS}
+uses
+  Windows;
+{$ENDIF}
+
+{$IFDEF MSWINDOWS}
+type
+  { Minimal PROCESS_MEMORY_COUNTERS struct for GetProcessMemoryInfo }
+  TProcessMemoryCounters = record
+    cb: DWORD;
+    PageFaultCount: DWORD;
+    PeakWorkingSetSize: NativeUInt;
+    WorkingSetSize: NativeUInt;
+    QuotaPeakPagedPoolUsage: NativeUInt;
+    QuotaPagedPoolUsage: NativeUInt;
+    QuotaPeakNonPagedPoolUsage: NativeUInt;
+    QuotaNonPagedPoolUsage: NativeUInt;
+    PagefileUsage: NativeUInt;
+    PeakPagefileUsage: NativeUInt;
+  end;
+  PProcessMemoryCounters = ^TProcessMemoryCounters;
+
+function GetProcessMemoryInfo(hProcess: THandle; ppsmemCounters: PProcessMemoryCounters;
+  cb: DWORD): BOOL; stdcall; external 'psapi.dll';
+{$ENDIF}
+
 const
   PROC_SELF_STATUS_PATH = '/proc/self/status';
 
@@ -171,6 +197,10 @@ var
   Line: string;
   Parts: TStringArray;
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  Counters: TProcessMemoryCounters;
+{$ENDIF}
 begin
   Result := 0;
   {$IFDEF LINUX}
@@ -199,10 +229,10 @@ begin
   end;
   {$ENDIF}
   {$IFDEF MSWINDOWS}
-  // Windows memory reporting is intentionally not implemented.
-  // GetProcessMemoryInfo from psapi would add a Windows-only dependency
-  // for a non-critical diagnostic feature. Return 0 to indicate unavailable.
-  Result := 0;
+  FillChar(Counters, SizeOf(Counters), 0);
+  Counters.cb := SizeOf(Counters);
+  if GetProcessMemoryInfo(GetCurrentProcess, @Counters, Counters.cb) then
+    Result := Int64(Counters.WorkingSetSize);
   {$ENDIF}
 end;
 
