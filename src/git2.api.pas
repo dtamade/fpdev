@@ -45,6 +45,14 @@ type
     function HasUncommittedChanges: Boolean;
   end;
 
+  // Optional extended operations (implemented by the libgit2 adapter).
+  // Keep these out of IGitRepository to preserve binary compatibility of the base interface.
+  IGitRepositoryExt = interface
+    ['{4E3F24A0-2F2B-4C62-8C9E-2C0D7E4A3A61}']
+    function ListRemotes: TStringArray;
+    function PullFastForward(const RemoteName: string; out Error: string): TGitPullFastForwardResult;
+  end;
+
   IGitCommit = interface
     ['{5F1B0C6E-9E4C-4E67-9B83-21C0B7E676B7}']
     function Message: string;

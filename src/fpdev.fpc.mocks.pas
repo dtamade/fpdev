@@ -13,7 +13,9 @@ unit fpdev.fpc.mocks;
 interface
 
 uses
-  SysUtils, Classes, Generics.Collections, fpdev.fpc.interfaces;
+  SysUtils, Classes, Generics.Collections,
+  git2.api, git2.types,
+  fpdev.fpc.interfaces;
 
 type
   { TMockFileSystem - Mock file system for testing }
@@ -100,6 +102,81 @@ type
       const AErrorMessage: string = '');
     function GetRequestedURLs: TStringList;
     procedure Clear;
+  end;
+
+  { TMockGitRepository - Mock git repository for DI tests }
+  TMockGitRepository = class(TInterfacedObject, IGitRepository, IGitRepositoryExt)
+  private
+    FPath: string;
+    FWorkDir: string;
+    FFetchOk: Boolean;
+    FCheckoutOk: Boolean;
+    FPullResult: TGitPullFastForwardResult;
+    FPullError: string;
+  public
+    constructor Create(const APath: string);
+
+    procedure SetFetchOk(AOk: Boolean);
+    procedure SetCheckoutOk(AOk: Boolean);
+    procedure SetPullResult(AResult: TGitPullFastForwardResult; const AError: string = '');
+
+    // IGitRepository
+    function Path: string;
+    function WorkDir: string;
+    function IsBare: Boolean;
+    function IsEmpty: Boolean;
+    function Head: IGitReference;
+    function CurrentBranch: string;
+    function ListBranches(Kind: TGitBranchKind = gbLocal): TStringArray;
+    function CommitByHash(const Hash: string): IGitCommit;
+    function HeadCommit: IGitCommit;
+    function Remote(const Name: string = 'origin'): IGitRemote;
+    function Fetch(const RemoteName: string = 'origin'): Boolean;
+    function CheckoutBranch(const Branch: string): Boolean;
+    function CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
+    function Status: TStringArray;
+    function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
+    function IsClean: Boolean;
+    function HasUncommittedChanges: Boolean;
+
+    // IGitRepositoryExt
+    function ListRemotes: TStringArray;
+    function PullFastForward(const RemoteName: string; out Error: string): TGitPullFastForwardResult;
+  end;
+
+  { TMockGitManager - Mock git manager for DI tests (libgit2-first callers) }
+  TMockGitManager = class(TInterfacedObject, IGitManager)
+  private
+    FInitializeOk: Boolean;
+    FInitialized: Boolean;
+    FVerifySSL: Boolean;
+    FCloneRepo: IGitRepository;
+    FOpenRepo: IGitRepository;
+    FIsRepoOk: Boolean;
+  public
+    constructor Create;
+
+    procedure SetInitializeOk(AOk: Boolean);
+    procedure SetCloneRepositoryResult(ARepo: IGitRepository);
+    procedure SetOpenRepositoryResult(ARepo: IGitRepository);
+    procedure SetIsRepositoryResult(AOk: Boolean);
+
+    // IGitManager
+    function Initialize: Boolean;
+    procedure Finalize;
+    function OpenRepository(const APath: string): IGitRepository;
+    function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
+    function InitRepository(const APath: string; ABare: Boolean = False): IGitRepository;
+    function IsRepository(const APath: string): Boolean;
+    function DiscoverRepository(const AStartPath: string): string;
+    function GetGlobalConfig(const AKey: string): string;
+    function SetGlobalConfig(const AKey, AValue: string): Boolean;
+    function Version: string;
+    procedure SetVerifySSL(AEnabled: Boolean);
+    procedure SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
+    procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
+    function Initialized: Boolean;
+    function VerifySSL: Boolean;
   end;
 
 implementation
@@ -360,6 +437,259 @@ procedure TMockHttpClient.Clear;
 begin
   FResponses.Clear;
   FRequestedURLs.Clear;
+end;
+
+{ TMockGitRepository }
+
+constructor TMockGitRepository.Create(const APath: string);
+begin
+  inherited Create;
+  FPath := APath;
+  FWorkDir := APath;
+  FFetchOk := True;
+  FCheckoutOk := True;
+  FPullResult := gpffUpToDate;
+  FPullError := '';
+end;
+
+procedure TMockGitRepository.SetFetchOk(AOk: Boolean);
+begin
+  FFetchOk := AOk;
+end;
+
+procedure TMockGitRepository.SetCheckoutOk(AOk: Boolean);
+begin
+  FCheckoutOk := AOk;
+end;
+
+procedure TMockGitRepository.SetPullResult(AResult: TGitPullFastForwardResult; const AError: string);
+begin
+  FPullResult := AResult;
+  FPullError := AError;
+end;
+
+function TMockGitRepository.Path: string;
+begin
+  Result := FPath;
+end;
+
+function TMockGitRepository.WorkDir: string;
+begin
+  Result := FWorkDir;
+end;
+
+function TMockGitRepository.IsBare: Boolean;
+begin
+  Result := False;
+end;
+
+function TMockGitRepository.IsEmpty: Boolean;
+begin
+  Result := False;
+end;
+
+function TMockGitRepository.Head: IGitReference;
+begin
+  Result := nil;
+end;
+
+function TMockGitRepository.CurrentBranch: string;
+begin
+  Result := 'main';
+end;
+
+function TMockGitRepository.ListBranches(Kind: TGitBranchKind): TStringArray;
+begin
+  if Kind = gbAll then;
+  Result := nil;
+end;
+
+function TMockGitRepository.CommitByHash(const Hash: string): IGitCommit;
+begin
+  if Hash <> '' then;
+  Result := nil;
+end;
+
+function TMockGitRepository.HeadCommit: IGitCommit;
+begin
+  Result := nil;
+end;
+
+function TMockGitRepository.Remote(const Name: string): IGitRemote;
+begin
+  if Name <> '' then;
+  Result := nil;
+end;
+
+function TMockGitRepository.Fetch(const RemoteName: string): Boolean;
+begin
+  if RemoteName <> '' then;
+  Result := FFetchOk;
+end;
+
+function TMockGitRepository.CheckoutBranch(const Branch: string): Boolean;
+begin
+  if Branch <> '' then;
+  Result := FCheckoutOk;
+end;
+
+function TMockGitRepository.CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
+begin
+  if Force then;
+  if Branch <> '' then;
+  Result := FCheckoutOk;
+end;
+
+function TMockGitRepository.Status: TStringArray;
+begin
+  Result := nil;
+end;
+
+function TMockGitRepository.StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
+begin
+  if Filter.IncludeUntracked then;
+  Result := nil;
+end;
+
+function TMockGitRepository.IsClean: Boolean;
+begin
+  Result := True;
+end;
+
+function TMockGitRepository.HasUncommittedChanges: Boolean;
+begin
+  Result := False;
+end;
+
+function TMockGitRepository.ListRemotes: TStringArray;
+begin
+  SetLength(Result, 1);
+  Result[0] := 'origin';
+end;
+
+function TMockGitRepository.PullFastForward(const RemoteName: string; out Error: string): TGitPullFastForwardResult;
+begin
+  if RemoteName <> '' then;
+  Error := FPullError;
+  Result := FPullResult;
+end;
+
+{ TMockGitManager }
+
+constructor TMockGitManager.Create;
+begin
+  inherited Create;
+  FInitializeOk := False;
+  FInitialized := False;
+  FVerifySSL := True;
+  FCloneRepo := nil;
+  FOpenRepo := nil;
+  FIsRepoOk := False;
+end;
+
+procedure TMockGitManager.SetInitializeOk(AOk: Boolean);
+begin
+  FInitializeOk := AOk;
+end;
+
+procedure TMockGitManager.SetCloneRepositoryResult(ARepo: IGitRepository);
+begin
+  FCloneRepo := ARepo;
+end;
+
+procedure TMockGitManager.SetOpenRepositoryResult(ARepo: IGitRepository);
+begin
+  FOpenRepo := ARepo;
+end;
+
+procedure TMockGitManager.SetIsRepositoryResult(AOk: Boolean);
+begin
+  FIsRepoOk := AOk;
+end;
+
+function TMockGitManager.Initialize: Boolean;
+begin
+  FInitialized := FInitializeOk;
+  Result := FInitialized;
+end;
+
+procedure TMockGitManager.Finalize;
+begin
+  FInitialized := False;
+end;
+
+function TMockGitManager.OpenRepository(const APath: string): IGitRepository;
+begin
+  if APath <> '' then;
+  Result := FOpenRepo;
+end;
+
+function TMockGitManager.CloneRepository(const AURL, ALocalPath: string): IGitRepository;
+begin
+  if AURL <> '' then;
+  if ALocalPath <> '' then;
+  Result := FCloneRepo;
+end;
+
+function TMockGitManager.InitRepository(const APath: string; ABare: Boolean): IGitRepository;
+begin
+  if ABare then;
+  Result := TMockGitRepository.Create(APath) as IGitRepository;
+end;
+
+function TMockGitManager.IsRepository(const APath: string): Boolean;
+begin
+  if APath <> '' then;
+  Result := FIsRepoOk;
+end;
+
+function TMockGitManager.DiscoverRepository(const AStartPath: string): string;
+begin
+  if AStartPath <> '' then;
+  Result := '';
+end;
+
+function TMockGitManager.GetGlobalConfig(const AKey: string): string;
+begin
+  if AKey <> '' then;
+  Result := '';
+end;
+
+function TMockGitManager.SetGlobalConfig(const AKey, AValue: string): Boolean;
+begin
+  if AKey <> '' then;
+  if AValue <> '' then;
+  Result := True;
+end;
+
+function TMockGitManager.Version: string;
+begin
+  Result := 'mock';
+end;
+
+procedure TMockGitManager.SetVerifySSL(AEnabled: Boolean);
+begin
+  FVerifySSL := AEnabled;
+end;
+
+procedure TMockGitManager.SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
+begin
+  if Assigned(AHandler) then;
+end;
+
+procedure TMockGitManager.SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
+begin
+  if Assigned(AHandler) then;
+end;
+
+function TMockGitManager.Initialized: Boolean;
+begin
+  Result := FInitialized;
+end;
+
+function TMockGitManager.VerifySSL: Boolean;
+begin
+  Result := FVerifySSL;
 end;
 
 end.

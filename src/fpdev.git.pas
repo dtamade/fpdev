@@ -6,12 +6,13 @@ unit fpdev.git;
 interface
 
 uses
-  SysUtils, Classes, Process;
+  SysUtils, Classes, Process, fpdev.utils.git;
 
 type
   { TGitManager }
   TGitManager = class
   private
+    FGitOps: TGitOperations;
     function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
     function GetGitOutput(const ACommand: string; const AWorkingDir: string = ''): string;
     function IsGitInstalled: Boolean;
@@ -45,10 +46,13 @@ implementation
 constructor TGitManager.Create;
 begin
   inherited Create;
+  FGitOps := TGitOperations.Create;
 end;
 
 destructor TGitManager.Destroy;
 begin
+  if Assigned(FGitOps) then
+    FGitOps.Free;
   inherited Destroy;
 end;
 
@@ -85,11 +89,7 @@ end;
 
 function TGitManager.ValidateGitEnvironment: Boolean;
 begin
-  Result := IsGitInstalled;
-  if Result then
-  // WriteLn('[OK] Git found: ', GetGitVersion)  // debug code commented out
-  else
-  // WriteLn('[FAIL] Git not found. Please install Git first.');  // debug code commented out
+  Result := Assigned(FGitOps) and (FGitOps.Backend <> gbNone);
 end;
 
 function TGitManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
@@ -225,7 +225,6 @@ end;
 
 function TGitManager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean;
 var
-  Command: string;
   ParentDir: string;
 begin
   Result := False;
@@ -249,20 +248,18 @@ begin
   end;
 
   // If the target directory already exists and is a Git repository, update instead of cloning
-  if IsGitRepository(ATargetDir) then
+  if Assigned(FGitOps) and FGitOps.IsRepository(ATargetDir) then
   begin
   // WriteLn('Target directory already contains a Git repository, trying to update...');  // debug code commented out
     Result := UpdateRepository(ATargetDir);
     Exit;
   end;
 
-  // Build clone command
-  Command := 'clone';
-  if ABranch <> '' then
-    Command := Command + ' --branch ' + ABranch;
-  Command := Command + ' ' + AURL + ' ' + ATargetDir;
+  if not Assigned(FGitOps) then
+    Exit(False);
 
-  Result := ExecuteGitCommand(Command);
+  // libgit2-first clone with CLI fallback inside TGitOperations
+  Result := FGitOps.Clone(AURL, ATargetDir, ABranch);
 
   if Result then
   // WriteLn('[OK] Clone succeeded')  // debug code commented out
@@ -274,7 +271,7 @@ function TGitManager.UpdateRepository(const ARepoDir: string): Boolean;
 begin
   Result := False;
 
-  if not IsGitRepository(ARepoDir) then
+  if (not Assigned(FGitOps)) or (not FGitOps.IsRepository(ARepoDir)) then
   begin
   // WriteLn('Error: ', ARepoDir, ' is not a Git repository');  // debug code commented out
     Exit;
@@ -283,7 +280,7 @@ begin
   // WriteLn('Updating repository: ', ARepoDir);  // debug code commented out
 
   // Run git pull
-  Result := ExecuteGitCommand('pull', ARepoDir);
+  Result := FGitOps.Pull(ARepoDir);
 
   if Result then
   // WriteLn('[OK] Update succeeded')  // debug code commented out
@@ -295,14 +292,14 @@ function TGitManager.CheckoutBranch(const ARepoDir, ABranch: string): Boolean;
 begin
   Result := False;
 
-  if not IsGitRepository(ARepoDir) then
+  if (not Assigned(FGitOps)) or (not FGitOps.IsRepository(ARepoDir)) then
   begin
   // WriteLn('Error: ', ARepoDir, ' is not a Git repository');  // debug code commented out
     Exit;
   end;
 
   // WriteLn('Switch to branch: ', ABranch);  // debug code commented out
-  Result := ExecuteGitCommand('checkout ' + ABranch, ARepoDir);
+  Result := FGitOps.Checkout(ARepoDir, ABranch, False);
 
   if Result then
   // WriteLn('[OK] Branch switch succeeded')  // debug code commented out
@@ -312,7 +309,10 @@ end;
 
 function TGitManager.GetCurrentBranch(const ARepoDir: string): string;
 begin
-  Result := Trim(GetGitOutput('rev-parse --abbrev-ref HEAD', ARepoDir));
+  if Assigned(FGitOps) then
+    Result := FGitOps.GetCurrentBranch(ARepoDir)
+  else
+    Result := Trim(GetGitOutput('rev-parse --abbrev-ref HEAD', ARepoDir));
 end;
 
 function TGitManager.ListBranches(const ARepoDir: string): TStringArray;
@@ -346,7 +346,10 @@ end;
 
 function TGitManager.GetLastCommitHash(const ARepoDir: string): string;
 begin
-  Result := Trim(GetGitOutput('rev-parse HEAD', ARepoDir));
+  if Assigned(FGitOps) then
+    Result := FGitOps.GetShortHeadHash(ARepoDir, 40)
+  else
+    Result := Trim(GetGitOutput('rev-parse HEAD', ARepoDir));
 end;
 
 function TGitManager.Add(const ARepoDir, APathSpec: string): Boolean;

@@ -39,7 +39,7 @@ type
     function VerifySSL: Boolean;
   end;
 
-  TGitRepositoryImpl = class(TInterfacedObject, IGitRepository)
+  TGitRepositoryImpl = class(TInterfacedObject, IGitRepository, IGitRepositoryExt)
   private
     FRepo: TGitRepository;
   public
@@ -68,6 +68,10 @@ type
     function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
     function IsClean: Boolean;
     function HasUncommittedChanges: Boolean;
+
+    // Extended operations
+    function ListRemotes: TStringArray;
+    function PullFastForward(const RemoteName: string; out Error: string): TGitPullFastForwardResult;
   end;
 
   TGitCommitImpl = class(TInterfacedObject, IGitCommit)
@@ -342,6 +346,16 @@ begin
   Result := FRepo.HasUncommittedChanges;
 end;
 
+function TGitRepositoryImpl.ListRemotes: TStringArray;
+begin
+  Result := FRepo.ListRemotes;
+end;
+
+function TGitRepositoryImpl.PullFastForward(const RemoteName: string; out Error: string): TGitPullFastForwardResult;
+begin
+  Result := FRepo.PullFastForward(RemoteName, Error);
+end;
+
 { TGitCommitImpl }
 
 constructor TGitCommitImpl.Create(ARepo: TGitRepository; C: TGitCommit);
@@ -477,4 +491,3 @@ begin
 end;
 
 end.
-

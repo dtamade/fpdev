@@ -92,6 +92,7 @@ type
     function GetReference(const AName: string): TGitReference;
     function GetCurrentBranch: string;
     function ListBranches(AType: git_branch_t = GIT_BRANCH_LOCAL): TStringArray;
+    function ListRemotes: TStringArray;
     function CheckoutBranch(const ABranch: string): Boolean;
     function CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
 
@@ -119,6 +120,7 @@ type
 
     function GetRemote(const AName: string): TGitRemote;
     function Fetch(const ARemoteName: string = 'origin'): Boolean;
+    function PullFastForward(const ARemoteName: string; out AError: string): TGitPullFastForwardResult;
 
     property Path: string read GetPath;
     property WorkDir: string read GetWorkDir;
@@ -383,7 +385,6 @@ end;
 function TGitRepository.CheckoutBranch(const ABranch: string): Boolean;
 var
   LRefName: string;
-  LOpts: git_checkout_options;
 begin
   // Switch to local branch and checkout to working directory (safe mode)
   // Note: Only supports local branch names, future extension needed for creating local branches from remote
@@ -400,11 +401,8 @@ begin
     // Set HEAD to target branch
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
 
-    // Safe checkout HEAD to working directory
-    LOpts := Default(git_checkout_options);
-    CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
-    LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
-    CheckGitResult(git_checkout_head(FHandle, @LOpts), 'Checkout HEAD');
+    // Checkout HEAD to working directory using libgit2 defaults (safe).
+    CheckGitResult(git_checkout_head(FHandle, nil), 'Checkout HEAD');
 
     Result := True;
   except
@@ -419,20 +417,16 @@ end;
 function TGitRepository.CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
 var
   LRefName: string;
-  LOpts: git_checkout_options;
 begin
   Result := False;
   try
     if Trim(ABranch) = '' then Exit(False);
     if Pos('refs/', ABranch) = 1 then LRefName := ABranch else LRefName := 'refs/heads/' + ABranch;
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
-    LOpts := Default(git_checkout_options);
-    CheckGitResult(git_checkout_options_init(@LOpts, 1), 'Init checkout options');
-    if Force then
-      LOpts.checkout_strategy := GIT_CHECKOUT_FORCE
-    else
-      LOpts.checkout_strategy := GIT_CHECKOUT_SAFE;
-    CheckGitResult(git_checkout_head(FHandle, @LOpts), 'Checkout HEAD');
+    // Avoid passing checkout options structs across libgit2 versions; use defaults.
+    // When Force=True, callers should prefer CLI fallback if a force checkout is required.
+    if Force then;
+    CheckGitResult(git_checkout_head(FHandle, nil), 'Checkout HEAD');
     Result := True;
   except
     Result := False;
@@ -448,14 +442,10 @@ begin
 end;
 
 constructor TGitRepository.Clone(const AURL, ALocalPath: string);
-var
-  opts: git_clone_options;
 begin
   inherited Create;
-  opts := Default(git_clone_options);
-  CheckGitResult(git_clone_options_init(@opts, 1), 'Init clone options');
-  opts.checkout_opts.checkout_strategy := GIT_CHECKOUT_SAFE;
-  CheckResult(git_clone(FHandle, PChar(AURL), PChar(ALocalPath), @opts), 'Clone repository');
+  // Avoid passing clone options structs across libgit2 minor versions; use defaults.
+  CheckResult(git_clone(FHandle, PChar(AURL), PChar(ALocalPath), nil), 'Clone repository');
   FPath := ALocalPath;
   FWorkDir := string(git_repository_workdir(FHandle));
 end;
@@ -575,6 +565,30 @@ begin
         Result[rc] := List[rc];
   finally
     List.Free;
+  end;
+end;
+
+function TGitRepository.ListRemotes: TStringArray;
+var
+  Remotes: git_strarray;
+  Count: SizeInt;
+  i: SizeInt;
+begin
+  Result := nil;
+  Remotes := Default(git_strarray);
+
+  if git_remote_list(Remotes, FHandle) <> GIT_OK then
+    Exit;
+
+  try
+    Count := SizeInt(Remotes.count);
+    if Count <= 0 then
+      Exit;
+    SetLength(Result, Count);
+    for i := 0 to Count - 1 do
+      Result[i] := string(Remotes.strings[i]);
+  finally
+    git_strarray_free(@Remotes);
   end;
 end;
 
@@ -702,6 +716,149 @@ begin
   end;
 end;
 
+function TGitRepository.PullFastForward(const ARemoteName: string; out AError: string): TGitPullFastForwardResult;
+var
+  Branch: string;
+  LocalRefName: string;
+  RemoteRefName: string;
+  LocalRef: TGitReference;
+  RemoteRef: TGitReference;
+  Ahead: csize_t;
+  Behind: csize_t;
+  rc: cint;
+  UpdatedRef: git_reference;
+  ErrorMsg: string;
+begin
+  Result := gpffError;
+  AError := '';
+
+  if Trim(ARemoteName) = '' then
+  begin
+    Result := gpffNoRemote;
+    Exit;
+  end;
+
+  // For safety, refuse to update when working tree has local changes.
+  if HasUncommittedChanges then
+  begin
+    Result := gpffDirty;
+    Exit;
+  end;
+
+  Branch := GetCurrentBranch;
+  if (Branch = '') or SameText(Branch, 'HEAD') then
+  begin
+    Result := gpffDetachedHead;
+    Exit;
+  end;
+
+  // Fetch updates first.
+  try
+    if not Fetch(ARemoteName) then
+    begin
+      AError := GetGitErrorMessage;
+      if AError = '' then
+        AError := 'Fetch failed';
+      Result := gpffError;
+      Exit;
+    end;
+  except
+    on E: Exception do
+    begin
+      AError := E.Message;
+      Result := gpffNoRemote;
+      Exit;
+    end;
+  end;
+
+  LocalRefName := 'refs/heads/' + Branch;
+  RemoteRefName := 'refs/remotes/' + ARemoteName + '/' + Branch;
+
+  LocalRef := nil;
+  RemoteRef := nil;
+  try
+    try
+      LocalRef := GetReference(LocalRefName);
+    except
+      on E: Exception do
+      begin
+        AError := E.Message;
+        Result := gpffError;
+        Exit;
+      end;
+    end;
+
+    try
+      RemoteRef := GetReference(RemoteRefName);
+    except
+      on E: Exception do
+      begin
+        AError := E.Message;
+        Result := gpffError;
+        Exit;
+      end;
+    end;
+
+    Ahead := 0;
+    Behind := 0;
+    rc := git_graph_ahead_behind(Ahead, Behind, FHandle, @LocalRef.FOID.Data, @RemoteRef.FOID.Data);
+    if rc <> GIT_OK then
+    begin
+      AError := GetGitErrorMessage;
+      Result := gpffError;
+      Exit;
+    end;
+
+    if (Ahead = 0) and (Behind = 0) then
+    begin
+      Result := gpffUpToDate;
+      Exit;
+    end;
+
+    if (Ahead = 0) and (Behind > 0) then
+    begin
+      UpdatedRef := nil;
+      rc := git_reference_set_target(UpdatedRef, LocalRef.FHandle, @RemoteRef.FOID.Data, PChar('fpdev fast-forward'));
+      if rc <> GIT_OK then
+      begin
+        AError := GetGitErrorMessage;
+        Result := gpffError;
+        Exit;
+      end;
+
+      if Assigned(UpdatedRef) then
+        git_reference_free(UpdatedRef);
+
+      // Update working directory to the new HEAD.
+      rc := git_checkout_head(FHandle, nil);
+      if rc <> GIT_OK then
+      begin
+        AError := GetGitErrorMessage;
+        Result := gpffError;
+        Exit;
+      end;
+
+      Result := gpffFastForwarded;
+      Exit;
+    end;
+
+    // Diverged or ahead: requires merge/rebase (handled by CLI fallback in higher layer).
+    Result := gpffNeedsMerge;
+  finally
+    if Assigned(RemoteRef) then
+      RemoteRef.Free;
+    if Assigned(LocalRef) then
+      LocalRef.Free;
+  end;
+
+  // Keep compiler happy about unreachable warnings in some configurations
+  if Result = gpffError then
+  begin
+    ErrorMsg := AError;
+    if ErrorMsg = '' then;
+  end;
+end;
+
 constructor TGitCommit.Create(ARepository: TGitRepository; const AOID: TGitOID);
 begin
   inherited Create;
@@ -807,14 +964,10 @@ begin
 end;
 
 function TGitRemote.Fetch: Boolean;
-var
-  fetch_opts: git_fetch_options;
 begin
   try
-    fetch_opts := Default(git_fetch_options);
-    CheckGitResult(git_fetch_options_init(@fetch_opts, 1), 'Init fetch options');
-    CheckGitResult(git_remote_init_callbacks(@fetch_opts.callbacks, 1), 'Init remote callbacks');
-    Result := git_remote_fetch(FHandle, nil, @fetch_opts, nil) = GIT_OK;
+    // Avoid passing fetch options structs across libgit2 minor versions; use defaults.
+    Result := git_remote_fetch(FHandle, nil, nil, nil) = GIT_OK;
   except
     Result := False;
   end;

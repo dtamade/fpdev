@@ -258,8 +258,23 @@ begin
 end;
 
 function TResourceRepository.QueryShortHead(const AWorkDir: string): TProcessResult;
+var
+  Hash: string;
 begin
-  Result := TProcessExecutor.Execute('git', ['rev-parse', '--short', 'HEAD'], AWorkDir);
+  Result := Default(TProcessResult);
+  Hash := FGitOps.GetShortHeadHash(AWorkDir, 7);
+  if Hash <> '' then
+  begin
+    Result.Success := True;
+    Result.ExitCode := 0;
+    Result.StdOut := Hash + LineEnding;
+  end
+  else
+  begin
+    Result.Success := False;
+    Result.ExitCode := 1;
+    Result.ErrorMessage := FGitOps.LastError;
+  end;
 end;
 
 function TResourceRepository.GetLastCommitHash: string;

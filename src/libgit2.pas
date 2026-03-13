@@ -14,7 +14,11 @@ const
   LIBGIT2_LIB = 'git2.dll';
   {$ENDIF}
   {$IFDEF LINUX}
-  LIBGIT2_LIB = 'libgit2.so.1.7';
+  // Prefer the unversioned soname symlink. This is the most portable option
+  // across minor libgit2 versions on developer machines.
+  // If runtime-only packages do not provide this, install libgit2 development files
+  // or bundle libgit2 via 3rd/libgit2 as documented in docs/LIBGIT2_INTEGRATION.md.
+  LIBGIT2_LIB = 'libgit2.so';
   {$ENDIF}
   {$IFDEF DARWIN}
   LIBGIT2_LIB = 'libgit2.1.dylib';
@@ -48,6 +52,13 @@ type
     id: array[0..19] of Byte;
   end;
   Pgit_oid = ^git_oid;
+
+  // String array used by various list APIs (e.g. remote listing)
+  git_strarray = record
+    strings: PPChar;
+    count: csize_t;
+  end;
+  Pgit_strarray = ^git_strarray;
 
   // Git time structure
   git_time = record
@@ -230,6 +241,7 @@ function git_clone(out repo: git_repository; const url: PChar; const local_path:
 // Remote operations
 function git_remote_lookup(out remote: git_remote; repo: git_repository; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_fetch(remote: git_remote; const refspecs: Pointer; const opts: Pointer; const reflog_message: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_remote_list(out out_list: git_strarray; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_remote_url(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;
 function git_remote_name(remote: git_remote): PChar; cdecl; external LIBGIT2_LIB;
 procedure git_remote_free(remote: git_remote); cdecl; external LIBGIT2_LIB;
@@ -240,7 +252,12 @@ function git_reference_name(ref: git_reference): PChar; cdecl; external LIBGIT2_
 function git_reference_target(ref: git_reference): Pgit_oid; cdecl; external LIBGIT2_LIB;
 function git_reference_symbolic_target(ref: git_reference): PChar; cdecl; external LIBGIT2_LIB;
 function git_reference_type(ref: git_reference): git_reference_t; cdecl; external LIBGIT2_LIB;
+function git_reference_set_target(out out_ref: git_reference; ref: git_reference; const id: Pgit_oid; const log_message: PChar): cint; cdecl; external LIBGIT2_LIB;
 procedure git_reference_free(ref: git_reference); cdecl; external LIBGIT2_LIB;
+
+// Graph / ancestry operations
+function git_graph_ahead_behind(out ahead: csize_t; out behind: csize_t; repo: git_repository;
+  const local: Pgit_oid; const upstream: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 
 // Branch operations
 function git_branch_create(out ref_out: git_reference; repo: git_repository; const branch_name: PChar; target: git_commit; force: cint): cint; cdecl; external LIBGIT2_LIB;
@@ -328,6 +345,9 @@ function git_credential_userpass_plaintext_new(out cred: Pointer; const username
 function git_signature_new(out sig: git_signature; const name: PChar; const email: PChar; time: git_time_t; offset: cint): cint; cdecl; external LIBGIT2_LIB;
 function git_signature_now(out sig: git_signature; const name: PChar; const email: PChar): cint; cdecl; external LIBGIT2_LIB;
 procedure git_signature_free(sig: git_signature); cdecl; external LIBGIT2_LIB;
+
+// Utility frees
+procedure git_strarray_free(arr: Pgit_strarray); cdecl; external LIBGIT2_LIB;
 
 implementation
 

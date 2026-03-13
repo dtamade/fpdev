@@ -17,6 +17,17 @@ type
 
   // Note: TStringArray is already defined in SysUtils, no need to redefine
 
+  // Pull fast-forward result (libgit2-first, CLI as fallback for merges)
+  TGitPullFastForwardResult = (
+    gpffUpToDate,
+    gpffFastForwarded,
+    gpffNeedsMerge,
+    gpffNoRemote,
+    gpffDetachedHead,
+    gpffDirty,
+    gpffError
+  );
+
   // Status flags (high-level abstraction, avoiding direct exposure of libgit2 bitmasks)
   TGitStatusFlag = (
     gsIndexNew,
@@ -53,4 +64,3 @@ type
 implementation
 
 end.
-

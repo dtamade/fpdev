@@ -37,7 +37,6 @@ type
 
     function GetSourcePath(const AVersion: string): string;
     function GetVersionFromBranch(const ABranch: string): string;
-    function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
     function ExecuteCommand(
       const AProgram: string;
       const AArgs: array of string;
@@ -196,28 +195,6 @@ begin
       Result := FPC_VERSIONS[i].Version;
       Break;
     end;
-  end;
-end;
-
-function TFPCSourceManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
-var
-  ExitCode: Integer;
-  OldDir: string;
-begin
-  Result := False;
-
-  if AWorkingDir <> '' then
-
-  OldDir := GetCurrentDir;
-  try
-    if (AWorkingDir <> '') and DirectoryExists(AWorkingDir) then
-      SetCurrentDir(AWorkingDir);
-
-    ExitCode := ExecuteProcess('git', ACommand.Split(' '));
-    Result := ExitCode = 0;
-
-  finally
-    SetCurrentDir(OldDir);
   end;
 end;
 

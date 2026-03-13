@@ -41,6 +41,7 @@ interface
 
 uses
   SysUtils, Classes,
+  git2.api, git2.types,
   fpdev.config, fpdev.fpc.version, fpdev.fpc.interfaces, fpdev.fpc.types,
   fpdev.constants;
 
@@ -52,13 +53,22 @@ type
     FConfigManager: TFPDevConfigManager;
     FFileSystem: IFileSystem;
     FProcessRunner: IProcessRunner;
+    FGitManager: IGitManager;
+    FOwnsGitManager: Boolean;
 
     function GetSourceDir(const AVersion: string): string;
+    function EnsureGitManagerInitialized(out AError: string): Boolean;
+    function CheckoutRefWithLibgit2(const ARepo: IGitRepository; const ARefName: string; out AError: string): Boolean;
   public
     constructor Create(AVersionManager: TFPCVersionManager;
       AConfigManager: TFPDevConfigManager;
       AFileSystem: IFileSystem;
       AProcessRunner: IProcessRunner);
+    constructor Create(AVersionManager: TFPCVersionManager;
+      AConfigManager: TFPDevConfigManager;
+      AFileSystem: IFileSystem;
+      AProcessRunner: IProcessRunner;
+      AGitManager: IGitManager);
     destructor Destroy; override;
 
     { Downloads FPC source code from official repository.
@@ -92,6 +102,9 @@ type
 
 implementation
 
+uses
+  git2.impl;
+
 { TFPCBuilder }
 
 constructor TFPCBuilder.Create(AVersionManager: TFPCVersionManager;
@@ -104,10 +117,33 @@ begin
   FConfigManager := AConfigManager;
   FFileSystem := AFileSystem;
   FProcessRunner := AProcessRunner;
+  FGitManager := nil;
+  FOwnsGitManager := False;
+end;
+
+constructor TFPCBuilder.Create(AVersionManager: TFPCVersionManager;
+  AConfigManager: TFPDevConfigManager;
+  AFileSystem: IFileSystem;
+  AProcessRunner: IProcessRunner;
+  AGitManager: IGitManager);
+begin
+  Create(AVersionManager, AConfigManager, AFileSystem, AProcessRunner);
+  FGitManager := AGitManager;
+  FOwnsGitManager := False;
 end;
 
 destructor TFPCBuilder.Destroy;
 begin
+  if FOwnsGitManager and (FGitManager <> nil) then
+  begin
+    try
+      if FGitManager.Initialized then
+        FGitManager.Finalize;
+    except
+      // Best-effort cleanup only (DI builder must not raise in Destroy)
+    end;
+    FGitManager := nil;
+  end;
   inherited Destroy;
 end;
 
@@ -119,10 +155,82 @@ begin
   Result := Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
 end;
 
+function TFPCBuilder.EnsureGitManagerInitialized(out AError: string): Boolean;
+begin
+  Result := False;
+  AError := '';
+
+  try
+    if FGitManager = nil then
+    begin
+      FGitManager := NewGitManager();
+      FOwnsGitManager := True;
+    end;
+
+    if (not FGitManager.Initialized) and (not FGitManager.Initialize) then
+    begin
+      AError := 'libgit2 init failed';
+      Exit(False);
+    end;
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      AError := 'libgit2 exception: ' + E.Message;
+      Result := False;
+    end;
+  end;
+end;
+
+function TFPCBuilder.CheckoutRefWithLibgit2(const ARepo: IGitRepository; const ARefName: string; out AError: string): Boolean;
+var
+  LName: string;
+begin
+  Result := False;
+  AError := '';
+
+  if ARepo = nil then
+  begin
+    AError := 'libgit2 repository is nil';
+    Exit(False);
+  end;
+
+  LName := Trim(ARefName);
+  if LName = '' then
+    Exit(True);
+
+  try
+    // Keep behavior aligned with fpdev.utils.git: try plain name first, then tags, then remote tracking refs.
+    if Pos('refs/', LName) = 1 then
+      Exit(ARepo.CheckoutBranchEx(LName, False));
+
+    if ARepo.CheckoutBranchEx(LName, False) then
+      Exit(True);
+
+    if ARepo.CheckoutBranchEx('refs/tags/' + LName, False) then
+      Exit(True);
+
+    if ARepo.CheckoutBranchEx('refs/remotes/origin/' + LName, False) then
+      Exit(True);
+
+    AError := 'libgit2 checkout failed: ' + LName;
+    Result := False;
+  except
+    on E: Exception do
+    begin
+      AError := 'libgit2 checkout exception: ' + E.Message;
+      Result := False;
+    end;
+  end;
+end;
+
 function TFPCBuilder.DownloadSource(const AVersion, ATargetDir: string): TOperationResult;
 var
   GitTag: string;
   ProcResult: fpdev.fpc.interfaces.TProcessResult;
+  LGitErr: string;
+  LRepo: IGitRepository;
 begin
   // Validate version
   if not FVersionManager.ValidateVersion(AVersion) then
@@ -139,23 +247,48 @@ begin
     Exit;
   end;
 
-  // Create target directory
-  if not FFileSystem.ForceDirectories(ATargetDir) then
+  // Ensure parent directory exists (avoid creating ATargetDir before clone)
+  if not FFileSystem.ForceDirectories(ExtractFileDir(ATargetDir)) then
   begin
     Result := OperationError(ecFileSystemError, 'Failed to create directory: ' + ATargetDir);
     Exit;
   end;
 
-  // Execute git clone
+  // Prefer libgit2; fall back to command-line git only when needed.
+  LGitErr := '';
+  if EnsureGitManagerInitialized(LGitErr) then
+  begin
+    try
+      LRepo := FGitManager.CloneRepository(FPC_OFFICIAL_REPO, ATargetDir);
+      if Assigned(LRepo) and CheckoutRefWithLibgit2(LRepo, GitTag, LGitErr) then
+      begin
+        // Keep DI tests deterministic: mock FS doesn't observe external side effects.
+        FFileSystem.ForceDirectories(ATargetDir);
+        Exit(OperationSuccess);
+      end;
+    except
+      on E: Exception do
+        LGitErr := 'libgit2 clone exception: ' + E.Message;
+    end;
+  end;
+
+  // Fallback: command-line git (shallow clone)
   ProcResult := FProcessRunner.Execute('git', ['clone', '--branch', GitTag, '--depth', '1',
     FPC_OFFICIAL_REPO, ATargetDir], '');
 
   if not ProcResult.Success then
   begin
-    Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + ProcResult.StdErr);
+    if ProcResult.StdErr <> '' then
+      Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + ProcResult.StdErr)
+    else if LGitErr <> '' then
+      Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + LGitErr)
+    else
+      Result := OperationError(ecDownloadFailed, 'Git clone failed');
     Exit;
   end;
 
+  // Keep DI tests deterministic.
+  FFileSystem.ForceDirectories(ATargetDir);
   Result := OperationSuccess;
 end;
 
@@ -198,6 +331,12 @@ function TFPCBuilder.UpdateSources(const AVersion: string): TOperationResult;
 var
   SourceDir, GitDir: string;
   ProcResult: fpdev.fpc.interfaces.TProcessResult;
+  LRepo: IGitRepository;
+  Ext: IGitRepositoryExt;
+  PullRes: TGitPullFastForwardResult;
+  PullErr: string;
+  LGitErr: string;
+  NeedsFallback: Boolean;
 begin
   SourceDir := GetSourceDir(AVersion);
 
@@ -216,12 +355,70 @@ begin
     Exit;
   end;
 
-  // Execute git pull
+  NeedsFallback := True;
+  LGitErr := '';
+
+  // Try libgit2 fast-forward pull first. If merge/rebase is required, fall back to CLI.
+  if EnsureGitManagerInitialized(LGitErr) then
+  begin
+    try
+      LRepo := FGitManager.OpenRepository(SourceDir);
+      if Assigned(LRepo) and Supports(LRepo, IGitRepositoryExt, Ext) then
+      begin
+        PullErr := '';
+        PullRes := Ext.PullFastForward('origin', PullErr);
+        case PullRes of
+          gpffUpToDate,
+          gpffFastForwarded:
+            Exit(OperationSuccess);
+          gpffNoRemote:
+            begin
+              Result := OperationError(ecDownloadFailed, 'No remote configured');
+              Exit;
+            end;
+          gpffNeedsMerge,
+          gpffDetachedHead,
+          gpffDirty,
+          gpffError:
+            begin
+              NeedsFallback := True;
+              if PullErr <> '' then
+                LGitErr := PullErr;
+            end;
+        end;
+      end
+      else
+      begin
+        // Extension not available - attempt a fetch to at least refresh refs.
+        if Assigned(LRepo) and LRepo.Fetch('origin') then
+          Exit(OperationSuccess);
+      end;
+    except
+      on E: Exception do
+      begin
+        NeedsFallback := True;
+        LGitErr := 'libgit2 pull exception: ' + E.Message;
+      end;
+    end;
+  end;
+
+  if not NeedsFallback then
+  begin
+    Result := OperationError(ecDownloadFailed, 'Git update failed');
+    Exit;
+  end;
+
+  // Fallback: command-line git pull
   ProcResult := FProcessRunner.Execute('git', ['pull'], SourceDir);
 
   if not ProcResult.Success then
   begin
-    Result := OperationError(ecDownloadFailed, 'Git pull failed: ' + ProcResult.StdErr);
+    if ProcResult.StdErr <> '' then
+      Result := OperationError(ecDownloadFailed, 'Git pull failed: ' + ProcResult.StdErr)
+    else if LGitErr <> '' then
+      Result := OperationError(ecDownloadFailed, 'Git pull failed: ' + LGitErr)
+    else
+      Result := OperationError(ecDownloadFailed, 'Git pull failed');
     Exit;
   end;
 

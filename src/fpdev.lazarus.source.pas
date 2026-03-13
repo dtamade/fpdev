@@ -7,7 +7,7 @@ unit fpdev.lazarus.source;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.constants;
+  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.utils.git, fpdev.constants;
 
 type
   { TLazarusSourceManager }
@@ -17,12 +17,11 @@ type
     FCurrentVersion: string;
     FFPCPath: string;
     FParallelJobs: Integer;
+    FGitOps: TGitOperations;
 
     function GetSourcePath(const AVersion: string): string;
     function GetVersionFromBranch(const ABranch: string): string;
     function ExecuteCommand(const AExecutable: string; const AParams: array of string;
-      const AWorkingDir: string = ''): Boolean;
-    function ExecuteGitCommand(const AParams: array of string;
       const AWorkingDir: string = ''): Boolean;
 
   public
@@ -105,10 +104,14 @@ begin
   // Ensure the source root directory exists
   if not DirectoryExists(FSourceRoot) then
     EnsureDir(FSourceRoot);
+
+  FGitOps := TGitOperations.Create;
 end;
 
 destructor TLazarusSourceManager.Destroy;
 begin
+  if Assigned(FGitOps) then
+    FreeAndNil(FGitOps);
   inherited Destroy;
 end;
 
@@ -173,12 +176,6 @@ begin
   Result := LResult.Success;
 end;
 
-function TLazarusSourceManager.ExecuteGitCommand(const AParams: array of string;
-  const AWorkingDir: string): Boolean;
-begin
-  Result := ExecuteCommand('git', AParams, AWorkingDir);
-end;
-
 function TLazarusSourceManager.CloneLazarusSource(const AVersion: string): Boolean;
 var
   Version, Branch, SourcePath: string;
@@ -209,6 +206,12 @@ begin
   WriteLn('  Target: ', SourcePath);
   WriteLn;
 
+  if (not Assigned(FGitOps)) or (FGitOps.Backend = gbNone) then
+  begin
+    WriteLn('Error: No Git backend available (neither libgit2 nor git command found)');
+    Exit(False);
+  end;
+
   // If directory already exists, delete it first
   if DirectoryExists(SourcePath) then
   begin
@@ -220,9 +223,10 @@ begin
     {$ENDIF}
   end;
 
-  // Execute clone (use shallow clone to reduce download time)
-  Result := ExecuteGitCommand(['clone', '--depth', '1', '--branch', Branch,
-    LAZARUS_GIT_URL, SourcePath], '');
+  WriteLn('Using backend: ', GitBackendToString(FGitOps.Backend));
+
+  // Clone repository (libgit2-first; CLI shallow clone fallback inside TGitOperations)
+  Result := FGitOps.Clone(LAZARUS_GIT_URL, SourcePath, Branch);
 
   if Result then
   begin
@@ -260,12 +264,22 @@ begin
   WriteLn('  Version: ', Version);
   WriteLn('  Path: ', SourcePath);
 
-  Result := ExecuteGitCommand(['pull'], SourcePath);
+  if (not Assigned(FGitOps)) or (FGitOps.Backend = gbNone) then
+  begin
+    WriteLn('Error: No Git backend available (neither libgit2 nor git command found)');
+    Exit(False);
+  end;
+
+  WriteLn('Using backend: ', GitBackendToString(FGitOps.Backend));
+  Result := FGitOps.Pull(SourcePath);
 
   if Result then
     WriteLn('Lazarus source updated successfully.')
   else
+  begin
     WriteLn('Error: Failed to update Lazarus source.');
+    WriteLn('  ', FGitOps.LastError);
+  end;
 end;
 
 function TLazarusSourceManager.SwitchLazarusVersion(const AVersion: string): Boolean;

@@ -16,7 +16,8 @@ program test_fpc_builder;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.builder.di,
+  SysUtils, Classes, git2.api, git2.types,
+  fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.builder.di,
   fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config;
 
 var
@@ -25,6 +26,7 @@ var
   VersionManager: TFPCVersionManager;
   MockFileSystem: TMockFileSystem;
   MockProcessRunner: TMockProcessRunner;
+  MockGitManager: TMockGitManager;
   Builder: TFPCBuilder;
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
@@ -153,6 +155,88 @@ procedure ResetMocks;
 begin
   MockFileSystem.Clear;
   MockProcessRunner.Clear;
+  MockProcessRunner.SetDefaultResult(0, '', '');
+end;
+
+{ Test: DownloadSource prefers libgit2 when available }
+procedure Test_DownloadSource_PrefersLibgit2;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitManager: TMockGitManager;
+  Repo: TMockGitRepository;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - Prefers libgit2');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-libgit2';
+
+  // Ensure CLI path would fail if used
+  MockProcessRunner.SetDefaultResult(1, '', 'should not call git CLI');
+
+  LocalGitManager := TMockGitManager.Create;
+  LocalGitManager.SetInitializeOk(True);
+  Repo := TMockGitRepository.Create(TargetDir);
+  Repo.SetCheckoutOk(True);
+  LocalGitManager.SetCloneRepositoryResult(Repo as IGitRepository);
+
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+  try
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
+
+    AssertTrue(Result.Success, 'DownloadSource should succeed via libgit2');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0, 'Git CLI should not be executed');
+    AssertTrue(MockFileSystem.DirectoryExists(TargetDir), 'Target directory should be created');
+  finally
+    LocalBuilder.Free;
+  end;
+end;
+
+{ Test: UpdateSources prefers libgit2 when available }
+procedure Test_UpdateSources_PrefersLibgit2;
+var
+  Result: TOperationResult;
+  SourceDir, GitDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitManager: TMockGitManager;
+  Repo: TMockGitRepository;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - Prefers libgit2');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  GitDir := SourceDir + PathDelim + '.git';
+
+  MockFileSystem.AddDirectory(SourceDir);
+  MockFileSystem.AddDirectory(GitDir);
+
+  // Ensure CLI path would fail if used
+  MockProcessRunner.SetDefaultResult(1, '', 'should not call git CLI');
+
+  LocalGitManager := TMockGitManager.Create;
+  LocalGitManager.SetInitializeOk(True);
+  Repo := TMockGitRepository.Create(SourceDir);
+  Repo.SetPullResult(gpffUpToDate, '');
+  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
+
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+  try
+    Result := LocalBuilder.UpdateSources('3.2.2');
+
+    AssertTrue(Result.Success, 'UpdateSources should succeed via libgit2');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0, 'Git CLI should not be executed');
+  finally
+    LocalBuilder.Free;
+  end;
 end;
 
 { Test: DownloadSource succeeds with valid version }
@@ -459,18 +543,21 @@ begin
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;
           MockProcessRunner := TMockProcessRunner.Create;
+          MockGitManager := TMockGitManager.Create;
 
           // Create builder with mock dependencies
           Builder := TFPCBuilder.Create(VersionManager, ConfigManager,
-            MockFileSystem, MockProcessRunner);
+            MockFileSystem, MockProcessRunner, MockGitManager as IGitManager);
           try
             // Run tests
+            Test_DownloadSource_PrefersLibgit2;
             Test_DownloadSource_Success;
             Test_DownloadSource_InvalidVersion;
             Test_DownloadSource_GitFailed;
             Test_BuildFromSource_Success;
             Test_BuildFromSource_SourceNotExist;
             Test_BuildFromSource_MakeFailed;
+            Test_UpdateSources_PrefersLibgit2;
             Test_UpdateSources_Success;
             Test_UpdateSources_NotGitRepo;
             Test_CleanSources_Success;

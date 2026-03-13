@@ -386,7 +386,6 @@ function TFPCSourceBuilder.DownloadSource(const AVersion, ATargetDir: string): B
 var
   Git: TGitOperations;
   GitTag: string;
-  LResult: fpdev.utils.process.TProcessResult;
 begin
   Result := False;
 
@@ -424,20 +423,17 @@ begin
         begin
           FOut.WriteLn('Source directory exists, updating to tag: ' + GitTag);
 
-          // Fetch all tags and branches
-          LResult := TProcessExecutor.Execute('git', ['fetch', '--all', '--tags'], ATargetDir);
-          if not LResult.Success then
+          // Fetch updates and checkout the requested tag (libgit2-first, CLI fallback inside TGitOperations)
+          if not Git.Fetch(ATargetDir, 'origin') then
           begin
-            FErr.WriteLn(_(MSG_ERROR) + ': Git fetch failed');
+            FErr.WriteLn(_(MSG_ERROR) + ': Git fetch failed: ' + Git.LastError);
             Exit;
           end;
 
-          // Checkout the specific tag
-          LResult := TProcessExecutor.Execute('git', ['checkout', GitTag], ATargetDir);
-          if not LResult.Success then
+          if not Git.Checkout(ATargetDir, GitTag, False) then
           begin
             FErr.WriteLn(_(MSG_ERROR) + ': Git checkout failed for tag: ' + GitTag);
-            FErr.WriteLn('  ' + LResult.StdErr);
+            FErr.WriteLn('  ' + Git.LastError);
             Exit;
           end;
 
