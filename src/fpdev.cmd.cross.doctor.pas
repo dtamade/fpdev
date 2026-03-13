@@ -23,8 +23,7 @@ implementation
 uses
   fpdev.command.registry, fpdev.command.utils,
   fpdev.cross.doctor.checks,
-  fpdev.cross.doctor.view,
-  fpdev.doctor.runtime;
+  fpdev.cross.doctor.view;
 
 function TCrossDoctorCommand.Name: string; begin Result := 'doctor'; end;
 

@@ -31,6 +31,8 @@ var
   ExactNode: TCommandNode;
 begin
   Result := Copy(AArgs);
+  HelpPath := nil;
+  NewArgs := nil;
 
   if (Length(Result) < 2) or
      ((Result[High(Result)] <> '--help') and (Result[High(Result)] <> '-h')) then

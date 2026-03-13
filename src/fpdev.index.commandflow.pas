@@ -58,9 +58,6 @@ function RunIndexShow(const Ctx: IContext): Integer;
 var
   Index: TFPDevIndex;
   RepoInfo: TRepoInfo;
-  ChannelInfo: TChannelInfo;
-  Versions: TStringArray;
-  I: Integer;
   Lines: TStringArray;
   Line: string;
   BootstrapVersions: TStringArray;
@@ -86,16 +83,6 @@ begin
     FPCVersions := Index.ListFPCVersions;
 
     LazarusVersions := Index.ListLazarusVersions;
-
-    RepoInfo := Index.GetRepoInfo(rtBootstrap);
-    ChannelInfo := Index.GetChannelInfo('stable');
-    Versions := nil;
-    RepoInfo := Index.GetRepoInfo(rtFPC);
-    ChannelInfo := Index.GetChannelInfo('edge');
-    RepoInfo := Index.GetRepoInfo(rtLazarus);
-
-    RepoInfo := Index.GetRepoInfo(rtBootstrap);
-    ChannelInfo := Index.GetChannelInfo('stable');
     Lines := BuildSystemIndexShowLinesCore(
       RepoInfo.Name,
       RepoInfo.GitHubURL,

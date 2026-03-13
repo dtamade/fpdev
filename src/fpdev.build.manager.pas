@@ -120,7 +120,7 @@ implementation
 uses
   Process, DateUtils, fpdev.toolchain, fpdev.build.probe,
   fpdev.build.fullbuildflow, fpdev.build.preflight, fpdev.build.preflightflow,
-  fpdev.build.pipeline, fpdev.build.strict, fpdev.build.testresultsflow;
+  fpdev.build.strict, fpdev.build.testresultsflow;
 
 function BuildManagerDirectoryExists(const APath: string): Boolean;
 begin

@@ -182,6 +182,7 @@ var
   LResult: TProcessResult;
 begin
   Result := False;
+  Params := nil;
 
   if (not DirectoryExists(AProjectDir)) or (not Assigned(ARunProcess)) then
     Exit;
@@ -234,6 +235,7 @@ var
   LResult: TProcessResult;
 begin
   Result := False;
+  Params := nil;
 
   if not DirectoryExists(AProjectDir) then
   begin

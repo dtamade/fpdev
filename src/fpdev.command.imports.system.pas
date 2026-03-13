@@ -48,6 +48,12 @@ uses
   fpdev.cmd.env.hook,
   fpdev.cmd.env.resolve;
 
+procedure EnsureSystemCommandImports;
+
 implementation
+
+procedure EnsureSystemCommandImports;
+begin
+end;
 
 end.

@@ -208,6 +208,7 @@ begin
   else
     Result := JoinBaseAndName(AAppDataDir, ConfigDirName);
   {$ELSE}
+  if AAppDataDir = '' then;
   ConfigDirName := '.lazarus-' + AVersion;
   if AConfigRoot <> '' then
     Result := JoinBaseAndName(AConfigRoot, ConfigDirName)

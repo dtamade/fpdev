@@ -28,8 +28,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry,
-  fpdev.output.intf, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry;
 
 type
   TConfigCommand = class(TInterfacedObject, ICommand)

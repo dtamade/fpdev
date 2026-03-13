@@ -35,11 +35,12 @@ unit fpdev.config.managers;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser,
-  fpdev.config.interfaces, fpdev.config.repositories, fpdev.config.settings,
-  fpdev.config.toolchains, fpdev.config.crosstargets, fpdev.config.lazarus,
   fpdev.config.core,
-  fpdev.paths, fpdev.utils.fs, fpdev.constants;
+  fpdev.config.repositories,
+  fpdev.config.settings,
+  fpdev.config.toolchains,
+  fpdev.config.crosstargets,
+  fpdev.config.lazarus;
 
 function GetDefaultConfigPathOverride: string;
 procedure SetDefaultConfigPathOverride(const AConfigPath: string);

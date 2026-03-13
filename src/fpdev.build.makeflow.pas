@@ -95,6 +95,7 @@ procedure SetMakeTargets(
 var
   I: Integer;
 begin
+  ATargets := nil;
   SetLength(ATargets, Length(AValues));
   for I := 0 to High(AValues) do
     ATargets[I] := AValues[I];

@@ -27,6 +27,9 @@ type
     buffer: array[0..127] of byte;
   end;
 
+  TSHA256Digest = array[0..31] of byte;
+  TSHA512Digest = array[0..63] of byte;
+
 const
   K256: array[0..63] of DWord = (
     $428a2f98,$71374491,$b5c0fbcf,$e9b5dba5,$3956c25b,$59f111f1,$923f82a4,$ab1c5ed5,
@@ -264,7 +267,7 @@ begin
 end;
 
 {$PUSH}{$NOTES OFF} // bits is used via sha256_update
-procedure sha256_final(var ctx: TSHA256Ctx; var digest: array of byte);
+procedure sha256_final(var ctx: TSHA256Ctx; var digest: TSHA256Digest);
 var
   bits: array[0..7] of byte;
   idx, padLen: SizeInt;
@@ -305,7 +308,7 @@ end;
 {$POP}
 
 {$PUSH}{$NOTES OFF} // bits is used via sha512_update
-procedure sha512_final(var ctx: TSHA512Ctx; var digest: array of byte);
+procedure sha512_final(var ctx: TSHA512Ctx; var digest: TSHA512Digest);
 var
   bits: array[0..15] of byte;
   idx, padLen: SizeInt;
@@ -370,7 +373,7 @@ var
   ctx: TSHA256Ctx;
   buf: array of byte;
   readn: Integer;
-  dig: array[0..31] of byte;
+  dig: TSHA256Digest;
 begin
   ctx := Default(TSHA256Ctx);
   buf := nil;
@@ -380,6 +383,7 @@ begin
     readn := AStream.Read(buf[0], Length(buf));
     if readn > 0 then sha256_update(ctx, buf[0], readn);
   until readn = 0;
+  dig := Default(TSHA256Digest);
   sha256_final(ctx, dig);
   Result := BytesToHex(dig);
 end;
@@ -389,7 +393,7 @@ var
   ctx: TSHA512Ctx;
   buf: array of byte;
   readn: Integer;
-  dig: array[0..63] of byte;
+  dig: TSHA512Digest;
 begin
   ctx := Default(TSHA512Ctx);
   buf := nil;
@@ -399,6 +403,7 @@ begin
     readn := AStream.Read(buf[0], Length(buf));
     if readn > 0 then sha512_update(ctx, buf[0], readn);
   until readn = 0;
+  dig := Default(TSHA512Digest);
   sha512_final(ctx, dig);
   Result := BytesToHex(dig);
 end;

@@ -257,6 +257,7 @@ procedure ExecuteDoctorGitChecksCore(
 var
   OutputText: string;
 begin
+  if ACtx = nil then;
   if Assigned(AExecuteCommand) and (AExecuteCommand('git --version', OutputText) = 0) then
     APass('git is available: ' + OutputText)
   else
@@ -277,6 +278,7 @@ var
 begin
   WriteDoctorSectionCore(ACtx.Out, 'Debugger', not AJsonMode);
   FoundDebugger := False;
+  if Assigned(AWarn) then;
 
   if Assigned(AExecuteCommand) and (AExecuteCommand('gdb --version', OutputText) = 0) then
   begin

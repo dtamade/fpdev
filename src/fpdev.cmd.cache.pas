@@ -27,8 +27,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry,
-  fpdev.output.intf, fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry;
 
 type
   TCacheCommand = class(TInterfacedObject, ICommand)

@@ -12,6 +12,18 @@ uses
   fpdev.command.imports.project,
   fpdev.command.imports.system;
 
+procedure EnsureCommandImports;
+
 implementation
+
+procedure EnsureCommandImports;
+begin
+  EnsureFPCCommandImports;
+  EnsureLazarusCommandImports;
+  EnsureCrossCommandImports;
+  EnsurePackageCommandImports;
+  EnsureProjectCommandImports;
+  EnsureSystemCommandImports;
+end;
 
 end.

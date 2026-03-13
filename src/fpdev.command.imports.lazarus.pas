@@ -19,6 +19,12 @@ uses
   fpdev.cmd.lazarus.update,
   fpdev.cmd.lazarus.help;
 
+procedure EnsureLazarusCommandImports;
+
 implementation
+
+procedure EnsureLazarusCommandImports;
+begin
+end;
 
 end.

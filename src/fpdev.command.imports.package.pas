@@ -24,6 +24,12 @@ uses
   fpdev.cmd.package.repo.list,
   fpdev.cmd.package.help;
 
+procedure EnsurePackageCommandImports;
+
 implementation
+
+procedure EnsurePackageCommandImports;
+begin
+end;
 
 end.

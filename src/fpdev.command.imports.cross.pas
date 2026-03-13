@@ -20,6 +20,12 @@ uses
   fpdev.cmd.cross.clean,
   fpdev.cmd.cross.update;
 
+procedure EnsureCrossCommandImports;
+
 implementation
+
+procedure EnsureCrossCommandImports;
+begin
+end;
 
 end.

@@ -5,7 +5,6 @@ unit fpdev.command.imports.fpc;
 interface
 
 uses
-  fpdev.cmd.fpc,
   fpdev.cmd.fpc.root,
   fpdev.cmd.fpc.policy.root,
   fpdev.cmd.fpc.policy.check,
@@ -28,6 +27,12 @@ uses
   fpdev.cmd.fpc.cache.stats,
   fpdev.cmd.fpc.cache.path;
 
+procedure EnsureFPCCommandImports;
+
 implementation
+
+procedure EnsureFPCCommandImports;
+begin
+end;
 
 end.

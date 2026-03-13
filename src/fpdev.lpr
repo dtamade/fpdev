@@ -21,6 +21,7 @@ var
 
 
 begin
+  EnsureDebugSymbolAnchor;
   RawArgs := CollectCLIArgs;
   Outp := TConsoleOutput.Create(False) as IOutput;
   Errp := TConsoleOutput.Create(True) as IOutput;

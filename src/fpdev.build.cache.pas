@@ -144,7 +144,6 @@ type
 implementation
 
 uses
-  fpdev.build.cache.access,
   fpdev.build.cache.cleanupinfo,
   fpdev.build.cache.artifactmeta,
   fpdev.build.cache.entryquery,

@@ -49,7 +49,6 @@ implementation
 
 uses
   Process, StrUtils,
-  fpdev.config.interfaces,
   fpdev.doctor.checks,
   fpdev.doctor.view,
   fpdev.output.intf;

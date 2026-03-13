@@ -34,6 +34,7 @@ end;
 
 function DispatchArgsWithRegistryCore(const AArgs: TStringArray; const Ctx: IContext): Integer;
 begin
+  EnsureCommandImports;
   Result := GlobalCommandRegistry.DispatchPath(AArgs, Ctx);
 end;
 

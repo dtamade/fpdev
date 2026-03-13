@@ -29,7 +29,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.output.intf, fpdev.paths, fpdev.exitcodes;
+  fpdev.output.intf, fpdev.paths;
 
 type
   { TEnvCommand - Development environment information }

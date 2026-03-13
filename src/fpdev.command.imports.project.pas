@@ -21,6 +21,12 @@ uses
   fpdev.cmd.project.template.remove,
   fpdev.cmd.project.template.update;
 
+procedure EnsureProjectCommandImports;
+
 implementation
+
+procedure EnsureProjectCommandImports;
+begin
+end;
 
 end.
