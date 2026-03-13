@@ -60,6 +60,11 @@ type
     function HasRemote(const ARepoPath: string): Boolean;
     function GetCurrentBranch(const ARepoPath: string): string;
     function GetShortHeadHash(const ARepoPath: string; const ALength: Integer = 7): string;
+    function Add(const ARepoPath, APathSpec: string): Boolean;
+    function Commit(const ARepoPath, AMessage: string): Boolean;
+    function Push(const ARepoPath: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
+    function GetVersion: string;
+    function ListRemoteBranches(const ARepoPath: string; const ARemote: string = 'origin'): TStringArray;
 
     property Backend: TGitBackend read FBackend;
     property LastError: string read FLastError;
@@ -72,7 +77,7 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, git2.impl;
+  fpdev.utils.process, git2.impl, libgit2;
 
 var
   Libgit2Available: Boolean = False;
@@ -88,6 +93,16 @@ begin
     gbCommandLine: Result := 'git (command-line)';
     gbNone: Result := 'none';
   end;
+end;
+
+function Libgit2LastErrorText: string;
+var
+  Err: Pgit_error_t;
+begin
+  Result := '';
+  Err := git_error_last;
+  if (Err <> nil) and (Err^.message <> nil) then
+    Result := string(Err^.message);
 end;
 
 { TGitOperations }
@@ -480,7 +495,7 @@ end;
 function TGitOperations.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
 var
   Repo: IGitRepository;
-  Commit: IGitCommit;
+  HeadCommit: IGitCommit;
   FullHash: string;
   LLen: Integer;
   LResult: TProcessResult;
@@ -496,10 +511,10 @@ begin
       Repo := FGitManager.OpenRepository(ARepoPath);
       if Repo <> nil then
       begin
-        Commit := Repo.HeadCommit;
-        if Commit <> nil then
+        HeadCommit := Repo.HeadCommit;
+        if HeadCommit <> nil then
         begin
-          FullHash := Commit.OIDString;
+          FullHash := HeadCommit.OIDString;
           LLen := ALength;
           if LLen > Length(FullHash) then
             LLen := Length(FullHash);
@@ -531,6 +546,323 @@ begin
     FLastError := Trim(LResult.ErrorMessage)
   else
     FLastError := 'git rev-parse failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+end;
+
+function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;
+var
+  RepoHandle: git_repository;
+  IndexHandle: git_index;
+  WorkDirP: PChar;
+  WorkDir: string;
+  PathSpecAbs: string;
+  WorkDirAbs: string;
+  RelPath: string;
+  RC: Integer;
+  LErr: string;
+begin
+  Result := False;
+  FLastError := '';
+
+  if FBackend = gbNone then
+  begin
+    FLastError := 'No Git backend available';
+    Exit(False);
+  end;
+
+  if Trim(ARepoPath) = '' then
+  begin
+    FLastError := 'Repository path is empty';
+    Exit(False);
+  end;
+
+  if Trim(APathSpec) = '' then
+  begin
+    FLastError := 'Pathspec is empty';
+    Exit(False);
+  end;
+
+  // Try libgit2 first for simple file path specs
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) and
+     (Pos('*', APathSpec) = 0) and (Pos('?', APathSpec) = 0) and (Trim(APathSpec) <> '.') then
+  begin
+    RepoHandle := nil;
+    IndexHandle := nil;
+    try
+      RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+      if RC = GIT_OK then
+      begin
+        WorkDir := '';
+        WorkDirP := git_repository_workdir(RepoHandle);
+        if WorkDirP <> nil then
+          WorkDir := string(WorkDirP);
+
+        RelPath := APathSpec;
+
+        // Convert absolute file path to repo-relative when possible.
+        // libgit2 uses '/' in index paths even on Windows.
+        if (WorkDir <> '') then
+        begin
+          PathSpecAbs := ExpandFileName(APathSpec);
+          WorkDirAbs := ExpandFileName(IncludeTrailingPathDelimiter(WorkDir));
+          {$IFDEF MSWINDOWS}
+          if (Pos(AnsiLowerCase(WorkDirAbs), AnsiLowerCase(PathSpecAbs)) = 1) then
+          {$ELSE}
+          if (Pos(WorkDirAbs, PathSpecAbs) = 1) then
+          {$ENDIF}
+            RelPath := Copy(PathSpecAbs, Length(WorkDirAbs) + 1, MaxInt);
+        end;
+
+        RelPath := StringReplace(RelPath, '\', '/', [rfReplaceAll]);
+
+        RC := git_repository_index(IndexHandle, RepoHandle);
+        if RC = GIT_OK then
+        begin
+          RC := git_index_add_bypath(IndexHandle, PChar(RelPath));
+          if RC = GIT_OK then
+          begin
+            RC := git_index_write(IndexHandle);
+            if RC = GIT_OK then
+            begin
+              Result := True;
+              Exit;
+            end;
+          end;
+        end;
+
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          FLastError := 'libgit2 add failed: ' + LErr
+        else
+          FLastError := 'libgit2 add failed';
+      end
+      else
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          FLastError := 'libgit2 open repository failed: ' + LErr
+        else
+          FLastError := 'libgit2 open repository failed';
+      end;
+    finally
+      if IndexHandle <> nil then
+        git_index_free(IndexHandle);
+      if RepoHandle <> nil then
+        git_repository_free(RepoHandle);
+    end;
+  end;
+
+  // Command-line fallback
+  if not CommandLineGitAvailable then
+  begin
+    if FLastError = '' then
+      FLastError := 'No command-line git available';
+    Exit(False);
+  end;
+
+  FLastError := '';
+  Result := ExecuteGitCommand(['add', APathSpec], ARepoPath);
+end;
+
+function TGitOperations.Commit(const ARepoPath, AMessage: string): Boolean;
+begin
+  Result := False;
+  FLastError := '';
+
+  if FBackend = gbNone then
+  begin
+    FLastError := 'No Git backend available';
+    Exit(False);
+  end;
+
+  if Trim(ARepoPath) = '' then
+  begin
+    FLastError := 'Repository path is empty';
+    Exit(False);
+  end;
+
+  if Trim(AMessage) = '' then
+  begin
+    FLastError := 'Commit message is empty';
+    Exit(False);
+  end;
+
+  // NOTE: libgit2 commit is not implemented in our high-level adapter yet.
+  // Use command-line git as fallback.
+  if not CommandLineGitAvailable then
+  begin
+    FLastError := 'Command-line git is required for commit; please install git';
+    Exit(False);
+  end;
+
+  Result := ExecuteGitCommand(['commit', '-m', AMessage], ARepoPath);
+end;
+
+function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
+var
+  BranchParam: string;
+begin
+  Result := False;
+  FLastError := '';
+
+  if FBackend = gbNone then
+  begin
+    FLastError := 'No Git backend available';
+    Exit(False);
+  end;
+
+  if Trim(ARepoPath) = '' then
+  begin
+    FLastError := 'Repository path is empty';
+    Exit(False);
+  end;
+
+  BranchParam := ABranch;
+  if Trim(BranchParam) = '' then
+    BranchParam := GetCurrentBranch(ARepoPath);
+  if Trim(BranchParam) = '' then
+    BranchParam := 'HEAD';
+
+  // NOTE: libgit2 push is not implemented in our high-level adapter yet.
+  // Use command-line git as fallback.
+  if not CommandLineGitAvailable then
+  begin
+    FLastError := 'Command-line git is required for push; please install git';
+    Exit(False);
+  end;
+
+  Result := ExecuteGitCommand(['push', ARemote, BranchParam], ARepoPath);
+end;
+
+function TGitOperations.GetVersion: string;
+var
+  LResult: TProcessResult;
+begin
+  Result := '';
+  FLastError := '';
+
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    try
+      Result := FGitManager.Version;
+      Exit;
+    except
+      // Fall back to command-line
+    end;
+  end;
+
+  if not CommandLineGitAvailable then
+  begin
+    FLastError := 'No command-line git available';
+    Exit('');
+  end;
+
+  LResult := TProcessExecutor.Execute('git', ['--version'], '');
+  if LResult.Success then
+    Result := Trim(LResult.StdOut)
+  else if LResult.StdErr <> '' then
+    FLastError := Trim(LResult.StdErr)
+  else if LResult.ErrorMessage <> '' then
+    FLastError := Trim(LResult.ErrorMessage)
+  else
+    FLastError := 'git --version failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+end;
+
+function TGitOperations.ListRemoteBranches(const ARepoPath: string; const ARemote: string): TStringArray;
+var
+  Repo: IGitRepository;
+  BranchRefs: TStringArray;
+  Prefix: string;
+  Line: string;
+  i: Integer;
+  List: TStringList;
+  LResult: TProcessResult;
+begin
+  Result := nil;
+  FLastError := '';
+
+  if Trim(ARemote) = '' then
+    Exit(nil);
+
+  // Try libgit2 first
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    try
+      Repo := FGitManager.OpenRepository(ARepoPath);
+      if Repo <> nil then
+      begin
+        BranchRefs := Repo.ListBranches(gbRemote);
+        Prefix := 'refs/remotes/' + ARemote + '/';
+
+        List := TStringList.Create;
+        try
+          for i := 0 to High(BranchRefs) do
+          begin
+            Line := Trim(BranchRefs[i]);
+            if (Line = '') or (Pos(Prefix, Line) <> 1) then
+              Continue;
+            Line := Copy(Line, Length(Prefix) + 1, MaxInt);
+            if (Line = '') or SameText(Line, 'HEAD') then
+              Continue;
+            List.Add(Line);
+          end;
+
+          SetLength(Result, List.Count);
+          for i := 0 to List.Count - 1 do
+            Result[i] := List[i];
+          Exit;
+        finally
+          List.Free;
+        end;
+      end;
+    except
+      // Fall back to command-line
+    end;
+  end;
+
+  // Command-line fallback
+  if not CommandLineGitAvailable then
+  begin
+    FLastError := 'No command-line git available';
+    Exit(nil);
+  end;
+
+  LResult := TProcessExecutor.Execute('git', ['branch', '-r'], ARepoPath);
+  if not LResult.Success then
+  begin
+    if LResult.StdErr <> '' then
+      FLastError := Trim(LResult.StdErr)
+    else if LResult.ErrorMessage <> '' then
+      FLastError := Trim(LResult.ErrorMessage)
+    else
+      FLastError := 'git branch -r failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+    Exit(nil);
+  end;
+
+  List := TStringList.Create;
+  try
+    BranchRefs := LResult.StdOut.Split([#10, #13]);
+    Prefix := ARemote + '/';
+    for i := 0 to High(BranchRefs) do
+    begin
+      Line := Trim(BranchRefs[i]);
+      if (Line = '') then
+        Continue;
+      if Pos('->', Line) > 0 then
+        Continue;
+      if Pos(Prefix, Line) <> 1 then
+        Continue;
+      Line := Copy(Line, Length(Prefix) + 1, MaxInt);
+      if (Line = '') or SameText(Line, 'HEAD') then
+        Continue;
+      List.Add(Line);
+    end;
+
+    SetLength(Result, List.Count);
+    for i := 0 to List.Count - 1 do
+      Result[i] := List[i];
+  finally
+    List.Free;
+  end;
 end;
 
 // ============================================================================

@@ -6,18 +6,13 @@ unit fpdev.git;
 interface
 
 uses
-  SysUtils, Classes, Process, fpdev.utils.git;
+  SysUtils, Classes, fpdev.utils.git;
 
 type
   { TGitManager }
   TGitManager = class
   private
     FGitOps: TGitOperations;
-    function ExecuteGitCommand(const ACommand: string; const AWorkingDir: string = ''): Boolean;
-    function GetGitOutput(const ACommand: string; const AWorkingDir: string = ''): string;
-    function IsGitInstalled: Boolean;
-    function IsGitRepository(const APath: string): Boolean;
-    function ExecuteGitParams(const Params: array of string; const AWorkingDir: string = ''): Boolean;
 
   public
     constructor Create;
@@ -56,171 +51,22 @@ begin
   inherited Destroy;
 end;
 
-function TGitManager.IsGitInstalled: Boolean;
-var
-  Process: TProcess;
-begin
-  Result := False;
-  Process := TProcess.Create(nil);
-  try
-    Process.Executable := 'git';
-    Process.Parameters.Add('--version');
-    Process.Options := Process.Options + [poWaitOnExit, poUsePipes, poNoConsole];
-
-    try
-      Process.Execute;
-      Result := Process.ExitStatus = 0;
-    except
-      Result := False;
-    end;
-  finally
-    Process.Free;
-  end;
-end;
-
 function TGitManager.GetGitVersion: string;
 begin
-  Result := GetGitOutput('--version');
-  if Result <> '' then
-    Result := Trim(Result)
-  else
-    Result := 'Git not found';
+  if Assigned(FGitOps) then
+  begin
+    Result := Trim(FGitOps.GetVersion);
+    if (Result <> '') and (FGitOps.Backend = gbLibgit2) then
+      Result := 'libgit2 ' + Result;
+    if Result <> '' then
+      Exit;
+  end;
+  Result := 'Git not found';
 end;
 
 function TGitManager.ValidateGitEnvironment: Boolean;
 begin
   Result := Assigned(FGitOps) and (FGitOps.Backend <> gbNone);
-end;
-
-function TGitManager.ExecuteGitCommand(const ACommand: string; const AWorkingDir: string): Boolean;
-var
-  Process: TProcess;
-  CommandParts: TStringArray;
-  i: Integer;
-begin
-  Result := False;
-
-  if not IsGitInstalled then
-  begin
-  // WriteLn('Error: Git is not installed');  // debug code commented out
-    Exit;
-  end;
-
-  Process := TProcess.Create(nil);
-  try
-    Process.Executable := 'git';
-
-    // Parse command arguments
-    CommandParts := ACommand.Split(' ');
-    for i := 0 to High(CommandParts) do
-      if Trim(CommandParts[i]) <> '' then
-        Process.Parameters.Add(Trim(CommandParts[i]));
-
-    if AWorkingDir <> '' then
-      Process.CurrentDirectory := AWorkingDir;
-
-    Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-
-  // WriteLn('Running: git ', ACommand);  // debug code commented out
-    if AWorkingDir <> '' then
-  // WriteLn('Working directory: ', AWorkingDir);  // debug code commented out
-
-    try
-      Process.Execute;
-      Result := Process.ExitStatus = 0;
-
-      if not Result then
-  // WriteLn('Git command failed, exit code: ', Process.ExitStatus);  // debug code commented out
-
-    except
-      on E: Exception do
-      begin
-  // WriteLn('Exception while executing Git command: ', E.Message);  // debug code commented out
-        Result := False;
-      end;
-    end;
-  finally
-    Process.Free;
-  end;
-end;
-
-function TGitManager.ExecuteGitParams(const Params: array of string; const AWorkingDir: string): Boolean;
-var
-  Process: TProcess;
-  i: Integer;
-begin
-  Result := False;
-  if not IsGitInstalled then Exit;
-  Process := TProcess.Create(nil);
-  try
-    Process.Executable := 'git';
-    for i := Low(Params) to High(Params) do
-      if Trim(Params[i]) <> '' then
-        Process.Parameters.Add(Params[i]);
-    if AWorkingDir <> '' then
-      Process.CurrentDirectory := AWorkingDir;
-    Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
-    try
-      Process.Execute;
-      Result := Process.ExitStatus = 0;
-    except
-      Result := False;
-    end;
-  finally
-    Process.Free;
-  end;
-end;
-
-function TGitManager.GetGitOutput(const ACommand: string; const AWorkingDir: string): string;
-var
-  Process: TProcess;
-  CommandParts: TStringArray;
-  i: Integer;
-  OutputStream: TStringList;
-begin
-  Result := '';
-
-  if not IsGitInstalled then
-    Exit;
-
-  Process := TProcess.Create(nil);
-  OutputStream := TStringList.Create;
-  try
-    Process.Executable := 'git';
-
-    // Parse command arguments
-    CommandParts := ACommand.Split(' ');
-    for i := 0 to High(CommandParts) do
-      if Trim(CommandParts[i]) <> '' then
-        Process.Parameters.Add(Trim(CommandParts[i]));
-
-    if AWorkingDir <> '' then
-      Process.CurrentDirectory := AWorkingDir;
-
-    Process.Options := Process.Options + [poWaitOnExit, poUsePipes, poNoConsole];
-
-    try
-      Process.Execute;
-
-      if Process.ExitStatus = 0 then
-      begin
-        OutputStream.LoadFromStream(Process.Output);
-        Result := OutputStream.Text;
-      end;
-
-    except
-      on E: Exception do
-        Result := '';
-    end;
-  finally
-    OutputStream.Free;
-    Process.Free;
-  end;
-end;
-
-function TGitManager.IsGitRepository(const APath: string): Boolean;
-begin
-  Result := DirectoryExists(APath + PathDelim + '.git');
 end;
 
 function TGitManager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean;
@@ -312,36 +158,15 @@ begin
   if Assigned(FGitOps) then
     Result := FGitOps.GetCurrentBranch(ARepoDir)
   else
-    Result := Trim(GetGitOutput('rev-parse --abbrev-ref HEAD', ARepoDir));
+    Result := '';
 end;
 
 function TGitManager.ListBranches(const ARepoDir: string): TStringArray;
-var
-  Output: string;
-  Lines: TStringArray;
-  i: Integer;
-  Branch: string;
 begin
-  SetLength(Result, 0);
-
-  Output := GetGitOutput('branch -r', ARepoDir);
-  if Output = '' then
-    Exit;
-
-  Lines := Output.Split([#10, #13]);
-  for i := 0 to High(Lines) do
-  begin
-    Branch := Trim(Lines[i]);
-    if (Branch <> '') and (Pos('origin/', Branch) > 0) then
-    begin
-      Branch := StringReplace(Branch, 'origin/', '', []);
-      if Branch <> 'HEAD' then
-      begin
-        SetLength(Result, Length(Result) + 1);
-        Result[High(Result)] := Branch;
-      end;
-    end;
-  end;
+  if Assigned(FGitOps) then
+    Result := FGitOps.ListRemoteBranches(ARepoDir, 'origin')
+  else
+    Result := nil;
 end;
 
 function TGitManager.GetLastCommitHash(const ARepoDir: string): string;
@@ -349,12 +174,15 @@ begin
   if Assigned(FGitOps) then
     Result := FGitOps.GetShortHeadHash(ARepoDir, 40)
   else
-    Result := Trim(GetGitOutput('rev-parse HEAD', ARepoDir));
+    Result := '';
 end;
 
 function TGitManager.Add(const ARepoDir, APathSpec: string): Boolean;
 begin
-  Result := ExecuteGitParams(['add', APathSpec], ARepoDir);
+  if Assigned(FGitOps) then
+    Result := FGitOps.Add(ARepoDir, APathSpec)
+  else
+    Result := False;
 end;
 
 function TGitManager.Commit(const ARepoDir, AMessage: string): Boolean;
@@ -364,19 +192,18 @@ begin
   CommitMessage := AMessage;
   if CommitMessage = '' then
     CommitMessage := 'update index.json';
-  Result := ExecuteGitParams(['commit', '-m', CommitMessage], ARepoDir);
+  if Assigned(FGitOps) then
+    Result := FGitOps.Commit(ARepoDir, CommitMessage)
+  else
+    Result := False;
 end;
 
 function TGitManager.Push(const ARepoDir: string; const ARemote: string; const ABranch: string): Boolean;
-var
-  BranchParam: string;
 begin
-  BranchParam := ABranch;
-  if BranchParam = '' then
-    BranchParam := GetCurrentBranch(ARepoDir);
-  if BranchParam = '' then
-    BranchParam := 'HEAD';
-  Result := ExecuteGitParams(['push', ARemote, BranchParam], ARepoDir);
+  if Assigned(FGitOps) then
+    Result := FGitOps.Push(ARepoDir, ARemote, ABranch)
+  else
+    Result := False;
 end;
 
 end.
