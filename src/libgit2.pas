@@ -271,6 +271,7 @@ function git_object_lookup(out obj: git_object; repo: git_repository; const id: 
 function git_object_id(obj: git_object): Pgit_oid; cdecl; external LIBGIT2_LIB;
 function git_object_type(obj: git_object): git_object_t; cdecl; external LIBGIT2_LIB;
 procedure git_object_free(obj: git_object); cdecl; external LIBGIT2_LIB;
+function git_tree_lookup(out tree: git_tree; repo: git_repository; const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 
 // Commit operations
 function git_commit_lookup(out commit: git_commit; repo: git_repository; const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
@@ -279,6 +280,9 @@ function git_commit_author(commit: git_commit): Pgit_signature_t; cdecl; externa
 function git_commit_committer(commit: git_commit): Pgit_signature_t; cdecl; external LIBGIT2_LIB;
 function git_commit_time(commit: git_commit): git_time_t; cdecl; external LIBGIT2_LIB;
 function git_commit_parentcount(commit: git_commit): cuint; cdecl; external LIBGIT2_LIB;
+function git_commit_create(out id: git_oid; repo: git_repository; const update_ref: PChar;
+  author: git_signature; committer: git_signature; const message_encoding: PChar; const message: PChar;
+  tree: git_tree; parent_count: csize_t; const parents: Pointer): cint; cdecl; external LIBGIT2_LIB;
 
 // OID operations
 function git_oid_fromstr(out id: git_oid; const str: PChar): cint; cdecl; external LIBGIT2_LIB;
@@ -318,6 +322,7 @@ procedure git_status_list_free(status_list: git_status_list); cdecl; external LI
 function git_repository_index(out index: git_index; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_index_add_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
+function git_index_write_tree(out id: git_oid; index: git_index): cint; cdecl; external LIBGIT2_LIB;
 
   // Checkout operations
   function git_checkout_head(repo: git_repository; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
@@ -326,6 +331,7 @@ function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 procedure git_index_free(index: git_index); cdecl; external LIBGIT2_LIB;
 
 // Configuration operations
+function git_repository_config(out cfg: git_config; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_config_open_default(out cfg: git_config): cint; cdecl; external LIBGIT2_LIB;
 function git_config_get_string(out out_value: PChar; cfg: git_config; const name: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_config_set_string(cfg: git_config; const name: PChar; const value: PChar): cint; cdecl; external LIBGIT2_LIB;

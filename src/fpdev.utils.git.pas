@@ -46,6 +46,8 @@ type
     function PullWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
     function GetBranchWithLibgit2(const ARepoPath: string): string;
     function CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
+    function AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+    function CommitWithLibgit2(const ARepoPath, AMessage: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
 
   public
     constructor Create;
@@ -77,11 +79,20 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, git2.impl, libgit2;
+  fpdev.utils.process, git2.impl, libgit2, ctypes;
 
 var
   Libgit2Available: Boolean = False;
   Libgit2Checked: Boolean = False;
+
+type
+  PGitAddAllStatusPayload = ^TGitAddAllStatusPayload;
+  TGitAddAllStatusPayload = record
+    Paths: TStringList;
+    NeedsFallback: Boolean;
+    HadError: Boolean;
+    ErrorText: string;
+  end;
 
 // Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
@@ -103,6 +114,51 @@ begin
   Err := git_error_last;
   if (Err <> nil) and (Err^.message <> nil) then
     Result := string(Err^.message);
+end;
+
+function AddAllStatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): cint; cdecl;
+var
+  P: PGitAddAllStatusPayload;
+  UnsupportedMask: cuint;
+  LPath: string;
+begin
+  Result := 0;
+  P := PGitAddAllStatusPayload(APayload);
+  if (P = nil) or (P^.Paths = nil) then
+    Exit(0);
+  if P^.HadError then
+    Exit(-1);
+
+  try
+    if (AFlags and GIT_STATUS_IGNORED) <> 0 then
+      Exit(0);
+
+    UnsupportedMask :=
+      GIT_STATUS_WT_DELETED or GIT_STATUS_INDEX_DELETED or
+      GIT_STATUS_WT_RENAMED or GIT_STATUS_INDEX_RENAMED or
+      GIT_STATUS_WT_TYPECHANGE or GIT_STATUS_INDEX_TYPECHANGE or
+      GIT_STATUS_CONFLICTED or GIT_STATUS_WT_UNREADABLE;
+
+    if (AFlags and UnsupportedMask) <> 0 then
+    begin
+      P^.NeedsFallback := True;
+      Exit(0);
+    end;
+
+    if (AFlags <> GIT_STATUS_CURRENT) and (APath <> nil) then
+    begin
+      LPath := string(APath);
+      if Trim(LPath) <> '' then
+        P^.Paths.Add(LPath);
+    end;
+  except
+    on E: Exception do
+    begin
+      P^.HadError := True;
+      P^.ErrorText := E.Message;
+      Result := -1;
+    end;
+  end;
 end;
 
 { TGitOperations }
@@ -548,6 +604,377 @@ begin
     FLastError := 'git rev-parse failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
 end;
 
+function TGitOperations.AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+var
+  RepoHandle: git_repository;
+  IndexHandle: git_index;
+  Paths: TStringList;
+  Payload: TGitAddAllStatusPayload;
+  RC: cint;
+  i: Integer;
+
+begin
+  Result := False;
+  AError := '';
+  ANeedsFallback := False;
+
+  RepoHandle := nil;
+  IndexHandle := nil;
+  Paths := TStringList.Create;
+  try
+    Payload.Paths := Paths;
+    Payload.NeedsFallback := False;
+    Payload.HadError := False;
+    Payload.ErrorText := '';
+
+    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+    if RC <> GIT_OK then
+    begin
+      AError := Libgit2LastErrorText;
+      if AError <> '' then
+        AError := 'libgit2 open repository failed: ' + AError
+      else
+        AError := 'libgit2 open repository failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_repository_index(IndexHandle, RepoHandle);
+    if RC <> GIT_OK then
+    begin
+      AError := Libgit2LastErrorText;
+      if AError <> '' then
+        AError := 'libgit2 open index failed: ' + AError
+      else
+        AError := 'libgit2 open index failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_status_foreach(RepoHandle, @AddAllStatusCb, @Payload);
+    if Payload.HadError then
+    begin
+      AError := 'libgit2 status callback error: ' + Payload.ErrorText;
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+    if RC <> GIT_OK then
+    begin
+      AError := Libgit2LastErrorText;
+      if AError <> '' then
+        AError := 'libgit2 status foreach failed: ' + AError
+      else
+        AError := 'libgit2 status foreach failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    if Payload.NeedsFallback then
+    begin
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    if Paths.Count > 0 then
+    begin
+      for i := 0 to Paths.Count - 1 do
+      begin
+        RC := git_index_add_bypath(IndexHandle, PChar(Paths[i]));
+        if RC <> GIT_OK then
+        begin
+          AError := Libgit2LastErrorText;
+          if AError <> '' then
+            AError := 'libgit2 add failed: ' + AError
+          else
+            AError := 'libgit2 add failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+      end;
+
+      RC := git_index_write(IndexHandle);
+      if RC <> GIT_OK then
+      begin
+        AError := Libgit2LastErrorText;
+        if AError <> '' then
+          AError := 'libgit2 index write failed: ' + AError
+        else
+          AError := 'libgit2 index write failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+    end;
+
+    Result := True;
+  finally
+    Paths.Free;
+    if IndexHandle <> nil then
+      git_index_free(IndexHandle);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
+  end;
+end;
+
+function TGitOperations.CommitWithLibgit2(const ARepoPath, AMessage: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+var
+  RepoHandle: git_repository;
+  IndexHandle: git_index;
+  TreeHandle: git_tree;
+  TreeOid: git_oid;
+  CommitOid: git_oid;
+  HeadRef: git_reference;
+  BranchRef: git_reference;
+  ParentCommit: git_commit;
+  Parents: array[0..0] of git_commit;
+  ParentsPtr: Pointer;
+  ParentCount: csize_t;
+  AuthorSig: git_signature;
+  CommitterSig: git_signature;
+  UpdateRef: string;
+  SymTargetP: PChar;
+  TargetOID: Pgit_oid;
+  RC: cint;
+  LErr: string;
+
+  function ConfigGetString(ACfg: git_config; const AKey: string): string;
+  var
+    P: PChar;
+  begin
+    Result := '';
+    P := nil;
+    if (ACfg <> nil) and (git_config_get_string(P, ACfg, PChar(AKey)) = GIT_OK) and (P <> nil) then
+      Result := string(P);
+  end;
+
+  function TryLoadUserFromConfig(out AName, AEmail: string): Boolean;
+  var
+    Cfg: git_config;
+  begin
+    Result := False;
+    AName := '';
+    AEmail := '';
+
+    Cfg := nil;
+    if git_repository_config(Cfg, RepoHandle) = GIT_OK then
+    begin
+      try
+        AName := Trim(ConfigGetString(Cfg, 'user.name'));
+        AEmail := Trim(ConfigGetString(Cfg, 'user.email'));
+        Result := (AName <> '') and (AEmail <> '');
+      finally
+        git_config_free(Cfg);
+      end;
+      if Result then
+        Exit(True);
+    end;
+
+    Cfg := nil;
+    if git_config_open_default(Cfg) = GIT_OK then
+    begin
+      try
+        AName := Trim(ConfigGetString(Cfg, 'user.name'));
+        AEmail := Trim(ConfigGetString(Cfg, 'user.email'));
+        Result := (AName <> '') and (AEmail <> '');
+      finally
+        git_config_free(Cfg);
+      end;
+    end;
+  end;
+
+var
+  AuthorName: string;
+  AuthorEmail: string;
+  CommitterName: string;
+  CommitterEmail: string;
+begin
+  Result := False;
+  AError := '';
+  ANeedsFallback := False;
+
+  RepoHandle := nil;
+  IndexHandle := nil;
+  TreeHandle := nil;
+  HeadRef := nil;
+  BranchRef := nil;
+  ParentCommit := nil;
+  AuthorSig := nil;
+  CommitterSig := nil;
+
+  try
+    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open repository failed: ' + LErr
+      else
+        AError := 'libgit2 open repository failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    UpdateRef := 'HEAD';
+    ParentCount := 0;
+    RC := git_reference_lookup(HeadRef, RepoHandle, PChar('HEAD'));
+    if RC = GIT_OK then
+    begin
+      SymTargetP := git_reference_symbolic_target(HeadRef);
+      if SymTargetP <> nil then
+      begin
+        UpdateRef := string(SymTargetP);
+        RC := git_reference_lookup(BranchRef, RepoHandle, SymTargetP);
+        if RC = GIT_OK then
+        begin
+          TargetOID := git_reference_target(BranchRef);
+          if TargetOID <> nil then
+          begin
+            RC := git_commit_lookup(ParentCommit, RepoHandle, TargetOID);
+            if RC = GIT_OK then
+            begin
+              Parents[0] := ParentCommit;
+              ParentCount := 1;
+            end;
+          end;
+        end;
+      end
+      else
+      begin
+        TargetOID := git_reference_target(HeadRef);
+        if TargetOID <> nil then
+        begin
+          RC := git_commit_lookup(ParentCommit, RepoHandle, TargetOID);
+          if RC = GIT_OK then
+          begin
+            Parents[0] := ParentCommit;
+            ParentCount := 1;
+          end;
+        end;
+      end;
+    end;
+
+    AuthorName := '';
+    AuthorEmail := '';
+    if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
+    begin
+      AuthorName := Trim(GetEnvironmentVariable('GIT_AUTHOR_NAME'));
+      AuthorEmail := Trim(GetEnvironmentVariable('GIT_AUTHOR_EMAIL'));
+    end;
+
+    CommitterName := Trim(GetEnvironmentVariable('GIT_COMMITTER_NAME'));
+    CommitterEmail := Trim(GetEnvironmentVariable('GIT_COMMITTER_EMAIL'));
+    if CommitterName = '' then
+      CommitterName := AuthorName;
+    if CommitterEmail = '' then
+      CommitterEmail := AuthorEmail;
+
+    if (AuthorName = '') or (AuthorEmail = '') or (CommitterName = '') or (CommitterEmail = '') then
+    begin
+      AError := 'Git identity not configured (user.name/user.email)';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_signature_now(AuthorSig, PChar(AuthorName), PChar(AuthorEmail));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 signature creation failed: ' + LErr
+      else
+        AError := 'libgit2 signature creation failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_signature_now(CommitterSig, PChar(CommitterName), PChar(CommitterEmail));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 signature creation failed: ' + LErr
+      else
+        AError := 'libgit2 signature creation failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_repository_index(IndexHandle, RepoHandle);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open index failed: ' + LErr
+      else
+        AError := 'libgit2 open index failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_index_write_tree(TreeOid, IndexHandle);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 write tree failed: ' + LErr
+      else
+        AError := 'libgit2 write tree failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    TreeHandle := nil;
+    RC := git_tree_lookup(TreeHandle, RepoHandle, @TreeOid);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 tree lookup failed: ' + LErr
+      else
+        AError := 'libgit2 tree lookup failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    ParentsPtr := nil;
+    if ParentCount > 0 then
+      ParentsPtr := @Parents[0];
+
+    FillChar(CommitOid, SizeOf(CommitOid), 0);
+    RC := git_commit_create(CommitOid, RepoHandle, PChar(UpdateRef),
+      AuthorSig, CommitterSig, nil, PChar(AMessage),
+      TreeHandle, ParentCount, ParentsPtr);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 commit failed: ' + LErr
+      else
+        AError := 'libgit2 commit failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    Result := True;
+  finally
+    if BranchRef <> nil then
+      git_reference_free(BranchRef);
+    if HeadRef <> nil then
+      git_reference_free(HeadRef);
+    if TreeHandle <> nil then
+      git_object_free(git_object(TreeHandle));
+    if IndexHandle <> nil then
+      git_index_free(IndexHandle);
+    if ParentCommit <> nil then
+      git_object_free(git_object(ParentCommit));
+    if AuthorSig <> nil then
+      git_signature_free(AuthorSig);
+    if CommitterSig <> nil then
+      git_signature_free(CommitterSig);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
+  end;
+end;
+
 function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;
 var
   RepoHandle: git_repository;
@@ -559,6 +986,8 @@ var
   RelPath: string;
   RC: Integer;
   LErr: string;
+  LNeedsFallback: Boolean;
+  LPathSpec: string;
 begin
   Result := False;
   FLastError := '';
@@ -581,9 +1010,31 @@ begin
     Exit(False);
   end;
 
+  LPathSpec := Trim(APathSpec);
+
+  // Try libgit2 first for add-all ('.'). Fallback to CLI when deletions/renames/etc are present.
+  if (LPathSpec = '.') and (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    LErr := '';
+    LNeedsFallback := False;
+    Result := AddAllWithLibgit2(ARepoPath, LErr, LNeedsFallback);
+    if Result then
+      Exit(True);
+    if not LNeedsFallback then
+    begin
+      if LErr <> '' then
+        FLastError := LErr
+      else
+        FLastError := 'libgit2 add-all failed';
+      Exit(False);
+    end;
+    if LErr <> '' then
+      FLastError := LErr;
+  end;
+
   // Try libgit2 first for simple file path specs
   if (FBackend = gbLibgit2) and (FGitManager <> nil) and
-     (Pos('*', APathSpec) = 0) and (Pos('?', APathSpec) = 0) and (Trim(APathSpec) <> '.') then
+     (Pos('*', APathSpec) = 0) and (Pos('?', APathSpec) = 0) and (LPathSpec <> '.') then
   begin
     RepoHandle := nil;
     IndexHandle := nil;
@@ -660,10 +1111,16 @@ begin
   end;
 
   FLastError := '';
-  Result := ExecuteGitCommand(['add', APathSpec], ARepoPath);
+  if LPathSpec = '.' then
+    Result := ExecuteGitCommand(['add', '-A'], ARepoPath)
+  else
+    Result := ExecuteGitCommand(['add', APathSpec], ARepoPath);
 end;
 
 function TGitOperations.Commit(const ARepoPath, AMessage: string): Boolean;
+var
+  LErr: string;
+  LNeedsFallback: Boolean;
 begin
   Result := False;
   FLastError := '';
@@ -686,14 +1143,33 @@ begin
     Exit(False);
   end;
 
-  // NOTE: libgit2 commit is not implemented in our high-level adapter yet.
-  // Use command-line git as fallback.
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    LErr := '';
+    LNeedsFallback := False;
+    Result := CommitWithLibgit2(ARepoPath, AMessage, LErr, LNeedsFallback);
+    if Result then
+      Exit(True);
+    if not LNeedsFallback then
+    begin
+      if LErr <> '' then
+        FLastError := LErr
+      else
+        FLastError := 'libgit2 commit failed';
+      Exit(False);
+    end;
+    if LErr <> '' then
+      FLastError := LErr;
+  end;
+
   if not CommandLineGitAvailable then
   begin
-    FLastError := 'Command-line git is required for commit; please install git';
+    if FLastError = '' then
+      FLastError := 'Command-line git is required for commit; please install git';
     Exit(False);
   end;
 
+  FLastError := '';
   Result := ExecuteGitCommand(['commit', '-m', AMessage], ARepoPath);
 end;
 

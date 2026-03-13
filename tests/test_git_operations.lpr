@@ -5,7 +5,7 @@ program test_git_operations;
 { Unit tests for TGitOperations class in fpdev.utils.git }
 
 uses
-  SysUtils, Classes, fpdev.utils.git;
+  SysUtils, Classes, fpdev.utils.git, git2.api, git2.impl, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -158,12 +158,112 @@ begin
   end;
 end;
 
+procedure EnsureRepoUserConfig(const ARepoDir: string);
+var
+  ConfigPath: string;
+  Lines: TStringList;
+begin
+  ConfigPath := IncludeTrailingPathDelimiter(ARepoDir) + '.git' + PathDelim + 'config';
+
+  Lines := TStringList.Create;
+  try
+    if FileExists(ConfigPath) then
+      Lines.LoadFromFile(ConfigPath);
+
+    Lines.Add('');
+    Lines.Add('[user]');
+    Lines.Add('  name = FPDev Test');
+    Lines.Add('  email = fpdev-test@example.invalid');
+    Lines.SaveToFile(ConfigPath);
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure TestCommitLocalRepo;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  RepoDir: string;
+  Mgr: IGitManager;
+  Repo: IGitRepository;
+  SL: TStringList;
+  Hash1: string;
+  Hash2: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 6: Commit (libgit2) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_commit');
+    RepoDir := TempRoot + PathDelim + 'repo';
+    ForceDirectories(RepoDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    Repo := Mgr.InitRepository(RepoDir, False);
+    Check('InitRepository succeeds', Repo <> nil);
+    if Repo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(RepoDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'hello';
+      SL.SaveToFile(RepoDir + PathDelim + 'a.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add a.txt', Git.Add(RepoDir, 'a.txt'));
+    Check('Commit 1', Git.Commit(RepoDir, 'test commit 1'));
+    Hash1 := Git.GetShortHeadHash(RepoDir, 7);
+    Check('HEAD hash not empty', Hash1 <> '');
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'hello2';
+      SL.SaveToFile(RepoDir + PathDelim + 'a.txt');
+      SL.Text := 'world';
+      SL.SaveToFile(RepoDir + PathDelim + 'b.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add all', Git.Add(RepoDir, '.'));
+    Check('Commit 2', Git.Commit(RepoDir, 'test commit 2'));
+    Hash2 := Git.GetShortHeadHash(RepoDir, 7);
+    Check('HEAD hash not empty after commit 2', Hash2 <> '');
+    Check('HEAD hash changes', (Hash1 <> '') and (Hash2 <> '') and (Hash2 <> Hash1));
+
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestMultipleInstances;
 var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 6: Multiple Instances ===');
+  WriteLn('=== Test 7: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -187,7 +287,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 7: GitBackendToString ===');
+  WriteLn('=== Test 8: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -204,6 +304,7 @@ begin
   TestIsRepository;
   TestGetCurrentBranch;
   TestVerboseProperty;
+  TestCommitLocalRepo;
   TestMultipleInstances;
   TestGitBackendToString;
 
