@@ -155,9 +155,9 @@ begin
     if (AFlags and GIT_STATUS_IGNORED) <> 0 then
       Exit(0);
 
-    UnsupportedMask :=
-      GIT_STATUS_WT_RENAMED or GIT_STATUS_INDEX_RENAMED or
-      GIT_STATUS_CONFLICTED or GIT_STATUS_WT_UNREADABLE;
+    // Prefer to handle most states via libgit2-only. Only fall back for cases
+    // where libgit2 cannot stage the entry reliably (e.g. unreadable files).
+    UnsupportedMask := GIT_STATUS_WT_UNREADABLE;
 
     if (AFlags and UnsupportedMask) <> 0 then
     begin
@@ -1357,7 +1357,7 @@ begin
 
   LPathSpec := Trim(APathSpec);
 
-  // Try libgit2 first for add-all ('.'). Fallback to CLI when deletions/renames/etc are present.
+  // Try libgit2 first for add-all ('.'). Fallback to CLI only for rare unsupported states.
   if (LPathSpec = '.') and (FBackend = gbLibgit2) and (FGitManager <> nil) then
   begin
     LErr := '';
