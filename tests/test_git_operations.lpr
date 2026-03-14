@@ -808,6 +808,168 @@ begin
   end;
 end;
 
+procedure TestPullMergeNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  SeedRepoDir: string;
+  RemoteBareDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  SeedRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  SL: TStringList;
+  Branch: string;
+  OriginalPath: string;
+  NoGitPath: string;
+  RemoteTxt: string;
+  LocalTxt: string;
+  PullOk: Boolean;
+begin
+  WriteLn('');
+  WriteLn('=== Test 10: Pull merge without CLI (libgit2) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_pull_merge_nocli');
+    SeedRepoDir := TempRoot + PathDelim + 'seed';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(SeedRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    SeedRepo := Mgr.InitRepository(SeedRepoDir, False);
+    Check('Init seed repository succeeds', SeedRepo <> nil);
+    if SeedRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(SeedRepoDir);
+    EnsureRepoRemoteConfig(SeedRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'base';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'base.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit base', Git.Commit(SeedRepoDir, 'base commit'));
+
+    Branch := Git.GetCurrentBranch(SeedRepoDir);
+    Check('Seed branch not empty', Branch <> '');
+    Check('Seed push base to origin', Git.Push(SeedRepoDir, 'origin', ''));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Clone from bare remote (no CLI)', Git.Clone(RemoteBareDir, CloneDir, Branch));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    EnsureRepoUserConfig(CloneDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'remote';
+      SL.SaveToFile(CloneDir + PathDelim + 'remote.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Clone add all', Git.Add(CloneDir, '.'));
+    Check('Clone commit remote', Git.Commit(CloneDir, 'remote commit'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Push remote commit (no CLI)', Git.Push(CloneDir, 'origin', ''));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'local';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'local.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all (local)', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit local', Git.Commit(SeedRepoDir, 'local commit'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      PullOk := Git.Pull(SeedRepoDir);
+      if not PullOk then
+        WriteLn('  Pull error: ', Git.LastError);
+      Check('Pull merge (no CLI)', PullOk);
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    RemoteTxt := SeedRepoDir + PathDelim + 'remote.txt';
+    LocalTxt := SeedRepoDir + PathDelim + 'local.txt';
+
+    SL := TStringList.Create;
+    try
+      if FileExists(RemoteTxt) then
+      begin
+        SL.LoadFromFile(RemoteTxt);
+        Check('Seed has remote.txt', Trim(SL.Text) = 'remote');
+      end
+      else
+        Check('Seed has remote.txt', False);
+
+      if FileExists(LocalTxt) then
+      begin
+        SL.LoadFromFile(LocalTxt);
+        Check('Seed has local.txt', Trim(SL.Text) = 'local');
+      end
+      else
+        Check('Seed has local.txt', False);
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed clean after merge pull', SeedRepo.IsClean);
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestForceCheckoutNoCLI;
 var
   Git: TGitOperations;
@@ -828,7 +990,7 @@ var
   OtherContent: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 10: Force checkout without CLI (libgit2) ===');
+  WriteLn('=== Test 11: Force checkout without CLI (libgit2) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -966,7 +1128,7 @@ var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 11: Multiple Instances ===');
+  WriteLn('=== Test 12: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -990,7 +1152,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 12: GitBackendToString ===');
+  WriteLn('=== Test 13: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -1011,6 +1173,7 @@ begin
   TestPushLocalBareRemote;
   TestAddPathspecDirAndGlob;
   TestRemoteOpsNoCLI;
+  TestPullMergeNoCLI;
   TestForceCheckoutNoCLI;
   TestMultipleInstances;
   TestGitBackendToString;

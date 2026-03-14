@@ -35,6 +35,7 @@ type
     FGitManager: IGitManager;
     FCommandLineChecked: Boolean;
     FCommandLineAvailable: Boolean;
+    FCommandLineCheckedPath: string;
 
     function TryInitLibgit2: Boolean;
     function CommandLineGitAvailable: Boolean;
@@ -350,6 +351,7 @@ begin
   FGitManager := nil;
   FCommandLineChecked := False;
   FCommandLineAvailable := False;
+  FCommandLineCheckedPath := '';
 
   // Try to use libgit2 first
   if TryInitLibgit2 then
@@ -358,6 +360,7 @@ begin
   begin
     // Check if command-line git is available
     FCommandLineChecked := True;
+    FCommandLineCheckedPath := GetEnvironmentVariable('PATH');
     FCommandLineAvailable := TProcessExecutor.Run('git', ['--version'], '');
     if FCommandLineAvailable then
       FBackend := gbCommandLine
@@ -432,10 +435,14 @@ begin
 end;
 
 function TGitOperations.CommandLineGitAvailable: Boolean;
+var
+  CurrentPath: string;
 begin
-  if not FCommandLineChecked then
+  CurrentPath := GetEnvironmentVariable('PATH');
+  if (not FCommandLineChecked) or (CurrentPath <> FCommandLineCheckedPath) then
   begin
     FCommandLineChecked := True;
+    FCommandLineCheckedPath := CurrentPath;
     FCommandLineAvailable := TProcessExecutor.Run('git', ['--version'], '');
   end;
   Result := FCommandLineAvailable;
@@ -1909,6 +1916,7 @@ var
   RepoHandle: git_repository;
   RemoteHandle: git_remote;
   FetchOpts: git_fetch_options;
+  CheckoutOpts: git_checkout_options;
   CredPayload: TGitCredentialPayload;
   LocalRef: git_reference;
   RemoteRef: git_reference;
@@ -1918,8 +1926,162 @@ var
   Ahead: csize_t;
   Behind: csize_t;
   RemoteOid: Pgit_oid;
+  RepoIndex: git_index;
+  TargetCommit: git_commit;
+  TargetTree: git_tree;
+  OurCommit: git_commit;
+  TheirCommit: git_commit;
+  MergeIndex: git_index;
+  MergeTree: git_tree;
+  MergeTreeOid: git_oid;
+  MergeCommitOid: git_oid;
+  Parents: array[0..1] of git_commit;
+  ParentsPtr: Pointer;
+  ParentCount: csize_t;
+  AuthorSig: git_signature;
+  CommitterSig: git_signature;
+  MergeMessage: string;
   RC: cint;
   LErr: string;
+
+  function ConfigGetString(ACfg: git_config; const AKey: string): string;
+  var
+    P: PChar;
+  begin
+    Result := '';
+    P := nil;
+    if (ACfg <> nil) and (git_config_get_string(P, ACfg, PChar(AKey)) = GIT_OK) and (P <> nil) then
+      Result := string(P);
+  end;
+
+  function TryLoadUserFromConfig(out AName, AEmail: string): Boolean;
+  var
+    Cfg: git_config;
+  begin
+    Result := False;
+    AName := '';
+    AEmail := '';
+
+    if RepoHandle = nil then
+      Exit(False);
+
+    Cfg := nil;
+    if git_repository_config(Cfg, RepoHandle) = GIT_OK then
+    begin
+      try
+        AName := Trim(ConfigGetString(Cfg, 'user.name'));
+        AEmail := Trim(ConfigGetString(Cfg, 'user.email'));
+        Result := (AName <> '') and (AEmail <> '');
+      finally
+        git_config_free(Cfg);
+      end;
+      if Result then
+        Exit(True);
+    end;
+
+    Cfg := nil;
+    if git_config_open_default(Cfg) = GIT_OK then
+    begin
+      try
+        AName := Trim(ConfigGetString(Cfg, 'user.name'));
+        AEmail := Trim(ConfigGetString(Cfg, 'user.email'));
+        Result := (AName <> '') and (AEmail <> '');
+      finally
+        git_config_free(Cfg);
+      end;
+    end;
+  end;
+
+  function TryLoadUserFromLocalConfig(out AName, AEmail: string): Boolean;
+  var
+    ConfigPath: string;
+    Lines: TStringList;
+    InUser: Boolean;
+    Line: string;
+    Key: string;
+    Value: string;
+    P: Integer;
+    i: Integer;
+  begin
+    Result := False;
+    AName := '';
+    AEmail := '';
+
+    ConfigPath := IncludeTrailingPathDelimiter(ARepoPath) + '.git' + PathDelim + 'config';
+    if not FileExists(ConfigPath) then
+      Exit(False);
+
+    Lines := TStringList.Create;
+    try
+      Lines.LoadFromFile(ConfigPath);
+      InUser := False;
+      for i := 0 to Lines.Count - 1 do
+      begin
+        Line := Trim(Lines[i]);
+        if Line = '' then
+          Continue;
+        if (Line[1] = ';') or (Line[1] = '#') then
+          Continue;
+        if (Line[1] = '[') then
+        begin
+          InUser := SameText(Line, '[user]');
+          Continue;
+        end;
+        if not InUser then
+          Continue;
+
+        P := Pos('=', Line);
+        if P <= 0 then
+          Continue;
+        Key := Trim(Copy(Line, 1, P - 1));
+        Value := Trim(Copy(Line, P + 1, MaxInt));
+
+        if SameText(Key, 'name') then
+          AName := Value
+        else if SameText(Key, 'email') then
+          AEmail := Value;
+      end;
+    finally
+      Lines.Free;
+    end;
+
+    Result := (AName <> '') and (AEmail <> '');
+  end;
+
+  function TryLoadIdentity(out AuthorName, AuthorEmail, CommitterName, CommitterEmail: string): Boolean;
+  begin
+    AuthorName := '';
+    AuthorEmail := '';
+    if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
+    begin
+      if not TryLoadUserFromLocalConfig(AuthorName, AuthorEmail) then
+      begin
+        AuthorName := '';
+        AuthorEmail := '';
+      end;
+    end;
+
+    if (AuthorName = '') or (AuthorEmail = '') then
+    begin
+      AuthorName := Trim(GetEnvironmentVariable('GIT_AUTHOR_NAME'));
+      AuthorEmail := Trim(GetEnvironmentVariable('GIT_AUTHOR_EMAIL'));
+    end;
+
+    CommitterName := Trim(GetEnvironmentVariable('GIT_COMMITTER_NAME'));
+    CommitterEmail := Trim(GetEnvironmentVariable('GIT_COMMITTER_EMAIL'));
+    if CommitterName = '' then
+      CommitterName := AuthorName;
+    if CommitterEmail = '' then
+      CommitterEmail := AuthorEmail;
+
+    Result := (AuthorName <> '') and (AuthorEmail <> '') and (CommitterName <> '') and (CommitterEmail <> '');
+  end;
+
+var
+  AuthorName: string;
+  AuthorEmail: string;
+  CommitterName: string;
+  CommitterEmail: string;
 begin
   Result := False;
   AError := '';
@@ -1970,6 +2132,15 @@ begin
   LocalRef := nil;
   RemoteRef := nil;
   UpdatedRef := nil;
+  RepoIndex := nil;
+  TargetCommit := nil;
+  TargetTree := nil;
+  OurCommit := nil;
+  TheirCommit := nil;
+  MergeIndex := nil;
+  MergeTree := nil;
+  AuthorSig := nil;
+  CommitterSig := nil;
   try
     RC := git_repository_open(RepoHandle, PChar(ARepoPath));
     if RC <> GIT_OK then
@@ -2054,6 +2225,12 @@ begin
     Ahead := 0;
     Behind := 0;
     RemoteOid := git_reference_target(RemoteRef);
+    if RemoteOid = nil then
+    begin
+      AError := 'libgit2 remote OID is empty';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
     RC := git_graph_ahead_behind(Ahead, Behind, RepoHandle, git_reference_target(LocalRef), RemoteOid);
     if RC <> GIT_OK then
     begin
@@ -2087,7 +2264,85 @@ begin
       if UpdatedRef <> nil then
         git_reference_free(UpdatedRef);
 
-      RC := git_checkout_head(RepoHandle, nil);
+      TargetCommit := nil;
+      RC := git_commit_lookup(TargetCommit, RepoHandle, RemoteOid);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 lookup target commit failed: ' + LErr
+        else
+          AError := 'libgit2 lookup target commit failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      TargetTree := nil;
+      RC := git_commit_tree(TargetTree, TargetCommit);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 lookup target tree failed: ' + LErr
+        else
+          AError := 'libgit2 lookup target tree failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      RepoIndex := nil;
+      RC := git_repository_index(RepoIndex, RepoHandle);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 open index failed: ' + LErr
+        else
+          AError := 'libgit2 open index failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      RC := git_index_read_tree(RepoIndex, TargetTree);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 update index failed: ' + LErr
+        else
+          AError := 'libgit2 update index failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      RC := git_index_write(RepoIndex);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 write index failed: ' + LErr
+        else
+          AError := 'libgit2 write index failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+      RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 checkout options init failed: ' + LErr
+        else
+          AError := 'libgit2 checkout options init failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      // Ensure newly introduced files are created on disk after fast-forward.
+      CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+      RC := git_checkout_head(RepoHandle, @CheckoutOpts);
       if RC <> GIT_OK then
       begin
         LErr := Libgit2LastErrorText;
@@ -2102,11 +2357,262 @@ begin
       Exit(True);
     end;
 
-    // Diverged or ahead: requires merge/rebase.
+    // Local is ahead only: nothing to merge, already up-to-date with remote.
+    if (Ahead > 0) and (Behind = 0) then
+      Exit(True);
+
+    // Diverged: attempt a non-conflicting merge commit via libgit2.
+    if (Ahead > 0) and (Behind > 0) then
+    begin
+      try
+        if not TryLoadIdentity(AuthorName, AuthorEmail, CommitterName, CommitterEmail) then
+        begin
+          AError := 'Git identity not configured (user.name/user.email)';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_signature_now(AuthorSig, PChar(AuthorName), PChar(AuthorEmail));
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 signature creation failed: ' + LErr
+          else
+            AError := 'libgit2 signature creation failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_signature_now(CommitterSig, PChar(CommitterName), PChar(CommitterEmail));
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 signature creation failed: ' + LErr
+          else
+            AError := 'libgit2 signature creation failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_commit_lookup(OurCommit, RepoHandle, git_reference_target(LocalRef));
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 lookup HEAD commit failed: ' + LErr
+          else
+            AError := 'libgit2 lookup HEAD commit failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_commit_lookup(TheirCommit, RepoHandle, RemoteOid);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 lookup remote commit failed: ' + LErr
+          else
+            AError := 'libgit2 lookup remote commit failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        MergeIndex := nil;
+        RC := git_merge_commits(MergeIndex, RepoHandle, OurCommit, TheirCommit, nil);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 merge commits failed: ' + LErr
+          else
+            AError := 'libgit2 merge commits failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        if (MergeIndex <> nil) and (git_index_has_conflicts(MergeIndex) <> 0) then
+        begin
+          AError := 'Merge has conflicts; manual resolution required';
+          ANeedsFallback := False;
+          Exit(False);
+        end;
+
+        FillChar(MergeTreeOid, SizeOf(MergeTreeOid), 0);
+        RC := git_index_write_tree_to(MergeTreeOid, MergeIndex, RepoHandle);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 write merge tree failed: ' + LErr
+          else
+            AError := 'libgit2 write merge tree failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        MergeTree := nil;
+        RC := git_tree_lookup(MergeTree, RepoHandle, @MergeTreeOid);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 merge tree lookup failed: ' + LErr
+          else
+            AError := 'libgit2 merge tree lookup failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        Parents[0] := OurCommit;
+        Parents[1] := TheirCommit;
+        ParentCount := 2;
+        ParentsPtr := @Parents[0];
+
+        MergeMessage := 'Merge origin/' + Branch + ' into ' + Branch;
+        FillChar(MergeCommitOid, SizeOf(MergeCommitOid), 0);
+        RC := git_commit_create(MergeCommitOid, RepoHandle, PChar(LocalRefName),
+          AuthorSig, CommitterSig, nil, PChar(MergeMessage),
+          MergeTree, ParentCount, ParentsPtr);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 merge commit failed: ' + LErr
+          else
+            AError := 'libgit2 merge commit failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RepoIndex := nil;
+        RC := git_repository_index(RepoIndex, RepoHandle);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 open index failed: ' + LErr
+          else
+            AError := 'libgit2 open index failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_index_read_tree(RepoIndex, MergeTree);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 update index failed: ' + LErr
+          else
+            AError := 'libgit2 update index failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        RC := git_index_write(RepoIndex);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 write index failed: ' + LErr
+          else
+            AError := 'libgit2 write index failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+        RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 checkout options init failed: ' + LErr
+          else
+            AError := 'libgit2 checkout options init failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+        RC := git_checkout_head(RepoHandle, @CheckoutOpts);
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 checkout after merge failed: ' + LErr
+          else
+            AError := 'libgit2 checkout after merge failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+
+        Exit(True);
+      finally
+        if RepoIndex <> nil then
+        begin
+          git_index_free(RepoIndex);
+          RepoIndex := nil;
+        end;
+        if CommitterSig <> nil then
+        begin
+          git_signature_free(CommitterSig);
+          CommitterSig := nil;
+        end;
+        if AuthorSig <> nil then
+        begin
+          git_signature_free(AuthorSig);
+          AuthorSig := nil;
+        end;
+        if MergeTree <> nil then
+        begin
+          git_object_free(git_object(MergeTree));
+          MergeTree := nil;
+        end;
+        if MergeIndex <> nil then
+        begin
+          git_index_free(MergeIndex);
+          MergeIndex := nil;
+        end;
+        if TheirCommit <> nil then
+        begin
+          git_object_free(git_object(TheirCommit));
+          TheirCommit := nil;
+        end;
+        if OurCommit <> nil then
+        begin
+          git_object_free(git_object(OurCommit));
+          OurCommit := nil;
+        end;
+      end;
+    end;
+
+    // Not reachable with the current ahead/behind logic, but keep a safe fallback.
     AError := 'Non-fast-forward update requires merge/rebase';
     ANeedsFallback := True;
     Result := False;
   finally
+    if RepoIndex <> nil then
+      git_index_free(RepoIndex);
+    if TargetTree <> nil then
+      git_object_free(git_object(TargetTree));
+    if TargetCommit <> nil then
+      git_object_free(git_object(TargetCommit));
+    if CommitterSig <> nil then
+      git_signature_free(CommitterSig);
+    if AuthorSig <> nil then
+      git_signature_free(AuthorSig);
+    if MergeTree <> nil then
+      git_object_free(git_object(MergeTree));
+    if MergeIndex <> nil then
+      git_index_free(MergeIndex);
+    if TheirCommit <> nil then
+      git_object_free(git_object(TheirCommit));
+    if OurCommit <> nil then
+      git_object_free(git_object(OurCommit));
     if RemoteRef <> nil then
       git_reference_free(RemoteRef);
     if LocalRef <> nil then

@@ -351,6 +351,10 @@ procedure git_reference_free(ref: git_reference); cdecl; external LIBGIT2_LIB;
 function git_graph_ahead_behind(out ahead: csize_t; out behind: csize_t; repo: git_repository;
   const local: Pgit_oid; const upstream: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 
+// Merge operations
+function git_merge_commits(out out_index: git_index; repo: git_repository; our_commit: git_commit; their_commit: git_commit;
+  const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
+
 // Branch operations
 function git_branch_create(out ref_out: git_reference; repo: git_repository; const branch_name: PChar; target: git_commit; force: cint): cint; cdecl; external LIBGIT2_LIB;
 function git_branch_delete(branch: git_reference): cint; cdecl; external LIBGIT2_LIB;
@@ -372,6 +376,7 @@ function git_commit_author(commit: git_commit): Pgit_signature_t; cdecl; externa
 function git_commit_committer(commit: git_commit): Pgit_signature_t; cdecl; external LIBGIT2_LIB;
 function git_commit_time(commit: git_commit): git_time_t; cdecl; external LIBGIT2_LIB;
 function git_commit_parentcount(commit: git_commit): cuint; cdecl; external LIBGIT2_LIB;
+function git_commit_tree(out tree: git_tree; commit: git_commit): cint; cdecl; external LIBGIT2_LIB;
 function git_commit_create(out id: git_oid; repo: git_repository; const update_ref: PChar;
   author: git_signature; committer: git_signature; const message_encoding: PChar; const message: PChar;
   tree: git_tree; parent_count: csize_t; const parents: Pointer): cint; cdecl; external LIBGIT2_LIB;
@@ -417,7 +422,10 @@ function git_index_add_all(index: git_index; const pathspec: Pgit_strarray; flag
 function git_index_remove_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_index_update_all(index: git_index; const pathspec: Pgit_strarray; callback: git_index_matched_path_cb; payload: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
+function git_index_read_tree(index: git_index; tree: git_tree): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write_tree(out id: git_oid; index: git_index): cint; cdecl; external LIBGIT2_LIB;
+function git_index_write_tree_to(out id: git_oid; index: git_index; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
+function git_index_has_conflicts(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 
   // Checkout operations
   function git_checkout_head(repo: git_repository; const opts: Pointer): cint; cdecl; external LIBGIT2_LIB;
