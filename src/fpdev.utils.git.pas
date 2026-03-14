@@ -91,6 +91,7 @@ type
   TGitAddAllStatusPayload = record
     AddPaths: TStringList;
     RemovePaths: TStringList;
+    WorkDir: string;
     NeedsFallback: Boolean;
     HadError: Boolean;
     ErrorText: string;
@@ -123,7 +124,9 @@ var
   P: PGitAddAllStatusPayload;
   UnsupportedMask: cuint;
   DeleteMask: cuint;
+  TypeChangeMask: cuint;
   LPath: string;
+  AbsPath: string;
 begin
   Result := 0;
   P := PGitAddAllStatusPayload(APayload);
@@ -138,7 +141,6 @@ begin
 
     UnsupportedMask :=
       GIT_STATUS_WT_RENAMED or GIT_STATUS_INDEX_RENAMED or
-      GIT_STATUS_WT_TYPECHANGE or GIT_STATUS_INDEX_TYPECHANGE or
       GIT_STATUS_CONFLICTED or GIT_STATUS_WT_UNREADABLE;
 
     if (AFlags and UnsupportedMask) <> 0 then
@@ -158,6 +160,24 @@ begin
     if (AFlags and DeleteMask) <> 0 then
     begin
       P^.RemovePaths.Add(LPath);
+      Exit(0);
+    end;
+
+    TypeChangeMask := GIT_STATUS_WT_TYPECHANGE or GIT_STATUS_INDEX_TYPECHANGE;
+    if (AFlags and TypeChangeMask) <> 0 then
+    begin
+      // Type changes are handled as remove + best-effort add (skip directories).
+      P^.RemovePaths.Add(LPath);
+
+      AbsPath := '';
+      if Trim(P^.WorkDir) <> '' then
+        AbsPath := IncludeTrailingPathDelimiter(P^.WorkDir) + StringReplace(LPath, '/', PathDelim, [rfReplaceAll]);
+
+      if (AbsPath = '') or (not DirectoryExists(AbsPath)) then
+      begin
+        if (AbsPath = '') or FileExists(AbsPath) then
+          P^.AddPaths.Add(LPath);
+      end;
       Exit(0);
     end;
 
@@ -625,6 +645,7 @@ var
   AddPaths: TStringList;
   RemovePaths: TStringList;
   Payload: TGitAddAllStatusPayload;
+  WorkDirP: PChar;
   RC: cint;
   i: Integer;
 
@@ -640,6 +661,7 @@ begin
   try
     Payload.AddPaths := AddPaths;
     Payload.RemovePaths := RemovePaths;
+    Payload.WorkDir := '';
     Payload.NeedsFallback := False;
     Payload.HadError := False;
     Payload.ErrorText := '';
@@ -655,6 +677,10 @@ begin
       ANeedsFallback := True;
       Exit(False);
     end;
+
+    WorkDirP := git_repository_workdir(RepoHandle);
+    if WorkDirP <> nil then
+      Payload.WorkDir := StringReplace(string(WorkDirP), '/', PathDelim, [rfReplaceAll]);
 
     RC := git_repository_index(IndexHandle, RepoHandle);
     if RC <> GIT_OK then

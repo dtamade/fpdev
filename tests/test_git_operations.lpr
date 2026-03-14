@@ -213,9 +213,12 @@ var
   Hash1: string;
   Hash2: string;
   Hash3: string;
+  Hash4: string;
   Entries: TGitStatusEntryArray;
   Filter: TGitStatusFilter;
   FoundDeleted: Boolean;
+  FoundRenameDeleted: Boolean;
+  FoundRenameNew: Boolean;
   OriginalPath: string;
   NoGitPath: string;
   i: Integer;
@@ -319,6 +322,41 @@ begin
     Hash3 := Git.GetShortHeadHash(RepoDir, 7);
     Check('HEAD hash changes after delete', (Hash2 <> '') and (Hash3 <> '') and (Hash3 <> Hash2));
     Check('Repo clean after delete commit', Repo.IsClean);
+
+    Check('Rename a.txt -> a_renamed.txt', RenameFile(
+      RepoDir + PathDelim + 'a.txt',
+      RepoDir + PathDelim + 'a_renamed.txt'
+    ));
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Add all after rename (no CLI)', Git.Add(RepoDir, '.'));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Filter.IncludeUntracked := True;
+    Filter.IncludeIgnored := False;
+    Filter.WorkingTreeOnly := False;
+    Filter.IndexOnly := True;
+    Entries := Repo.StatusEntries(Filter);
+
+    FoundRenameDeleted := False;
+    FoundRenameNew := False;
+    for i := 0 to High(Entries) do
+    begin
+      if SameText(Entries[i].Path, 'a.txt') and (gsIndexDeleted in Entries[i].Flags) then
+        FoundRenameDeleted := True;
+      if SameText(Entries[i].Path, 'a_renamed.txt') and (gsIndexNew in Entries[i].Flags) then
+        FoundRenameNew := True;
+    end;
+    Check('a.txt staged as index deleted', FoundRenameDeleted);
+    Check('a_renamed.txt staged as index new', FoundRenameNew);
+
+    Check('Commit rename', Git.Commit(RepoDir, 'test commit rename'));
+    Hash4 := Git.GetShortHeadHash(RepoDir, 7);
+    Check('HEAD hash changes after rename', (Hash3 <> '') and (Hash4 <> '') and (Hash4 <> Hash3));
+    Check('Repo clean after rename commit', Repo.IsClean);
 
   finally
     Git.Free;
