@@ -26,7 +26,8 @@ const
 
 type
   // Basic type definitions
-  csize_t = culong;
+  // `size_t` in C is pointer-sized; this matters on Windows 64-bit (LLP64).
+  csize_t = SizeUInt;
   git_time_t = cint64;
   git_off_t = cint64;
 
