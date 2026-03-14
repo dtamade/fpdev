@@ -89,7 +89,8 @@ var
 type
   PGitAddAllStatusPayload = ^TGitAddAllStatusPayload;
   TGitAddAllStatusPayload = record
-    Paths: TStringList;
+    AddPaths: TStringList;
+    RemovePaths: TStringList;
     NeedsFallback: Boolean;
     HadError: Boolean;
     ErrorText: string;
@@ -121,11 +122,12 @@ function AddAllStatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): c
 var
   P: PGitAddAllStatusPayload;
   UnsupportedMask: cuint;
+  DeleteMask: cuint;
   LPath: string;
 begin
   Result := 0;
   P := PGitAddAllStatusPayload(APayload);
-  if (P = nil) or (P^.Paths = nil) then
+  if (P = nil) or (P^.AddPaths = nil) or (P^.RemovePaths = nil) then
     Exit(0);
   if P^.HadError then
     Exit(-1);
@@ -135,7 +137,6 @@ begin
       Exit(0);
 
     UnsupportedMask :=
-      GIT_STATUS_WT_DELETED or GIT_STATUS_INDEX_DELETED or
       GIT_STATUS_WT_RENAMED or GIT_STATUS_INDEX_RENAMED or
       GIT_STATUS_WT_TYPECHANGE or GIT_STATUS_INDEX_TYPECHANGE or
       GIT_STATUS_CONFLICTED or GIT_STATUS_WT_UNREADABLE;
@@ -146,11 +147,23 @@ begin
       Exit(0);
     end;
 
-    if (AFlags <> GIT_STATUS_CURRENT) and (APath <> nil) then
+    if (AFlags = GIT_STATUS_CURRENT) or (APath = nil) then
+      Exit(0);
+
+    LPath := string(APath);
+    if Trim(LPath) = '' then
+      Exit(0);
+
+    DeleteMask := GIT_STATUS_WT_DELETED or GIT_STATUS_INDEX_DELETED;
+    if (AFlags and DeleteMask) <> 0 then
     begin
-      LPath := string(APath);
-      if Trim(LPath) <> '' then
-        P^.Paths.Add(LPath);
+      P^.RemovePaths.Add(LPath);
+      Exit(0);
+    end;
+
+    if (AFlags <> GIT_STATUS_CURRENT) then
+    begin
+      P^.AddPaths.Add(LPath);
     end;
   except
     on E: Exception do
@@ -609,7 +622,8 @@ function TGitOperations.AddAllWithLibgit2(const ARepoPath: string; out AError: s
 var
   RepoHandle: git_repository;
   IndexHandle: git_index;
-  Paths: TStringList;
+  AddPaths: TStringList;
+  RemovePaths: TStringList;
   Payload: TGitAddAllStatusPayload;
   RC: cint;
   i: Integer;
@@ -621,9 +635,11 @@ begin
 
   RepoHandle := nil;
   IndexHandle := nil;
-  Paths := TStringList.Create;
+  AddPaths := TStringList.Create;
+  RemovePaths := TStringList.Create;
   try
-    Payload.Paths := Paths;
+    Payload.AddPaths := AddPaths;
+    Payload.RemovePaths := RemovePaths;
     Payload.NeedsFallback := False;
     Payload.HadError := False;
     Payload.ErrorText := '';
@@ -676,11 +692,26 @@ begin
       Exit(False);
     end;
 
-    if Paths.Count > 0 then
+    if (RemovePaths.Count > 0) or (AddPaths.Count > 0) then
     begin
-      for i := 0 to Paths.Count - 1 do
+      for i := 0 to RemovePaths.Count - 1 do
       begin
-        RC := git_index_add_bypath(IndexHandle, PChar(Paths[i]));
+        RC := git_index_remove_bypath(IndexHandle, PChar(RemovePaths[i]));
+        if (RC <> GIT_OK) and (RC <> GIT_ENOTFOUND) then
+        begin
+          AError := Libgit2LastErrorText;
+          if AError <> '' then
+            AError := 'libgit2 remove failed: ' + AError
+          else
+            AError := 'libgit2 remove failed';
+          ANeedsFallback := True;
+          Exit(False);
+        end;
+      end;
+
+      for i := 0 to AddPaths.Count - 1 do
+      begin
+        RC := git_index_add_bypath(IndexHandle, PChar(AddPaths[i]));
         if RC <> GIT_OK then
         begin
           AError := Libgit2LastErrorText;
@@ -708,7 +739,8 @@ begin
 
     Result := True;
   finally
-    Paths.Free;
+    RemovePaths.Free;
+    AddPaths.Free;
     if IndexHandle <> nil then
       git_index_free(IndexHandle);
     if RepoHandle <> nil then

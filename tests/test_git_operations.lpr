@@ -5,7 +5,7 @@ program test_git_operations;
 { Unit tests for TGitOperations class in fpdev.utils.git }
 
 uses
-  SysUtils, Classes, fpdev.utils.git, git2.api, git2.impl, libgit2, test_temp_paths;
+  SysUtils, Classes, fpdev.utils, fpdev.utils.git, git2.api, git2.types, git2.impl, libgit2, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -212,6 +212,13 @@ var
   SL: TStringList;
   Hash1: string;
   Hash2: string;
+  Hash3: string;
+  Entries: TGitStatusEntryArray;
+  Filter: TGitStatusFilter;
+  FoundDeleted: Boolean;
+  OriginalPath: string;
+  NoGitPath: string;
+  i: Integer;
 begin
   WriteLn('');
   WriteLn('=== Test 6: Commit (libgit2) ===');
@@ -273,6 +280,45 @@ begin
     Hash2 := Git.GetShortHeadHash(RepoDir, 7);
     Check('HEAD hash not empty after commit 2', Hash2 <> '');
     Check('HEAD hash changes', (Hash1 <> '') and (Hash2 <> '') and (Hash2 <> Hash1));
+
+    // Stage deletions via libgit2 add-all ('.') without CLI fallback.
+    Check('Delete b.txt', DeleteFile(RepoDir + PathDelim + 'b.txt'));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Add all after delete (no CLI)', Git.Add(RepoDir, '.'));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Filter.IncludeUntracked := True;
+    Filter.IncludeIgnored := False;
+    Filter.WorkingTreeOnly := False;
+    Filter.IndexOnly := True;
+    Entries := Repo.StatusEntries(Filter);
+
+    FoundDeleted := False;
+    for i := 0 to High(Entries) do
+    begin
+      if SameText(Entries[i].Path, 'b.txt') and (gsIndexDeleted in Entries[i].Flags) then
+      begin
+        FoundDeleted := True;
+        Break;
+      end;
+    end;
+    Check('b.txt staged as index deleted', FoundDeleted);
+
+    Check('Commit delete', Git.Commit(RepoDir, 'test commit delete'));
+    Hash3 := Git.GetShortHeadHash(RepoDir, 7);
+    Check('HEAD hash changes after delete', (Hash2 <> '') and (Hash3 <> '') and (Hash3 <> Hash2));
+    Check('Repo clean after delete commit', Repo.IsClean);
 
   finally
     Git.Free;

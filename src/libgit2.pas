@@ -322,6 +322,7 @@ procedure git_status_list_free(status_list: git_status_list); cdecl; external LI
 // Index operations
 function git_repository_index(out index: git_index; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_index_add_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_index_remove_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write_tree(out id: git_oid; index: git_index): cint; cdecl; external LIBGIT2_LIB;
 
