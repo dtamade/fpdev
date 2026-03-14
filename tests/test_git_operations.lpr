@@ -808,6 +808,153 @@ begin
   end;
 end;
 
+procedure TestPullFastForwardExtNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  SeedRepoDir: string;
+  RemoteBareDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  SeedRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  Ext: IGitRepositoryExt;
+  SL: TStringList;
+  Branch: string;
+  OriginalPath: string;
+  NoGitPath: string;
+  PullRes: TGitPullFastForwardResult;
+  PullErr: string;
+  RemoteTxt: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 10: PullFastForward creates missing files (no CLI) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_pullff_recreate_missing_nocli');
+    SeedRepoDir := TempRoot + PathDelim + 'seed';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(SeedRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    SeedRepo := Mgr.InitRepository(SeedRepoDir, False);
+    Check('Init seed repository succeeds', SeedRepo <> nil);
+    if SeedRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(SeedRepoDir);
+    EnsureRepoRemoteConfig(SeedRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'base';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'base.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit base', Git.Commit(SeedRepoDir, 'base commit'));
+
+    Branch := Git.GetCurrentBranch(SeedRepoDir);
+    Check('Seed branch not empty', Branch <> '');
+    Check('Seed push base to origin', Git.Push(SeedRepoDir, 'origin', ''));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Clone from bare remote (no CLI)', Git.Clone(RemoteBareDir, CloneDir, Branch));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    EnsureRepoUserConfig(CloneDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'remote';
+      SL.SaveToFile(CloneDir + PathDelim + 'remote.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Clone add all', Git.Add(CloneDir, '.'));
+    Check('Clone commit remote', Git.Commit(CloneDir, 'remote commit'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Push remote commit (no CLI)', Git.Push(CloneDir, 'origin', ''));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SeedRepo := Mgr.OpenRepository(SeedRepoDir);
+    Check('Open seed repository', SeedRepo <> nil);
+    Check('Seed supports IGitRepositoryExt', Supports(SeedRepo, IGitRepositoryExt, Ext));
+    if (SeedRepo = nil) or (not Supports(SeedRepo, IGitRepositoryExt, Ext)) then
+      Exit;
+
+    PullErr := '';
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      PullRes := Ext.PullFastForward('origin', PullErr);
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Check('PullFastForward fast-forwarded', PullRes = gpffFastForwarded);
+    RemoteTxt := SeedRepoDir + PathDelim + 'remote.txt';
+    Check('Seed has remote.txt after PullFastForward', FileExists(RemoteTxt));
+
+    if FileExists(RemoteTxt) then
+    begin
+      SL := TStringList.Create;
+      try
+        SL.LoadFromFile(RemoteTxt);
+        Check('Seed remote.txt content ok', Trim(SL.Text) = 'remote');
+      finally
+        SL.Free;
+      end;
+    end;
+
+    Check('Seed clean after PullFastForward', SeedRepo.IsClean);
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestPullMergeNoCLI;
 var
   Git: TGitOperations;
@@ -827,7 +974,7 @@ var
   PullOk: Boolean;
 begin
   WriteLn('');
-  WriteLn('=== Test 10: Pull merge without CLI (libgit2) ===');
+  WriteLn('=== Test 11: Pull merge without CLI (libgit2) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -990,7 +1137,7 @@ var
   OtherContent: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 11: Force checkout without CLI (libgit2) ===');
+  WriteLn('=== Test 12: Force checkout without CLI (libgit2) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -1117,6 +1264,32 @@ begin
     finally
       SL.Free;
     end;
+
+    Check('Checkout back default (again)', Git.Checkout(RepoDir, DefaultBranch, False));
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'local-change-2';
+      SL.SaveToFile(FilePath);
+    finally
+      SL.Free;
+    end;
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Force checkout via CheckoutBranchEx (no CLI)', Repo.CheckoutBranchEx('other', True));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SL := TStringList.Create;
+    try
+      SL.LoadFromFile(FilePath);
+      Check('File matches other branch (CheckoutBranchEx)', Trim(SL.Text) = OtherContent);
+    finally
+      SL.Free;
+    end;
   finally
     Git.Free;
     CleanupTempDir(TempRoot);
@@ -1128,7 +1301,7 @@ var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 12: Multiple Instances ===');
+  WriteLn('=== Test 13: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -1152,7 +1325,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 13: GitBackendToString ===');
+  WriteLn('=== Test 14: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -1173,6 +1346,7 @@ begin
   TestPushLocalBareRemote;
   TestAddPathspecDirAndGlob;
   TestRemoteOpsNoCLI;
+  TestPullFastForwardExtNoCLI;
   TestPullMergeNoCLI;
   TestForceCheckoutNoCLI;
   TestMultipleInstances;

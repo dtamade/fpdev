@@ -385,6 +385,7 @@ end;
 function TGitRepository.CheckoutBranch(const ABranch: string): Boolean;
 var
   LRefName: string;
+  CheckoutOpts: git_checkout_options;
 begin
   // Switch to local branch and checkout to working directory (safe mode)
   // Note: Only supports local branch names, future extension needed for creating local branches from remote
@@ -401,8 +402,10 @@ begin
     // Set HEAD to target branch
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
 
-    // Checkout HEAD to working directory using libgit2 defaults (safe).
-    CheckGitResult(git_checkout_head(FHandle, nil), 'Checkout HEAD');
+    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+    CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
+    CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+    CheckGitResult(git_checkout_head(FHandle, @CheckoutOpts), 'Checkout HEAD');
 
     Result := True;
   except
@@ -417,16 +420,20 @@ end;
 function TGitRepository.CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
 var
   LRefName: string;
+  CheckoutOpts: git_checkout_options;
 begin
   Result := False;
   try
     if Trim(ABranch) = '' then Exit(False);
     if Pos('refs/', ABranch) = 1 then LRefName := ABranch else LRefName := 'refs/heads/' + ABranch;
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
-    // Avoid passing checkout options structs across libgit2 versions; use defaults.
-    // When Force=True, callers should prefer CLI fallback if a force checkout is required.
-    if Force then;
-    CheckGitResult(git_checkout_head(FHandle, nil), 'Checkout HEAD');
+    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+    CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
+    if Force then
+      CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING
+    else
+      CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+    CheckGitResult(git_checkout_head(FHandle, @CheckoutOpts), 'Checkout HEAD');
     Result := True;
   except
     Result := False;
@@ -727,6 +734,7 @@ var
   Behind: csize_t;
   rc: cint;
   UpdatedRef: git_reference;
+  CheckoutOpts: git_checkout_options;
   ErrorMsg: string;
 begin
   Result := gpffError;
@@ -830,7 +838,17 @@ begin
         git_reference_free(UpdatedRef);
 
       // Update working directory to the new HEAD.
-      rc := git_checkout_head(FHandle, nil);
+      FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+      rc := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
+      if rc <> GIT_OK then
+      begin
+        AError := GetGitErrorMessage;
+        Result := gpffError;
+        Exit;
+      end;
+
+      CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+      rc := git_checkout_head(FHandle, @CheckoutOpts);
       if rc <> GIT_OK then
       begin
         AError := GetGitErrorMessage;
