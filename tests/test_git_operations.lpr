@@ -808,12 +808,165 @@ begin
   end;
 end;
 
+procedure TestForceCheckoutNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  RepoDir: string;
+  Mgr: IGitManager;
+  Repo: IGitRepository;
+  SL: TStringList;
+  DefaultBranch: string;
+  HeadHash: string;
+  RepoHandle: git_repository;
+  CommitHandle: git_commit;
+  BranchRef: git_reference;
+  Oid: git_oid;
+  OriginalPath: string;
+  NoGitPath: string;
+  FilePath: string;
+  OtherContent: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 10: Force checkout without CLI (libgit2) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_force_checkout_nocli');
+    RepoDir := TempRoot + PathDelim + 'repo';
+    ForceDirectories(RepoDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    Repo := Mgr.InitRepository(RepoDir, False);
+    Check('Init repository succeeds', Repo <> nil);
+    if Repo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(RepoDir);
+
+    FilePath := RepoDir + PathDelim + 'file.txt';
+    SL := TStringList.Create;
+    try
+      SL.Text := 'main';
+      SL.SaveToFile(FilePath);
+    finally
+      SL.Free;
+    end;
+
+    Check('Add all', Git.Add(RepoDir, '.'));
+    Check('Commit initial', Git.Commit(RepoDir, 'initial'));
+
+    DefaultBranch := Git.GetCurrentBranch(RepoDir);
+    Check('Default branch not empty', DefaultBranch <> '');
+
+    HeadHash := Git.GetShortHeadHash(RepoDir, 40);
+    Check('Full HEAD hash not empty', HeadHash <> '');
+
+    RepoHandle := nil;
+    CommitHandle := nil;
+    BranchRef := nil;
+    try
+      Check('Open repo (raw)', git_repository_open(RepoHandle, PChar(RepoDir)) = GIT_OK);
+      if RepoHandle = nil then
+        Exit;
+
+      FillChar(Oid, SizeOf(Oid), 0);
+      Check('OID fromstr', git_oid_fromstr(Oid, PChar(HeadHash)) = GIT_OK);
+
+      Check('Commit lookup', git_commit_lookup(CommitHandle, RepoHandle, @Oid) = GIT_OK);
+      if CommitHandle = nil then
+        Exit;
+
+      Check('Create branch other', git_branch_create(BranchRef, RepoHandle, PChar('other'), CommitHandle, 0) = GIT_OK);
+    finally
+      if BranchRef <> nil then
+        git_reference_free(BranchRef);
+      if CommitHandle <> nil then
+        git_object_free(git_object(CommitHandle));
+      if RepoHandle <> nil then
+        git_repository_free(RepoHandle);
+    end;
+
+    Check('Checkout other', Git.Checkout(RepoDir, 'other', False));
+    OtherContent := 'other';
+
+    SL := TStringList.Create;
+    try
+      SL.Text := OtherContent;
+      SL.SaveToFile(FilePath);
+    finally
+      SL.Free;
+    end;
+
+    Check('Add all (other)', Git.Add(RepoDir, '.'));
+    Check('Commit other', Git.Commit(RepoDir, 'other commit'));
+
+    Check('Checkout back default', Git.Checkout(RepoDir, DefaultBranch, False));
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'local-change';
+      SL.SaveToFile(FilePath);
+    finally
+      SL.Free;
+    end;
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      SL := TStringList.Create;
+      try
+        SL.LoadFromFile(FilePath);
+        Check('File has local changes before force checkout', Trim(SL.Text) = 'local-change');
+      finally
+        SL.Free;
+      end;
+
+      Check('Force checkout succeeds (no CLI)', Git.Checkout(RepoDir, 'other', True));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SL := TStringList.Create;
+    try
+      SL.LoadFromFile(FilePath);
+      Check('File matches other branch', Trim(SL.Text) = OtherContent);
+    finally
+      SL.Free;
+    end;
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestMultipleInstances;
 var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 10: Multiple Instances ===');
+  WriteLn('=== Test 11: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -837,7 +990,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 11: GitBackendToString ===');
+  WriteLn('=== Test 12: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -858,6 +1011,7 @@ begin
   TestPushLocalBareRemote;
   TestAddPathspecDirAndGlob;
   TestRemoteOpsNoCLI;
+  TestForceCheckoutNoCLI;
   TestMultipleInstances;
   TestGitBackendToString;
 

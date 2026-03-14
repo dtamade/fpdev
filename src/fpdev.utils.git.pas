@@ -2121,6 +2121,49 @@ end;
 function TGitOperations.CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
 var
   Repo: IGitRepository;
+  RepoHandle: git_repository;
+  CheckoutOpts: git_checkout_options;
+  RC: cint;
+  LErr: string;
+
+  function ForceCheckoutRef(const ARefName: string): Boolean;
+  begin
+    Result := False;
+    AError := '';
+
+    RC := git_repository_set_head(RepoHandle, PChar(ARefName));
+    if RC <> GIT_OK then
+      Exit(False);
+
+    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+    RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
+    if RC <> GIT_OK then
+      Exit(False);
+
+    CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING;
+    RC := git_checkout_head(RepoHandle, @CheckoutOpts);
+    Result := RC = GIT_OK;
+  end;
+
+  function CandidateRefs: TStringArray;
+  begin
+    Result := nil;
+    if Pos('refs/', AName) = 1 then
+    begin
+      SetLength(Result, 1);
+      Result[0] := AName;
+      Exit;
+    end;
+
+    SetLength(Result, 3);
+    Result[0] := 'refs/heads/' + AName;
+    Result[1] := 'refs/tags/' + AName;
+    Result[2] := 'refs/remotes/origin/' + AName;
+  end;
+
+var
+  Candidates: TStringArray;
+  i: Integer;
 begin
   Result := False;
   AError := '';
@@ -2132,6 +2175,40 @@ begin
   end;
 
   try
+    if Force then
+    begin
+      RepoHandle := nil;
+      try
+        RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+        if RC <> GIT_OK then
+        begin
+          LErr := Libgit2LastErrorText;
+          if LErr <> '' then
+            AError := 'libgit2 open repository failed: ' + LErr
+          else
+            AError := 'libgit2 open repository failed';
+          Exit(False);
+        end;
+
+        Candidates := CandidateRefs;
+        for i := 0 to High(Candidates) do
+        begin
+          if ForceCheckoutRef(Candidates[i]) then
+            Exit(True);
+        end;
+
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 force checkout failed: ' + LErr
+        else
+          AError := 'libgit2 force checkout failed';
+        Exit(False);
+      finally
+        if RepoHandle <> nil then
+          git_repository_free(RepoHandle);
+      end;
+    end;
+
     Repo := FGitManager.OpenRepository(ARepoPath);
     if Repo = nil then
     begin
