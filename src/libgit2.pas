@@ -109,34 +109,99 @@ type
 
   git_indexer_progress_cb = function(const stats: Pgit_indexer_progress; payload: Pointer): cint; cdecl;
 
-  // Remote/fetch/checkout/clone options
-  // Note: these records must match the actual size of the libgit2 C structs
-  // Use the _reserved byte arrays to ensure correct memory layout
-  // Sizes are from libgit2 1.7: git_remote_callbacks=120, git_fetch_options=208,
-  // git_checkout_options=144, git_clone_options=408
+  // libgit2 option enums (use signed int for ABI compatibility)
+  git_fetch_prune_t = cint;
+  git_remote_update_t = cuint;
+  git_remote_autotag_option_t = cint;
+  git_remote_redirect_t = cint;
+  git_proxy_t = cint;
+  git_clone_local_t = cint;
 
+  // Remote callbacks (we only set a subset; keep layout compatible)
   git_remote_callbacks = record
     version: cuint;
-    _reserved: array[0..115] of Byte;  // 120 - sizeof(cuint) = 116 bytes padding
+    sideband_progress: Pointer;
+    completion: Pointer;
+    credentials: git_credential_acquire_cb;
+    certificate_check: git_transport_certificate_check_cb;
+    transfer_progress: git_indexer_progress_cb;
+    update_tips: Pointer;
+    pack_progress: Pointer;
+    push_transfer_progress: Pointer;
+    push_update_reference: Pointer;
+    push_negotiation: Pointer;
+    transport: Pointer;
+    remote_ready: Pointer;
+    payload: Pointer;
+    resolve_url: Pointer;
+    update_refs: Pointer;
+  end;
+
+  git_proxy_options = record
+    version: cuint;
+    proxy_type: git_proxy_t;
+    url: PChar;
+    credentials: git_credential_acquire_cb;
+    certificate_check: git_transport_certificate_check_cb;
+    payload: Pointer;
   end;
 
   git_fetch_options = record
     version: cuint;
     callbacks: git_remote_callbacks;
-    _reserved: array[0..83] of Byte;   // 208 - 4 - 120 = 84 bytes padding
+    prune: git_fetch_prune_t;
+    update_fetchhead: git_remote_update_t;
+    download_tags: git_remote_autotag_option_t;
+    proxy_opts: git_proxy_options;
+    depth: cint;
+    follow_redirects: git_remote_redirect_t;
+    custom_headers: git_strarray;
   end;
 
   git_checkout_options = record
     version: cuint;
     checkout_strategy: cuint;
-    _reserved: array[0..135] of Byte;  // 144 - 8 = 136 bytes padding
+    disable_filters: cint;
+    dir_mode: cuint;
+    file_mode: cuint;
+    file_open_flags: cint;
+    notify_flags: cuint;
+    notify_cb: Pointer;
+    notify_payload: Pointer;
+    progress_cb: Pointer;
+    progress_payload: Pointer;
+    paths: git_strarray;
+    baseline: git_tree;
+    baseline_index: git_index;
+    target_directory: PChar;
+    ancestor_label: PChar;
+    our_label: PChar;
+    their_label: PChar;
+    perfdata_cb: Pointer;
+    perfdata_payload: Pointer;
   end;
 
   git_clone_options = record
     version: cuint;
     checkout_opts: git_checkout_options;
     fetch_opts: git_fetch_options;
-    _reserved: array[0..51] of Byte;   // 408 - 4 - 144 - 208 = 52 bytes padding
+    bare: cint;
+    local: git_clone_local_t;
+    checkout_branch: PChar;
+    repository_cb: Pointer;
+    repository_cb_payload: Pointer;
+    remote_cb: Pointer;
+    remote_cb_payload: Pointer;
+  end;
+
+  git_push_options = record
+    version: cuint;
+    pb_parallelism: cuint;
+    callbacks: git_remote_callbacks;
+    proxy_opts: git_proxy_options;
+    follow_redirects: git_remote_redirect_t;
+    custom_headers: git_strarray;
+    remote_push_options: git_strarray;
   end;
 
   // Status flags
@@ -219,6 +284,23 @@ const
   GIT_STATUS_WT_UNREADABLE = 1 shl 12;
   GIT_STATUS_IGNORED = 1 shl 14;
   GIT_STATUS_CONFLICTED = 1 shl 15;
+
+  // Credential types (git_credential_t)
+  GIT_CREDENTIAL_USERPASS_PLAINTEXT = 1 shl 0;
+  GIT_CREDENTIAL_SSH_KEY = 1 shl 1;
+  GIT_CREDENTIAL_SSH_CUSTOM = 1 shl 2;
+  GIT_CREDENTIAL_DEFAULT = 1 shl 3;
+  GIT_CREDENTIAL_SSH_INTERACTIVE = 1 shl 4;
+  GIT_CREDENTIAL_USERNAME = 1 shl 5;
+  GIT_CREDENTIAL_SSH_MEMORY = 1 shl 6;
+
+  // Option struct versions
+  GIT_REMOTE_CALLBACKS_VERSION = 1;
+  GIT_FETCH_OPTIONS_VERSION = 1;
+  GIT_PUSH_OPTIONS_VERSION = 1;
+  GIT_PROXY_OPTIONS_VERSION = 1;
+  GIT_CHECKOUT_OPTIONS_VERSION = 1;
+  GIT_CLONE_OPTIONS_VERSION = 1;
 
   // Index add flags
   GIT_INDEX_ADD_DEFAULT = 0;
@@ -319,10 +401,10 @@ function git_status_list_entrycount(status_list: git_status_list): csize_t; cdec
 
 // Checkout flags (bitwise) minimal set
 const
-  GIT_CHECKOUT_NONE              = $00000000;
-  GIT_CHECKOUT_SAFE              = $00000001; // Safe (default)
-  GIT_CHECKOUT_FORCE             = $00000002; // Force overwrite
-  GIT_CHECKOUT_RECREATE_MISSING  = $00000200;
+  GIT_CHECKOUT_SAFE              = 0;        // Default safe checkout
+  GIT_CHECKOUT_FORCE             = 1 shl 1;
+  GIT_CHECKOUT_RECREATE_MISSING  = 1 shl 2;
+  GIT_CHECKOUT_NONE              = 1 shl 30;
 
 
 procedure git_status_list_free(status_list: git_status_list); cdecl; external LIBGIT2_LIB;
@@ -352,12 +434,16 @@ procedure git_config_free(cfg: git_config); cdecl; external LIBGIT2_LIB;
 // Option initialization functions (use Pointer to avoid cross-unit type coupling)
 function git_remote_init_callbacks(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_fetch_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
+function git_push_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
+function git_proxy_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_clone_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 function git_checkout_options_init(opts: Pointer; version: cuint): cint; cdecl; external LIBGIT2_LIB;
 
 // Credential creation (minimal set)
 function git_credential_default_new(out cred: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_credential_userpass_plaintext_new(out cred: Pointer; const username, password: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_credential_username_new(out cred: Pointer; const username: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_credential_ssh_key_from_agent(out cred: Pointer; const username: PChar): cint; cdecl; external LIBGIT2_LIB;
 
 // Signature operations
 function git_signature_new(out sig: git_signature; const name: PChar; const email: PChar; time: git_time_t; offset: cint): cint; cdecl; external LIBGIT2_LIB;

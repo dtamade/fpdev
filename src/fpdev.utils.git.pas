@@ -102,6 +102,17 @@ type
     MatchCount: Integer;
   end;
 
+  PGitCredentialPayload = ^TGitCredentialPayload;
+  TGitCredentialPayload = record
+    TriedDefault: Boolean;
+    TriedUserPass: Boolean;
+    TriedSshAgent: Boolean;
+    TriedUsernameOnly: Boolean;
+    Username: AnsiString;
+    Password: AnsiString;
+    SshUsername: AnsiString;
+  end;
+
 // Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
 
@@ -208,6 +219,125 @@ begin
   P := PIndexMatchPayload(APayload);
   if P <> nil then
     Inc(P^.MatchCount);
+end;
+
+procedure LoadCredentialPayloadFromEnv(out APayload: TGitCredentialPayload);
+var
+  U: string;
+  P: string;
+  SU: string;
+begin
+  APayload.TriedDefault := False;
+  APayload.TriedUserPass := False;
+  APayload.TriedSshAgent := False;
+  APayload.TriedUsernameOnly := False;
+  APayload.Username := '';
+  APayload.Password := '';
+  APayload.SshUsername := '';
+
+  U := Trim(GetEnvironmentVariable('FPDEV_GIT_USERNAME'));
+  P := Trim(GetEnvironmentVariable('FPDEV_GIT_PASSWORD'));
+  if U = '' then
+    U := Trim(GetEnvironmentVariable('GIT_USERNAME'));
+  if P = '' then
+    P := Trim(GetEnvironmentVariable('GIT_PASSWORD'));
+
+  if P = '' then
+    P := Trim(GetEnvironmentVariable('FPDEV_GIT_TOKEN'));
+  if P = '' then
+    P := Trim(GetEnvironmentVariable('GIT_TOKEN'));
+
+  SU := Trim(GetEnvironmentVariable('FPDEV_GIT_SSH_USERNAME'));
+  if SU = '' then
+    SU := Trim(GetEnvironmentVariable('GIT_SSH_USERNAME'));
+
+  APayload.Username := AnsiString(U);
+  APayload.Password := AnsiString(P);
+  APayload.SshUsername := AnsiString(SU);
+end;
+
+function CredentialAcquireCb(out ACred: Pointer; const AUrl, AUserFromUrl: PChar; AAllowedTypes: cuint; APayload: Pointer): cint; cdecl;
+var
+  P: PGitCredentialPayload;
+  UserFromUrl: string;
+  UseUser: string;
+  RC: cint;
+begin
+  Result := GIT_PASSTHROUGH;
+  ACred := nil;
+
+  P := PGitCredentialPayload(APayload);
+  if P = nil then
+    Exit(GIT_PASSTHROUGH);
+
+  UserFromUrl := '';
+  if AUserFromUrl <> nil then
+    UserFromUrl := Trim(string(AUserFromUrl));
+
+  // Try platform default credentials first (e.g. NTLM/Kerberos).
+  if ((AAllowedTypes and GIT_CREDENTIAL_DEFAULT) <> 0) and (not P^.TriedDefault) then
+  begin
+    P^.TriedDefault := True;
+    RC := git_credential_default_new(ACred);
+    if (RC = GIT_OK) and (ACred <> nil) then
+      Exit(0);
+  end;
+
+  // Some transports (notably SSH) may ask for username only first.
+  if ((AAllowedTypes and GIT_CREDENTIAL_USERNAME) <> 0) and (not P^.TriedUsernameOnly) then
+  begin
+    P^.TriedUsernameOnly := True;
+    UseUser := UserFromUrl;
+    if UseUser = '' then
+      UseUser := string(P^.SshUsername);
+    if UseUser = '' then
+      UseUser := string(P^.Username);
+    if UseUser = '' then
+      UseUser := 'git';
+
+    RC := git_credential_username_new(ACred, PChar(UseUser));
+    if (RC = GIT_OK) and (ACred <> nil) then
+      Exit(0);
+  end;
+
+  // Prefer ssh-agent when SSH key authentication is allowed.
+  if ((AAllowedTypes and GIT_CREDENTIAL_SSH_KEY) <> 0) and (not P^.TriedSshAgent) then
+  begin
+    P^.TriedSshAgent := True;
+    UseUser := UserFromUrl;
+    if UseUser = '' then
+      UseUser := string(P^.SshUsername);
+    if UseUser = '' then
+      UseUser := string(P^.Username);
+    if UseUser = '' then
+      UseUser := 'git';
+
+    RC := git_credential_ssh_key_from_agent(ACred, PChar(UseUser));
+    if (RC = GIT_OK) and (ACred <> nil) then
+      Exit(0);
+  end;
+
+  // Finally, try plaintext user/pass from environment variables.
+  if ((AAllowedTypes and GIT_CREDENTIAL_USERPASS_PLAINTEXT) <> 0) and (not P^.TriedUserPass) then
+  begin
+    P^.TriedUserPass := True;
+    UseUser := UserFromUrl;
+    if UseUser = '' then
+      UseUser := string(P^.Username);
+    if UseUser = '' then
+      UseUser := 'git';
+
+    if P^.Password <> '' then
+    begin
+      RC := git_credential_userpass_plaintext_new(ACred, PChar(UseUser), PChar(P^.Password));
+      if (RC = GIT_OK) and (ACred <> nil) then
+        Exit(0);
+    end;
+  end;
+
+  // No credential acquired: let libgit2 behave as if this callback isn't set.
+  Result := GIT_PASSTHROUGH;
+  if AUrl <> nil then;
 end;
 
 { TGitOperations }
@@ -1062,6 +1192,8 @@ var
   RefSpecStr: AnsiString;
   RefSpecPtrs: array[0..0] of PChar;
   RefSpecs: git_strarray;
+  PushOpts: git_push_options;
+  CredPayload: TGitCredentialPayload;
   RC: cint;
   LErr: string;
 begin
@@ -1142,7 +1274,24 @@ begin
     RefSpecs.strings := @RefSpecPtrs[0];
     RefSpecs.count := 1;
 
-    RC := git_remote_push(RemoteHandle, @RefSpecs, nil);
+    FillChar(PushOpts, SizeOf(PushOpts), 0);
+    LoadCredentialPayloadFromEnv(CredPayload);
+    RC := git_push_options_init(@PushOpts, GIT_PUSH_OPTIONS_VERSION);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 push options init failed: ' + LErr
+      else
+        AError := 'libgit2 push options init failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    PushOpts.callbacks.credentials := @CredentialAcquireCb;
+    PushOpts.callbacks.payload := @CredPayload;
+
+    RC := git_remote_push(RemoteHandle, @RefSpecs, @PushOpts);
     if RC <> GIT_OK then
     begin
       LErr := Libgit2LastErrorText;
@@ -1601,7 +1750,11 @@ end;
 
 function TGitOperations.CloneWithLibgit2(const AURL, ALocalPath: string; out AError: string): Boolean;
 var
-  Repo: IGitRepository;
+  RepoHandle: git_repository;
+  CloneOpts: git_clone_options;
+  CredPayload: TGitCredentialPayload;
+  RC: cint;
+  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1612,23 +1765,60 @@ begin
     Exit;
   end;
 
+  RepoHandle := nil;
   try
-    // CloneRepository returns IGitRepository interface
-    Repo := FGitManager.CloneRepository(AURL, ALocalPath);
+    try
+      FillChar(CloneOpts, SizeOf(CloneOpts), 0);
+      LoadCredentialPayloadFromEnv(CredPayload);
 
-    if Repo <> nil then
-      Result := True
-    else
-      AError := 'libgit2 clone returned nil repository';
-  except
-    on E: Exception do
-      AError := 'libgit2 clone exception: ' + E.Message;
+      RC := git_clone_options_init(@CloneOpts, GIT_CLONE_OPTIONS_VERSION);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 clone options init failed: ' + LErr
+        else
+          AError := 'libgit2 clone options init failed';
+        Exit(False);
+      end;
+
+      CloneOpts.fetch_opts.callbacks.credentials := @CredentialAcquireCb;
+      CloneOpts.fetch_opts.callbacks.payload := @CredPayload;
+
+      RC := git_clone(RepoHandle, PChar(AURL), PChar(ALocalPath), @CloneOpts);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 clone failed: ' + LErr
+        else
+          AError := 'libgit2 clone failed';
+        Exit(False);
+      end;
+
+      Result := True;
+    except
+      on E: Exception do
+      begin
+        AError := 'libgit2 clone exception: ' + E.Message;
+        Result := False;
+      end;
+    end;
+  finally
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
   end;
 end;
 
 function TGitOperations.FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
 var
-  Repo: IGitRepository;
+  RepoHandle: git_repository;
+  RemoteHandle: git_remote;
+  FetchOpts: git_fetch_options;
+  CredPayload: TGitCredentialPayload;
+  RemoteName: string;
+  RC: cint;
+  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1639,29 +1829,97 @@ begin
     Exit;
   end;
 
+  RemoteName := Trim(ARemote);
+  if RemoteName = '' then
+    RemoteName := 'origin';
+
+  RepoHandle := nil;
+  RemoteHandle := nil;
   try
-    Repo := FGitManager.OpenRepository(ARepoPath);
-    if Repo <> nil then
-    begin
-      Result := Repo.Fetch(ARemote);
-      if not Result then
-        AError := 'libgit2 fetch failed';
-      // No manual Free needed - interface reference counting
-    end
-    else
-      AError := 'libgit2 could not open repository: ' + ARepoPath;
-  except
-    on E: Exception do
-      AError := 'libgit2 fetch exception: ' + E.Message;
+    try
+      RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 open repository failed: ' + LErr
+        else
+          AError := 'libgit2 open repository failed';
+        Exit(False);
+      end;
+
+      RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar(RemoteName));
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 remote lookup failed: ' + LErr
+        else
+          AError := 'libgit2 remote lookup failed';
+        Exit(False);
+      end;
+
+      FillChar(FetchOpts, SizeOf(FetchOpts), 0);
+      LoadCredentialPayloadFromEnv(CredPayload);
+      RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 fetch options init failed: ' + LErr
+        else
+          AError := 'libgit2 fetch options init failed';
+        Exit(False);
+      end;
+
+      FetchOpts.callbacks.credentials := @CredentialAcquireCb;
+      FetchOpts.callbacks.payload := @CredPayload;
+
+      RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 fetch failed: ' + LErr
+        else
+          AError := 'libgit2 fetch failed';
+        Exit(False);
+      end;
+
+      Result := True;
+    except
+      on E: Exception do
+      begin
+        AError := 'libgit2 fetch exception: ' + E.Message;
+        Result := False;
+      end;
+    end;
+  finally
+    if RemoteHandle <> nil then
+      git_remote_free(RemoteHandle);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
   end;
 end;
 
 function TGitOperations.PullWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
 var
   Repo: IGitRepository;
-  Ext: IGitRepositoryExt;
-  PullRes: TGitPullFastForwardResult;
-  ErrText: string;
+  Branch: string;
+  RepoHandle: git_repository;
+  RemoteHandle: git_remote;
+  FetchOpts: git_fetch_options;
+  CredPayload: TGitCredentialPayload;
+  LocalRef: git_reference;
+  RemoteRef: git_reference;
+  UpdatedRef: git_reference;
+  LocalRefName: string;
+  RemoteRefName: string;
+  Ahead: csize_t;
+  Behind: csize_t;
+  RemoteOid: Pgit_oid;
+  RC: cint;
+  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1683,60 +1941,19 @@ begin
       Exit;
     end;
 
-    if not Supports(Repo, IGitRepositoryExt, Ext) then
+    if Repo.HasUncommittedChanges then
     begin
-      AError := 'libgit2 repository extension not available';
+      AError := 'Working tree has local changes';
       ANeedsFallback := True;
-      Exit;
+      Exit(False);
     end;
 
-    ErrText := '';
-    PullRes := Ext.PullFastForward('origin', ErrText);
-
-    case PullRes of
-      gpffUpToDate,
-      gpffFastForwarded:
-        Exit(True);
-      gpffNoRemote:
-        begin
-          AError := ErrText;
-          if AError = '' then
-            AError := 'No remote configured';
-          ANeedsFallback := False;
-          Exit(False);
-        end;
-      gpffNeedsMerge:
-        begin
-          AError := ErrText;
-          if AError = '' then
-            AError := 'Non-fast-forward update requires merge/rebase';
-          ANeedsFallback := True;
-          Exit(False);
-        end;
-      gpffDetachedHead:
-        begin
-          AError := ErrText;
-          if AError = '' then
-            AError := 'Detached HEAD';
-          ANeedsFallback := True;
-          Exit(False);
-        end;
-      gpffDirty:
-        begin
-          AError := ErrText;
-          if AError = '' then
-            AError := 'Working tree has local changes';
-          ANeedsFallback := True;
-          Exit(False);
-        end;
-      gpffError:
-        begin
-          AError := ErrText;
-          if AError = '' then
-            AError := 'libgit2 pull failed';
-          ANeedsFallback := True;
-          Exit(False);
-        end;
+    Branch := Repo.CurrentBranch;
+    if (Trim(Branch) = '') or SameText(Branch, 'HEAD') then
+    begin
+      AError := 'Detached HEAD';
+      ANeedsFallback := True;
+      Exit(False);
     end;
   except
     on E: Exception do
@@ -1744,7 +1961,160 @@ begin
       AError := 'libgit2 pull exception: ' + E.Message;
       ANeedsFallback := True;
       Result := False;
+      Exit;
     end;
+  end;
+
+  RepoHandle := nil;
+  RemoteHandle := nil;
+  LocalRef := nil;
+  RemoteRef := nil;
+  UpdatedRef := nil;
+  try
+    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open repository failed: ' + LErr
+      else
+        AError := 'libgit2 open repository failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar('origin'));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'No remote configured: ' + LErr
+      else
+        AError := 'No remote configured';
+      ANeedsFallback := False;
+      Exit(False);
+    end;
+
+    FillChar(FetchOpts, SizeOf(FetchOpts), 0);
+    LoadCredentialPayloadFromEnv(CredPayload);
+    RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 fetch options init failed: ' + LErr
+      else
+        AError := 'libgit2 fetch options init failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    FetchOpts.callbacks.credentials := @CredentialAcquireCb;
+    FetchOpts.callbacks.payload := @CredPayload;
+
+    RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 fetch failed: ' + LErr
+      else
+        AError := 'libgit2 fetch failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    LocalRefName := 'refs/heads/' + Branch;
+    RemoteRefName := 'refs/remotes/origin/' + Branch;
+
+    RC := git_reference_lookup(LocalRef, RepoHandle, PChar(LocalRefName));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 lookup local branch failed: ' + LErr
+      else
+        AError := 'libgit2 lookup local branch failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    RC := git_reference_lookup(RemoteRef, RepoHandle, PChar(RemoteRefName));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 lookup remote branch failed: ' + LErr
+      else
+        AError := 'libgit2 lookup remote branch failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    Ahead := 0;
+    Behind := 0;
+    RemoteOid := git_reference_target(RemoteRef);
+    RC := git_graph_ahead_behind(Ahead, Behind, RepoHandle, git_reference_target(LocalRef), RemoteOid);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 ahead/behind failed: ' + LErr
+      else
+        AError := 'libgit2 ahead/behind failed';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
+
+    if (Ahead = 0) and (Behind = 0) then
+      Exit(True);
+
+    if (Ahead = 0) and (Behind > 0) then
+    begin
+      UpdatedRef := nil;
+      RC := git_reference_set_target(UpdatedRef, LocalRef, RemoteOid, PChar('fpdev fast-forward'));
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 fast-forward failed: ' + LErr
+        else
+          AError := 'libgit2 fast-forward failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      if UpdatedRef <> nil then
+        git_reference_free(UpdatedRef);
+
+      RC := git_checkout_head(RepoHandle, nil);
+      if RC <> GIT_OK then
+      begin
+        LErr := Libgit2LastErrorText;
+        if LErr <> '' then
+          AError := 'libgit2 checkout failed: ' + LErr
+        else
+          AError := 'libgit2 checkout failed';
+        ANeedsFallback := True;
+        Exit(False);
+      end;
+
+      Exit(True);
+    end;
+
+    // Diverged or ahead: requires merge/rebase.
+    AError := 'Non-fast-forward update requires merge/rebase';
+    ANeedsFallback := True;
+    Result := False;
+  finally
+    if RemoteRef <> nil then
+      git_reference_free(RemoteRef);
+    if LocalRef <> nil then
+      git_reference_free(LocalRef);
+    if RemoteHandle <> nil then
+      git_remote_free(RemoteHandle);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
   end;
 end;
 
