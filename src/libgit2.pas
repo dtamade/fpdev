@@ -87,6 +87,8 @@ type
   git_progress_cb = function(const str: PChar; len: csize_t; payload: Pointer): cint; cdecl;
   // Per libgit2, the checkout progress callback is void (procedure)
   git_checkout_progress_cb = procedure(const path: PChar; completed_steps, total_steps: csize_t; payload: Pointer); cdecl;
+  // Callback for APIs that add/remove/update files matching a pathspec
+  git_index_matched_path_cb = function(const path: PChar; const matched_pathspec: PChar; payload: Pointer): cint; cdecl;
 
   // Clone progress structure
   git_indexer_progress = record
@@ -218,6 +220,12 @@ const
   GIT_STATUS_IGNORED = 1 shl 14;
   GIT_STATUS_CONFLICTED = 1 shl 15;
 
+  // Index add flags
+  GIT_INDEX_ADD_DEFAULT = 0;
+  GIT_INDEX_ADD_FORCE = 1 shl 0;
+  GIT_INDEX_ADD_DISABLE_PATHSPEC_MATCH = 1 shl 1;
+  GIT_INDEX_ADD_CHECK_PATHSPEC = 1 shl 2;
+
 // Basic library functions
 function git_libgit2_init: cint; cdecl; external LIBGIT2_LIB;
 function git_libgit2_shutdown: cint; cdecl; external LIBGIT2_LIB;
@@ -322,7 +330,9 @@ procedure git_status_list_free(status_list: git_status_list); cdecl; external LI
 // Index operations
 function git_repository_index(out index: git_index; repo: git_repository): cint; cdecl; external LIBGIT2_LIB;
 function git_index_add_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_index_add_all(index: git_index; const pathspec: Pgit_strarray; flags: cuint; callback: git_index_matched_path_cb; payload: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_index_remove_bypath(index: git_index; const path: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_index_update_all(index: git_index; const pathspec: Pgit_strarray; callback: git_index_matched_path_cb; payload: Pointer): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write(index: git_index): cint; cdecl; external LIBGIT2_LIB;
 function git_index_write_tree(out id: git_oid; index: git_index): cint; cdecl; external LIBGIT2_LIB;
 

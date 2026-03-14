@@ -491,12 +491,199 @@ begin
   end;
 end;
 
+procedure TestAddPathspecDirAndGlob;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  RepoDir: string;
+  Mgr: IGitManager;
+  Repo: IGitRepository;
+  SL: TStringList;
+  Entries: TGitStatusEntryArray;
+  Filter: TGitStatusFilter;
+  FoundDeleted: Boolean;
+  FoundModified: Boolean;
+  FoundNew: Boolean;
+  FoundOutside: Boolean;
+  FoundNestedModified: Boolean;
+  FoundNestedNew: Boolean;
+  OriginalPath: string;
+  NoGitPath: string;
+  i: Integer;
+begin
+  WriteLn('');
+  WriteLn('=== Test 8: Add pathspec (dir/glob) (libgit2) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_add_pathspec');
+    RepoDir := TempRoot + PathDelim + 'repo';
+    ForceDirectories(RepoDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    Repo := Mgr.InitRepository(RepoDir, False);
+    Check('InitRepository succeeds', Repo <> nil);
+    if Repo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(RepoDir);
+
+    ForceDirectories(RepoDir + PathDelim + 'dir' + PathDelim + 'sub');
+    ForceDirectories(RepoDir + PathDelim + 'outside');
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'v1';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'a.txt');
+      SL.Text := 'v1';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'sub' + PathDelim + 'b.txt');
+      SL.Text := 'v1';
+      SL.SaveToFile(RepoDir + PathDelim + 'outside' + PathDelim + 'x.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add all initial', Git.Add(RepoDir, '.'));
+    Check('Commit initial', Git.Commit(RepoDir, 'test add pathspec initial'));
+    Check('Repo clean after initial commit', Repo.IsClean);
+
+    // Directory pathspec should stage nested changes and deletions within the directory.
+    Check('Delete dir/a.txt', DeleteFile(RepoDir + PathDelim + 'dir' + PathDelim + 'a.txt'));
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'v2';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'sub' + PathDelim + 'b.txt');
+      SL.Text := 'new';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'c.txt');
+      SL.Text := 'new-outside';
+      SL.SaveToFile(RepoDir + PathDelim + 'outside' + PathDelim + 'y.txt');
+    finally
+      SL.Free;
+    end;
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Add dir pathspec (no CLI)', Git.Add(RepoDir, 'dir'));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Filter.IncludeUntracked := True;
+    Filter.IncludeIgnored := False;
+    Filter.WorkingTreeOnly := False;
+    Filter.IndexOnly := True;
+    Entries := Repo.StatusEntries(Filter);
+
+    FoundDeleted := False;
+    FoundModified := False;
+    FoundNew := False;
+    FoundOutside := False;
+    for i := 0 to High(Entries) do
+    begin
+      if SameText(Entries[i].Path, 'dir/a.txt') and (gsIndexDeleted in Entries[i].Flags) then
+        FoundDeleted := True;
+      if SameText(Entries[i].Path, 'dir/sub/b.txt') and (gsIndexModified in Entries[i].Flags) then
+        FoundModified := True;
+      if SameText(Entries[i].Path, 'dir/c.txt') and (gsIndexNew in Entries[i].Flags) then
+        FoundNew := True;
+      if SameText(Entries[i].Path, 'outside/y.txt') and (gsIndexNew in Entries[i].Flags) then
+        FoundOutside := True;
+    end;
+    Check('dir/a.txt staged deleted', FoundDeleted);
+    Check('dir/sub/b.txt staged modified', FoundModified);
+    Check('dir/c.txt staged new', FoundNew);
+    Check('outside/y.txt not staged', not FoundOutside);
+
+    Check('Cleanup outside/y.txt', DeleteFile(RepoDir + PathDelim + 'outside' + PathDelim + 'y.txt'));
+
+    Check('Commit dir pathspec changes', Git.Commit(RepoDir, 'test add dir pathspec'));
+    Check('Repo clean after dir pathspec commit', Repo.IsClean);
+
+    // Glob pathspec matching follows git's internal pathspec rules (no shell
+    // expansion here), which can match nested paths as well.
+    SL := TStringList.Create;
+    try
+      SL.Text := 'v3';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'c.txt');
+      SL.Text := 'v3';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'sub' + PathDelim + 'b.txt');
+      SL.Text := 'new2';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'd.txt');
+      SL.Text := 'new-nested';
+      SL.SaveToFile(RepoDir + PathDelim + 'dir' + PathDelim + 'sub' + PathDelim + 'e.txt');
+    finally
+      SL.Free;
+    end;
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Add glob pathspec (no CLI)', Git.Add(RepoDir, 'dir/*.txt'));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Entries := Repo.StatusEntries(Filter);
+
+    FoundModified := False;
+    FoundNew := False;
+    FoundNestedModified := False;
+    FoundNestedNew := False;
+    for i := 0 to High(Entries) do
+    begin
+      if SameText(Entries[i].Path, 'dir/c.txt') and (gsIndexModified in Entries[i].Flags) then
+        FoundModified := True;
+      if SameText(Entries[i].Path, 'dir/d.txt') and (gsIndexNew in Entries[i].Flags) then
+        FoundNew := True;
+      if SameText(Entries[i].Path, 'dir/sub/b.txt') and (gsIndexModified in Entries[i].Flags) then
+        FoundNestedModified := True;
+      if SameText(Entries[i].Path, 'dir/sub/e.txt') and (gsIndexNew in Entries[i].Flags) then
+        FoundNestedNew := True;
+    end;
+
+    Check('dir/c.txt staged modified (glob)', FoundModified);
+    Check('dir/d.txt staged new (glob)', FoundNew);
+    Check('dir/sub/b.txt staged modified (glob)', FoundNestedModified);
+    Check('dir/sub/e.txt staged new (glob)', FoundNestedNew);
+
+    Check('Commit glob pathspec changes', Git.Commit(RepoDir, 'test add glob pathspec'));
+    Check('Repo clean after glob pathspec commit', Repo.IsClean);
+
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestMultipleInstances;
 var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 8: Multiple Instances ===');
+  WriteLn('=== Test 9: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -520,7 +707,7 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 9: GitBackendToString ===');
+  WriteLn('=== Test 10: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
@@ -539,6 +726,7 @@ begin
   TestVerboseProperty;
   TestCommitLocalRepo;
   TestPushLocalBareRemote;
+  TestAddPathspecDirAndGlob;
   TestMultipleInstances;
   TestGitBackendToString;
 

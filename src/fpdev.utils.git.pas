@@ -97,6 +97,11 @@ type
     ErrorText: string;
   end;
 
+  PIndexMatchPayload = ^TIndexMatchPayload;
+  TIndexMatchPayload = record
+    MatchCount: Integer;
+  end;
+
 // Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
 
@@ -193,6 +198,16 @@ begin
       Result := -1;
     end;
   end;
+end;
+
+function IndexMatchedCb(const APath: PChar; const AMatchedPathSpec: PChar; APayload: Pointer): cint; cdecl;
+var
+  P: PIndexMatchPayload;
+begin
+  Result := 0;
+  P := PIndexMatchPayload(APayload);
+  if P <> nil then
+    Inc(P^.MatchCount);
 end;
 
 { TGitOperations }
@@ -1159,10 +1174,16 @@ var
   PathSpecAbs: string;
   WorkDirAbs: string;
   RelPath: string;
+  RelPathFs: string;
+  AbsCandidate: string;
   RC: Integer;
   LErr: string;
   LNeedsFallback: Boolean;
   LPathSpec: string;
+  PathSpecStr: AnsiString;
+  PathSpecPtrs: array[0..0] of PChar;
+  PathSpecs: git_strarray;
+  MatchPayload: TIndexMatchPayload;
 begin
   Result := False;
   FLastError := '';
@@ -1207,9 +1228,8 @@ begin
       FLastError := LErr;
   end;
 
-  // Try libgit2 first for simple file path specs
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) and
-     (Pos('*', APathSpec) = 0) and (Pos('?', APathSpec) = 0) and (LPathSpec <> '.') then
+  // Try libgit2 first for pathspec add (supports directories and wildcards).
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) and (LPathSpec <> '.') then
   begin
     RepoHandle := nil;
     IndexHandle := nil;
@@ -1243,23 +1263,58 @@ begin
         RC := git_repository_index(IndexHandle, RepoHandle);
         if RC = GIT_OK then
         begin
-          RC := git_index_add_bypath(IndexHandle, PChar(RelPath));
+          PathSpecStr := AnsiString(RelPath);
+          PathSpecPtrs[0] := PChar(PathSpecStr);
+          PathSpecs.strings := @PathSpecPtrs[0];
+          PathSpecs.count := 1;
+
+          MatchPayload.MatchCount := 0;
+
+          RC := git_index_update_all(IndexHandle, @PathSpecs, @IndexMatchedCb, @MatchPayload);
+          if RC = GIT_OK then
+            RC := git_index_add_all(IndexHandle, @PathSpecs, GIT_INDEX_ADD_CHECK_PATHSPEC, @IndexMatchedCb, @MatchPayload);
+
           if RC = GIT_OK then
           begin
-            RC := git_index_write(IndexHandle);
-            if RC = GIT_OK then
+            // Mimic `git add`: if nothing matched, treat as error except when
+            // an existing directory pathspec is given (empty directories are OK).
+            if MatchPayload.MatchCount = 0 then
             begin
-              Result := True;
-              Exit;
+              AbsCandidate := '';
+              if (Pos('*', RelPath) = 0) and (Pos('?', RelPath) = 0) and (WorkDir <> '') then
+              begin
+                RelPathFs := StringReplace(RelPath, '/', PathDelim, [rfReplaceAll]);
+                AbsCandidate := IncludeTrailingPathDelimiter(WorkDir) + RelPathFs;
+              end;
+
+              if (AbsCandidate <> '') and DirectoryExists(AbsCandidate) then
+              begin
+                Result := True;
+                Exit;
+              end;
+
+              FLastError := Format('libgit2 add failed: pathspec ''%s'' did not match any files', [APathSpec]);
+            end
+            else
+            begin
+              RC := git_index_write(IndexHandle);
+              if RC = GIT_OK then
+              begin
+                Result := True;
+                Exit;
+              end;
             end;
           end;
         end;
 
         LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          FLastError := 'libgit2 add failed: ' + LErr
-        else
-          FLastError := 'libgit2 add failed';
+        if (FLastError = '') then
+        begin
+          if LErr <> '' then
+            FLastError := 'libgit2 add failed: ' + LErr
+          else
+            FLastError := 'libgit2 add failed';
+        end;
       end
       else
       begin
@@ -1351,6 +1406,7 @@ end;
 function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
 var
   BranchParam: string;
+  RemoteName: string;
   LErr: string;
   LNeedsFallback: Boolean;
 begin
@@ -1369,6 +1425,10 @@ begin
     Exit(False);
   end;
 
+  RemoteName := Trim(ARemote);
+  if RemoteName = '' then
+    RemoteName := 'origin';
+
   BranchParam := ABranch;
   if Trim(BranchParam) = '' then
     BranchParam := GetCurrentBranch(ARepoPath);
@@ -1379,7 +1439,7 @@ begin
   begin
     LErr := '';
     LNeedsFallback := False;
-    Result := PushWithLibgit2(ARepoPath, ARemote, BranchParam, LErr, LNeedsFallback);
+    Result := PushWithLibgit2(ARepoPath, RemoteName, BranchParam, LErr, LNeedsFallback);
     if Result then
       Exit(True);
     if not LNeedsFallback then
@@ -1400,7 +1460,7 @@ begin
     Exit(False);
   end;
 
-  Result := ExecuteGitCommand(['push', ARemote, BranchParam], ARepoPath);
+  Result := ExecuteGitCommand(['push', RemoteName, BranchParam], ARepoPath);
 end;
 
 function TGitOperations.GetVersion: string;
