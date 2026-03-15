@@ -544,6 +544,88 @@
   - `test_package_registry 35/35`
   - `lazbuild -B fpdev.lpi` passed
 
+# 2026-03-15 Builder.DI GitOps 收口
+
+## Requirements
+- 移除 `src/fpdev.fpc.builder.di.pas` 内对 `FProcessRunner.Execute('git', ...)` 的直接调用。
+- `builder.di` 的 git fallback 必须经由 `fpdev.utils.git.TGitOperations`，且 CLI 路径继续通过注入的 `IProcessRunner` 可观测。
+- `TGitOperations` 需要支持 injectable CLI runner 和 `cli-only` 构造，但不破坏现有调用。
+- `TFPCBuilder.UpdateSources` 只允许 fast-forward；`needs merge` / `detached` / `dirty` 等场景直接返回可行动错误。
+- 定向验证至少包括 `tests/test_fpc_builder.lpr` 与 `tests/test_git_operations.lpr`，最终回归 `scripts/run_all_tests.sh`。
+
+## Research Findings
+- 本次任务已有明确实施方案，核心是把 builder 层的 CLI 逃逸收回到 `TGitOperations`，而不是替换 libgit2 主路径。
+- `planning-with-files` 要求复杂任务使用落盘规划文件；仓库里已存在长期规划文件，因此本次以追加节的方式记录，避免覆盖旧任务。
+- `session-catchup.py` 报告的未同步上下文与本任务无直接关系，但提醒需要显式记录当前任务，避免和旧长期自治计划混淆。
+- `src/fpdev.utils.git.pas` 当前只有 `constructor Create;`，会先 `TryInitLibgit2`，失败后直接用 `TProcessExecutor.Run('git', ['--version'], '')` 选后端；`CommandLineGitAvailable` 与 `ExecuteGitCommand` 也都直接依赖 `TProcessExecutor`，没有 DI 注入口。
+- `TGitOperations.Clone` 在 libgit2 成功 clone 后会复用自身 `Checkout(...)` 做 tag/branch 切换；CLI fallback 走 `git clone --depth 1 [--branch <branch>] ...`。
+- `TGitOperations.Pull` 现在是“libgit2 fast-forward 优先，非 fast-forward/异常则 fallback 到 CLI `git pull`”；`PullWithLibgit2` 通过 `ANeedsFallback` 控制是否继续走 CLI。
+- `src/fpdev.fpc.builder.di.pas` 的 `DownloadSource` 已经优先使用 `FGitManager.CloneRepository(...)` + `CheckoutRefWithLibgit2(...)`，但失败后仍直接 `FProcessRunner.Execute('git', ['clone', ...], '')`。
+- `src/fpdev.fpc.builder.di.pas` 的 `UpdateSources` 会在 `IGitRepositoryExt.PullFastForward('origin', PullErr)` 返回 `gpffNeedsMerge/gpffDetachedHead/gpffDirty/gpffError` 后保留 `NeedsFallback := True`，最终直接执行 `FProcessRunner.Execute('git', ['pull'], SourceDir)`。
+- `tests/test_fpc_builder.lpr` 现有断言覆盖了：
+  - `DownloadSource - Prefers libgit2`：要求 `MockProcessRunner.GetExecutedCommands.Count = 0`。
+  - `DownloadSource - Success`：当前只要求至少执行过某个 git 命令，不关心是否包含 `git --version`。
+  - `UpdateSources - Prefers libgit2`：要求不触发 CLI。
+  - 还没有覆盖 `gpffNeedsMerge/gpffDetachedHead/gpffDirty` 的 fast-forward-only 错误语义。
+- `src/fpdev.fpc.mocks.pas` 中 `TMockProcessRunner` 只按 executable 名称返回结果，并会把完整命令行追加到 `GetExecutedCommands`；这足以观测新的 `git --version` + `git clone` CLI 链路。
+- `TMockGitRepository.PullFastForward` 直接返回预设 `FPullResult/FPullError`，适合新增 diverged/dirty/detached 场景测试。
+
+## Technical Decisions
+| Decision | Rationale |
+|----------|-----------|
+| 不新建独立计划文件，直接在现有三份规划文件顶部追加本次任务记录 | 仓库已经把这三份文件当长期工作内存使用，追加更符合现状 |
+| 先做 focused discovery，再进入 RED | 需要先确认 `builder.di` 与 `TGitOperations` 的现有分工和测试覆盖 |
+| builder 侧不自行重新发明 git CLI wrapper，而是通过 `IGitCliRunner` 适配 `IProcessRunner` | 保持 CLI fallback 可测试、可观测，同时把 backend 选择逻辑留在 `TGitOperations` |
+
+## Issues Encountered
+| Issue | Resolution |
+|-------|------------|
+| 语义搜索优先命中了历史 planning 文档而不是目标源码 | 改为后续直接读取目标文件并做精确符号搜索 |
+| RED 编译失败：`tests/test_git_operations.lpr` 引入的 `IGitCliRunner` / `TGitOperations.Create(..., True)` 尚不存在 | 这正是目标缺口，进入实现 |
+
+## RED Verification
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_git_operations.lpr`
+  - 失败，关键错误：`Identifier not found "IGitCliRunner"`。
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder`
+  - 编译通过，运行失败。
+  - `DownloadSource - CLI fallback uses injected runner` 失败，实际首条命令仍是直接 `git clone ...`，没有 `git --version` probe。
+  - `UpdateSources - NeedsMerge/DetachedHead/Dirty` 都失败，实际仍执行了 1 次 CLI `git pull` fallback。
+
+## Implementation Result
+- `src/fpdev.utils.git.pas`
+  - 新增 `IGitCliRunner`。
+  - 新增 `TGitOperations.Create(const ACliRunner: IGitCliRunner; const ACliOnly: Boolean = False)`。
+  - 新增默认 CLI runner，内部仍用 `TProcessExecutor.Execute('git', ...)`。
+  - `CommandLineGitAvailable`、`ExecuteGitCommand`、`HasRemote`、`GetCurrentBranch`、`GetShortHeadHash`、`GetVersion`、`ListRemoteBranches` 的 CLI 分支统一走注入 runner。
+  - `cli-only` 模式跳过 libgit2 初始化，只按 CLI 可用性设置 backend。
+- `src/fpdev.fpc.builder.di.pas`
+  - 新增 `TGitCliRunnerFromProcessRunner`，把注入的 `IProcessRunner` 适配到 `IGitCliRunner`。
+  - `DownloadSource` 的 fallback 改为 `TGitOperations.Create(Adapter, True).Clone(...)`，不再直接 `Execute('git', ...)`。
+  - `UpdateSources` 不再 CLI fallback；`gpffNeedsMerge` / `gpffDetachedHead` / `gpffDirty` 返回英文可行动错误，`gpffError`/init/open/unsupported 也直接返回错误。
+- `tests/test_fpc_builder.lpr`
+  - 新增 builder CLI fallback probe 断言。
+  - 新增 `needs merge / detached head / dirty` 的 fast-forward-only 失败断言。
+  - `UpdateSources - Success` 调整为 libgit2 fast-forward 成功路径。
+- `tests/test_git_operations.lpr`
+  - 新增 injected CLI runner / cli-only backend 的正反向测试。
+
+## GREEN Verification
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_git_operations.lpr && ./bin/test_git_operations`
+  - 通过，结果：`160 passed, 0 failed`。
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder`
+  - 通过，结果：`59 passed, 0 failed`。
+- `bash scripts/run_all_tests.sh`
+  - 通过，结果：`256 passed, 0 failed, 0 skipped`。
+
+## Resources
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+- `/home/dtamade/.codex/skills/superpowers/skills/executing-plans/SKILL.md`
+- `/home/dtamade/.codex/skills/superpowers/skills/test-driven-development/SKILL.md`
+- `/home/dtamade/.codex/skills/superpowers/skills/verification-before-completion/SKILL.md`
+- `/home/dtamade/.codex/skills/planning-with-files/SKILL.md`
+
 # Findings & Decisions
 
 ## 2026-03-06 install-local 自包含发布路径修复 (B227)

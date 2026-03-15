@@ -780,6 +780,78 @@
 - `test_package_registry`: `35/35` passed
 - `lazbuild -B fpdev.lpi`: passed
 
+# 2026-03-15 Builder.DI GitOps 收口
+
+## Session: 2026-03-15
+
+### Phase 1: Discovery & Test Targets
+- **Status:** complete
+- **Started:** 2026-03-15
+- Actions taken:
+  - 读取 `using-superpowers`、`executing-plans`、`test-driven-development`、`verification-before-completion`、`planning-with-files` 技能说明。
+  - 运行 `session-catchup.py "$(pwd)"`，确认存在旧会话上下文提示，但未发现本任务对应的 planning 更新。
+  - 检查仓库根目录已有 `task_plan.md` / `findings.md` / `progress.md`，决定以追加节方式记录本次任务。
+  - 运行 `git diff --stat`，当前工作树无未提交差异输出。
+  - 阅读 `src/fpdev.utils.git.pas`、`src/fpdev.fpc.builder.di.pas`、`src/fpdev.fpc.interfaces.pas`、`src/fpdev.fpc.mocks.pas`、`tests/test_fpc_builder.lpr`、`tests/test_git_operations.lpr`，确认当前 clone/pull fallback 和 mock 可观测性。
+  - 确认 `builder.di` 的直呼 git 仅剩两处：clone fallback 与 update fallback。
+- Files created/modified:
+  - `task_plan.md` (modified)
+  - `findings.md` (modified)
+  - `progress.md` (modified)
+  - `tests/test_fpc_builder.lpr` (modified)
+  - `tests/test_git_operations.lpr` (modified)
+
+### Phase 2: RED
+- **Status:** complete
+- Actions taken:
+  - 在 `tests/test_fpc_builder.lpr` 新增 builder CLI fallback probe 断言，以及 `needs merge / detached head / dirty` 的 fast-forward-only 失败断言。
+  - 在 `tests/test_git_operations.lpr` 新增 `IGitCliRunner` + `cli-only` 构造的测试桩与用例。
+  - 运行 focused RED 验证，确认目标接口和行为都还未实现。
+- Files created/modified:
+  - `tests/test_fpc_builder.lpr` (modified)
+  - `tests/test_git_operations.lpr` (modified)
+
+### Phase 3: GREEN
+- **Status:** complete
+- Actions taken:
+  - 在 `src/fpdev.utils.git.pas` 增加 `IGitCliRunner`、默认 CLI runner、构造重载和 `cli-only` backend 选择逻辑。
+  - 将 `TGitOperations` 内所有 command-line git 路径统一改为走可注入 runner。
+  - 在 `src/fpdev.fpc.builder.di.pas` 增加 `TGitCliRunnerFromProcessRunner`。
+  - `DownloadSource` fallback 改为通过 `TGitOperations` 执行 clone。
+  - `UpdateSources` 改为 fast-forward-only，不再走 CLI pull fallback。
+  - 把 `Test_UpdateSources_Success` 调整为 libgit2 fast-forward 成功用例。
+- Files created/modified:
+  - `src/fpdev.utils.git.pas` (modified)
+  - `src/fpdev.fpc.builder.di.pas` (modified)
+  - `tests/test_fpc_builder.lpr` (modified)
+  - `tests/test_git_operations.lpr` (modified)
+
+### Phase 4: Verification
+- **Status:** complete
+- Actions taken:
+  - 重新编译并运行 `test_git_operations`。
+  - 重新编译并运行 `test_fpc_builder`。
+  - 运行 `bash scripts/run_all_tests.sh` 完成全量回归。
+- Files created/modified:
+  - `progress.md` (modified)
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| session catchup | `python3 /home/dtamade/.codex/skills/planning-with-files/scripts/session-catchup.py "$(pwd)"` | report previous-session context only | previous session detected; no planning updates found | ✓ |
+| worktree diff | `git diff --stat` | no unexpected pending diff output | empty output | ✓ |
+| RED compile | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_git_operations.lpr` | fail on missing injectable CLI API | `Identifier not found "IGitCliRunner"` | ✓ |
+| RED runtime | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder` | fail on old builder fallback behavior | 14 failures: missing git probe + CLI `git pull` fallback still active | ✓ |
+| GREEN focused | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_git_operations.lpr && ./bin/test_git_operations` | pass | `160 passed, 0 failed` | ✓ |
+| GREEN focused | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder` | pass | `59 passed, 0 failed` | ✓ |
+| Full regression | `bash scripts/run_all_tests.sh` | pass | `256 passed, 0 failed, 0 skipped` | ✓ |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-03-15 | `search_context` 首轮结果偏向历史 planning 文档 | 1 | 接下来结合精确文件读取和符号搜索 |
+| 2026-03-15 | `tests/test_git_operations.lpr` 编译失败：缺少 `IGitCliRunner` | 1 | 进入 `fpdev.utils.git` 实现阶段 |
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)

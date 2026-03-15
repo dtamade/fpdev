@@ -1,3 +1,58 @@
+# 2026-03-15 GitOps Builder.DI 收口计划
+
+## Goal
+让 `src/fpdev.fpc.builder.di.pas` 的 git clone/pull 统一经过 `fpdev.utils.git.TGitOperations`，并把 `TFPCBuilder.UpdateSources` 收敛为 fast-forward-only，同时保持 DI 测试可控和现有 `TGitOperations` 调用兼容。
+
+## Current Phase
+Phase 5
+
+## Phases
+
+### Phase 1: Discovery & Test Targets
+- [ ] 读取 `builder.di`、`fpdev.utils.git`、process runner/result 类型与相关测试
+- [ ] 确认现有 clone/pull fallback 行为与测试断言
+- [ ] 在 `findings.md` 记录接口边界与风险
+- **Status:** complete
+
+### Phase 2: RED
+- [ ] 调整或新增测试，先捕获 injectable CLI fallback 和 fast-forward-only 行为
+- [ ] 运行定向测试，确认至少一个失败点来自目标变更
+- **Status:** complete
+
+### Phase 3: GREEN
+- [ ] 给 `TGitOperations` 增加 injectable CLI runner / cli-only 构造能力
+- [ ] 在 `builder.di` 增加 runner adapter，并改为通过 `TGitOperations` 执行 clone
+- [ ] 将 `UpdateSources` 的非 fast-forward 场景改成可行动错误
+- **Status:** complete
+
+### Phase 4: Verification
+- [ ] 跑 `tests/test_fpc_builder.lpr`
+- [ ] 跑 `tests/test_git_operations.lpr`
+- [ ] 跑 `scripts/run_all_tests.sh`
+- **Status:** complete
+
+### Phase 5: Delivery
+- [ ] 复核需求逐条满足情况
+- [ ] 记录风险、剩余假设和验证结果
+- **Status:** in_progress
+
+## Key Questions
+1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？
+2. `tests/test_fpc_builder.lpr` 对 clone/pull 的 mock 断言有多细，哪些需要顺着实现调整？
+3. `IGitRepositoryExt.PullFastForward` 返回值在 builder 层目前分别如何处理？
+
+## Decisions Made
+| Decision | Rationale |
+|----------|-----------|
+| 先按 TDD 跑 focused tests，再改实现 | 这次改动会碰到 DI、libgit2/CLI 后端和错误语义，先锁测试边界更稳 |
+| 规划文件沿用仓库现有 `task_plan.md` / `findings.md` / `progress.md`，追加本次任务节 | 避免覆盖已有长期自治记录，同时满足 planning-with-files 持久化要求 |
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `search_context` 返回了很多历史 planning 命中，精确源码命中不足 | 1 | 结合精确文件读取和符号搜索继续收敛 |
+| `tests/test_git_operations.lpr` 新增 RED 测试编译失败：`IGitCliRunner` 未定义 | 1 | 进入实现阶段，为 `fpdev.utils.git` 增加新接口和构造重载 |
+
 # Task Plan: 项目问题长期修复（Phase 4 长期自治）
 
 ## Goal
