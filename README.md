@@ -37,7 +37,7 @@
 [OK] Discoverable test programs: 256 (same inventory rules as CI)
 [OK] Documentation: Complete user and developer documentation (20 English translations)
 [OK] Cross-platform: Windows, Linux, macOS
-[OK] Code quality: Production-ready (6 hints, 0 errors)
+[OK] Code quality: Production-ready (0 src warnings/hints, 0 errors)
 ```
 
 ---
