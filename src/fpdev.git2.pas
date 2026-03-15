@@ -402,7 +402,7 @@ begin
     // Set HEAD to target branch
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
 
-    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+    CheckoutOpts := Default(git_checkout_options);
     CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
     CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
     CheckGitResult(git_checkout_head(FHandle, @CheckoutOpts), 'Checkout HEAD');
@@ -427,7 +427,7 @@ begin
     if Trim(ABranch) = '' then Exit(False);
     if Pos('refs/', ABranch) = 1 then LRefName := ABranch else LRefName := 'refs/heads/' + ABranch;
     CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)), 'Set HEAD to ' + LRefName);
-    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+    CheckoutOpts := Default(git_checkout_options);
     CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
     if Force then
       CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING
@@ -838,7 +838,7 @@ begin
         git_reference_free(UpdatedRef);
 
       // Update working directory to the new HEAD.
-      FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+      CheckoutOpts := Default(git_checkout_options);
       rc := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
       if rc <> GIT_OK then
       begin

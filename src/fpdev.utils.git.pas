@@ -230,6 +230,8 @@ function IndexMatchedCb(const APath: PChar; const AMatchedPathSpec: PChar; APayl
 var
   P: PIndexMatchPayload;
 begin
+  if APath <> nil then;
+  if AMatchedPathSpec <> nil then;
   Result := 0;
   P := PIndexMatchPayload(APayload);
   if P <> nil then
@@ -1195,7 +1197,7 @@ begin
     if ParentCount > 0 then
       ParentsPtr := @Parents[0];
 
-    FillChar(CommitOid, SizeOf(CommitOid), 0);
+    CommitOid := Default(git_oid);
     RC := git_commit_create(CommitOid, RepoHandle, PChar(UpdateRef),
       AuthorSig, CommitterSig, nil, PChar(AMessage),
       TreeHandle, ParentCount, ParentsPtr);
@@ -1326,7 +1328,7 @@ begin
     RefSpecs.strings := @RefSpecPtrs[0];
     RefSpecs.count := 1;
 
-    FillChar(PushOpts, SizeOf(PushOpts), 0);
+    PushOpts := Default(git_push_options);
     LoadCredentialPayloadFromEnv(CredPayload);
     RC := git_push_options_init(@PushOpts, GIT_PUSH_OPTIONS_VERSION);
     if RC <> GIT_OK then
@@ -1820,7 +1822,7 @@ begin
   RepoHandle := nil;
   try
     try
-      FillChar(CloneOpts, SizeOf(CloneOpts), 0);
+      CloneOpts := Default(git_clone_options);
       LoadCredentialPayloadFromEnv(CredPayload);
 
       RC := git_clone_options_init(@CloneOpts, GIT_CLONE_OPTIONS_VERSION);
@@ -1911,7 +1913,7 @@ begin
         Exit(False);
       end;
 
-      FillChar(FetchOpts, SizeOf(FetchOpts), 0);
+      FetchOpts := Default(git_fetch_options);
       LoadCredentialPayloadFromEnv(CredPayload);
       RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
       if RC <> GIT_OK then
@@ -2211,7 +2213,7 @@ begin
       Exit(False);
     end;
 
-    FillChar(FetchOpts, SizeOf(FetchOpts), 0);
+    FetchOpts := Default(git_fetch_options);
     LoadCredentialPayloadFromEnv(CredPayload);
     RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
     if RC <> GIT_OK then
@@ -2372,7 +2374,7 @@ begin
         Exit(False);
       end;
 
-      FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
+      CheckoutOpts := Default(git_checkout_options);
       RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
       if RC <> GIT_OK then
       begin
@@ -2485,7 +2487,7 @@ begin
           Exit(False);
         end;
 
-        FillChar(MergeTreeOid, SizeOf(MergeTreeOid), 0);
+        MergeTreeOid := Default(git_oid);
         RC := git_index_write_tree_to(MergeTreeOid, MergeIndex, RepoHandle);
         if RC <> GIT_OK then
         begin
@@ -2517,7 +2519,7 @@ begin
         ParentsPtr := @Parents[0];
 
         MergeMessage := 'Merge origin/' + Branch + ' into ' + Branch;
-        FillChar(MergeCommitOid, SizeOf(MergeCommitOid), 0);
+        MergeCommitOid := Default(git_oid);
         RC := git_commit_create(MergeCommitOid, RepoHandle, PChar(LocalRefName),
           AuthorSig, CommitterSig, nil, PChar(MergeMessage),
           MergeTree, ParentCount, ParentsPtr);
