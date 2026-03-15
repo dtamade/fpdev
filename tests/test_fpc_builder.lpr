@@ -264,6 +264,35 @@ begin
   AssertTrue(MockProcessRunner.GetExecutedCommands.Count > 0, 'Git command should be executed');
 end;
 
+{ Test: DownloadSource CLI fallback goes through injected runner via GitOps }
+procedure Test_DownloadSource_CliFallbackUsesInjectedRunner;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - CLI fallback uses injected runner');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-cli-probe';
+
+  MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
+
+  Result := Builder.DownloadSource('3.2.2', TargetDir);
+
+  AssertTrue(Result.Success, 'DownloadSource should succeed through CLI fallback');
+  AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
+    'CLI fallback should probe git and then clone through the injected runner');
+  if MockProcessRunner.GetExecutedCommands.Count >= 1 then
+    AssertEqualsStr('git --version', MockProcessRunner.GetExecutedCommands[0],
+      'CLI fallback should probe git availability through injected runner');
+  if MockProcessRunner.GetExecutedCommands.Count >= 2 then
+    AssertTrue(Pos('git clone', MockProcessRunner.GetExecutedCommands[1]) = 1,
+      'CLI fallback should clone through injected runner');
+end;
+
 { Test: DownloadSource fails with invalid version }
 procedure Test_DownloadSource_InvalidVersion;
 var
@@ -390,6 +419,9 @@ procedure Test_UpdateSources_Success;
 var
   Result: TOperationResult;
   SourceDir, GitDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitManager: TMockGitManager;
+  Repo: TMockGitRepository;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -403,12 +435,115 @@ begin
   // Setup mock: source directory and .git exist, git commands succeed
   MockFileSystem.AddDirectory(SourceDir);
   MockFileSystem.AddDirectory(GitDir);
-  MockProcessRunner.SetResult('git', 0, 'origin', '');  // git remote returns origin
 
-  Result := Builder.UpdateSources('3.2.2');
+  LocalGitManager := TMockGitManager.Create;
+  LocalGitManager.SetInitializeOk(True);
+  Repo := TMockGitRepository.Create(SourceDir);
+  Repo.SetPullResult(gpffFastForwarded, '');
+  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
 
-  AssertTrue(Result.Success, 'UpdateSources should succeed');
-  AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+  try
+    Result := LocalBuilder.UpdateSources('3.2.2');
+
+    AssertTrue(Result.Success, 'UpdateSources should succeed on fast-forward');
+    AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
+    AssertEquals(0, MockProcessRunner.GetExecutedCommands.Count,
+      'Fast-forward success should not execute git CLI');
+  finally
+    LocalBuilder.Free;
+  end;
+end;
+
+procedure AssertUpdateSourcesFastForwardOnly(const AScenario: string;
+  APullResult: TGitPullFastForwardResult; const APullError: string);
+var
+  Result: TOperationResult;
+  SourceDir, GitDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitManager: TMockGitManager;
+  Repo: TMockGitRepository;
+  LowerErr: string;
+begin
+  ResetMocks;
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  GitDir := SourceDir + PathDelim + '.git';
+
+  MockFileSystem.AddDirectory(SourceDir);
+  MockFileSystem.AddDirectory(GitDir);
+  MockProcessRunner.SetDefaultResult(0, 'Already up to date.', '');
+
+  LocalGitManager := TMockGitManager.Create;
+  LocalGitManager.SetInitializeOk(True);
+  Repo := TMockGitRepository.Create(SourceDir);
+  Repo.SetPullResult(APullResult, APullError);
+  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
+
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+  try
+    Result := LocalBuilder.UpdateSources('3.2.2');
+
+    AssertFalse(Result.Success, AScenario + ' should fail instead of falling back to CLI pull');
+    AssertEquals(Ord(ecDownloadFailed), Ord(Result.ErrorCode),
+      AScenario + ' should return ecDownloadFailed');
+    AssertEquals(0, MockProcessRunner.GetExecutedCommands.Count,
+      AScenario + ' should not execute git CLI');
+
+    LowerErr := LowerCase(Result.ErrorMessage);
+    AssertTrue(
+      ((APullError <> '') and (Pos(APullError, Result.ErrorMessage) > 0)) or
+      (Pos('fast-forward', LowerErr) > 0) or
+      (Pos('manual', LowerErr) > 0) or
+      (Pos('reconcile', LowerErr) > 0),
+      AScenario + ' should return actionable error text'
+    );
+  finally
+    LocalBuilder.Free;
+  end;
+end;
+
+procedure Test_UpdateSources_NeedsMergeFailsFastForwardOnly;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - NeedsMerge fails fast-forward-only');
+  WriteLn('==================================================');
+
+  AssertUpdateSourcesFastForwardOnly(
+    'Needs merge',
+    gpffNeedsMerge,
+    'Branches diverged; reconcile manually before retrying.'
+  );
+end;
+
+procedure Test_UpdateSources_DetachedHeadFailsFastForwardOnly;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - Detached head fails fast-forward-only');
+  WriteLn('==================================================');
+
+  AssertUpdateSourcesFastForwardOnly(
+    'Detached head',
+    gpffDetachedHead,
+    'Repository is in detached HEAD state; switch to a branch before updating.'
+  );
+end;
+
+procedure Test_UpdateSources_DirtyFailsFastForwardOnly;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - Dirty worktree fails fast-forward-only');
+  WriteLn('==================================================');
+
+  AssertUpdateSourcesFastForwardOnly(
+    'Dirty worktree',
+    gpffDirty,
+    'Working tree has local changes; commit or stash them before updating.'
+  );
 end;
 
 { Test: UpdateSources fails when directory is not a git repo }
@@ -552,6 +687,7 @@ begin
             // Run tests
             Test_DownloadSource_PrefersLibgit2;
             Test_DownloadSource_Success;
+            Test_DownloadSource_CliFallbackUsesInjectedRunner;
             Test_DownloadSource_InvalidVersion;
             Test_DownloadSource_GitFailed;
             Test_BuildFromSource_Success;
@@ -559,6 +695,9 @@ begin
             Test_BuildFromSource_MakeFailed;
             Test_UpdateSources_PrefersLibgit2;
             Test_UpdateSources_Success;
+            Test_UpdateSources_NeedsMergeFailsFastForwardOnly;
+            Test_UpdateSources_DetachedHeadFailsFastForwardOnly;
+            Test_UpdateSources_DirtyFailsFastForwardOnly;
             Test_UpdateSources_NotGitRepo;
             Test_CleanSources_Success;
             Test_CleanSources_DirNotExist;

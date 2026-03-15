@@ -5,11 +5,79 @@ program test_git_operations;
 { Unit tests for TGitOperations class in fpdev.utils.git }
 
 uses
-  SysUtils, Classes, fpdev.utils, fpdev.utils.git, git2.api, git2.types, git2.impl, libgit2, test_temp_paths;
+  SysUtils, Classes, fpdev.utils, fpdev.utils.git, fpdev.utils.process,
+  git2.api, git2.types, git2.impl, libgit2, test_temp_paths;
+
+type
+  TMockGitCliRunner = class(TInterfacedObject, IGitCliRunner)
+  private
+    FCommands: TStringList;
+    FVersionResult: TProcessResult;
+    FDefaultResult: TProcessResult;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function Execute(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
+    procedure SetVersionResult(const ASuccess: Boolean; AExitCode: Integer;
+      const AStdOut: string; const AStdErr: string = ''; const AErrorMessage: string = '');
+    property Commands: TStringList read FCommands;
+  end;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+constructor TMockGitCliRunner.Create;
+begin
+  inherited Create;
+  FCommands := TStringList.Create;
+
+  FVersionResult.Success := True;
+  FVersionResult.ExitCode := 0;
+  FVersionResult.StdOut := 'git version 2.43.0';
+  FVersionResult.StdErr := '';
+  FVersionResult.ErrorMessage := '';
+
+  FDefaultResult.Success := True;
+  FDefaultResult.ExitCode := 0;
+  FDefaultResult.StdOut := '';
+  FDefaultResult.StdErr := '';
+  FDefaultResult.ErrorMessage := '';
+end;
+
+destructor TMockGitCliRunner.Destroy;
+begin
+  FCommands.Free;
+  inherited Destroy;
+end;
+
+function TMockGitCliRunner.Execute(const AParams: array of string; const AWorkDir: string): TProcessResult;
+var
+  CmdLine: string;
+  i: Integer;
+begin
+  CmdLine := 'git';
+  for i := 0 to High(AParams) do
+    CmdLine := CmdLine + ' ' + AParams[i];
+  if AWorkDir <> '' then
+    CmdLine := CmdLine + ' [cwd=' + AWorkDir + ']';
+  FCommands.Add(CmdLine);
+
+  if (Length(AParams) > 0) and (AParams[0] = '--version') then
+    Exit(FVersionResult);
+
+  Result := FDefaultResult;
+end;
+
+procedure TMockGitCliRunner.SetVersionResult(const ASuccess: Boolean; AExitCode: Integer;
+  const AStdOut: string; const AStdErr: string; const AErrorMessage: string);
+begin
+  FVersionResult.Success := ASuccess;
+  FVersionResult.ExitCode := AExitCode;
+  FVersionResult.StdOut := AStdOut;
+  FVersionResult.StdErr := AStdErr;
+  FVersionResult.ErrorMessage := AErrorMessage;
+end;
 
 procedure Check(const ATestName: string; ACondition: Boolean);
 begin
@@ -70,13 +138,60 @@ begin
   end;
 end;
 
+procedure TestInjectedCliRunnerCliOnly;
+var
+  Git: TGitOperations;
+  Runner: TMockGitCliRunner;
+  TargetDir: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 3: Injected CLI runner (cli-only) ===');
+
+  Runner := TMockGitCliRunner.Create;
+  Git := TGitOperations.Create(Runner as IGitCliRunner, True);
+  try
+    Check('CLI-only backend selected', Git.Backend = gbCommandLine);
+    Check('Version probe executed via injected runner',
+      (Runner.Commands.Count >= 1) and (Runner.Commands[0] = 'git --version'));
+
+    TargetDir := IncludeTrailingPathDelimiter(GetTempDir(False)) + 'fpdev-gitops-cli-only';
+    Check('Clone succeeds through injected runner',
+      Git.Clone('https://example.invalid/fpc.git', TargetDir, 'release_3_2_2'));
+    Check('Clone command recorded by injected runner',
+      (Runner.Commands.Count >= 2) and (Pos('git clone --depth 1 --branch release_3_2_2 https://example.invalid/fpc.git ', Runner.Commands[1]) = 1));
+  finally
+    Git.Free;
+  end;
+end;
+
+procedure TestInjectedCliRunnerUnavailable;
+var
+  Git: TGitOperations;
+  Runner: TMockGitCliRunner;
+begin
+  WriteLn('');
+  WriteLn('=== Test 4: Injected CLI runner unavailable ===');
+
+  Runner := TMockGitCliRunner.Create;
+  Runner.SetVersionResult(False, 1, '', 'git missing', 'git missing');
+  Git := TGitOperations.Create(Runner as IGitCliRunner, True);
+  try
+    Check('Backend is none when injected runner fails version probe', Git.Backend = gbNone);
+    Check('Clone fails without available CLI backend', not Git.Clone('https://example.invalid/fpc.git', '/tmp/fpdev-gitops-missing', ''));
+    Check('LastError mentions missing backend',
+      Pos('No Git backend available', Git.LastError) > 0);
+  finally
+    Git.Free;
+  end;
+end;
+
 procedure TestIsRepository;
 var
   Git: TGitOperations;
   ProjectRoot: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 3: IsRepository ===');
+  WriteLn('=== Test 5: IsRepository ===');
 
   Git := TGitOperations.Create;
   try
@@ -110,7 +225,7 @@ var
   Branch: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 4: GetCurrentBranch ===');
+  WriteLn('=== Test 6: GetCurrentBranch ===');
 
   Git := TGitOperations.Create;
   try
@@ -142,7 +257,7 @@ var
   Git: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 5: Verbose Property ===');
+  WriteLn('=== Test 7: Verbose Property ===');
 
   Git := TGitOperations.Create;
   try
@@ -224,7 +339,7 @@ var
   i: Integer;
 begin
   WriteLn('');
-  WriteLn('=== Test 6: Commit (libgit2) ===');
+  WriteLn('=== Test 8: Commit (libgit2) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -385,7 +500,7 @@ var
   RefName: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 7: Push (libgit2 local bare remote) ===');
+  WriteLn('=== Test 9: Push (libgit2 local bare remote) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -1339,6 +1454,8 @@ begin
 
   TestCreateDestroy;
   TestBackendDetection;
+  TestInjectedCliRunnerCliOnly;
+  TestInjectedCliRunnerUnavailable;
   TestIsRepository;
   TestGetCurrentBranch;
   TestVerboseProperty;

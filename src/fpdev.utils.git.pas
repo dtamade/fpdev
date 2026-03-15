@@ -21,10 +21,15 @@ unit fpdev.utils.git;
 interface
 
 uses
-  SysUtils, Classes, git2.api, git2.types;
+  SysUtils, Classes, fpdev.utils.process, git2.api, git2.types;
 
 type
   TGitBackend = (gbLibgit2, gbCommandLine, gbNone);
+
+  IGitCliRunner = interface
+    ['{7D40CB2F-5C75-4B33-98D7-9E7138A50A8B}']
+    function Execute(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
+  end;
 
   { TGitOperations - Unified Git operations with libgit2 + CLI fallback }
   TGitOperations = class
@@ -33,12 +38,15 @@ type
     FLastError: string;
     FVerbose: Boolean;
     FGitManager: IGitManager;
+    FCliRunner: IGitCliRunner;
+    FCliOnly: Boolean;
     FCommandLineChecked: Boolean;
     FCommandLineAvailable: Boolean;
     FCommandLineCheckedPath: string;
 
     function TryInitLibgit2: Boolean;
     function CommandLineGitAvailable: Boolean;
+    function ExecuteGitCli(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
     function ExecuteGitCommand(const AParams: array of string; const AWorkDir: string = ''): Boolean;
 
     // libgit2 backend functions (use instance FGitManager)
@@ -52,7 +60,8 @@ type
     function PushWithLibgit2(const ARepoPath, ARemote, ABranch: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
 
   public
-    constructor Create;
+    constructor Create; overload;
+    constructor Create(const ACliRunner: IGitCliRunner; const ACliOnly: Boolean = False); overload;
     destructor Destroy; override;
 
     // Core operations
@@ -81,13 +90,18 @@ function GitBackendToString(ABackend: TGitBackend): string;
 implementation
 
 uses
-  fpdev.utils.process, git2.impl, libgit2, ctypes;
+  git2.impl, libgit2, ctypes;
 
 var
   Libgit2Available: Boolean = False;
   Libgit2Checked: Boolean = False;
 
 type
+  TDefaultGitCliRunner = class(TInterfacedObject, IGitCliRunner)
+  public
+    function Execute(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
+  end;
+
   PGitAddAllStatusPayload = ^TGitAddAllStatusPayload;
   TGitAddAllStatusPayload = record
     AddPaths: TStringList;
@@ -343,15 +357,39 @@ end;
 
 { TGitOperations }
 
+function TDefaultGitCliRunner.Execute(const AParams: array of string; const AWorkDir: string): TProcessResult;
+begin
+  Result := TProcessExecutor.Execute('git', AParams, AWorkDir);
+end;
+
 constructor TGitOperations.Create;
+begin
+  Create(nil, False);
+end;
+
+constructor TGitOperations.Create(const ACliRunner: IGitCliRunner; const ACliOnly: Boolean);
 begin
   inherited Create;
   FLastError := '';
   FVerbose := False;
   FGitManager := nil;
+  FCliOnly := ACliOnly;
   FCommandLineChecked := False;
   FCommandLineAvailable := False;
   FCommandLineCheckedPath := '';
+  if ACliRunner <> nil then
+    FCliRunner := ACliRunner
+  else
+    FCliRunner := TDefaultGitCliRunner.Create;
+
+  if FCliOnly then
+  begin
+    if CommandLineGitAvailable then
+      FBackend := gbCommandLine
+    else
+      FBackend := gbNone;
+    Exit;
+  end;
 
   // Try to use libgit2 first
   if TryInitLibgit2 then
@@ -359,10 +397,7 @@ begin
   else
   begin
     // Check if command-line git is available
-    FCommandLineChecked := True;
-    FCommandLineCheckedPath := GetEnvironmentVariable('PATH');
-    FCommandLineAvailable := TProcessExecutor.Run('git', ['--version'], '');
-    if FCommandLineAvailable then
+    if CommandLineGitAvailable then
       FBackend := gbCommandLine
     else
       FBackend := gbNone;
@@ -437,22 +472,32 @@ end;
 function TGitOperations.CommandLineGitAvailable: Boolean;
 var
   CurrentPath: string;
+  LResult: TProcessResult;
 begin
   CurrentPath := GetEnvironmentVariable('PATH');
   if (not FCommandLineChecked) or (CurrentPath <> FCommandLineCheckedPath) then
   begin
     FCommandLineChecked := True;
     FCommandLineCheckedPath := CurrentPath;
-    FCommandLineAvailable := TProcessExecutor.Run('git', ['--version'], '');
+    LResult := ExecuteGitCli(['--version'], '');
+    FCommandLineAvailable := LResult.Success;
   end;
   Result := FCommandLineAvailable;
+end;
+
+function TGitOperations.ExecuteGitCli(const AParams: array of string; const AWorkDir: string): TProcessResult;
+begin
+  if FCliRunner <> nil then
+    Result := FCliRunner.Execute(AParams, AWorkDir)
+  else
+    Result := TProcessExecutor.Execute('git', AParams, AWorkDir);
 end;
 
 function TGitOperations.ExecuteGitCommand(const AParams: array of string; const AWorkDir: string): Boolean;
 var
   LResult: TProcessResult;
 begin
-  LResult := TProcessExecutor.Execute('git', AParams, AWorkDir);
+  LResult := ExecuteGitCli(AParams, AWorkDir);
   Result := LResult.Success;
   if not Result then
   begin
@@ -700,7 +745,7 @@ begin
   if not CommandLineGitAvailable then
     Exit(False);
 
-  LResult := TProcessExecutor.Execute('git', ['remote'], ARepoPath);
+  LResult := ExecuteGitCli(['remote'], ARepoPath);
   if LResult.Success then
     Result := Trim(LResult.StdOut) <> '';
 end;
@@ -729,7 +774,7 @@ begin
   // Command-line fallback
   if not CommandLineGitAvailable then
     Exit('');
-  LResult := TProcessExecutor.Execute('git', ['rev-parse', '--abbrev-ref', 'HEAD'], ARepoPath);
+  LResult := ExecuteGitCli(['rev-parse', '--abbrev-ref', 'HEAD'], ARepoPath);
   if LResult.Success then
     Result := Trim(LResult.StdOut);
 end;
@@ -776,9 +821,9 @@ begin
   end;
 
   if ALength >= 40 then
-    LResult := TProcessExecutor.Execute('git', ['rev-parse', 'HEAD'], ARepoPath)
+    LResult := ExecuteGitCli(['rev-parse', 'HEAD'], ARepoPath)
   else
-    LResult := TProcessExecutor.Execute('git', ['rev-parse', '--short=' + IntToStr(ALength), 'HEAD'], ARepoPath);
+    LResult := ExecuteGitCli(['rev-parse', '--short=' + IntToStr(ALength), 'HEAD'], ARepoPath);
 
   if LResult.Success then
     Result := Trim(LResult.StdOut)
@@ -1642,7 +1687,7 @@ begin
     Exit('');
   end;
 
-  LResult := TProcessExecutor.Execute('git', ['--version'], '');
+  LResult := ExecuteGitCli(['--version'], '');
   if LResult.Success then
     Result := Trim(LResult.StdOut)
   else if LResult.StdErr <> '' then
@@ -1712,7 +1757,7 @@ begin
     Exit(nil);
   end;
 
-  LResult := TProcessExecutor.Execute('git', ['branch', '-r'], ARepoPath);
+  LResult := ExecuteGitCli(['branch', '-r'], ARepoPath);
   if not LResult.Success then
   begin
     if LResult.StdErr <> '' then

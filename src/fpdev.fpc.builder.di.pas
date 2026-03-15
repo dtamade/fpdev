@@ -103,7 +103,55 @@ type
 implementation
 
 uses
-  git2.impl;
+  fpdev.utils.git, fpdev.utils.process, git2.impl;
+
+type
+  TGitCliRunnerFromProcessRunner = class(TInterfacedObject, IGitCliRunner)
+  private
+    FProcessRunner: IProcessRunner;
+  public
+    constructor Create(const AProcessRunner: IProcessRunner);
+    function Execute(const AParams: array of string; const AWorkDir: string = ''): fpdev.utils.process.TProcessResult;
+  end;
+
+constructor TGitCliRunnerFromProcessRunner.Create(const AProcessRunner: IProcessRunner);
+begin
+  inherited Create;
+  FProcessRunner := AProcessRunner;
+end;
+
+function TGitCliRunnerFromProcessRunner.Execute(const AParams: array of string;
+  const AWorkDir: string): fpdev.utils.process.TProcessResult;
+var
+  ProcResult: fpdev.fpc.interfaces.TProcessResult;
+begin
+  ProcResult := FProcessRunner.Execute('git', AParams, AWorkDir);
+  Result.Success := ProcResult.Success;
+  Result.ExitCode := ProcResult.ExitCode;
+  Result.StdOut := ProcResult.StdOut;
+  Result.StdErr := ProcResult.StdErr;
+  Result.ErrorMessage := '';
+end;
+
+function FastForwardOnlyPullError(const APullResult: TGitPullFastForwardResult;
+  const APullError: string): string;
+begin
+  if Trim(APullError) <> '' then
+    Exit(APullError);
+
+  case APullResult of
+    gpffNeedsMerge:
+      Result := 'Fast-forward-only update blocked because branches diverged; reconcile manually before retrying.';
+    gpffDetachedHead:
+      Result := 'Fast-forward-only update blocked because the repository is in detached HEAD state; switch to a branch before retrying.';
+    gpffDirty:
+      Result := 'Fast-forward-only update blocked because the working tree has local changes; commit or stash them before retrying.';
+    gpffNoRemote:
+      Result := 'No remote configured';
+  else
+    Result := 'Git update failed';
+  end;
+end;
 
 { TFPCBuilder }
 
@@ -228,9 +276,9 @@ end;
 function TFPCBuilder.DownloadSource(const AVersion, ATargetDir: string): TOperationResult;
 var
   GitTag: string;
-  ProcResult: fpdev.fpc.interfaces.TProcessResult;
   LGitErr: string;
   LRepo: IGitRepository;
+  GitOps: TGitOperations;
 begin
   // Validate version
   if not FVersionManager.ValidateVersion(AVersion) then
@@ -272,24 +320,27 @@ begin
     end;
   end;
 
-  // Fallback: command-line git (shallow clone)
-  ProcResult := FProcessRunner.Execute('git', ['clone', '--branch', GitTag, '--depth', '1',
-    FPC_OFFICIAL_REPO, ATargetDir], '');
+  // Fallback: command-line git through TGitOperations with injected CLI runner.
+  GitOps := TGitOperations.Create(TGitCliRunnerFromProcessRunner.Create(FProcessRunner), True);
+  try
+    if GitOps.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag) then
+    begin
+      FFileSystem.ForceDirectories(ATargetDir);
+      Exit(OperationSuccess);
+    end;
 
-  if not ProcResult.Success then
-  begin
-    if ProcResult.StdErr <> '' then
-      Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + ProcResult.StdErr)
-    else if LGitErr <> '' then
-      Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + LGitErr)
-    else
-      Result := OperationError(ecDownloadFailed, 'Git clone failed');
-    Exit;
+    if GitOps.LastError <> '' then
+      LGitErr := GitOps.LastError;
+  finally
+    GitOps.Free;
   end;
 
-  // Keep DI tests deterministic.
-  FFileSystem.ForceDirectories(ATargetDir);
-  Result := OperationSuccess;
+  if LGitErr <> '' then
+    Result := OperationError(ecDownloadFailed, 'Git clone failed: ' + LGitErr)
+  else
+  begin
+    Result := OperationError(ecDownloadFailed, 'Git clone failed');
+  end;
 end;
 
 function TFPCBuilder.BuildFromSource(const ASourceDir, AInstallDir: string): TOperationResult;
@@ -330,13 +381,11 @@ end;
 function TFPCBuilder.UpdateSources(const AVersion: string): TOperationResult;
 var
   SourceDir, GitDir: string;
-  ProcResult: fpdev.fpc.interfaces.TProcessResult;
   LRepo: IGitRepository;
   Ext: IGitRepositoryExt;
   PullRes: TGitPullFastForwardResult;
   PullErr: string;
   LGitErr: string;
-  NeedsFallback: Boolean;
 begin
   SourceDir := GetSourceDir(AVersion);
 
@@ -355,74 +404,74 @@ begin
     Exit;
   end;
 
-  NeedsFallback := True;
   LGitErr := '';
 
-  // Try libgit2 fast-forward pull first. If merge/rebase is required, fall back to CLI.
-  if EnsureGitManagerInitialized(LGitErr) then
+  if not EnsureGitManagerInitialized(LGitErr) then
   begin
-    try
-      LRepo := FGitManager.OpenRepository(SourceDir);
-      if Assigned(LRepo) and Supports(LRepo, IGitRepositoryExt, Ext) then
-      begin
-        PullErr := '';
-        PullRes := Ext.PullFastForward('origin', PullErr);
-        case PullRes of
-          gpffUpToDate,
-          gpffFastForwarded:
-            Exit(OperationSuccess);
-          gpffNoRemote:
-            begin
-              Result := OperationError(ecDownloadFailed, 'No remote configured');
-              Exit;
-            end;
-          gpffNeedsMerge,
-          gpffDetachedHead,
-          gpffDirty,
-          gpffError:
-            begin
-              NeedsFallback := True;
-              if PullErr <> '' then
-                LGitErr := PullErr;
-            end;
+    if LGitErr <> '' then
+      Result := OperationError(ecDownloadFailed, LGitErr)
+    else
+      Result := OperationError(ecDownloadFailed, 'Git update failed');
+    Exit;
+  end;
+
+  try
+    LRepo := FGitManager.OpenRepository(SourceDir);
+    if not Assigned(LRepo) then
+    begin
+      Result := OperationError(ecDownloadFailed, 'Failed to open git repository: ' + SourceDir);
+      Exit;
+    end;
+
+    if not Supports(LRepo, IGitRepositoryExt, Ext) then
+    begin
+      Result := OperationError(ecDownloadFailed,
+        'Fast-forward-only update requires libgit2 fast-forward support for this repository.');
+      Exit;
+    end;
+
+    PullErr := '';
+    PullRes := Ext.PullFastForward('origin', PullErr);
+    case PullRes of
+      gpffUpToDate,
+      gpffFastForwarded:
+        Exit(OperationSuccess);
+      gpffNoRemote:
+        begin
+          Result := OperationError(ecDownloadFailed, 'No remote configured');
+          Exit;
         end;
-      end
-      else
-      begin
-        // Extension not available - attempt a fetch to at least refresh refs.
-        if Assigned(LRepo) and LRepo.Fetch('origin') then
-          Exit(OperationSuccess);
-      end;
-    except
-      on E: Exception do
-      begin
-        NeedsFallback := True;
-        LGitErr := 'libgit2 pull exception: ' + E.Message;
-      end;
+      gpffNeedsMerge,
+      gpffDetachedHead,
+      gpffDirty:
+        begin
+          Result := OperationError(ecDownloadFailed, FastForwardOnlyPullError(PullRes, PullErr));
+          Exit;
+        end;
+      gpffError:
+        begin
+          if PullErr <> '' then
+            LGitErr := PullErr
+          else
+            LGitErr := 'Git update failed';
+          Result := OperationError(ecDownloadFailed, LGitErr);
+          Exit;
+        end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Result := OperationError(ecDownloadFailed, 'libgit2 pull exception: ' + E.Message);
+      Exit;
     end;
   end;
 
-  if not NeedsFallback then
+  if LGitErr <> '' then
+    Result := OperationError(ecDownloadFailed, LGitErr)
+  else
   begin
     Result := OperationError(ecDownloadFailed, 'Git update failed');
-    Exit;
   end;
-
-  // Fallback: command-line git pull
-  ProcResult := FProcessRunner.Execute('git', ['pull'], SourceDir);
-
-  if not ProcResult.Success then
-  begin
-    if ProcResult.StdErr <> '' then
-      Result := OperationError(ecDownloadFailed, 'Git pull failed: ' + ProcResult.StdErr)
-    else if LGitErr <> '' then
-      Result := OperationError(ecDownloadFailed, 'Git pull failed: ' + LGitErr)
-    else
-      Result := OperationError(ecDownloadFailed, 'Git pull failed');
-    Exit;
-  end;
-
-  Result := OperationSuccess;
 end;
 
 function TFPCBuilder.CleanSources(const AVersion: string): TOperationResult;
