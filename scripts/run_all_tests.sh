@@ -115,6 +115,9 @@ build_test_with_fallback() {
   local test_file="$2"
   local test_bin_dir="$3"
   local build_log="$4"
+  local test_unit_dir=""
+
+  test_unit_dir="${test_bin_dir}/lib"
 
   if [ -f "$test_lpi" ]; then
     if lazbuild -B "$test_lpi" >>"$build_log" 2>&1; then
@@ -136,7 +139,8 @@ build_test_with_fallback() {
   fi
 
   echo "[run_all_tests] lazbuild failed, trying direct fpc fallback" >>"$build_log"
-  if fpc -Fusrc -Fisrc -FE"$test_bin_dir" -FUlib "$test_file" >>"$build_log" 2>&1; then
+  mkdir -p "$test_unit_dir"
+  if fpc -Fusrc -Fisrc -FE"$test_bin_dir" -FU"$test_unit_dir" "$test_file" >>"$build_log" 2>&1; then
     return 0
   fi
 

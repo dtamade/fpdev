@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/badge/release-v2.1.0--beta-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-256%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-257%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
@@ -34,7 +34,7 @@
 
 ```
 [OK] Phase 7 in progress (Phase 6 complete)
-[OK] Discoverable test programs: 256 (same inventory rules as CI)
+[OK] Discoverable test programs: 257 (same inventory rules as CI)
 [OK] Documentation: Complete user and developer documentation (20 English translations)
 [OK] Cross-platform: Windows, Linux, macOS
 [OK] Code quality: Production-ready (0 src warnings/hints, 0 errors)
@@ -178,7 +178,7 @@ FPDev 采用 **TDD（测试驱动开发）** 方法论，所有功能都有完�
 ✅ Phase 4.3: FPC 包构建 (14/14 测试通过)
 
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-总计: 256 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
+总计: 257 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
 <!-- TEST-INVENTORY-SUMMARY:END -->
 ```
 

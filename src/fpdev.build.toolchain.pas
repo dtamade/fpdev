@@ -24,6 +24,8 @@ const
   DEFAULT_CACHE_TTL_SECONDS = 30;  // Cache results for 30 seconds
 
 type
+  TBuildToolHasToolFunc = function(const AExe: string; const AArgs: array of string): Boolean of object;
+
   { TToolCacheEntry - Cached tool check result }
   TToolCacheEntry = record
     Key: string;              // Tool name + args hash
@@ -90,6 +92,16 @@ type
     property CacheMisses: Integer read FCacheMisses;
   end;
 
+function BuildToolchainResolveMakeCommandCore(
+  const AIsWindows: Boolean;
+  AHasTool: TBuildToolHasToolFunc
+): string;
+
+function BuildToolchainMakeAvailableCore(
+  const AIsWindows: Boolean;
+  AHasTool: TBuildToolHasToolFunc
+): Boolean;
+ 
 implementation
 
 uses
@@ -106,6 +118,51 @@ begin
   FCacheMisses := 0;
   SetLength(FCache, 0);
   Initialize(FLastInfo);
+end;
+
+function BuildToolchainResolveMakeCommandCore(
+  const AIsWindows: Boolean;
+  AHasTool: TBuildToolHasToolFunc
+): string;
+begin
+  if Assigned(AHasTool) then
+  begin
+    if AIsWindows then
+    begin
+      if AHasTool('mingw32-make', ['--version']) then
+        Exit('mingw32-make');
+      if AHasTool('make', ['--version']) then
+        Exit('make');
+      if AHasTool('gmake', ['--version']) then
+        Exit('gmake');
+    end
+    else
+    begin
+      if AHasTool('gmake', ['--version']) then
+        Exit('gmake');
+      if AHasTool('make', ['--version']) then
+        Exit('make');
+    end;
+  end;
+
+  Result := 'make';
+end;
+
+function BuildToolchainMakeAvailableCore(
+  const AIsWindows: Boolean;
+  AHasTool: TBuildToolHasToolFunc
+): Boolean;
+begin
+  if not Assigned(AHasTool) then
+    Exit(False);
+
+  if AIsWindows then
+    Result := AHasTool('mingw32-make', ['--version']) or
+              AHasTool('make', ['--version']) or
+              AHasTool('gmake', ['--version'])
+  else
+    Result := AHasTool('gmake', ['--version']) or
+              AHasTool('make', ['--version']);
 end;
 
 function TBuildToolchainChecker.MakeCacheKey(const AExe: string; const AArgs: array of string): string;
@@ -269,15 +326,7 @@ end;
 
 function TBuildToolchainChecker.ResolveMakeCmd: string;
 begin
-  // Try gmake first (BSD/macOS)
-  if HasTool('gmake', ['--version']) then
-    Result := 'gmake'
-  // Try make
-  else if HasTool('make', ['--version']) then
-    Result := 'make'
-  // Fallback
-  else
-    Result := 'make';
+  Result := BuildToolchainResolveMakeCommandCore({$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}, @HasTool);
 
   FLastInfo.MakeCommand := Result;
   FLastInfo.HasMake := (Result <> '') and HasTool(Result, ['--version']);
@@ -353,7 +402,7 @@ end;
 
 function TBuildToolchainChecker.IsMakeAvailable: Boolean;
 begin
-  Result := HasTool('make', ['--version']) or HasTool('gmake', ['--version']);
+  Result := BuildToolchainMakeAvailableCore({$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}, @HasTool);
 end;
 
 function TBuildToolchainChecker.IsFPCAvailable: Boolean;
