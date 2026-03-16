@@ -264,7 +264,7 @@ Following the TODO-FPC-v1.md philosophy:
 
 - [x] **Implement `fpdev fpc update`** (TDD) ✅ COMPLETE
   - ✅ Write tests for source updates
-  - ✅ Implement git pull + rebuild orchestration
+  - ✅ Implement source update + rebuild orchestration
   - ✅ Handle version conflicts gracefully
   - **Tests**: 3/3 passing (test_fpc_update.lpr)
   - **Commit**: 1ea771d (test), 9844cf3 (feat)
@@ -637,7 +637,7 @@ end;
    - ✅ Clean up build artifacts and temporary files
 2. [x] ~~**Implement `fpdev fpc update` (TDD)**~~ ✅ COMPLETE
    - ✅ Write tests for FPC source updates
-   - ✅ Implement git pull + rebuild orchestration
+   - ✅ Implement source update + rebuild orchestration
 3. [x] ~~**Update documentation**~~ ✅ COMPLETE
    - ✅ Updated README with newly implemented features
    - ✅ Added detailed usage examples for fpdev fpc clean/update

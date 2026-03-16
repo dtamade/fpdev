@@ -125,7 +125,7 @@ begin
 
   // WriteLn('Updating repository: ', ARepoDir);  // debug code commented out
 
-  // Run git pull
+  // Run the repository update helper
   Result := FGitOps.Pull(ARepoDir);
 
   if Result then

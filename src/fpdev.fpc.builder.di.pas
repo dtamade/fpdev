@@ -83,7 +83,7 @@ type
       Returns: TOperationResult with success/error status }
     function BuildFromSource(const ASourceDir, AInstallDir: string): TOperationResult;
 
-    { Updates FPC sources from repository using git pull.
+    { Updates FPC sources from repository using a fast-forward-only git update.
       AVersion: FPC version to update
       Returns: TOperationResult with success/error status }
     function UpdateSources(const AVersion: string): TOperationResult;
