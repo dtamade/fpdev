@@ -72,6 +72,11 @@ Phase 1
 - [ ] 保持历史归档文档不动
 - **Status:** complete
 
+#### Phase 6: Test Naming Cleanup
+- [ ] 清理活跃测试中与当前行为不符的 update 文案
+- [ ] 跑最小验证确认仅为措辞调整
+- **Status:** complete
+
 ## Key Questions
 1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？
 2. `tests/test_fpc_builder.lpr` 对 clone/pull 的 mock 断言有多细，哪些需要顺着实现调整？

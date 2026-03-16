@@ -896,6 +896,16 @@
   - `src/fpdev.git.pas` (modified)
   - `docs/ROADMAP.md` (modified)
 
+### Phase 1C: Lazarus Test Wording Cleanup
+- **Status:** complete
+- Actions taken:
+  - 调整 `tests/test_lazarus_update.lpr` 的测试名、输出文案和断言消息，使其与当前真实场景一致。
+  - 保留行为不变，只修正措辞：`refreshes source repository`、`rejects invalid repository`。
+  - 运行 `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_lazarus_update.lpr && ./bin/test_lazarus_update`，结果 `5 passed, 0 failed`。
+  - 复扫活跃文件，确认仅剩一个真实命令字面量 `git pull`，无需处理。
+- Files created/modified:
+  - `tests/test_lazarus_update.lpr` (modified)
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)

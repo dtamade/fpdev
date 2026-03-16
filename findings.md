@@ -660,6 +660,12 @@
   - `docs/ROADMAP.md`：活跃 roadmap 中两处 `Implement git pull + rebuild orchestration` 改成 `Implement source update + rebuild orchestration`。
 - 没有修改归档文档；这些历史记录保留原始措辞。
 
+### Active Test Wording Cleanup
+- `tests/test_lazarus_update.lpr`
+  - 将 `pulls latest source code` / `executes git pull` 这类描述改成更准确的 `refreshes source repository`。
+  - 将 `handles git conflicts` 改成 `rejects invalid repository`，因为这个测试实际构造的是非 git 目录，不是 merge conflict。
+- 复扫后，活跃文件里仅剩 `tests/fpdev.git2.adapter/test_git_simple.lpr` 的真实命令字面量 `git pull`，这是测试命令本身，不属于过时表述。
+
 ## Resources
 - `task_plan.md`
 - `findings.md`
