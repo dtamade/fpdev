@@ -38,6 +38,7 @@ uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.utils.git, fpdev.resource.repo, fpdev.constants,
+  fpdev.build.toolchain,
   fpdev.fpc.types, fpdev.config, fpdev.exitcodes, fpdev.paths;
 
 type
@@ -485,6 +486,7 @@ var
   BootstrapFPC: string;
   CurrentFPC: string;
   Params: array of string;
+  ToolchainChecker: TBuildToolchainChecker;
 begin
   Result := False;
 
@@ -534,7 +536,12 @@ begin
       end;
     end;
 
-    MakeCmd := 'make';
+    ToolchainChecker := TBuildToolchainChecker.Create(False);
+    try
+      MakeCmd := ToolchainChecker.ResolveMakeCmd;
+    finally
+      ToolchainChecker.Free;
+    end;
 
     // Build parameters - include OVERRIDEVERSIONCHECK=1 to allow newer bootstrap compilers
     Params := nil;

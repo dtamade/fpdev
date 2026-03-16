@@ -33,6 +33,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.output.intf, fpdev.output.console, fpdev.config.interfaces,
+  fpdev.build.toolchain,
   fpdev.lazarus.source, fpdev.lazarus.config, fpdev.utils, fpdev.utils.fs,
   fpdev.utils.process, fpdev.utils.git,
   fpdev.i18n, fpdev.i18n.strings;
@@ -266,9 +267,8 @@ var
   LResult: TProcessResult;
   MakeCmd: string;
   Settings: TFPDevSettings;
-  FPCPath: string;
-  Params: array of string;
-  EnvVars: array of string;
+  ToolchainChecker: TBuildToolchainChecker;
+  BuildPlan: TLazarusBuildPlan;
   LOut: IOutput;
 begin
   LOut := TConsoleOutput.Create(True) as IOutput;
@@ -287,31 +287,31 @@ begin
 
     Settings := FConfigManager.GetSettingsManager.GetSettings;
 
-    // Set FPC path
-    FPCPath := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + AFPCVersion + PathDelim + 'bin';
+    ToolchainChecker := TBuildToolchainChecker.Create(False);
+    try
+      MakeCmd := ToolchainChecker.ResolveMakeCmd;
+    finally
+      ToolchainChecker.Free;
+    end;
 
-    {$IFDEF MSWINDOWS}
-    MakeCmd := 'make';
-    {$ELSE}
-    MakeCmd := 'make';
-    {$ENDIF}
-
-    // Build parameters array
-    Params := nil;
-    SetLength(Params, 5);
-    Params[0] := 'all';
-    Params[1] := 'install';
-    Params[2] := 'INSTALL_PREFIX=' + AInstallDir;
-    Params[3] := 'FPC=' + FPCPath + PathDelim + 'fpc';
-    Params[4] := '-j' + IntToStr(Settings.ParallelJobs);
-
-    // Set environment variables
-    EnvVars := nil;
-    SetLength(EnvVars, 1);
-    EnvVars[0] := 'PATH=' + FPCPath + PathSeparator + GetEnvironmentVariable('PATH');
+    BuildPlan := CreateLazarusBuildPlanCore(
+      ASourceDir,
+      AInstallDir,
+      Settings.InstallRoot,
+      AFPCVersion,
+      Settings.ParallelJobs,
+      MakeCmd,
+      GetEnvironmentVariable('PATH'),
+      {$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}
+    );
 
     // Execute make with custom environment using unified process executor
-    LResult := TProcessExecutor.RunDirectWithEnv(MakeCmd, Params, ASourceDir, EnvVars);
+    LResult := TProcessExecutor.RunDirectWithEnv(
+      BuildPlan.MakeCommand,
+      BuildPlan.Params,
+      BuildPlan.SourceDir,
+      BuildPlan.EnvVars
+    );
 
     Result := LResult.Success;
 

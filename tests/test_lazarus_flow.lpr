@@ -310,6 +310,68 @@ begin
   Check('config dir suffix includes version', Pos('3.3', ConfigDir) > 0, 'config=' + ConfigDir);
 end;
 
+procedure TestCreateLazarusBuildPlanCoreWindowsUsesMingwAndExe;
+var
+  Plan: TLazarusBuildPlan;
+  ExpectedBinDir: string;
+begin
+  Plan := CreateLazarusBuildPlanCore(
+    '/tmp/lazarus-src',
+    '/tmp/lazarus-install',
+    '/tmp/settings-root',
+    '3.2.2',
+    8,
+    'mingw32-make',
+    'C:\\Windows\\System32',
+    True
+  );
+
+  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+
+  Check('build plan keeps source dir', Plan.SourceDir = '/tmp/lazarus-src', 'source=' + Plan.SourceDir);
+  Check('build plan keeps install dir', Plan.InstallDir = '/tmp/lazarus-install', 'install=' + Plan.InstallDir);
+  Check('windows build plan uses mingw32-make', Plan.MakeCommand = 'mingw32-make', 'make=' + Plan.MakeCommand);
+  Check('windows build plan appends .exe to fpc executable',
+    Plan.FPCExecutable = ExpectedBinDir + PathDelim + 'fpc.exe',
+    'fpc=' + Plan.FPCExecutable);
+  Check('windows build plan passes FPC executable in params',
+    Pos('FPC=' + ExpectedBinDir + PathDelim + 'fpc.exe', Plan.Params[3]) = 1,
+    'param=' + Plan.Params[3]);
+  Check('windows build plan prepends fpc bin to PATH',
+    Plan.EnvVars[0] = 'PATH=' + ExpectedBinDir + PathSeparator + 'C:\\Windows\\System32',
+    'env=' + Plan.EnvVars[0]);
+end;
+
+procedure TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPC;
+var
+  Plan: TLazarusBuildPlan;
+  ExpectedBinDir: string;
+begin
+  Plan := CreateLazarusBuildPlanCore(
+    '/tmp/lazarus-src',
+    '/tmp/lazarus-install',
+    '/tmp/settings-root',
+    '3.2.2',
+    4,
+    'gmake',
+    '/usr/bin',
+    False
+  );
+
+  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+
+  Check('unix build plan uses provided make command', Plan.MakeCommand = 'gmake', 'make=' + Plan.MakeCommand);
+  Check('unix build plan keeps plain fpc executable',
+    Plan.FPCExecutable = ExpectedBinDir + PathDelim + 'fpc',
+    'fpc=' + Plan.FPCExecutable);
+  Check('unix build plan encodes parallel jobs',
+    Plan.Params[4] = '-j4',
+    'jobs=' + Plan.Params[4]);
+  Check('unix build plan prepends PATH',
+    Plan.EnvVars[0] = 'PATH=' + ExpectedBinDir + PathSeparator + '/usr/bin',
+    'env=' + Plan.EnvVars[0]);
+end;
+
 procedure TestApplyLazarusConfigurePlanCoreWritesExpectedPaths;
 var
   TempDir: string;
@@ -383,6 +445,8 @@ begin
   TestExecuteLazarusInstallPlanCoreReportsDownloadFailure;
   TestExecuteLazarusInstallPlanCoreTreatsConfigureFailureAsWarning;
   TestResolveLazarusConfigDirCoreUsesExplicitRoot;
+  TestCreateLazarusBuildPlanCoreWindowsUsesMingwAndExe;
+  TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPC;
   TestApplyLazarusConfigurePlanCoreWritesExpectedPaths;
 
   WriteLn;

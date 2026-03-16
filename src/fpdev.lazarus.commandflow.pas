@@ -10,6 +10,9 @@ uses
   fpdev.lazarus.config;
 
 type
+  TLazarusBuildArgs = array of string;
+  TLazarusBuildEnvVars = array of string;
+
   TLazarusInstallPlan = record
     Version: string;
     InstallPath: string;
@@ -34,6 +37,17 @@ type
   TLazarusSourcePlan = record
     Version: string;
     SourceDir: string;
+  end;
+
+  TLazarusBuildPlan = record
+    SourceDir: string;
+    InstallDir: string;
+    FPCVersion: string;
+    FPCBinDir: string;
+    FPCExecutable: string;
+    MakeCommand: string;
+    Params: TLazarusBuildArgs;
+    EnvVars: TLazarusBuildEnvVars;
   end;
 
   TLazarusLaunchPlan = record
@@ -82,6 +96,13 @@ function ApplyLazarusConfigurePlanCore(
 function CreateLazarusSourcePlanCore(
   const AInstallRoot, ARequestedVersion, ACurrentVersion: string
 ): TLazarusSourcePlan;
+
+function CreateLazarusBuildPlanCore(
+  const ASourceDir, AInstallDir, ASettingsInstallRoot, AFPCVersion: string;
+  const AParallelJobs: Integer;
+  const AMakeCommand, ACurrentPath: string;
+  const AIsWindows: Boolean
+): TLazarusBuildPlan;
 
 function ExecuteLazarusUpdatePlanCore(
   const APlan: TLazarusSourcePlan;
@@ -317,6 +338,38 @@ begin
   Result.Version := UseVersion;
   if UseVersion <> '' then
     Result.SourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
+end;
+
+function CreateLazarusBuildPlanCore(
+  const ASourceDir, AInstallDir, ASettingsInstallRoot, AFPCVersion: string;
+  const AParallelJobs: Integer;
+  const AMakeCommand, ACurrentPath: string;
+  const AIsWindows: Boolean
+): TLazarusBuildPlan;
+begin
+  Result := Default(TLazarusBuildPlan);
+  Result.SourceDir := ASourceDir;
+  Result.InstallDir := AInstallDir;
+  Result.FPCVersion := AFPCVersion;
+  Result.FPCBinDir := ASettingsInstallRoot + PathDelim + 'fpc' + PathDelim + AFPCVersion + PathDelim + 'bin';
+  Result.FPCExecutable := Result.FPCBinDir + PathDelim + 'fpc';
+  if AIsWindows then
+    Result.FPCExecutable := Result.FPCExecutable + '.exe';
+
+  if Trim(AMakeCommand) <> '' then
+    Result.MakeCommand := AMakeCommand
+  else
+    Result.MakeCommand := 'make';
+
+  SetLength(Result.Params, 5);
+  Result.Params[0] := 'all';
+  Result.Params[1] := 'install';
+  Result.Params[2] := 'INSTALL_PREFIX=' + AInstallDir;
+  Result.Params[3] := 'FPC=' + Result.FPCExecutable;
+  Result.Params[4] := '-j' + IntToStr(AParallelJobs);
+
+  SetLength(Result.EnvVars, 1);
+  Result.EnvVars[0] := 'PATH=' + Result.FPCBinDir + PathSeparator + ACurrentPath;
 end;
 
 function ExecuteLazarusUpdatePlanCore(
