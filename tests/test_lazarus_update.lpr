@@ -105,9 +105,9 @@ begin
 end;
 
 // ============================================================================
-// Test 1: UpdateSources pulls latest source code
+// Test 1: UpdateSources refreshes the source repository
 // ============================================================================
-procedure TestUpdatePullsLatestSource;
+procedure TestUpdateRefreshesSourceRepository;
 var
   SourceDir: string;
   GitManager: TGitManager;
@@ -115,7 +115,7 @@ var
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test 1: UpdateSources Pulls Latest Source Code');
+  WriteLn('Test 1: UpdateSources Refreshes Source Repository');
   WriteLn('==================================================');
 
   try
@@ -147,9 +147,9 @@ begin
     // Execute: Call UpdateSources
     Success := LazarusManager.UpdateSources('3.0');
 
-    // Assert: UpdateSources should execute git pull and return true
-    AssertTrue(Success, 'UpdateSources executes git pull',
-      'UpdateSources should pull latest source code from git repository');
+    // Assert: UpdateSources should update the repository and return true
+    AssertTrue(Success, 'UpdateSources refreshes repository state',
+      'UpdateSources should update the source repository when git metadata is available');
 
   except
     on E: Exception do
@@ -158,24 +158,24 @@ begin
 end;
 
 // ============================================================================
-// Test 2: UpdateSources handles git conflicts gracefully
+// Test 2: UpdateSources rejects invalid repositories
 // ============================================================================
-procedure TestUpdateHandlesConflicts;
+procedure TestUpdateRejectsInvalidRepository;
 var
   SourceDir: string;
   Success: Boolean;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test 2: UpdateSources Handles Git Conflicts');
+  WriteLn('Test 2: UpdateSources Rejects Invalid Repository');
   WriteLn('==================================================');
 
   try
-    // Setup: Create a source directory without .git (simulating conflict scenario)
+    // Setup: Create a source directory without .git (invalid repository scenario)
     SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-conflict';
     ForceDirectories(SourceDir);
 
-    // Create some modified files that would conflict
+    // Create some local files, but keep the directory non-repository
     with TStringList.Create do
     try
       Add('// Modified local file');
@@ -188,12 +188,12 @@ begin
     Success := LazarusManager.UpdateSources('conflict');
 
     // Assert: UpdateSources should detect the issue and return false
-    AssertFalse(Success, 'UpdateSources detects conflict',
-      'UpdateSources should return false when git repository is invalid');
+    AssertFalse(Success, 'UpdateSources rejects invalid repository',
+      'UpdateSources should return false when the source directory is not a git repository');
 
   except
     on E: Exception do
-      AssertTrue(False, 'UpdateSources handles conflicts', 'Exception: ' + E.Message);
+      AssertTrue(False, 'UpdateSources rejects invalid repository', 'Exception: ' + E.Message);
   end;
 end;
 
@@ -264,9 +264,9 @@ begin
     try
       // Run all tests
       TestConfigManagerUsesIsolatedDefaultConfigPath;
-      TestUpdatePullsLatestSource;
-      TestUpdateHandlesConflicts;
-      TestUpdateTriggersRebuildNotification;
+  TestUpdateRefreshesSourceRepository;
+  TestUpdateRejectsInvalidRepository;
+  TestUpdateTriggersRebuildNotification;
 
       // Exit with error if any tests failed
       if TestsFailed > 0 then
