@@ -666,6 +666,58 @@
   - 将 `handles git conflicts` 改成 `rejects invalid repository`，因为这个测试实际构造的是非 git 目录，不是 merge conflict。
 - 复扫后，活跃文件里仅剩 `tests/fpdev.git2.adapter/test_git_simple.lpr` 的真实命令字面量 `git pull`，这是测试命令本身，不属于过时表述。
 
+## 2026-03-16 FPC/Lazarus Cross-Platform Build Hardening
+
+### Research Findings
+- 本机工具链基线：
+  - `scripts/check_toolchain.sh` required tools 全部可用：`make`、`fpc 3.3.1`、`lazbuild 4.99`、`git`、`openssl`。
+  - optional tools 缺失：`mingw32-make`、`ppc386`、`ppcarm`，所以本机会话无法直接证明 Windows/32-bit/ARM 的真实执行成功。
+- FPC 主风险：
+  - `TFPCSourceBuilder.BuildFromSource` 仍直接写死 `make`，没有复用更强的 make-family 选择逻辑。
+  - Bootstrap compiler 选择仍偏 host-specific，未在本批解决。
+- Lazarus 主风险：
+  - `TLazarusManager.BuildFromSource` 当前 Windows 分支仍脆弱：`make`/`fpc(.exe)` 选择逻辑没有纯 helper 测试锁定。
+  - `ExecuteLazarusUpdatePlanCore` 当前仍有 “pull 失败但返回成功” 的 contract，属于后续单独批次。
+- 已复现的真实不稳定点：
+  - 当 `lazbuild -B fpdev.lpi` 与 direct `fpc ... -FUlib ...` 并行运行时，会 nondeterministic 地在共享 `lib/` 目录上打架，导致链接阶段出现随机 reloc/TLS 风格错误。
+  - 串行重跑同一测试会恢复正常，说明问题在共享产物目录并发写入，而不是 `test_lazarus_update`/`test_fpc_builder` 自身源码错误。
+
+### Implementation Result
+- `src/fpdev.build.toolchain.pas`
+  - 新增纯 helper：
+    - `BuildToolchainResolveMakeCommandCore`
+    - `BuildToolchainMakeAvailableCore`
+  - `ResolveMakeCmd` / `IsMakeAvailable` 现在统一通过 helper 建模 Windows vs Unix 的 make-family 选择。
+- `tests/test_build_toolchain_makecmd.lpr`
+  - 新增 focused Pascal 回归，锁定：
+    - Windows 优先 `mingw32-make`
+    - Unix 优先 `gmake`
+    - `IsMakeAvailable` 与同一选择语义一致
+- `scripts/run_all_tests.sh`
+  - `build_test_with_fallback` 的 direct `fpc` fallback 不再把 unit 输出写进共享 `lib/`，改成每个测试 `bin/lib` 下的隔离目录。
+- `tests/test_run_all_tests.py`
+  - 新增 Python 回归，锁定 fallback `-FU` 不再是共享 `lib`，而是 `per-test bin/lib`。
+- `docs/plans/2026-03-16-fpc-lazarus-cross-platform-build-hardening.md`
+  - 新增这批工作的计划文档。
+- `README.md` / `README.en.md` / `docs/testing.md`
+  - discoverable test count 已同步到 `257`。
+
+### Verification
+- `python3 -m unittest discover -s tests -p 'test_run_all_tests.py'`
+  - 通过：`5 tests OK`
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_build_toolchain_makecmd.lpr && ./bin/test_build_toolchain_makecmd`
+  - 通过：`6 passed, 0 failed`
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_toolchain.lpr && ./bin/test_toolchain`
+  - 通过：`7 passed`
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_lazarus_update.lpr && ./bin/test_lazarus_update`
+  - 串行通过：`5 passed, 0 failed`
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder`
+  - 串行通过：`59 passed, 0 failed`
+- `lazbuild -B fpdev.lpi`
+  - 通过
+- `bash scripts/run_all_tests.sh`
+  - 通过：`257 passed, 0 failed, 0 skipped`
+
 ## Resources
 - `task_plan.md`
 - `findings.md`

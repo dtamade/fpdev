@@ -906,6 +906,56 @@
 - Files created/modified:
   - `tests/test_lazarus_update.lpr` (modified)
 
+# 2026-03-16 FPC/Lazarus Cross-Platform Build Hardening
+
+## Session: 2026-03-16
+
+### Phase 1: Discovery
+- **Status:** complete
+- **Started:** 2026-03-16 11:52:58 CST
+- Actions taken:
+  - 读取 `systematic-debugging`、`test-driven-development`、`writing-plans`、`planning-with-files`。
+  - 审查 FPC / Lazarus 主构建链路、platform branches 和现有测试覆盖。
+  - 运行 `scripts/check_toolchain.sh` 记录当前主机 required/optional toolchain 状态。
+  - 复现一个真实不稳定点：并行 `lazbuild -B fpdev.lpi` 与 direct `fpc ... -FUlib ...` 会 nondeterministic 地打坏共享 `lib/` 产物。
+  - 串行重跑 `test_lazarus_update` / `test_fpc_builder`，确认失败不是源码本身，而是共享输出目录并发写入。
+- Files created/modified:
+  - `docs/plans/2026-03-16-fpc-lazarus-cross-platform-build-hardening.md` (created)
+
+### Phase 2: RED
+- **Status:** complete
+- Actions taken:
+  - 新增 `tests/test_build_toolchain_makecmd.lpr`，锁定 Windows/Unix make-family 选择语义。
+  - 新增 `tests/test_run_all_tests.py` 回归，锁定 `run_all_tests.sh` 的 direct `fpc` fallback 不再写共享 `lib/`。
+- Files created/modified:
+  - `tests/test_build_toolchain_makecmd.lpr` (created)
+  - `tests/test_run_all_tests.py` (modified)
+
+### Phase 3: GREEN
+- **Status:** complete
+- Actions taken:
+  - 在 `src/fpdev.build.toolchain.pas` 中增加纯 helper，并把 `ResolveMakeCmd` / `IsMakeAvailable` 统一收口。
+  - 在 `scripts/run_all_tests.sh` 中把 direct `fpc` fallback 的 `-FU` 改到每测试隔离的 `bin/lib`。
+- Files created/modified:
+  - `src/fpdev.build.toolchain.pas` (modified)
+  - `scripts/run_all_tests.sh` (modified)
+
+### Phase 4: Verification
+- **Status:** complete
+- Actions taken:
+  - `python3 -m unittest discover -s tests -p 'test_run_all_tests.py'`
+  - `test_build_toolchain_makecmd`
+  - `test_toolchain`
+  - 串行 `test_lazarus_update`
+  - 串行 `test_fpc_builder`
+  - `lazbuild -B fpdev.lpi`
+  - `bash scripts/run_all_tests.sh`
+  - `python3 scripts/update_test_stats.py --write && --check`
+- Files created/modified:
+  - `README.md` (modified)
+  - `README.en.md` (modified)
+  - `docs/testing.md` (modified)
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)

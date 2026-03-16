@@ -77,6 +77,42 @@ Phase 1
 - [ ] 跑最小验证确认仅为措辞调整
 - **Status:** complete
 
+## 2026-03-16 FPC/Lazarus Cross-Platform Build Hardening
+
+### Goal
+优先修复当前已复现/已证据化的构建稳定性问题，并为 FPC/Lazarus 源码构建的跨平台 make-family 选择建立可测试 contract。
+
+### Current Phase
+Phase 4
+
+### Phases
+
+#### Phase 1: Discovery
+- [ ] 盘点 FPC/Lazarus 主构建入口、平台分支和现有测试覆盖
+- [ ] 复现当前本地构建基线与真实不稳定点
+- [ ] 记录可在本机直接证明的问题与无法直接证明的平台风险
+- **Status:** complete
+
+#### Phase 2: RED
+- [ ] 建立 make-family 选择的 focused test
+- [ ] 建立 `run_all_tests` FPC fallback 隔离 unit output 的回归测试
+- **Status:** complete
+
+#### Phase 3: GREEN
+- [ ] 在 `fpdev.build.toolchain` 中抽出纯 helper，统一 Windows/Unix make-family 选择
+- [ ] 让 `run_all_tests.sh` 的 direct `fpc` fallback 不再写共享 `lib/`
+- **Status:** complete
+
+#### Phase 4: Verification
+- [ ] 跑 focused Python / Pascal tests
+- [ ] 跑 `lazbuild -B fpdev.lpi`
+- [ ] 跑 `scripts/run_all_tests.sh`
+- **Status:** complete
+
+#### Phase 5: Residual Risks
+- [ ] 记录这批没有解决的高风险项：FPC/Lazarus 主源码构建仍未完全收敛到统一平台 helper，Windows/macOS 真实执行仍待后续批次
+- **Status:** in_progress
+
 ## Key Questions
 1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？
 2. `tests/test_fpc_builder.lpr` 对 clone/pull 的 mock 断言有多细，哪些需要顺着实现调整？
