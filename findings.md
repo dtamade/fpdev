@@ -718,6 +718,36 @@
 - `bash scripts/run_all_tests.sh`
   - 通过：`257 passed, 0 failed, 0 skipped`
 
+### Follow-up Wiring Result
+- `src/fpdev.lazarus.commandflow.pas`
+  - 新增 `TLazarusBuildPlan`、`CreateLazarusBuildPlanCore`。
+  - 现在可在非 Windows 主机上直接锁定 Windows/Unix 的 `make` 命令选择、`fpc(.exe)` 路径和 PATH 组装语义。
+- `tests/test_lazarus_flow.lpr`
+  - 新增 build-plan focused cases：
+    - Windows 计划优先 `mingw32-make`
+    - Windows `FPC=` 参数使用 `.exe`
+    - Unix 计划保留 plain `fpc`
+    - PATH 以前缀方式注入 FPC bin
+- `src/fpdev.cmd.lazarus.pas`
+  - `TLazarusManager.BuildFromSource` 改为：
+    - 用 `TBuildToolchainChecker.ResolveMakeCmd` 选 make-family
+    - 用 `CreateLazarusBuildPlanCore` 统一拼装命令与环境
+- `src/fpdev.fpc.builder.pas`
+  - `TFPCSourceBuilder.BuildFromSource` 不再写死 `make`，改为通过 `TBuildToolchainChecker.ResolveMakeCmd` 选 make-family。
+
+### Additional Verification
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_lazarus_flow.lpr && ./bin/test_lazarus_flow`
+  - 通过：`31 passed, 0 failed`
+- `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder`
+  - 通过：`59 passed, 0 failed`
+- `lazbuild -B fpdev.lpi`
+  - 通过（串行运行）
+
+### Residual Risks
+- `TLazarusManager.UpdateSources` / `ExecuteLazarusUpdatePlanCore` 仍保留“pull 失败可返回成功”的旧 contract，尚未处理。
+- `TFPCSourceBuilder` 的 bootstrap compiler 二进制命名仍然偏 host-specific，Apple Silicon / ARM 路径还缺 focused tests。
+- 本批仍然没有真实 Windows/macOS 执行，只是把平台分支变成了可在 Linux 上测试的 pure helper / parameter contract。
+
 ## Resources
 - `task_plan.md`
 - `findings.md`

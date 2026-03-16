@@ -956,6 +956,29 @@
   - `README.en.md` (modified)
   - `docs/testing.md` (modified)
 
+### Phase 6: Lazarus/FPC Source Build Wiring
+- **Status:** complete
+- Actions taken:
+  - 在 `tests/test_lazarus_flow.lpr` 先新增 `TLazarusBuildPlan` / `CreateLazarusBuildPlanCore` 的 RED cases，确认缺失符号导致编译失败。
+  - 在 `src/fpdev.lazarus.commandflow.pas` 新增纯 build-plan helper。
+  - 在 `src/fpdev.cmd.lazarus.pas` 中将 `BuildFromSource` 改为使用 `TBuildToolchainChecker.ResolveMakeCmd` + `CreateLazarusBuildPlanCore`。
+  - 在 `src/fpdev.fpc.builder.pas` 中将 `BuildFromSource` 的 `make` 选择收口到 `TBuildToolchainChecker.ResolveMakeCmd`。
+  - 串行验证，避免再次触发共享 `lib/` 并发竞态。
+- Files created/modified:
+  - `src/fpdev.lazarus.commandflow.pas` (modified)
+  - `src/fpdev.cmd.lazarus.pas` (modified)
+  - `src/fpdev.fpc.builder.pas` (modified)
+  - `tests/test_lazarus_flow.lpr` (modified)
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED compile | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_lazarus_flow.lpr` | fail on missing Lazarus build-plan symbols | `Identifier not found "TLazarusBuildPlan"` and `CreateLazarusBuildPlanCore` | ✓ |
+| Focused green | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_lazarus_flow.lpr && ./bin/test_lazarus_flow` | pass | `31 passed, 0 failed` | ✓ |
+| Focused green | `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_fpc_builder.lpr && ./bin/test_fpc_builder` | pass | `59 passed, 0 failed` | ✓ |
+| Serial build | `lazbuild -B fpdev.lpi` | pass | build succeeded | ✓ |
+| Full regression | `bash scripts/run_all_tests.sh` | pass | `257 passed, 0 failed, 0 skipped` | ✓ |
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)

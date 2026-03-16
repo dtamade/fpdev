@@ -113,6 +113,13 @@ Phase 4
 - [ ] 记录这批没有解决的高风险项：FPC/Lazarus 主源码构建仍未完全收敛到统一平台 helper，Windows/macOS 真实执行仍待后续批次
 - **Status:** in_progress
 
+#### Phase 6: Lazarus/FPC Source Build Wiring
+- [ ] 为 Lazarus 源码构建增加纯 build-plan helper，并锁定 Windows/Unix 参数差异
+- [ ] 让 `TLazarusManager.BuildFromSource` 使用共享 make-family 选择
+- [ ] 让 `TFPCSourceBuilder.BuildFromSource` 使用共享 make-family 选择
+- [ ] 跑 focused + broader verification
+- **Status:** complete
+
 ## Key Questions
 1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？
 2. `tests/test_fpc_builder.lpr` 对 clone/pull 的 mock 断言有多细，哪些需要顺着实现调整？
