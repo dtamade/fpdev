@@ -67,6 +67,11 @@ Phase 1
 - [ ] 跑相关回归
 - **Status:** complete
 
+#### Phase 5: Wording Cleanup
+- [ ] 清理活跃文件中仍残留的过时 `git pull` 表述
+- [ ] 保持历史归档文档不动
+- **Status:** complete
+
 ## Key Questions
 1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？
 2. `tests/test_fpc_builder.lpr` 对 clone/pull 的 mock 断言有多细，哪些需要顺着实现调整？

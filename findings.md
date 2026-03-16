@@ -653,6 +653,13 @@
   - 把 FAQ 中“就是 `git pull`”改成更准确的“通过 FPDev 的 Git runtime 更新”。
   - 补充 local-only 仓库无 remote 时会报告 local-only 并成功退出。
 
+### Follow-up Cleanup
+- 继续收掉了 3 个仍在活跃文件中的过时表述：
+  - `src/fpdev.fpc.builder.di.pas`：`UpdateSources` 注释不再写成 `using git pull`，改成 fast-forward-only update。
+  - `src/fpdev.git.pas`：`UpdateRepository` 的注释不再直接写 `Run git pull`，改成更抽象的 repository update helper。
+  - `docs/ROADMAP.md`：活跃 roadmap 中两处 `Implement git pull + rebuild orchestration` 改成 `Implement source update + rebuild orchestration`。
+- 没有修改归档文档；这些历史记录保留原始措辞。
+
 ## Resources
 - `task_plan.md`
 - `findings.md`

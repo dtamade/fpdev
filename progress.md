@@ -885,6 +885,17 @@
   - `docs/FAQ.md` (modified)
   - `docs/FAQ.en.md` (modified)
 
+### Phase 1B: Active Wording Cleanup
+- **Status:** complete
+- Actions taken:
+  - 继续扫描活跃文件中的 `git pull`/旧语义表述。
+  - 更新 `src/fpdev.fpc.builder.di.pas`、`src/fpdev.git.pas`、`docs/ROADMAP.md` 的注释/文案，使其不再误导为固定的 `git pull` 实现细节。
+  - 文本级验证确认这 3 处旧表述已消失。
+- Files created/modified:
+  - `src/fpdev.fpc.builder.di.pas` (modified)
+  - `src/fpdev.git.pas` (modified)
+  - `docs/ROADMAP.md` (modified)
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)
