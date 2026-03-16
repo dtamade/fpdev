@@ -852,6 +852,39 @@
 | 2026-03-15 | `search_context` 首轮结果偏向历史 planning 文档 | 1 | 接下来结合精确文件读取和符号搜索 |
 | 2026-03-15 | `tests/test_git_operations.lpr` 编译失败：缺少 `IGitCliRunner` | 1 | 进入 `fpdev.utils.git` 实现阶段 |
 
+# 2026-03-16 User-Facing FPC Update Flow
+
+## Session: 2026-03-16
+
+### Phase 1: Discovery
+- **Status:** in_progress
+- **Started:** 2026-03-16
+- Actions taken:
+  - 读取 `using-superpowers`、`planning-with-files`、`test-driven-development`、`systematic-debugging` 技能说明。
+  - 审查 `src/fpdev.cmd.fpc.update.pas`、`src/fpdev.fpc.manager.pas`、`src/fpdev.fpc.runtimeflow.pas`，确认用户态 update 不走 builder 路径。
+  - 审查 `tests/test_fpc_update.lpr` 与 `tests/test_fpc_runtimeflow.lpr`，确认目前没有 fast-forward-only contract 覆盖。
+  - 通过精确搜索确认 `TGitOperations.Pull` 现有测试仍包含 merge-success 路径。
+- **Status:** complete
+- Files created/modified:
+  - `task_plan.md` (modified)
+  - `findings.md` (modified)
+  - `progress.md` (modified)
+  - `docs/FPC_MANAGEMENT.md` (modified)
+  - `docs/FPC_MANAGEMENT.en.md` (modified)
+  - `docs/FAQ.md` (modified)
+  - `docs/FAQ.en.md` (modified)
+
+### Phase 4: Verification
+- **Status:** complete
+- Actions taken:
+  - 对 4 个文档目标做文本级验证，确认不再保留这几处旧的 `git pull` / `规划中` 说法。
+  - 确认没有 `yarn`，因此未运行 prettier；文档改动保持最小 diff。
+- Files created/modified:
+  - `docs/FPC_MANAGEMENT.md` (modified)
+  - `docs/FPC_MANAGEMENT.en.md` (modified)
+  - `docs/FAQ.md` (modified)
+  - `docs/FAQ.en.md` (modified)
+
 # Progress Log
 
 ## 2026-03-06 Install-Local Self-Contained Publish Path (B227)

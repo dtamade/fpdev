@@ -4,7 +4,7 @@
 让 `src/fpdev.fpc.builder.di.pas` 的 git clone/pull 统一经过 `fpdev.utils.git.TGitOperations`，并把 `TFPCBuilder.UpdateSources` 收敛为 fast-forward-only，同时保持 DI 测试可控和现有 `TGitOperations` 调用兼容。
 
 ## Current Phase
-Phase 5
+Phase 1
 
 ## Phases
 
@@ -35,6 +35,37 @@ Phase 5
 - [ ] 复核需求逐条满足情况
 - [ ] 记录风险、剩余假设和验证结果
 - **Status:** in_progress
+
+## 2026-03-16 User-Facing Update Flow Alignment
+
+### Goal
+确认用户态 `fpdev fpc update` 是否也需要和 `builder.di` 一样收敛为 fast-forward-only；若需要，则先用测试锁定行为再最小实现。
+
+### Current Phase
+Phase 1
+
+### Phases
+
+#### Phase 1: Discovery
+- [ ] 确认 `fpdev fpc update` 的实际调用链与当前语义
+- [ ] 确认现有 `test_fpc_update` / `test_fpc_runtimeflow` 覆盖边界
+- [ ] 记录 runtime 路径和 builder 路径的差异
+- **Status:** complete
+
+#### Phase 2: RED
+- [ ] 如果决定对齐语义，先新增失败测试
+- [ ] 运行 focused tests 确认 RED
+- **Status:** pending
+
+#### Phase 3: GREEN
+- [ ] 最小修改 runtime/git 层实现
+- [ ] 保持 `no remote` / `local-only` 等既有语义不变
+- **Status:** pending
+
+#### Phase 4: Verification
+- [ ] 跑 focused tests
+- [ ] 跑相关回归
+- **Status:** complete
 
 ## Key Questions
 1. `TGitOperations` 当前 CLI fallback 的执行点和错误语义是什么？

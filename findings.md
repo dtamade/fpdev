@@ -617,6 +617,42 @@
 - `bash scripts/run_all_tests.sh`
   - 通过，结果：`256 passed, 0 failed, 0 skipped`。
 
+## 2026-03-16 User-Facing FPC Update Flow
+
+### Research Findings
+- 用户态 `fpdev fpc update <version>` 不是走 `builder.di`；它的实际链路是：
+  - `src/fpdev.cmd.fpc.update.pas` -> `TFPCManager.UpdateSources`
+  - `src/fpdev.fpc.manager.pas` -> `ExecuteFPCUpdatePlanCore(...)`
+  - `src/fpdev.fpc.runtimeflow.pas` -> `IFPCGitRuntime.Pull(APlan.SourceDir)`
+  - `TFPCGitRuntimeAdapter.Pull` -> `TGitOperations.Pull`
+- 这意味着我们昨天改成 fast-forward-only 的只是 `builder.di` 路径，不会自动影响用户态 `fpdev fpc update`。
+- `ExecuteFPCUpdatePlanCore` 自身不理解 fast-forward/merge/detached/dirty，只把 `AGit.Pull(...)` 的布尔结果映射成：
+  - success -> `CMD_FPC_UPDATE_DONE`
+  - failure -> `CMD_FPC_GIT_PULL_FAILED` + `AGit.GetLastError`
+  - no remote -> 输出 local-only 并返回 `True`
+- `TGitOperations.Pull` 当前仍是“libgit2 fast-forward 优先，但 non-fast-forward 时允许 CLI fallback”的语义，因此用户态 update 仍可能进入 merge/rebase 路径。
+- 现有测试覆盖：
+  - `tests/test_fpc_runtimeflow.lpr` 只验证 `ExecuteFPCUpdatePlanCore` 的布尔 contract 和错误输出，不区分 fast-forward-only / merge fallback。
+  - `tests/test_fpc_update.lpr` 只覆盖 missing dir、non-git dir、valid local repo(no remote)。
+  - `tests/test_git_operations.lpr` 已覆盖 `Pull merge without CLI (libgit2)`，说明当前 `TGitOperations.Pull` 语义被测试锁定为允许 merge 路径。
+
+### Technical Decision
+| Decision | Rationale |
+|----------|-----------|
+| 在改用户态 update 语义前，先把 `TGitOperations.Pull` 现有 contract 和 `test_git_operations` 的 merge test 视为需要显式审视的兼容面 | 这不是 builder 层内部行为，而是更广的 runtime contract，不能直接按昨天的 builder 语义外推 |
+| 本轮不修改 `TFPCManager.UpdateSources` / `TGitOperations.Pull` 的行为，只同步过时文档 | 现有 merge-success 语义已经被 `tests/test_git_operations.lpr` 锁定；静默改成 fast-forward-only 会是新的产品行为，不适合在“继续清理”里顺手做 |
+
+### Documentation Sync
+- 已更新：
+  - `docs/FPC_MANAGEMENT.md`
+  - `docs/FPC_MANAGEMENT.en.md`
+  - `docs/FAQ.md`
+  - `docs/FAQ.en.md`
+- 同步内容：
+  - 去掉中文文档里 `fpc update/clean` 的“规划中”表述。
+  - 把 FAQ 中“就是 `git pull`”改成更准确的“通过 FPDev 的 Git runtime 更新”。
+  - 补充 local-only 仓库无 remote 时会报告 local-only 并成功退出。
+
 ## Resources
 - `task_plan.md`
 - `findings.md`
