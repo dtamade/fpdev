@@ -81,9 +81,13 @@ fpdev fpc test 3.2.2
 # Update source code
 fpdev fpc update 3.2.2
 
-# Clean source artifacts
+# Clean source build artifacts
 fpdev fpc clean 3.2.2
 ```
+
+- `fpdev fpc update <version>` updates the source repository through FPDev's Git runtime.
+- If the source directory is a local-only repository with no remote configured, the command reports that state and still exits successfully.
+- `fpdev fpc clean <version>` removes build artifacts but keeps the source repository itself.
 
 ## Installation Workflow
 

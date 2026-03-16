@@ -233,7 +233,9 @@ This removes compiled artifacts but keeps the source repository.
 fpdev fpc update 3.2.2
 ```
 
-This runs `git pull` to update the source to the latest version.
+This updates the source repository through FPDev's Git runtime.
+
+If that source repository has no remote configured, the command reports it as local-only and still exits successfully.
 
 ---
 

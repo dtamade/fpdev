@@ -233,7 +233,9 @@ fpdev fpc clean 3.2.2
 fpdev fpc update 3.2.2
 ```
 
-这会执行 `git pull` 更新源码到最新版本。
+这会通过 FPDev 的 Git 运行时更新源码仓库。
+
+如果该源码仓库没有配置 remote，命令会报告 local-only，并保持成功退出。
 
 ---
 
