@@ -7,6 +7,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, test_pause_control, Classes, DateUtils, fpjson, jsonparser,
+  test_temp_paths,
   fpdev.cross.downloader, fpdev.cross.manifest, fpdev.hash, fpdev.toolchain.fetcher;
 
 type
@@ -24,7 +25,6 @@ type
 
     procedure SetupTestEnvironment;
     procedure CleanupTestEnvironment;
-    procedure CleanupDir(const ADir: string);
 
   public
     constructor Create;
@@ -63,9 +63,7 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
   FTestDataDir := 'tests' + PathDelim + 'data' + PathDelim + 'cross' + PathDelim;
-  FTestOutputDir := IncludeTrailingPathDelimiter(GetTempDir(False)) +
-    'fpdev_downloader_test-' + IntToHex(PtrUInt(Self), SizeOf(Pointer) * 2) +
-    '-' + IntToStr(GetTickCount64) + PathDelim;
+  FTestOutputDir := IncludeTrailingPathDelimiter(CreateUniqueTempDir('fpdev_downloader_test'));
 end;
 
 destructor TCrossDownloaderTest.Destroy;
@@ -98,33 +96,6 @@ begin
   AssertTrue(SameText(AExpected, AActual), AMessage + ' (Expected: "' + AExpected + '", Actual: "' + AActual + '")');
 end;
 
-procedure TCrossDownloaderTest.CleanupDir(const ADir: string);
-var
-  SR: TSearchRec;
-  SubDir: string;
-begin
-  if not DirectoryExists(ADir) then
-    Exit;
-
-  if FindFirst(ADir + '*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name <> '.') and (SR.Name <> '..') then
-      begin
-        if (SR.Attr and faDirectory) <> 0 then
-        begin
-          SubDir := ADir + SR.Name + PathDelim;
-          CleanupDir(SubDir);
-          RemoveDir(SubDir);
-        end
-        else
-          DeleteFile(ADir + SR.Name);
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-end;
-
 procedure TCrossDownloaderTest.SetupTestEnvironment;
 begin
   if not DirectoryExists(FTestOutputDir) then
@@ -133,9 +104,7 @@ end;
 
 procedure TCrossDownloaderTest.CleanupTestEnvironment;
 begin
-  CleanupDir(FTestOutputDir);
-  if DirectoryExists(FTestOutputDir) then
-    RemoveDir(FTestOutputDir);
+  CleanupTempDir(FTestOutputDir);
 end;
 
 procedure TCrossDownloaderTest.RunAllTests;
@@ -190,11 +159,8 @@ var
 begin
   WriteLn('TestOutputDirUsesSystemTempAndUniqueSuffix:');
 
-  AssertTrue(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(FTestOutputDir)) = 1,
-    'Output directory should live under system temp'
-  );
+  AssertTrue(PathUsesSystemTempRoot(FTestOutputDir),
+    'Output directory should live under system temp');
 
   Other := TCrossDownloaderTest.Create;
   try
@@ -1106,7 +1072,7 @@ begin
     end;
 
     // Cleanup
-    CleanupDir(TestInstallDir);
+    CleanupTempDir(TestInstallDir);
   end;
 
   AssertTrue(AllPassed, 'Property 12: Post-installation binary verification (' +
@@ -1282,7 +1248,7 @@ begin
     end;
 
     // Cleanup
-    CleanupDir(TestInstallDir);
+    CleanupTempDir(TestInstallDir);
   end;
 
   AssertTrue(AllPassed, 'Property 13: Verification metadata update (' +

@@ -39,6 +39,15 @@ type
     SourceDir: string;
   end;
 
+  ILazarusGitRuntime = interface
+    ['{EFB7811D-165D-48E3-BCA4-79842AAB3FA7}']
+    function BackendAvailable: Boolean;
+    function IsRepository(const APath: string): Boolean;
+    function HasRemote(const APath: string): Boolean;
+    function Pull(const APath: string): Boolean;
+    function GetLastError: string;
+  end;
+
   TLazarusBuildPlan = record
     SourceDir: string;
     InstallDir: string;
@@ -106,10 +115,8 @@ function CreateLazarusBuildPlanCore(
 
 function ExecuteLazarusUpdatePlanCore(
   const APlan: TLazarusSourcePlan;
-  AGitBackendAvailable: Boolean;
-  AIsRepository: TLazarusGitPathCheck;
-  AHasRemote: TLazarusGitPathCheck;
-  APull: TLazarusGitPathCheck
+  const Outp, Errp: IOutput;
+  const AGit: ILazarusGitRuntime
 ): Boolean;
 
 function ExecuteLazarusCleanPlanCore(
@@ -121,6 +128,10 @@ function ExecuteLazarusCleanPlanCore(
 function CreateLazarusLaunchPlanCore(
   const AInstallRoot, ARequestedVersion, ACurrentVersion: string
 ): TLazarusLaunchPlan;
+function BuildLazarusInstalledExecutablePathCore(
+  const AInstallRoot, AVersion: string;
+  const AIsWindows: Boolean
+): string;
 
 function ExecuteLazarusLaunchPlanCore(
   const APlan: TLazarusLaunchPlan;
@@ -132,14 +143,116 @@ function ExecuteLazarusLaunchPlanCore(
 implementation
 
 uses
+  fpdev.paths,
   fpdev.constants,
+  fpdev.fpc.installversionflow,
   fpdev.i18n,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings,
+  fpdev.utils.git;
 
 procedure WriteLine(const AOut: IOutput; const AText: string = '');
 begin
   if AOut <> nil then
     AOut.WriteLn(AText);
+end;
+
+function NormalizeGitPullErrorDetail(const AError: string): string;
+var
+  LError: string;
+begin
+  LError := Trim(AError);
+  case ClassifyGitPullFailure(LError) of
+    gpfkDirtyWorktree:
+      Exit(_(MSG_GIT_UPDATE_DIRTY_WORKTREE));
+    gpfkDetachedHead:
+      Exit(_(MSG_GIT_UPDATE_DETACHED_HEAD));
+    gpfkDivergedHistory:
+      Exit(_(MSG_GIT_UPDATE_DIVERGED_HISTORY));
+    gpfkUnknown:
+      ;
+  end;
+
+  if LError = '' then
+    Result := _(MSG_FAILED)
+  else
+    Result := LError;
+end;
+
+function PathContainsEntry(const APathList, AEntry: string): Boolean;
+var
+  Remaining: string;
+  NextPos: SizeInt;
+  Item: string;
+begin
+  Result := False;
+  if (APathList = '') or (AEntry = '') then
+    Exit;
+
+  Remaining := APathList;
+  while Remaining <> '' do
+  begin
+    NextPos := Pos(PathSeparator, Remaining);
+    if NextPos > 0 then
+    begin
+      Item := Copy(Remaining, 1, NextPos - 1);
+      Delete(Remaining, 1, NextPos);
+    end
+    else
+    begin
+      Item := Remaining;
+      Remaining := '';
+    end;
+
+    if Item = AEntry then
+      Exit(True);
+  end;
+end;
+
+function BuildUnixLazarusToolPath(const AFPCBinDir, ACurrentPath: string): string;
+const
+  LAZARUS_UNIX_FALLBACK_BIN_DIRS: array[0..1] of string = (
+    '/usr/bin',
+    '/bin'
+  );
+var
+  Remaining: string;
+  NextPos: SizeInt;
+  Item: string;
+  FallbackDir: string;
+
+  procedure AppendUniquePathEntry(const AEntry: string);
+  begin
+    if Trim(AEntry) = '' then
+      Exit;
+    if PathContainsEntry(Result, AEntry) then
+      Exit;
+    if Result = '' then
+      Result := AEntry
+    else
+      Result := Result + PathSeparator + AEntry;
+  end;
+begin
+  Result := '';
+  AppendUniquePathEntry(AFPCBinDir);
+  for FallbackDir in LAZARUS_UNIX_FALLBACK_BIN_DIRS do
+    AppendUniquePathEntry(FallbackDir);
+
+  Remaining := ACurrentPath;
+  while Remaining <> '' do
+  begin
+    NextPos := Pos(PathSeparator, Remaining);
+    if NextPos > 0 then
+    begin
+      Item := Copy(Remaining, 1, NextPos - 1);
+      Delete(Remaining, 1, NextPos);
+    end
+    else
+    begin
+      Item := Remaining;
+      Remaining := '';
+    end;
+    AppendUniquePathEntry(Item);
+  end;
 end;
 
 function JoinBaseAndName(const ABase, AName: string): string;
@@ -248,15 +361,15 @@ begin
   Result.InstallPath := AInstallPath;
   Result.ConfigDir := ResolveLazarusConfigDirCore(AVersion, AConfigRoot, AHomeDir, AAppDataDir);
   Result.FPCVersion := AFPCVersion;
-  Result.FPCPath := ASettingsInstallRoot + PathDelim + 'fpc' + PathDelim + AFPCVersion +
-                    PathDelim + 'bin' + PathDelim + 'fpc';
+  Result.FPCPath := BuildFPCInstalledExecutablePathCore(
+    BuildFPCInstallDirFromInstallRoot(ASettingsInstallRoot, AFPCVersion)
+  );
   {$IFDEF MSWINDOWS}
-  Result.FPCPath := Result.FPCPath + '.exe';
   Result.MakePath := 'make.exe';
   {$ELSE}
   Result.MakePath := UNIX_MAKE_PATH;
   {$ENDIF}
-  Result.FPCSourcePath := ASettingsInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AFPCVersion;
+  Result.FPCSourcePath := BuildFPCSourceInstallPathCore(ASettingsInstallRoot, AFPCVersion);
   Result.CompilerExists := FileExists(Result.FPCPath);
   Result.FPCSourceExists := DirectoryExists(Result.FPCSourcePath);
 end;
@@ -346,12 +459,15 @@ function CreateLazarusBuildPlanCore(
   const AMakeCommand, ACurrentPath: string;
   const AIsWindows: Boolean
 ): TLazarusBuildPlan;
+var
+  EffectiveJobs: Integer;
 begin
   Result := Default(TLazarusBuildPlan);
   Result.SourceDir := ASourceDir;
   Result.InstallDir := AInstallDir;
   Result.FPCVersion := AFPCVersion;
-  Result.FPCBinDir := ASettingsInstallRoot + PathDelim + 'fpc' + PathDelim + AFPCVersion + PathDelim + 'bin';
+  Result.FPCBinDir := BuildFPCInstallDirFromInstallRoot(ASettingsInstallRoot, AFPCVersion) +
+    PathDelim + 'bin';
   Result.FPCExecutable := Result.FPCBinDir + PathDelim + 'fpc';
   if AIsWindows then
     Result.FPCExecutable := Result.FPCExecutable + '.exe';
@@ -366,40 +482,84 @@ begin
   Result.Params[1] := 'install';
   Result.Params[2] := 'INSTALL_PREFIX=' + AInstallDir;
   Result.Params[3] := 'FPC=' + Result.FPCExecutable;
-  Result.Params[4] := '-j' + IntToStr(AParallelJobs);
+  if AParallelJobs > 0 then
+    EffectiveJobs := AParallelJobs
+  else
+    EffectiveJobs := 1;
 
-  SetLength(Result.EnvVars, 1);
-  Result.EnvVars[0] := 'PATH=' + Result.FPCBinDir + PathSeparator + ACurrentPath;
+  if not AIsWindows then
+    EffectiveJobs := 1;
+
+  Result.Params[4] := '-j' + IntToStr(EffectiveJobs);
+
+  if AIsWindows then
+  begin
+    SetLength(Result.EnvVars, 1);
+    Result.EnvVars[0] := 'PATH=' + Result.FPCBinDir + PathSeparator + ACurrentPath;
+  end
+  else
+  begin
+    SetLength(Result.EnvVars, 2);
+    Result.EnvVars[0] := 'PATH=' + BuildUnixLazarusToolPath(Result.FPCBinDir, ACurrentPath);
+    Result.EnvVars[1] := 'INSTALL=/usr/bin/install';
+  end;
+end;
+
+function BuildLazarusInstalledExecutablePathCore(
+  const AInstallRoot, AVersion: string;
+  const AIsWindows: Boolean
+): string;
+begin
+  if AIsWindows then
+    Result := AInstallRoot + PathDelim + 'lazarus' + PathDelim + AVersion +
+      PathDelim + 'lazarus.exe'
+  else
+    Result := AInstallRoot + PathDelim + 'lazarus' + PathDelim + AVersion +
+      PathDelim + 'bin' + PathDelim + 'lazarus-ide';
 end;
 
 function ExecuteLazarusUpdatePlanCore(
   const APlan: TLazarusSourcePlan;
-  AGitBackendAvailable: Boolean;
-  AIsRepository: TLazarusGitPathCheck;
-  AHasRemote: TLazarusGitPathCheck;
-  APull: TLazarusGitPathCheck
+  const Outp, Errp: IOutput;
+  const AGit: ILazarusGitRuntime
 ): Boolean;
+var
+  LError: string;
 begin
   Result := False;
 
   if (APlan.Version = '') or (APlan.SourceDir = '') then
     Exit;
 
-  if not AGitBackendAvailable then
+  if AGit = nil then
     Exit;
 
-  if (not Assigned(AIsRepository)) or (not Assigned(AHasRemote)) or (not Assigned(APull)) then
+  if not AGit.BackendAvailable then
+  begin
+    WriteLine(Errp, _(MSG_ERROR) + ': ' + _(CMD_LAZARUS_NO_GIT_BACKEND));
     Exit;
+  end;
 
-  if not AIsRepository(APlan.SourceDir) then
+  if not AGit.IsRepository(APlan.SourceDir) then
+  begin
+    WriteLine(Errp, _(MSG_ERROR) + ': ' + _Fmt(CMD_LAZARUS_NOT_GIT_REPO, [APlan.SourceDir]));
     Exit;
+  end;
 
-  if not AHasRemote(APlan.SourceDir) then
+  if not AGit.HasRemote(APlan.SourceDir) then
+  begin
+    WriteLine(Outp, _(MSG_LAZARUS_SOURCE_LOCAL_ONLY) + ' ' + APlan.SourceDir);
     Exit(True);
+  end;
 
-  Result := APull(APlan.SourceDir);
-  if not Result then
-    Result := True;
+  if AGit.Pull(APlan.SourceDir) then
+  begin
+    WriteLine(Outp, _(CMD_LAZARUS_UPDATE_DONE) + ': ' + APlan.SourceDir);
+    Exit(True);
+  end;
+
+  LError := NormalizeGitPullErrorDetail(AGit.GetLastError);
+  WriteLine(Errp, _(MSG_ERROR) + ': ' + _Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [LError]));
 end;
 
 function ExecuteLazarusCleanPlanCore(
@@ -439,13 +599,11 @@ begin
 
   Result.Version := UseVersion;
   if UseVersion <> '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    Result.ExecutablePath := AInstallRoot + PathDelim + 'lazarus' + PathDelim + UseVersion + PathDelim + 'lazarus.exe';
-    {$ELSE}
-    Result.ExecutablePath := AInstallRoot + PathDelim + 'lazarus' + PathDelim + UseVersion + PathDelim + 'lazarus';
-    {$ENDIF}
-  end;
+    Result.ExecutablePath := BuildLazarusInstalledExecutablePathCore(
+      AInstallRoot,
+      UseVersion,
+      {$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}
+    );
 end;
 
 function ExecuteLazarusLaunchPlanCore(

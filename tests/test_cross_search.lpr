@@ -5,7 +5,7 @@ program test_cross_search;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces,
-  fpdev.cross.search, test_temp_paths;
+  fpdev.cross.search, fpdev.utils, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -23,6 +23,14 @@ begin
     WriteLn('[FAIL] ', ATestName);
     Inc(TestsFailed);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 function MakeTarget(const ACPU, AOS: string): TCrossTarget;
@@ -299,6 +307,44 @@ begin
     Check(HasFpdevManaged, 'Layer1: fpdev-managed directories searched');
   finally
     S.Free;
+  end;
+end;
+
+procedure TestLayer3_EnvPathUsesSameProcessPathOverride;
+var
+  S: TCrossToolchainSearch;
+  T: TCrossTarget;
+  Res: TCrossSearchResult;
+  ProbeDir, ToolPath, SavedPath, EffectivePath: string;
+begin
+  ProbeDir := '';
+  SavedPath := get_env('PATH');
+  S := TCrossToolchainSearch.Create;
+  try
+    ProbeDir := CreateUniqueTempDir('fpdev_test_env_path');
+    ToolPath := ProbeDir + PathDelim + 'fpdev-probe-as';
+    with TFileStream.Create(ToolPath, fmCreate) do Free;
+
+    if SavedPath <> '' then
+      EffectivePath := ProbeDir + PathSeparator + SavedPath
+    else
+      EffectivePath := ProbeDir;
+
+    Check(set_env('PATH', EffectivePath),
+      'EnvPath override: PATH override applied');
+
+    T := MakeTargetFull('arm', 'linux', '', '', 'fpdev-probe-');
+    Res := S.SearchBinutils(T);
+
+    Check(Res.Found, 'EnvPath override: finds tool from same-process PATH');
+    Check(Res.Layer = 3, 'EnvPath override: layer = 3 (env-path)');
+    Check(Res.LayerName = 'env-path', 'EnvPath override: layer name = env-path');
+    Check(Res.BinutilsPath = ProbeDir, 'EnvPath override: correct path');
+    Check(Res.BinutilsPrefix = 'fpdev-probe-', 'EnvPath override: correct prefix');
+  finally
+    RestoreEnv('PATH', SavedPath);
+    S.Free;
+    CleanupTempDir(ProbeDir);
   end;
 end;
 
@@ -660,6 +706,7 @@ begin
 
   // Layer 1 (fpdev-managed)
   TestLayer1_FPDevManaged;
+  TestLayer3_EnvPathUsesSameProcessPathOverride;
 
   // Layer 6 (config hints)
   TestLayer6_ConfigHints_WithMatch;

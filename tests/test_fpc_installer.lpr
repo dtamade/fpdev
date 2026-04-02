@@ -18,7 +18,7 @@ uses
   SysUtils, Classes, git2.api,
   fpdev.fpc.version, fpdev.fpc.installer, fpdev.fpc.builder,
   fpdev.fpc.builder.di, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks,
-  fpdev.config;
+  fpdev.config, fpdev.paths, fpdev.utils;
 
 var
   TestInstallRoot: string;
@@ -136,6 +136,14 @@ begin
   end;
 end;
 
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
 procedure TestTempPathsUseSystemTempRoot;
 var
   TempRoot: string;
@@ -163,7 +171,7 @@ end;
 procedure Test_InstallVersion_FromSource_Success;
 var
   Result: TOperationResult;
-  SourceDir, InstallDir: string;
+  SourceDir: string;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -172,7 +180,6 @@ begin
 
   ResetMocks;
   SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
-  InstallDir := TestInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
 
   // Setup mock: git clone succeeds, make succeeds
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
@@ -405,6 +412,158 @@ begin
   AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
 end;
 
+procedure Test_InstallVersion_UsesSameProcessInstallRootFallback;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeHome: string;
+  ExpectedRoot: string;
+  ExpectedSourceDir: string;
+  ExpectedInstallDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  Commands: string;
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile: string;
+  SavedAppData: string;
+  {$ELSE}
+  SavedHome: string;
+  {$ENDIF}
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: InstallVersion - Same-Process Install Root Fallback');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeHome := BuildTempRoot('test_installer_home_');
+  ForceDirectories(ProbeHome);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedAppData := get_env('APPDATA');
+  {$ELSE}
+  SavedHome := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('USERPROFILE', ProbeHome);
+    set_env('APPDATA', ProbeHome);
+    {$ELSE}
+    set_env('HOME', ProbeHome);
+    {$ENDIF}
+
+    ExpectedRoot := GetDataRoot;
+    ExpectedSourceDir := ExpectedRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
+    ExpectedInstallDir := ExpectedRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
+
+    MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
+    MockProcessRunner.SetResult('make', 0, 'Build complete', '');
+
+    Result := Installer.InstallVersion('3.2.2', True);
+    Commands := MockProcessRunner.GetExecutedCommands.Text;
+
+    AssertTrue(Result.Success, 'InstallVersion should succeed with same-process fallback root');
+    AssertTrue(Pos(ExpectedSourceDir, Commands) > 0,
+      'InstallVersion should clone sources under same-process GetDataRoot');
+    AssertTrue(Pos('PREFIX=' + ExpectedInstallDir, Commands) > 0,
+      'InstallVersion should build into same-process GetDataRoot');
+    AssertTrue(MockFileSystem.DirectoryExists(ExpectedSourceDir),
+      'Mock file system should record source dir under same-process GetDataRoot');
+    AssertTrue(MockFileSystem.DirectoryExists(ExpectedInstallDir),
+      'Mock file system should record install dir under same-process GetDataRoot');
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    RestoreEnv('APPDATA', SavedAppData);
+    {$ELSE}
+    RestoreEnv('HOME', SavedHome);
+    {$ENDIF}
+    if DirectoryExists(ProbeHome) then
+      RemoveDir(ProbeHome);
+  end;
+end;
+
+procedure Test_InstallVersion_UsesFPDEVDataRootOverride;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeRoot: string;
+  ExpectedRoot: string;
+  ExpectedSourceDir: string;
+  ExpectedInstallDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  Commands: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: InstallVersion - FPDEV_DATA_ROOT Override');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeRoot := BuildTempRoot('test_installer_data_root_');
+  ForceDirectories(ProbeRoot);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    ExpectedRoot := GetDataRoot;
+    ExpectedSourceDir := ExpectedRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
+    ExpectedInstallDir := ExpectedRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
+
+    MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
+    MockProcessRunner.SetResult('make', 0, 'Build complete', '');
+
+    Result := Installer.InstallVersion('3.2.2', True);
+    Commands := MockProcessRunner.GetExecutedCommands.Text;
+
+    AssertTrue(Result.Success, 'InstallVersion should succeed with FPDEV_DATA_ROOT override');
+    AssertTrue(Pos(ExpectedSourceDir, Commands) > 0,
+      'InstallVersion should clone sources under FPDEV_DATA_ROOT');
+    AssertTrue(Pos('PREFIX=' + ExpectedInstallDir, Commands) > 0,
+      'InstallVersion should build into FPDEV_DATA_ROOT');
+    AssertTrue(MockFileSystem.DirectoryExists(ExpectedSourceDir),
+      'Mock file system should record source dir under FPDEV_DATA_ROOT');
+    AssertTrue(MockFileSystem.DirectoryExists(ExpectedInstallDir),
+      'Mock file system should record install dir under FPDEV_DATA_ROOT');
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    if DirectoryExists(ProbeRoot) then
+      RemoveDir(ProbeRoot);
+  end;
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('  TFPCInstaller Unit Test Suite');
@@ -451,6 +610,8 @@ begin
             Test_Installer_UsesDependencies;
             Test_ErrorCodes;
             Test_InstallVersion_WithEnsure;
+            Test_InstallVersion_UsesSameProcessInstallRootFallback;
+            Test_InstallVersion_UsesFPDEVDataRootOverride;
 
             // Summary
             WriteLn;

@@ -50,6 +50,12 @@ function GetFPCArchSuffix: string;
   e.g. 'ppcx64' for x86_64, 'ppc386' for i386, 'ppca64' for aarch64 }
 function GetNativeCompilerName: string;
 
+{ Ensures a raw FPC install tree is repaired into FPDev's managed layout.
+  On Linux this creates the wrapper/symlink/config trio required for a usable
+  managed compiler layout. Other platforms currently treat the layout as ready. }
+function EnsureManagedFPCInstallLayout(const AInstallPath, AVersion: string;
+  AOut: IOutput = nil): Boolean;
+
 implementation
 
 function GetFPCArchSuffix: string;
@@ -97,6 +103,62 @@ begin
     {$ELSE}
     Result := 'ppc386';
     {$ENDIF}
+  {$ENDIF}
+end;
+
+function EnsureManagedFPCInstallLayout(const AInstallPath, AVersion: string;
+  AOut: IOutput): Boolean;
+var
+  ConfigGen: TFPCConfigGenerator;
+  BinDir: string;
+  FPCPath: string;
+  CompilerPath: string;
+  ConfigPath: string;
+  BackupPath: string;
+  NativeCompilerPath: string;
+begin
+  {$IFDEF LINUX}
+  Result := False;
+
+  if (Trim(AVersion) = '') or (Trim(AInstallPath) = '') then
+    Exit;
+
+  BinDir := IncludeTrailingPathDelimiter(AInstallPath) + 'bin';
+  if not DirectoryExists(BinDir) then
+    Exit;
+
+  FPCPath := BinDir + PathDelim + 'fpc';
+  CompilerPath := BinDir + PathDelim + GetNativeCompilerName;
+  ConfigPath := BinDir + PathDelim + 'fpc.cfg';
+  BackupPath := BinDir + PathDelim + 'fpc.orig';
+  NativeCompilerPath := AInstallPath + PathDelim + 'lib' + PathDelim + 'fpc' +
+    PathDelim + AVersion + PathDelim + GetNativeCompilerName;
+
+  if not FileExists(FPCPath) then
+    Exit;
+
+  if (not FileExists(BackupPath)) and (not FileExists(NativeCompilerPath)) then
+    Exit;
+
+  ConfigGen := TFPCConfigGenerator.Create(AOut);
+  try
+    if not FileExists(BackupPath) then
+      ConfigGen.CreateLinuxCompilerWrapper(AInstallPath, AVersion)
+    else if (not FileExists(CompilerPath)) and FileExists(NativeCompilerPath) then
+      TProcessExecutor.Execute('ln', ['-sf', NativeCompilerPath, CompilerPath], '');
+
+    if not FileExists(ConfigPath) then
+      ConfigGen.GenerateFpcConfig(AInstallPath, AVersion);
+  finally
+    ConfigGen.Free;
+  end;
+
+  Result := FileExists(FPCPath) and FileExists(BackupPath) and
+    FileExists(CompilerPath) and FileExists(ConfigPath);
+  {$ELSE}
+  if AOut <> nil then;
+  Result := (Trim(AVersion) <> '') and (Trim(AInstallPath) <> '') and
+    DirectoryExists(AInstallPath);
   {$ENDIF}
 end;
 

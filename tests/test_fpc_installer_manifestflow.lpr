@@ -275,6 +275,8 @@ begin
       'install path=' + Probe.LastInstallPath);
     Check('manifest flow deletes downloaded file', not FileExists(Probe.Plan.DownloadFile),
       'download file should be cleaned');
+    Check('manifest flow removes empty download dir', not DirectoryExists(Probe.Plan.DownloadDir),
+      'download dir should be cleaned');
     Check('manifest flow removes extract dir', not DirectoryExists(Probe.Plan.ExtractDir),
       'extract dir should be cleaned');
   finally
@@ -360,6 +362,8 @@ begin
       ErrBuf.Contains('Download failed: network down'), 'download failure missing');
     Check('manifest download failure skips extract', Probe.ExtractCalls = 0,
       'extract calls=' + IntToStr(Probe.ExtractCalls));
+    Check('manifest download failure removes empty download dir',
+      not DirectoryExists(Probe.Plan.DownloadDir), 'download dir should be cleaned');
   finally
     CleanupPlanDirs(Probe.Plan);
     CleanupTempDir(InstallDir);
@@ -393,6 +397,8 @@ begin
       ErrBuf.Contains('Extraction failed'), 'extract failure missing');
     Check('manifest outer extract failure cleans download file',
       not FileExists(Probe.Plan.DownloadFile), 'download file should be deleted');
+    Check('manifest outer extract failure cleans empty download dir',
+      not DirectoryExists(Probe.Plan.DownloadDir), 'download dir should be deleted');
     Check('manifest outer extract failure cleans extract dir',
       not DirectoryExists(Probe.Plan.ExtractDir), 'extract dir should be deleted');
   finally
@@ -426,6 +432,8 @@ begin
     Check('manifest exception reports helper failure',
       ErrBuf.Contains('InstallFromManifest failed: fetch boom'),
       'exception message missing');
+    Check('manifest exception removes empty download dir',
+      not DirectoryExists(Probe.Plan.DownloadDir), 'download dir should be cleaned');
   finally
     CleanupPlanDirs(Probe.Plan);
     CleanupTempDir(InstallDir);

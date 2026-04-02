@@ -64,7 +64,7 @@ type
   TFPCVersionInfo = record
     Version: string;      // e.g., '3.2.2'
     ReleaseDate: string;  // e.g., '2021-05-19'
-    GitTag: string;       // e.g., '3_2_2'
+    GitTag: string;       // e.g., 'release_3_2_2'
     Branch: string;       // e.g., 'fixes_3_2'
     Available: Boolean;   // Available for download
     Installed: Boolean;   // Installed locally
@@ -134,9 +134,18 @@ type
 const
   { FPC Release Catalog }
   FPC_RELEASES: array[0..4] of TFPCVersionInfo = (
-    (Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'3_2_2'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.2.0'; ReleaseDate:'2020-06-19'; GitTag:'3_2_0'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.0.4'; ReleaseDate:'2017-11-21'; GitTag:'3_0_4'; Branch:'fixes_3_0'; Available:True; Installed:False),
+    (
+      Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'release_3_2_2';
+      Branch:'fixes_3_2'; Available:True; Installed:False
+    ),
+    (
+      Version:'3.2.0'; ReleaseDate:'2020-06-19'; GitTag:'release_3_2_0';
+      Branch:'fixes_3_2'; Available:True; Installed:False
+    ),
+    (
+      Version:'3.0.4'; ReleaseDate:'2017-11-21'; GitTag:'release_3_0_4';
+      Branch:'fixes_3_0'; Available:True; Installed:False
+    ),
     (Version:'3.3.1'; ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False),
     (Version:'main';  ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False)
   );

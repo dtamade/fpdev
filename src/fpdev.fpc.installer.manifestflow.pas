@@ -36,6 +36,12 @@ begin
     AOut.WriteLn(AText);
 end;
 
+procedure TryRemoveEmptyDir(const ADir: string);
+begin
+  if (ADir <> '') and DirectoryExists(ADir) then
+    RemoveDir(ADir);
+end;
+
 function ExecuteFPCManifestInstallFlow(const AVersion,
   AInstallPath: string; const AOut, AErr: IOutput;
   APreparePlan: TFPCManifestPreparePlanHandler;
@@ -78,6 +84,7 @@ begin
        (not AFetchDownload(Plan, Err)) then
     begin
       WriteLine(AErr, '[Manifest] Download failed: ' + Err);
+      TryRemoveEmptyDir(Plan.DownloadDir);
       Exit;
     end;
 
@@ -100,6 +107,7 @@ begin
     finally
       if FileExists(Plan.DownloadFile) then
         DeleteFile(Plan.DownloadFile);
+      TryRemoveEmptyDir(Plan.DownloadDir);
       if DirectoryExists(Plan.ExtractDir) then
         DeleteDirRecursive(Plan.ExtractDir);
     end;
@@ -108,6 +116,7 @@ begin
     on E: Exception do
     begin
       WriteLine(AErr, '[Manifest] InstallFromManifest failed: ' + E.Message);
+      TryRemoveEmptyDir(Plan.DownloadDir);
       Result := False;
     end;
   end;

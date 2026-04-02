@@ -5,7 +5,10 @@ program test_resource_repo_lifecycleflow;
 uses
   SysUtils, Classes, fpjson,
   test_temp_paths,
-  fpdev.resource.repo.lifecycle;
+  fpdev.resource.repo.lifecycle,
+  fpdev.resource.repo,
+  fpdev.resource.repo.types,
+  fpdev.utils.process;
 
 type
   TRepoLifecycleHarness = class
@@ -162,6 +165,25 @@ begin
     Lines.SaveToFile(APath);
   finally
     Lines.Free;
+  end;
+end;
+
+function RunCommandInDir(const AProgram: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  ProcResult: TProcessResult;
+begin
+  ProcResult := TProcessExecutor.Execute(AProgram, AArgs, AWorkDir);
+  Result := ProcResult.Success and (ProcResult.ExitCode = 0);
+  if not Result then
+  begin
+    WriteLn('  [CMD FAIL] ', AProgram, ' in ', AWorkDir);
+    if ProcResult.StdOut <> '' then
+      WriteLn('  stdout: ', ProcResult.StdOut);
+    if ProcResult.StdErr <> '' then
+      WriteLn('  stderr: ', ProcResult.StdErr);
+    if ProcResult.ErrorMessage <> '' then
+      WriteLn('  error: ', ProcResult.ErrorMessage);
   end;
 end;
 
@@ -395,6 +417,39 @@ begin
   end;
 end;
 
+procedure TestUpdateSkipsPullWhenNeverCheckedAndAutoUpdateDisabled;
+var
+  Harness: TRepoLifecycleHarness;
+  OK: Boolean;
+begin
+  Harness := TRepoLifecycleHarness.Create;
+  try
+    Harness.IsRepo := True;
+
+    OK := ExecuteResourceRepoUpdateCore(
+      False,
+      False,
+      0,
+      @Harness.IsGitRepository,
+      @Harness.GitPull,
+      @Harness.LoadManifest,
+      @Harness.LogLine,
+      @Harness.TouchUpdateCheck
+    );
+
+    Check('update never-checked repo returns true when no refresh requested', OK, 'expected success');
+    Check('update never-checked repo still skips pull', Harness.PullCalls = 0,
+      'pull calls=' + IntToStr(Harness.PullCalls));
+    Check('update never-checked repo logs never instead of epoch',
+      Pos('Resource repository is up to date (last check: never)', Harness.LogLines.Text) > 0,
+      Harness.LogLines.Text);
+    Check('update never-checked repo does not log epoch date',
+      Pos('1899', Harness.LogLines.Text) = 0, Harness.LogLines.Text);
+  finally
+    Harness.Free;
+  end;
+end;
+
 procedure TestLoadManifestParsesJson;
 var
   RootDir: string;
@@ -498,6 +553,107 @@ begin
   end;
 end;
 
+procedure TestResourceRepositoryUpdateRejectsNonConflictingDivergedHistory;
+var
+  RootDir: string;
+  OriginDir: string;
+  WorkDir: string;
+  LocalRepoDir: string;
+  Repo: TResourceRepository;
+  Config: TResourceRepoConfig;
+  OK: Boolean;
+begin
+  RootDir := CreateUniqueTempDir('repo-lifecycle-update-ffonly');
+  try
+    OriginDir := RootDir + PathDelim + 'resource-origin.git';
+    WorkDir := RootDir + PathDelim + 'resource-work';
+    LocalRepoDir := RootDir + PathDelim + 'resource-local';
+
+    ForceDirectories(WorkDir);
+    Check('resource repo ff-only setup creates bare origin',
+      RunCommandInDir('git', ['init', '--bare', OriginDir], RootDir),
+      'Expected git init --bare to succeed for ' + OriginDir);
+
+    WriteTextFile(WorkDir + PathDelim + 'manifest.json', '{"version":"1.0.0"}');
+    Check('resource repo ff-only setup initializes work repo',
+      RunCommandInDir('git', ['init'], WorkDir),
+      'Expected git init to succeed in ' + WorkDir);
+    Check('resource repo ff-only setup configures work repo email',
+      RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], WorkDir),
+      'Expected git config user.email to succeed');
+    Check('resource repo ff-only setup configures work repo user',
+      RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], WorkDir),
+      'Expected git config user.name to succeed');
+    Check('resource repo ff-only setup stages manifest',
+      RunCommandInDir('git', ['add', 'manifest.json'], WorkDir),
+      'Expected git add manifest.json to succeed');
+    Check('resource repo ff-only setup commits initial manifest',
+      RunCommandInDir('git', ['commit', '-m', 'initial'], WorkDir),
+      'Expected git commit to succeed');
+    Check('resource repo ff-only setup renames branch to main',
+      RunCommandInDir('git', ['branch', '-M', 'main'], WorkDir),
+      'Expected git branch -M main to succeed');
+    Check('resource repo ff-only setup adds origin',
+      RunCommandInDir('git', ['remote', 'add', 'origin', OriginDir], WorkDir),
+      'Expected git remote add origin to succeed');
+    Check('resource repo ff-only setup pushes initial main',
+      RunCommandInDir('git', ['push', '-u', 'origin', 'main'], WorkDir),
+      'Expected git push -u origin main to succeed');
+    Check('resource repo ff-only setup clones local repo',
+      RunCommandInDir('git', ['clone', '-b', 'main', OriginDir, LocalRepoDir], RootDir),
+      'Expected git clone -b main to succeed into ' + LocalRepoDir);
+    Check('resource repo ff-only setup configures local repo email',
+      RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], LocalRepoDir),
+      'Expected git config user.email to succeed in local repo');
+    Check('resource repo ff-only setup configures local repo user',
+      RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], LocalRepoDir),
+      'Expected git config user.name to succeed in local repo');
+
+    WriteTextFile(LocalRepoDir + PathDelim + 'local-only.txt', 'local only');
+    Check('resource repo ff-only setup stages local-only file',
+      RunCommandInDir('git', ['add', 'local-only.txt'], LocalRepoDir),
+      'Expected git add local-only.txt to succeed');
+    Check('resource repo ff-only setup commits local-only file',
+      RunCommandInDir('git', ['commit', '-m', 'local change'], LocalRepoDir),
+      'Expected local git commit to succeed');
+
+    WriteTextFile(WorkDir + PathDelim + 'remote-only.txt', 'remote only');
+    Check('resource repo ff-only setup stages remote-only file',
+      RunCommandInDir('git', ['add', 'remote-only.txt'], WorkDir),
+      'Expected git add remote-only.txt to succeed');
+    Check('resource repo ff-only setup commits remote-only file',
+      RunCommandInDir('git', ['commit', '-m', 'remote change'], WorkDir),
+      'Expected remote git commit to succeed');
+    Check('resource repo ff-only setup pushes remote change',
+      RunCommandInDir('git', ['push'], WorkDir),
+      'Expected git push to succeed');
+
+    Config := EmptyResourceRepoConfig;
+    Config.LocalPath := LocalRepoDir;
+    Config.URL := OriginDir;
+    Config.Branch := 'main';
+    Config.AutoUpdate := False;
+
+    Repo := TResourceRepository.Create(Config);
+    try
+      OK := Repo.Update(True);
+      Check('resource repo update rejects non-conflicting diverged history',
+        not OK,
+        'Expected Update(True) to fail instead of merge a diverged managed repo');
+      Check('resource repo keeps local-only file after ff-only failure',
+        FileExists(LocalRepoDir + PathDelim + 'local-only.txt'),
+        'Expected local-only.txt to remain after failed ff-only update');
+      Check('resource repo does not materialize remote-only file after ff-only failure',
+        not FileExists(LocalRepoDir + PathDelim + 'remote-only.txt'),
+        'Expected remote-only.txt to stay absent after failed ff-only update');
+    finally
+      Repo.Free;
+    end;
+  finally
+    CleanupTempDir(RootDir);
+  end;
+end;
+
 begin
   TestInitializeUsesExistingRepoAndRefreshesWhenNeeded;
   TestInitializeFallsBackToMirror;
@@ -505,10 +661,12 @@ begin
   TestUpdateRejectsUninitializedRepo;
   TestUpdatePullsAndWarnsOnManifestReloadFailure;
   TestUpdateSkipsPullWhenFresh;
+  TestUpdateSkipsPullWhenNeverCheckedAndAutoUpdateDisabled;
   TestLoadManifestParsesJson;
   TestLoadManifestMissingFile;
   TestEnsureManifestLoadedShortCircuits;
   TestEnsureManifestLoadedDelegatesReload;
+  TestResourceRepositoryUpdateRejectsNonConflictingDivergedHistory;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);

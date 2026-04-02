@@ -89,6 +89,12 @@ begin
   {$ENDIF}
 end;
 
+procedure TryRemoveEmptyDir(const ADir: string);
+begin
+  if (ADir <> '') and DirectoryExists(ADir) then
+    RemoveDir(ADir);
+end;
+
 function ResolveFPCLegacyBinaryDownloadFileExt: string;
 begin
   Result := '';
@@ -163,6 +169,7 @@ begin
       WriteLine(AErr, _(MSG_ERROR) + ': DownloadBinary failed - ' + Err);
       if FileExists(Plan.TempFile) then
         DeleteFile(Plan.TempFile);
+      TryRemoveEmptyDir(Plan.TempDir);
       Exit;
     end;
 
@@ -176,6 +183,8 @@ begin
       WriteLine(AErr, _(MSG_ERROR) + ': DownloadBinary failed - ' + E.Message);
       if (ATempFile = '') and FileExists(Plan.TempFile) then
         DeleteFile(Plan.TempFile);
+      if ATempFile = '' then
+        TryRemoveEmptyDir(Plan.TempDir);
       ATempFile := '';
       Result := False;
     end;

@@ -26,10 +26,12 @@ program test_fpc_install_cli;
 }
 
 uses
-  SysUtils, Classes, fpdev.utils.fs,
+  SysUtils, Classes, fpdev.utils, fpdev.utils.fs,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.logger.intf, fpdev.exitcodes,
+  fpdev.i18n, fpdev.i18n.strings,
+  test_temp_paths,
   fpdev.cmd.fpc,           // Register 'fpc' root command
   fpdev.cmd.fpc.install,
   fpdev.cmd.fpc.uninstall;
@@ -38,12 +40,6 @@ var
   GTestCount: Integer = 0;
   GPassCount: Integer = 0;
   GFailCount: Integer = 0;
-
-function BuildTempConfigDir: string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'fpdev_test_install_' + IntToStr(GetTickCount64);
-end;
 
 procedure Test(const AName: string; ACondition: Boolean);
 begin
@@ -223,6 +219,27 @@ begin
   Result := TTestContext.Create(AStdOut, AStdErr, Config);
 end;
 
+function ExecuteInstallCommandWithNetworkDisabled(
+  ACmd: TFPCInstallCommand;
+  const AParams: array of string;
+  const ACtx: IContext
+): Integer;
+var
+  SavedSkipNetwork: string;
+  HadSkipNetwork: Boolean;
+begin
+  HadSkipNetwork := get_env('FPDEV_SKIP_NETWORK_TESTS', SavedSkipNetwork);
+  set_env('FPDEV_SKIP_NETWORK_TESTS', '1');
+  try
+    Result := ACmd.Execute(AParams, ACtx);
+  finally
+    if HadSkipNetwork then
+      set_env('FPDEV_SKIP_NETWORK_TESTS', SavedSkipNetwork)
+    else
+      unset_env('FPDEV_SKIP_NETWORK_TESTS');
+  end;
+end;
+
 { ===== Tests ===== }
 
 { Group 1: Command basics }
@@ -303,6 +320,25 @@ begin
   end;
 end;
 
+procedure TestHelpUnexpectedArg;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Test('--help with extra arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('--help with extra arg shows usage', StdErr.Contains('fpdev fpc install'));
+    Test('--help with extra arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestHelpSubcommand;
 var
   Cmd: TFPCInstallCommand;
@@ -337,6 +373,82 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Test('No args returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
     Test('No args shows error on stderr', StdErr.Contains('version'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUnexpectedPositionalArg;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Test('Unexpected positional arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Unexpected positional arg shows usage', StdErr.Contains('fpdev fpc install'));
+    Test('Unexpected positional arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUnknownOption;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--unknown'], Ctx);
+    Test('Unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Unknown option shows usage', StdErr.Contains('fpdev fpc install'));
+    Test('Unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInvalidJobsValue;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9', '--jobs=abc'], Ctx);
+    Test('Invalid --jobs value returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Invalid --jobs value shows usage', StdErr.Contains('fpdev fpc install'));
+    Test('Invalid --jobs value keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestEmptyPrefixValue;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9', '--prefix='], Ctx);
+    Test('Empty --prefix value returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Empty --prefix value shows usage', StdErr.Contains('fpdev fpc install'));
+    Test('Empty --prefix value keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -397,15 +509,14 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    // In test environment, installation will fail (no network/compiler)
-    // but the command should start correctly
-    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(Cmd, ['3.2.2'], Ctx);
     AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
 
-    // The command should at least show it started (mode info or attempt message)
     Test('Normal install produces output', Length(AllOutput) > 0);
-    // Result should be an error or success code
-    Test('Normal install returns valid exit code', Ret >= 0);
+    Test('Normal install returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('Normal install reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -422,12 +533,18 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--from-binary'], Ctx);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--from-binary'],
+      Ctx
+    );
     AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
 
-    // Should attempt binary installation
     Test('--from-binary produces output', Length(AllOutput) > 0);
-    Test('--from-binary returns valid exit code', Ret >= 0);
+    Test('--from-binary returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--from-binary reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -444,12 +561,18 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--from-source'], Ctx);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--from-source'],
+      Ctx
+    );
     AllOutput := StdOut.GetBuffer + StdErr.GetBuffer;
 
-    // Should attempt source installation
     Test('--from-source produces output', Length(AllOutput) > 0);
-    Test('--from-source returns valid exit code', Ret >= 0);
+    Test('--from-source returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--from-source reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -466,11 +589,53 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--no-cache'], Ctx);
-    Output := StdOut.GetBuffer;
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--no-cache'],
+      Ctx
+    );
+    Output := StdOut.GetBuffer + StdErr.GetBuffer;
 
-    // Should show no-cache mode in output
     Test('--no-cache shows no-cache in output', Pos('no-cache', Output) > 0);
+    Test('--no-cache returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--no-cache reports network-disabled guard',
+      Pos('FPDEV_SKIP_NETWORK_TESTS=1', Output) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInvalidVersionDoesNotAppendGenericInstallFailure;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  SavedSkipNetwork: string;
+  HadSkipNetwork: Boolean;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    HadSkipNetwork := get_env('FPDEV_SKIP_NETWORK_TESTS', SavedSkipNetwork);
+    if HadSkipNetwork then
+      unset_env('FPDEV_SKIP_NETWORK_TESTS');
+    try
+      Ret := Cmd.Execute(['9.9', '--from=source'], Ctx);
+    finally
+      if HadSkipNetwork then
+        set_env('FPDEV_SKIP_NETWORK_TESTS', SavedSkipNetwork)
+      else
+        unset_env('FPDEV_SKIP_NETWORK_TESTS');
+    end;
+    Test('Invalid version returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Test('Invalid version emits concrete validation error',
+      StdErr.Contains(_Fmt(ERR_INVALID_VERSION, ['9.9'])));
+    Test('Invalid version does not append generic install failed',
+      not StdErr.Contains(_Fmt(CMD_FPC_INSTALL_FAILED, ['9.9'])));
+    Test('Invalid version keeps install start banner',
+      StdOut.Contains(_Fmt(CMD_FPC_INSTALL_START, ['9.9'])));
   finally
     Cmd.Free;
   end;
@@ -540,6 +705,25 @@ begin
   end;
 end;
 
+procedure TestUninstallHelpUnexpectedArg;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Test('Uninstall help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Uninstall help unexpected arg shows usage', StdErr.Contains('uninstall'));
+    Test('Uninstall help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestUninstallMissingVersion;
 var
   Cmd: TFPCUninstallCommand;
@@ -553,6 +737,44 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Test('Uninstall no args returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
     Test('Uninstall no args shows error on stderr', StdErr.Contains('version'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallUnexpectedArg;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Test('Uninstall unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Uninstall unexpected arg shows usage', StdErr.Contains('uninstall'));
+    Test('Uninstall unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUninstallUnknownOption;
+var
+  Cmd: TFPCUninstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCUninstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Test('Uninstall unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Test('Uninstall unknown option shows usage', StdErr.Contains('uninstall'));
+    Test('Uninstall unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -608,9 +830,15 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--from=auto'], Ctx);
-    // auto is valid mode, command should proceed (and likely fail due to no network)
-    Test('--from=auto returns valid exit code', Ret >= 0);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--from=auto'],
+      Ctx
+    );
+    Test('--from=auto returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--from=auto reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -626,8 +854,15 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--from=binary'], Ctx);
-    Test('--from=binary returns valid exit code', Ret >= 0);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--from=binary'],
+      Ctx
+    );
+    Test('--from=binary returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--from=binary reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -643,8 +878,15 @@ begin
   Ctx := CreateTestContext(StdOut, StdErr);
   Cmd := TFPCInstallCommand.Create;
   try
-    Ret := Cmd.Execute(['3.2.2', '--from=source'], Ctx);
-    Test('--from=source returns valid exit code', Ret >= 0);
+    Ret := ExecuteInstallCommandWithNetworkDisabled(
+      Cmd,
+      ['3.2.2', '--from=source'],
+      Ctx
+    );
+    Test('--from=source returns EXIT_IO_ERROR when network is disabled',
+      Ret = EXIT_IO_ERROR);
+    Test('--from=source reports network-disabled guard',
+      StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
   finally
     Cmd.Free;
   end;
@@ -656,13 +898,11 @@ begin
   WriteLn;
 
   // Create temp config directory
-  GTempConfigDir := BuildTempConfigDir;
-  ForceDirectories(GTempConfigDir);
+  GTempConfigDir := CreateUniqueTempDir('fpdev_test_install');
 
   try
     Test('Temp config dir uses system temp root',
-      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-        ExpandFileName(GTempConfigDir)) = 1);
+      PathUsesSystemTempRoot(GTempConfigDir));
 
     // Group 1: Command basics
     WriteLn('--- Command Basics ---');
@@ -675,12 +915,17 @@ begin
     WriteLn('--- Help Output ---');
     TestHelpFlag;
     TestHelpShortFlag;
+    TestHelpUnexpectedArg;
     TestHelpSubcommand;
 
     // Group 3: Missing arguments
     WriteLn('');
     WriteLn('--- Argument Validation ---');
     TestMissingVersionArg;
+    TestUnexpectedPositionalArg;
+    TestUnknownOption;
+    TestInvalidJobsValue;
+    TestEmptyPrefixValue;
 
     // Group 4: Install mode flags
     WriteLn('');
@@ -699,6 +944,7 @@ begin
     TestInstallWithFromBinaryFlag;
     TestInstallWithFromSourceFlag;
     TestInstallWithNoCacheFlag;
+    TestInvalidVersionDoesNotAppendGenericInstallFailure;
 
     // Group 7: Command registration
     WriteLn('');
@@ -711,7 +957,10 @@ begin
     TestUninstallCommandName;
     TestUninstallAliasesIsNil;
     TestUninstallHelpFlag;
+    TestUninstallHelpUnexpectedArg;
     TestUninstallMissingVersion;
+    TestUninstallUnexpectedArg;
+    TestUninstallUnknownOption;
     TestUninstallNonExistent;
     TestUninstallRegistration;
 
@@ -722,13 +971,7 @@ begin
     TestInstallWithFromBinaryExplicit;
     TestInstallWithFromSourceExplicit;
   finally
-    // Cleanup temp directory
-    if DirectoryExists(GTempConfigDir) then
-    begin
-      // Simple cleanup - delete config file and directory
-      DeleteFile(GTempConfigDir + PathDelim + 'config.json');
-      DeleteDirRecursive(GTempConfigDir);
-    end;
+    CleanupTempDir(GTempConfigDir);
   end;
 
   WriteLn('');

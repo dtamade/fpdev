@@ -141,6 +141,7 @@ type
     FailOnBase: Boolean;
     FailOnDirect: Boolean;
     CreateBaseArchiveOnBinary: Boolean;
+    CreateExtraPackagesOnBinary: Boolean;
     CreateBinOnBase: Boolean;
     CreateLibOnBase: Boolean;
     CreateLibOnDirect: Boolean;
@@ -148,6 +149,7 @@ type
     BinaryCalls: Integer;
     BaseCalls: Integer;
     DirectCalls: Integer;
+    ExtraPackageCalls: Integer;
     LastArchive: string;
     LastDest: string;
     function ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
@@ -173,6 +175,23 @@ begin
       finally
         Free;
       end;
+    if CreateExtraPackagesOnBinary then
+    begin
+      with TStringList.Create do
+      try
+        Add('extra units archive');
+        SaveToFile(ADestPath + PathDelim + 'units-fcl-base.x86_64-linux.tar.gz');
+      finally
+        Free;
+      end;
+      with TStringList.Create do
+      try
+        Add('extra utils archive');
+        SaveToFile(ADestPath + PathDelim + 'utils-fpcmkcfg.x86_64-linux.tar.gz');
+      finally
+        Free;
+      end;
+    end;
     Result := not FailOnBinary;
     Exit;
   end;
@@ -185,6 +204,19 @@ begin
     if CreateLibOnBase then
       ForceDirectories(ADestPath + PathDelim + 'lib');
     Result := not FailOnBase;
+    Exit;
+  end;
+
+  if (Pos('units-', FileName) = 1) or (Pos('utils-', FileName) = 1) then
+  begin
+    Inc(ExtraPackageCalls);
+    if Pos('units-', FileName) = 1 then
+      ForceDirectories(ADestPath + PathDelim + 'lib' + PathDelim + 'fpc' +
+        PathDelim + '3.2.2' + PathDelim + 'units' + PathDelim + 'x86_64-linux' +
+        PathDelim + 'fcl-base')
+    else
+      ForceDirectories(ADestPath + PathDelim + 'bin');
+    Result := True;
     Exit;
   end;
 
@@ -282,6 +314,46 @@ begin
       OutBuf.Contains('No nested TAR found, using direct extraction'), 'fallback message missing');
     Check('direct extraction fallback validates lib dir',
       DirectoryExists(InstallDir + PathDelim + 'lib'), 'lib missing');
+  finally
+    CleanupTempDir(InstallDir);
+    CleanupTempDir(TempDir);
+    Probe.Free;
+  end;
+end;
+
+procedure TestNestedArchiveExtractsRemainingPackages;
+var
+  Probe: TNestedFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  TempDir, InstallDir, OuterFile, ExtractedDir, BinaryTar: string;
+begin
+  Probe := TNestedFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  TempDir := CreateUniqueTempDir('test_nested_extra_pkg_temp');
+  InstallDir := CreateUniqueTempDir('test_nested_extra_pkg_install');
+  OuterFile := TempDir + PathDelim + 'outer.tar';
+  ExtractedDir := TempDir + PathDelim + 'fpc-3.2.2.x86_64-linux';
+  BinaryTar := ExtractedDir + PathDelim + 'binary.x86_64-linux.tar';
+  try
+    CreateDummyFile(OuterFile);
+    ForceDirectories(ExtractedDir);
+    CreateDummyFile(BinaryTar);
+    Probe.CreateBaseArchiveOnBinary := True;
+    Probe.CreateExtraPackagesOnBinary := True;
+    Probe.CreateBinOnBase := True;
+
+    Check('nested archive extracts remaining packages',
+      ExecuteFPCNestedPackageInstallFlow(TempDir, InstallDir, OuterFile,
+        OutBuf, ErrBuf, @Probe.ExtractArchive),
+      'expected success');
+    Check('nested archive extracts extra packages after base', Probe.ExtraPackageCalls = 2,
+      'extra calls=' + IntToStr(Probe.ExtraPackageCalls));
+    Check('nested archive installs extra units content',
+      DirectoryExists(InstallDir + PathDelim + 'lib' + PathDelim + 'fpc' +
+        PathDelim + '3.2.2' + PathDelim + 'units' + PathDelim + 'x86_64-linux' +
+        PathDelim + 'fcl-base'),
+      'fcl-base package missing');
   finally
     CleanupTempDir(InstallDir);
     CleanupTempDir(TempDir);
@@ -392,6 +464,7 @@ begin
   try
     TestNestedArchiveSuccess;
     TestDirectExtractionFallback;
+    TestNestedArchiveExtractsRemainingPackages;
     TestNestedBinaryFailure;
     TestBaseArchiveFailure;
     TestPostValidationFailure;

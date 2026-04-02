@@ -56,18 +56,10 @@ end;
 
 function ResourceRepoCreateDefaultConfig: TResourceRepoConfig;
 begin
-  GetDataRoot;
   Result.URL := FPDEV_REPO_URL;
   SetLength(Result.Mirrors, 1);
   Result.Mirrors[0] := FPDEV_REPO_MIRROR;
-
-  {$IFDEF MSWINDOWS}
-  Result.LocalPath := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +
-                      FPDEV_CONFIG_DIR + PathDelim + 'resources';
-  {$ELSE}
-  Result.LocalPath := IncludeTrailingPathDelimiter(GetEnvironmentVariable('HOME')) +
-                      FPDEV_CONFIG_DIR + PathDelim + 'resources';
-  {$ENDIF}
+  Result.LocalPath := IncludeTrailingPathDelimiter(GetDataRoot) + 'resources';
 
   Result.Branch := 'main';
   Result.AutoUpdate := True;

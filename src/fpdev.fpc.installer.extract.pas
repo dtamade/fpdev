@@ -53,6 +53,58 @@ type
 
 implementation
 
+function IsPackageArchive(const AFileName: string): Boolean;
+begin
+  Result := (Pos('units-', AFileName) = 1) or
+    (Pos('utils-', AFileName) = 1) or
+    (Pos('utils.', AFileName) = 1);
+end;
+
+function ExtractRemainingPackageArchives(const AInnerDir, AInstallPath: string;
+  const AOut, AErr: IOutput): TFPCExtractResult;
+var
+  ArchiveList: TStringList;
+  Search: TSearchRec;
+  ArchivePath: string;
+  ExtractResult: TFPCExtractResult;
+  I: Integer;
+begin
+  Result.Success := False;
+  Result.ErrorMsg := '';
+  Result.ExtractedDir := AInstallPath;
+
+  ArchiveList := TStringList.Create;
+  try
+    if FindFirst(AInnerDir + PathDelim + '*.tar.gz', faAnyFile, Search) = 0 then
+    begin
+      repeat
+        if ((Search.Attr and faDirectory) = 0) and IsPackageArchive(Search.Name) then
+          ArchiveList.Add(AInnerDir + PathDelim + Search.Name);
+      until FindNext(Search) <> 0;
+      FindClose(Search);
+    end;
+
+    ArchiveList.Sort;
+    for I := 0 to ArchiveList.Count - 1 do
+    begin
+      ArchivePath := ArchiveList[I];
+      AOut.WriteLn('  Extracting package archive: ' + ExtractFileName(ArchivePath));
+      ExtractResult := TFPCArchiveExtractor.ExtractBaseArchive(ArchivePath, AInstallPath, AOut);
+      if not ExtractResult.Success then
+      begin
+        AErr.WriteLn('Error: ' + ExtractResult.ErrorMsg);
+        Result.ErrorMsg := ExtractResult.ErrorMsg;
+        Exit;
+      end;
+      DeleteFile(ArchivePath);
+    end;
+  finally
+    ArchiveList.Free;
+  end;
+
+  Result.Success := True;
+end;
+
 class function TFPCArchiveExtractor.ExtractOuterTar(const ATarFile, ATempDir: string;
   const AOut: IOutput): TFPCExtractResult;
 var
@@ -247,6 +299,15 @@ begin
   if not ExtractResult.Success then
   begin
     AErr.WriteLn('Error: ' + ExtractResult.ErrorMsg);
+    Result.ErrorMsg := ExtractResult.ErrorMsg;
+    Exit;
+  end;
+
+  DeleteFile(BaseArchive);
+
+  ExtractResult := ExtractRemainingPackageArchives(InnerDir, AInstallPath, AOut, AErr);
+  if not ExtractResult.Success then
+  begin
     Result.ErrorMsg := ExtractResult.ErrorMsg;
     Exit;
   end;

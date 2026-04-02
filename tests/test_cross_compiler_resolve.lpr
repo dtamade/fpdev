@@ -4,12 +4,12 @@ program test_cross_compiler_resolve;
 
 uses
   SysUtils,
+  test_temp_paths,
   fpdev.cross.compiler;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
-  GTempPathSequence: Int64 = 0;
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -27,26 +27,26 @@ end;
 
 function BuildTempCompilerPath: string;
 begin
-  Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'test_ppcross_validate-' + IntToStr(GetTickCount64) + '-'
-    + IntToStr(GTempPathSequence) + '.tmp';
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir('test_ppcross_validate'))
+    + 'compiler.tmp';
 end;
 
 procedure TestBuildTempCompilerPathUsesSystemTempAndUniqueSuffix;
 var
   FirstPath: string;
   SecondPath: string;
-  TempRoot: string;
 begin
   FirstPath := BuildTempCompilerPath;
   SecondPath := BuildTempCompilerPath;
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-
-  Check(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
-    'BuildTempCompilerPath: uses system temp root');
-  Check(FirstPath <> SecondPath,
-    'BuildTempCompilerPath: returns unique path');
+  try
+    Check(PathUsesSystemTempRoot(ExtractFileDir(FirstPath)),
+      'BuildTempCompilerPath: uses system temp root');
+    Check(FirstPath <> SecondPath,
+      'BuildTempCompilerPath: returns unique path');
+  finally
+    CleanupTempDir(ExtractFileDir(FirstPath));
+    CleanupTempDir(ExtractFileDir(SecondPath));
+  end;
 end;
 
 { GetCPUSuffix tests }
@@ -199,6 +199,7 @@ begin
   finally
     if FileExists(TmpFile) then
       DeleteFile(TmpFile);
+    CleanupTempDir(ExtractFileDir(TmpFile));
   end;
 end;
 

@@ -152,10 +152,12 @@ procedure TM(const AID: string; const ATranslations: array of string);
 
 implementation
 
-{$IFDEF MSWINDOWS}
 uses
-  Windows;
+  fpdev.utils
+{$IFDEF MSWINDOWS}
+  , Windows
 {$ENDIF}
+  ;
 
 var
   GI18nManager: TI18nManager = nil;
@@ -259,11 +261,11 @@ begin
   end;
   {$ELSE}
   // Unix/Linux/macOS: Check environment variables
-  LangCode := GetEnvironmentVariable('LC_ALL');
+  LangCode := get_env('LC_ALL');
   if LangCode = '' then
-    LangCode := GetEnvironmentVariable('LC_MESSAGES');
+    LangCode := get_env('LC_MESSAGES');
   if LangCode = '' then
-    LangCode := GetEnvironmentVariable('LANG');
+    LangCode := get_env('LANG');
 
   if LangCode <> '' then
     Result := LanguageCodeToEnum(Copy(LangCode, 1, 2));

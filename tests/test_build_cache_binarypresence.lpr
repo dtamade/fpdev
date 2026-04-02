@@ -4,12 +4,12 @@ program test_build_cache_binarypresence;
 
 uses
   SysUtils,
+  test_temp_paths,
   fpdev.build.cache.binarypresence;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
-  GTempPathSequence: Int64 = 0;
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
 begin
@@ -27,25 +27,25 @@ end;
 
 function BuildTempFilePath(const APrefix, AExt: string): string;
 begin
-  Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-'
-    + IntToStr(GTempPathSequence) + AExt;
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir(APrefix))
+    + 'artifact' + AExt;
 end;
 
 procedure TestBuildTempFilePathUsesSystemTempAndUniqueSuffix;
 var
   FirstPath: string;
   SecondPath: string;
-  TempRoot: string;
 begin
   FirstPath := BuildTempFilePath('fpdev-binarypresence', '.tmp');
   SecondPath := BuildTempFilePath('fpdev-binarypresence', '.tmp');
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-
-  AssertTrue(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
-    'temp binarypresence path uses system temp root');
-  AssertTrue(FirstPath <> SecondPath, 'temp binarypresence path is unique');
+  try
+    AssertTrue(PathUsesSystemTempRoot(ExtractFileDir(FirstPath)),
+      'temp binarypresence path uses system temp root');
+    AssertTrue(FirstPath <> SecondPath, 'temp binarypresence path is unique');
+  finally
+    CleanupTempDir(ExtractFileDir(FirstPath));
+    CleanupTempDir(ExtractFileDir(SecondPath));
+  end;
 end;
 
 procedure CreateEmptyFile(const AFilePath: string);
@@ -67,7 +67,9 @@ begin
     AssertTrue(BuildCacheHasArtifactFiles(TempFile, '/nonexistent/meta'),
       'source archive alone counts as cached artifact');
   finally
-    DeleteFile(TempFile);
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    CleanupTempDir(ExtractFileDir(TempFile));
   end;
 end;
 
@@ -81,7 +83,9 @@ begin
     AssertTrue(BuildCacheHasArtifactFiles('/nonexistent/archive', TempFile),
       'binary meta alone counts as cached artifact');
   finally
-    DeleteFile(TempFile);
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    CleanupTempDir(ExtractFileDir(TempFile));
   end;
 end;
 

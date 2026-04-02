@@ -72,8 +72,13 @@ end;
 function TGitManager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean;
 var
   ParentDir: string;
+  RequestedBranch: string;
+  RequestedURL: string;
+  ExistingOriginURL: string;
 begin
   Result := False;
+  RequestedBranch := Trim(ABranch);
+  RequestedURL := Trim(AURL);
 
   // WriteLn('Cloning repository...');  // debug code commented out
   // WriteLn('URL: ', AURL);  // debug code commented out
@@ -83,7 +88,7 @@ begin
 
   // Ensure parent directory exists
   ParentDir := ExtractFileDir(ATargetDir);
-  if not DirectoryExists(ParentDir) then
+  if (ParentDir <> '') and (not DirectoryExists(ParentDir)) then
   begin
   // WriteLn('Creating directory: ', ParentDir);  // debug code commented out
     if not ForceDirectories(ParentDir) then
@@ -97,7 +102,27 @@ begin
   if Assigned(FGitOps) and FGitOps.IsRepository(ATargetDir) then
   begin
   // WriteLn('Target directory already contains a Git repository, trying to update...');  // debug code commented out
-    Result := UpdateRepository(ATargetDir);
+    if RequestedURL <> '' then
+    begin
+      ExistingOriginURL := Trim(FGitOps.GetRemoteURL(ATargetDir, 'origin'));
+      if (ExistingOriginURL = '') or (ExistingOriginURL <> RequestedURL) then
+        Exit(False);
+    end;
+
+    if RequestedBranch <> '' then
+    begin
+      Result := True;
+      if FGitOps.HasRemote(ATargetDir) then
+        Result := FGitOps.Fetch(ATargetDir, 'origin');
+      if Result then
+        Result := CheckoutBranch(ATargetDir, RequestedBranch);
+      Exit;
+    end;
+
+    if RequestedURL <> '' then
+      Result := FGitOps.PullFastForwardOnly(ATargetDir)
+    else
+      Result := UpdateRepository(ATargetDir);
     Exit;
   end;
 
@@ -164,7 +189,7 @@ end;
 function TGitManager.ListBranches(const ARepoDir: string): TStringArray;
 begin
   if Assigned(FGitOps) then
-    Result := FGitOps.ListRemoteBranches(ARepoDir, 'origin')
+    Result := FGitOps.ListBranches(ARepoDir)
   else
     Result := nil;
 end;

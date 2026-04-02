@@ -469,6 +469,99 @@ begin
   end;
 end;
 
+procedure TestExecuteFPCUpdatePlanCoreNormalizesDirtyPullFailure;
+var
+  Plan: TFPCSourcePlan;
+  Probe: TFPCRuntimeProbe;
+  GitProbe: TFPCGitProbe;
+  Outp, Errp: TStringOutput;
+  Success: Boolean;
+begin
+  Plan := CreateFPCSourcePlanCore('/tmp/fpdev-root', '3.2.2');
+  Probe := TFPCRuntimeProbe.Create;
+  Probe.DirectoryExistsResult := True;
+  GitProbe := TFPCGitProbe.Create;
+  GitProbe.BackendAvailableResult := True;
+  GitProbe.RepoResult := True;
+  GitProbe.RemoteResult := True;
+  GitProbe.PullResult := False;
+  GitProbe.PullErrorText :=
+    'error: Your local changes to the following files would be overwritten by merge:' + LineEnding +
+    #9'README.txt' + LineEnding +
+    'Please commit your changes or stash them before you merge.';
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Success := ExecuteFPCUpdatePlanCore(Plan, Outp, Errp, @Probe.DirectoryExistsAt, GitProbe);
+    Check('update dirty failure returns false', not Success, 'unexpected success');
+    Check('update dirty failure normalized',
+      Errp.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIRTY_WORKTREE)])),
+      Errp.Text);
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteFPCUpdatePlanCoreNormalizesDetachedHeadPullFailure;
+var
+  Plan: TFPCSourcePlan;
+  Probe: TFPCRuntimeProbe;
+  GitProbe: TFPCGitProbe;
+  Outp, Errp: TStringOutput;
+  Success: Boolean;
+begin
+  Plan := CreateFPCSourcePlanCore('/tmp/fpdev-root', '3.2.2');
+  Probe := TFPCRuntimeProbe.Create;
+  Probe.DirectoryExistsResult := True;
+  GitProbe := TFPCGitProbe.Create;
+  GitProbe.BackendAvailableResult := True;
+  GitProbe.RepoResult := True;
+  GitProbe.RemoteResult := True;
+  GitProbe.PullResult := False;
+  GitProbe.PullErrorText := 'Detached HEAD';
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Success := ExecuteFPCUpdatePlanCore(Plan, Outp, Errp, @Probe.DirectoryExistsAt, GitProbe);
+    Check('update detached failure returns false', not Success, 'unexpected success');
+    Check('update detached failure normalized',
+      Errp.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DETACHED_HEAD)])),
+      Errp.Text);
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteFPCUpdatePlanCoreNormalizesDivergedPullFailure;
+var
+  Plan: TFPCSourcePlan;
+  Probe: TFPCRuntimeProbe;
+  GitProbe: TFPCGitProbe;
+  Outp, Errp: TStringOutput;
+  Success: Boolean;
+begin
+  Plan := CreateFPCSourcePlanCore('/tmp/fpdev-root', '3.2.2');
+  Probe := TFPCRuntimeProbe.Create;
+  Probe.DirectoryExistsResult := True;
+  GitProbe := TFPCGitProbe.Create;
+  GitProbe.BackendAvailableResult := True;
+  GitProbe.RepoResult := True;
+  GitProbe.RemoteResult := True;
+  GitProbe.PullResult := False;
+  GitProbe.PullErrorText := 'Non-fast-forward update requires merge/rebase';
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Success := ExecuteFPCUpdatePlanCore(Plan, Outp, Errp, @Probe.DirectoryExistsAt, GitProbe);
+    Check('update diverged failure returns false', not Success, 'unexpected success');
+    Check('update diverged failure normalized',
+      Errp.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])),
+      Errp.Text);
+  finally
+    Probe.Free;
+  end;
+end;
+
 procedure TestExecuteFPCCleanPlanCoreFailsWhenSourceMissing;
 var
   Plan: TFPCSourcePlan;
@@ -579,6 +672,34 @@ begin
     Check('show info succeeds for installed version', Success, 'unexpected failure');
     Check('show info prints install date', Outp.Contains(_Fmt(MSG_FPC_INSTALL_DATE, [ExpectedDate])), Outp.Text);
     Check('show info prints source url', Outp.Contains(_Fmt(MSG_FPC_SOURCE_URL, [Probe.ToolchainInfoValue.SourceURL])), Outp.Text);
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteFPCShowVersionInfoCoreFormatsMissingInstallDateAsUnknown;
+var
+  Probe: TFPCRuntimeProbe;
+  Outp, Errp: TStringOutput;
+  Success: Boolean;
+begin
+  Probe := TFPCRuntimeProbe.Create;
+  Probe.ValidateVersionResult := True;
+  Probe.InstalledResult := True;
+  Probe.InstallPathValue := '/tmp/fpc/3.2.2';
+  Probe.ToolchainLookupResult := True;
+  Probe.ToolchainInfoValue.InstallDate := 0;
+  Probe.ToolchainInfoValue.SourceURL := 'https://example.invalid/fpc.git';
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Success := ExecuteFPCShowVersionInfoCore('3.2.2', Outp, Errp,
+      @Probe.ValidateVersion, @Probe.IsInstalled, @Probe.ResolveInstallPath, @Probe.LookupToolchain);
+    Check('show info succeeds when install date missing', Success, 'unexpected failure');
+    Check('show info prints unknown install date when metadata missing',
+      Outp.Contains(_Fmt(MSG_FPC_INSTALL_DATE, ['unknown'])), Outp.Text);
+    Check('show info prints source url when install date missing',
+      Outp.Contains(_Fmt(MSG_FPC_SOURCE_URL, [Probe.ToolchainInfoValue.SourceURL])), Outp.Text);
   finally
     Probe.Free;
   end;
@@ -706,11 +827,15 @@ begin
   TestExecuteFPCUpdatePlanCoreTreatsLocalOnlyRepoAsSuccess;
   TestExecuteFPCUpdatePlanCoreReportsPullSuccess;
   TestExecuteFPCUpdatePlanCoreReportsPullFailure;
+  TestExecuteFPCUpdatePlanCoreNormalizesDirtyPullFailure;
+  TestExecuteFPCUpdatePlanCoreNormalizesDetachedHeadPullFailure;
+  TestExecuteFPCUpdatePlanCoreNormalizesDivergedPullFailure;
   TestExecuteFPCCleanPlanCoreFailsWhenSourceMissing;
   TestExecuteFPCCleanPlanCoreReportsDeletedCount;
   TestExecuteFPCCleanPlanCoreHandlesCleanerException;
   TestExecuteFPCShowVersionInfoCoreRejectsInvalidVersion;
   TestExecuteFPCShowVersionInfoCoreReportsInstalledToolchainInfo;
+  TestExecuteFPCShowVersionInfoCoreFormatsMissingInstallDateAsUnknown;
   TestExecuteFPCShowVersionInfoCoreSupportsCustomWriterWithoutValidation;
   TestExecuteFPCShowVersionInfoCoreReportsNotInstalled;
   TestExecuteFPCTestInstallationCoreFailsWhenNotInstalled;

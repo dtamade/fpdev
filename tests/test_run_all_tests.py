@@ -7,6 +7,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / 'scripts' / 'run_all_tests.sh'
+FOCUSED_SCRIPT_PATH = REPO_ROOT / 'scripts' / 'run_single_test.sh'
 
 
 class RunAllTestsScriptTests(unittest.TestCase):
@@ -27,6 +28,74 @@ class RunAllTestsScriptTests(unittest.TestCase):
         path.write_text(content, encoding='utf-8')
         path.chmod(0o755)
         return path
+
+    def write_script_copy(self, source: Path, destination: Path) -> Path:
+        destination.write_text(source.read_text(encoding='utf-8'), encoding='utf-8')
+        destination.chmod(0o755)
+        return destination
+
+    def test_create_test_tmp_root_honors_fpdev_test_tmpdir(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            custom_tmp = tmp_path / 'custom-temp-root'
+            env = {'FPDEV_TEST_TMPDIR': str(custom_tmp)}
+
+            result = self.run_bash(
+                textwrap.dedent(
+                    f'''\
+                    source "{SCRIPT_PATH}"
+                    tmp_root="$(create_test_tmp_root)"
+                    printf '%s\\n' "$tmp_root"
+                    test -d "$tmp_root"
+                    case "$tmp_root" in
+                      "{custom_tmp}"/fpdev-tests.*) ;;
+                      *) exit 1 ;;
+                    esac
+                    rm -rf "$tmp_root"
+                    '''
+                ),
+                cwd=tmp_path,
+                env=env,
+            )
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            self.assertIn(str(custom_tmp), result.stdout)
+
+    def test_init_test_environment_exports_system_temp_env_to_test_tmp_root(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            custom_tmp = tmp_path / 'custom-temp-root'
+            env = {'FPDEV_TEST_TMPDIR': str(custom_tmp)}
+
+            result = self.run_bash(
+                textwrap.dedent(
+                    f'''\
+                    source "{SCRIPT_PATH}"
+                    init_test_environment
+                    test -n "$TEST_TMP_ROOT"
+                    case "$TEST_TMP_ROOT" in
+                      "{custom_tmp}"/fpdev-tests.*) ;;
+                      *) exit 1 ;;
+                    esac
+                    test "$TMPDIR" = "$TEST_TMP_ROOT"
+                    test "$TMP" = "$TEST_TMP_ROOT"
+                    test "$TEMP" = "$TEST_TMP_ROOT"
+                    cleanup
+                    '''
+                ),
+                cwd=tmp_path,
+                env=env,
+            )
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
 
     def test_transient_build_failure_detects_no_space_left_on_device(self):
         with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
@@ -407,6 +476,90 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 fu_args[0],
                 'fpc fallback should isolate unit output under the per-test bin directory',
             )
+
+    def test_run_single_test_requires_exact_test_file_path(self):
+        with tempfile.TemporaryDirectory(prefix='run-single-test-') as tmp:
+            tmp_path = Path(tmp)
+            scripts_dir = tmp_path / 'scripts'
+            scripts_dir.mkdir()
+            focused_script = self.write_script_copy(FOCUSED_SCRIPT_PATH, scripts_dir / 'run_single_test.sh')
+            self.write_script_copy(SCRIPT_PATH, scripts_dir / 'run_all_tests.sh')
+
+            result = self.run_bash(f'"{focused_script}"', cwd=tmp_path)
+
+            self.assertEqual(2, result.returncode, msg=f'stdout={result.stdout}\nstderr={result.stderr}')
+            self.assertIn('Usage:', result.stderr)
+
+    def test_run_single_test_reuses_build_recovery_for_targeted_pascal_suite(self):
+        with tempfile.TemporaryDirectory(prefix='run-single-test-') as tmp:
+            tmp_path = Path(tmp)
+            scripts_dir = tmp_path / 'scripts'
+            tool_dir = tmp_path / 'toolbin'
+            tests_dir = tmp_path / 'tests'
+            lib_dir = tmp_path / 'lib'
+            scripts_dir.mkdir()
+            tool_dir.mkdir()
+            tests_dir.mkdir()
+            lib_dir.mkdir()
+
+            focused_script = self.write_script_copy(FOCUSED_SCRIPT_PATH, scripts_dir / 'run_single_test.sh')
+            self.write_script_copy(SCRIPT_PATH, scripts_dir / 'run_all_tests.sh')
+
+            test_file = tests_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            stale_object = lib_dir / 'stale-link.o'
+            stale_object.write_text('corrupt\n', encoding='utf-8')
+            fpc_count_file = tmp_path / 'fpc.count'
+
+            self.create_stub_tool(
+                tool_dir,
+                'fpc',
+                textwrap.dedent(
+                    """#!/bin/sh
+                    count=0
+                    if [ -f "$FPDEV_STUB_FPC_COUNT" ]; then
+                      count=$(cat "$FPDEV_STUB_FPC_COUNT")
+                    fi
+                    count=$((count + 1))
+                    printf '%s' "$count" > "$FPDEV_STUB_FPC_COUNT"
+                    out_dir=''
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        -FE*)
+                          out_dir=${1#-FE}
+                          ;;
+                      esac
+                      shift
+                    done
+                    if [ -f "lib/stale-link.o" ]; then
+                      echo '/usr/bin/ld.bfd: lib/fpdev.lazarus.config.o: bad reloc symbol index (0x735f6b63 >= 0x118)' >&2
+                      echo '/usr/bin/ld.bfd: failed to set dynamic section sizes: bad value' >&2
+                      exit 1
+                    fi
+                    mkdir -p "$out_dir"
+                    printf '#!/bin/sh\nexit 0\n' > "$out_dir/test_demo"
+                    chmod +x "$out_dir/test_demo"
+                    exit 0
+                    """
+                ),
+            )
+
+            env = {
+                'PATH': f'{tool_dir}:{os.environ.get("PATH", "")}',
+                'FPDEV_STUB_FPC_COUNT': str(fpc_count_file),
+            }
+            result = self.run_bash(f'"{focused_script}" "tests/test_demo.lpr"', cwd=tmp_path, env=env)
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            self.assertEqual('2', fpc_count_file.read_text(encoding='utf-8'))
+            self.assertFalse(stale_object.exists(), 'recovery should remove stale linker artifacts before retry')
+            self.assertTrue((tmp_path / 'bin' / 'test_demo').exists())
+            self.assertIn('Testing test_demo...', result.stdout)
+            self.assertIn('All tests passed!', result.stdout)
 
 
 if __name__ == '__main__':

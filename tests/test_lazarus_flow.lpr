@@ -326,7 +326,7 @@ begin
     True
   );
 
-  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
 
   Check('build plan keeps source dir', Plan.SourceDir = '/tmp/lazarus-src', 'source=' + Plan.SourceDir);
   Check('build plan keeps install dir', Plan.InstallDir = '/tmp/lazarus-install', 'install=' + Plan.InstallDir);
@@ -342,7 +342,7 @@ begin
     'env=' + Plan.EnvVars[0]);
 end;
 
-procedure TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPC;
+procedure TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPCAndDeduplicatesStableToolPath;
 var
   Plan: TLazarusBuildPlan;
   ExpectedBinDir: string;
@@ -358,18 +358,21 @@ begin
     False
   );
 
-  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+  ExpectedBinDir := '/tmp/settings-root' + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
 
   Check('unix build plan uses provided make command', Plan.MakeCommand = 'gmake', 'make=' + Plan.MakeCommand);
   Check('unix build plan keeps plain fpc executable',
     Plan.FPCExecutable = ExpectedBinDir + PathDelim + 'fpc',
     'fpc=' + Plan.FPCExecutable);
-  Check('unix build plan encodes parallel jobs',
-    Plan.Params[4] = '-j4',
+  Check('unix build plan forces serial jobs for stability',
+    Plan.Params[4] = '-j1',
     'jobs=' + Plan.Params[4]);
-  Check('unix build plan prepends PATH',
-    Plan.EnvVars[0] = 'PATH=' + ExpectedBinDir + PathSeparator + '/usr/bin',
+  Check('unix build plan prepends stable tool PATH without duplicate /usr/bin',
+    Plan.EnvVars[0] = 'PATH=' + ExpectedBinDir + PathSeparator + '/usr/bin' + PathSeparator + '/bin',
     'env=' + Plan.EnvVars[0]);
+  Check('unix build plan pins install tool',
+    Plan.EnvVars[1] = 'INSTALL=/usr/bin/install',
+    'install=' + Plan.EnvVars[1]);
 end;
 
 procedure TestApplyLazarusConfigurePlanCoreWritesExpectedPaths;
@@ -390,8 +393,8 @@ begin
     InstallPath := TempDir + PathDelim + 'lazarus' + PathDelim + '3.4';
     SettingsRoot := TempDir + PathDelim + 'data';
     ConfigRoot := TempDir + PathDelim + 'config-root';
-    FPCBinDir := SettingsRoot + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
-    FPCSourceDir := SettingsRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
+    FPCBinDir := SettingsRoot + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'bin';
+    FPCSourceDir := SettingsRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
     ForceDirectories(InstallPath);
     ForceDirectories(FPCBinDir);
     ForceDirectories(FPCSourceDir);
@@ -446,7 +449,7 @@ begin
   TestExecuteLazarusInstallPlanCoreTreatsConfigureFailureAsWarning;
   TestResolveLazarusConfigDirCoreUsesExplicitRoot;
   TestCreateLazarusBuildPlanCoreWindowsUsesMingwAndExe;
-  TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPC;
+  TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPCAndDeduplicatesStableToolPath;
   TestApplyLazarusConfigurePlanCoreWritesExpectedPaths;
 
   WriteLn;

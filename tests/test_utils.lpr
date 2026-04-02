@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes,
+  SysUtils, Classes, Process,
   fpdev.utils, fpdev.utils.fs, test_temp_paths;
 
 type
@@ -34,6 +34,7 @@ type
     // Test methods
     procedure TestTempDirUsesSystemTempAndUniqueSuffix;
     procedure TestTempDirCleanupRemovesNestedDirectories;
+    procedure TestTempDirCleanupRemovesBrokenSymlink;
     procedure TestExePath;
     procedure TestCwd;
     procedure TestChdir;
@@ -42,6 +43,7 @@ type
     procedure TestGetEnv;
     procedure TestSetEnv;
     procedure TestUnsetEnv;
+    procedure TestPathOverrideRemainsVisibleAfterOtherEnvMutation;
     procedure TestUname;
     procedure TestGetHostname;
     procedure TestGetCpuCount;
@@ -155,6 +157,7 @@ begin
 
   TestTempDirUsesSystemTempAndUniqueSuffix;
   TestTempDirCleanupRemovesNestedDirectories;
+  TestTempDirCleanupRemovesBrokenSymlink;
   TestExePath;
   TestCwd;
   TestChdir;
@@ -163,6 +166,7 @@ begin
   TestGetEnv;
   TestSetEnv;
   TestUnsetEnv;
+  TestPathOverrideRemainsVisibleAfterOtherEnvMutation;
   TestUname;
   TestGetHostname;
   TestGetCpuCount;
@@ -240,6 +244,62 @@ begin
   end;
 
   AssertFalse(DirectoryExists(OtherDir), 'destructor should remove nested temp directories');
+
+  if DirectoryExists(OtherDir) then
+    CleanupTempDir(ExcludeTrailingPathDelimiter(OtherDir));
+  if not DirectoryExists(FTempDir) then
+    ForceDirectories(FTempDir);
+end;
+
+procedure TUtilsTest.TestTempDirCleanupRemovesBrokenSymlink;
+var
+  Other: TUtilsTest;
+  OtherDir: string;
+  TargetFile: string;
+  LinkPath: string;
+  LinkProc: TProcess;
+begin
+  WriteLn('-- TestTempDirCleanupRemovesBrokenSymlink --');
+
+  Other := TUtilsTest.Create;
+  try
+    OtherDir := Other.FTempDir;
+    TargetFile := IncludeTrailingPathDelimiter(OtherDir) + 'target.txt';
+    LinkPath := IncludeTrailingPathDelimiter(OtherDir) + 'broken-link';
+
+    with TStringList.Create do
+    try
+      Add('temp');
+      SaveToFile(TargetFile);
+    finally
+      Free;
+    end;
+
+    {$IFDEF UNIX}
+    LinkProc := TProcess.Create(nil);
+    try
+      LinkProc.Executable := '/bin/ln';
+      LinkProc.Parameters.Add('-s');
+      LinkProc.Parameters.Add(TargetFile);
+      LinkProc.Parameters.Add(LinkPath);
+      LinkProc.Options := [poWaitOnExit];
+      LinkProc.Execute;
+      AssertIntEquals(0, LinkProc.ExitStatus, 'broken-link fixture should be created');
+    finally
+      LinkProc.Free;
+    end;
+    {$ELSE}
+    CopyFileSafe(TargetFile, LinkPath);
+    AssertTrue(FileExists(LinkPath), 'link substitute fixture should be created');
+    {$ENDIF}
+
+    DeleteFile(TargetFile);
+  finally
+    Other.Free;
+  end;
+
+  AssertFalse(DirectoryExists(OtherDir),
+    'destructor should remove temp directories containing broken links');
 
   if DirectoryExists(OtherDir) then
     CleanupTempDir(ExcludeTrailingPathDelimiter(OtherDir));
@@ -360,6 +420,63 @@ begin
   // Verify it was removed
   Found := get_env('FPDEV_TEST_UNSET', Value);
   AssertFalse(Found, 'get_env() should return False after unset_env()');
+end;
+
+procedure TUtilsTest.TestPathOverrideRemainsVisibleAfterOtherEnvMutation;
+var
+  SavedPath: string;
+  SavedDataRoot: string;
+  FakePath: string;
+  Proc: TProcess;
+  SawMissingExecutable: Boolean;
+begin
+  WriteLn('-- TestPathOverrideRemainsVisibleAfterOtherEnvMutation --');
+
+  SavedPath := get_env('PATH');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  FakePath := FTempDir + 'missing_path_probe';
+
+  try
+    AssertTrue(set_env('FPDEV_DATA_ROOT', FTempDir + 'probe_data_root'),
+      'set_env() should allow setting intermediate env var');
+    AssertTrue(unset_env('FPDEV_DATA_ROOT'),
+      'unset_env() should allow clearing intermediate env var');
+    AssertTrue(set_env('PATH', FakePath),
+      'set_env() should allow PATH override after other env mutation');
+
+    AssertEquals(FakePath, get_env('PATH'),
+      'get_env(PATH) should return overridden PATH after other env mutation');
+    AssertEquals(FakePath, GetEnvironmentVariable('PATH'),
+      'SysUtils.GetEnvironmentVariable(PATH) should stay in sync after other env mutation');
+
+    SawMissingExecutable := False;
+    Proc := TProcess.Create(nil);
+    try
+      Proc.Executable := 'tar';
+      Proc.Options := [poWaitOnExit, poUsePipes];
+      try
+        Proc.Execute;
+      except
+        on E: Exception do
+          SawMissingExecutable := Pos('Executable not found', E.Message) > 0;
+      end;
+    finally
+      Proc.Free;
+    end;
+
+    AssertTrue(SawMissingExecutable,
+      'TProcess executable lookup should honor overridden PATH after other env mutation');
+  finally
+    if SavedPath <> '' then
+      set_env('PATH', SavedPath)
+    else
+      unset_env('PATH');
+
+    if SavedDataRoot <> '' then
+      set_env('FPDEV_DATA_ROOT', SavedDataRoot)
+    else
+      unset_env('FPDEV_DATA_ROOT');
+  end;
 end;
 
 procedure TUtilsTest.TestUname;
