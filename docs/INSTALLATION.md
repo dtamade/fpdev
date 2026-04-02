@@ -191,10 +191,12 @@ cd test-app
 
 ### 运行测试套件
 ```bash
-# 如果从源码安装，可以运行测试
-cd fpdev/src
-fpc -Fu. ../tests/test_config_management.lpr
-../tests/test_config_management
+# 如果从源码构建，可以运行完整回归基线
+scripts/run_all_tests.sh
+
+# 或运行一个聚焦测试
+lazbuild -B tests/test_config_management.lpi
+./bin/test_config_management
 ```
 
 ## 🐛 故障排除

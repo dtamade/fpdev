@@ -1700,3 +1700,43 @@
 | What's the goal? | Keep even historical-but-public roadmap snapshots from reintroducing obsolete install layouts through copy-paste shell examples |
 | What have I learned? | Marking a doc as “historical” is not enough when it still exposes runnable commands; path-model drift still needs contract coverage if the file remains in the public docs tree |
 | What have I done? | Added historical-roadmap install-path contract coverage and rewrote both roadmap snapshots around `<data-root>` plus explicit `FPDEV_DATA_ROOT` usage |
+
+## Session: 2026-04-02 (installation-doc test-runner drift)
+
+### Close-out Execution Follow-up 42
+- **Status:** complete
+- Actions taken:
+  - Continued scanning public install/onboarding docs after the historical-roadmap cleanup and found that `docs/INSTALLATION.md` plus `docs/INSTALLATION.en.md` still taught a bespoke `cd fpdev/src && fpc -Fu.` test path instead of the repo-standard test runners
+  - Re-verified the current source of truth in `docs/testing.md`, `AGENTS.md`, and `CLAUDE.md`: the standard regression entrypoints are `scripts/run_all_tests.sh` for the full baseline and `lazbuild -B tests/test_config_management.lpi` plus `./bin/test_config_management` for a focused installation check
+  - Added a failing official-docs contract proving the installation docs must use those standard test-runner commands if they tell source users how to validate the checkout
+  - Updated both installation docs so the test section now points to `scripts/run_all_tests.sh` and the focused `test_config_management` Lazarus-project build/run path
+  - Removed the generated `tests/test_config_management` binary left behind by an earlier manual verification so the worktree returned to a clean tracked-file state
+  - Re-ran the focused official-docs suite and the broader close-out regression bundle to confirm the installation-doc cleanup stayed within the existing release/doc contract envelope
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/INSTALLATION.md`
+  - `docs/INSTALLATION.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for installation-doc test-runner drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the installation docs still lacked `scripts/run_all_tests.sh` and `lazbuild -B tests/test_config_management.lpi`, while still advertising `cd fpdev/src` plus `fpc -Fu. ../tests/test_config_management.lpr` | Observed |
+| Focused official-docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `29` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `86` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/INSTALLATION*.md` still recommended a bespoke `cd fpdev/src && fpc -Fu.` validation path instead of the repo-standard test runners | 1 | Added an installation-doc test-runner contract and rewrote both docs around `scripts/run_all_tests.sh` plus the focused `test_config_management` Lazarus-project path |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The public installation docs now align with the repository’s standard test entrypoints instead of a one-off fallback compile path |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the first-source-build experience aligned with the same test runners and recovery logic the repository already standardizes elsewhere |
+| What have I learned? | Even when a fallback command technically works, public install docs should not drift away from the repository’s standardized validation paths because users will treat them as the canonical workflow |
+| What have I done? | Added installation-doc test-runner contract coverage, rewrote both install guides around standard test commands, and removed the generated test binary from the worktree |

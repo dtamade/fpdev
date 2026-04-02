@@ -821,3 +821,23 @@ Phase 4 complete
 4. 结论：
    - historical development roadmap 不再把旧的 `~/.fpdev/fpc/...` 安装布局继续当成可复制路径
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, installation-doc test-runner drift)
+1. 新发现的 repo-local live-installation seam：
+   - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md` 的“运行测试套件”仍让源码用户执行：
+     - `cd fpdev/src`
+     - `fpc -Fu. ../tests/test_config_management.lpr`
+     - `../tests/test_config_management`
+   - 但当前仓库内标准测试入口已经明确是 `scripts/run_all_tests.sh`，以及 `lazbuild -B tests/test_config_management.lpi && ./bin/test_config_management`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_installation_docs_use_standard_test_runner_commands`
+   - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：
+     - 改成 `scripts/run_all_tests.sh` 作为完整回归入口
+     - 补入 `lazbuild -B tests/test_config_management.lpi` + `./bin/test_config_management` 作为聚焦示例
+     - 删除 `cd fpdev/src` / `fpc -Fu.` 的旁路单次编译路径
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `29` tests OK
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`86` tests OK，`1` skipped
+4. 结论：
+   - 安装指南现在也与仓库标准测试入口保持一致，不再教用户走一次性的 `fpc -Fu.` 旁路
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

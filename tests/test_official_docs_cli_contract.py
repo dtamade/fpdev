@@ -191,6 +191,18 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn(stale, zh_text)
             self.assertNotIn(stale, en_text)
 
+    def test_installation_docs_use_standard_test_runner_commands(self):
+        zh_text = (REPO_ROOT / 'docs' / 'INSTALLATION.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'INSTALLATION.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('scripts/run_all_tests.sh', text)
+            self.assertIn('lazbuild -B tests/test_config_management.lpi', text)
+            self.assertIn('./bin/test_config_management', text)
+            self.assertNotIn('cd fpdev/src', text)
+            self.assertNotIn('fpc -Fu. ../tests/test_config_management.lpr', text)
+            self.assertNotIn('../tests/test_config_management', text)
+
     def test_quickstart_docs_use_supported_config_and_parallelism_guidance(self):
         zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')

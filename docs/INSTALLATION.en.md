@@ -191,10 +191,12 @@ cd test-app
 
 ### Running the Test Suite
 ```bash
-# If installed from source, you can run tests
-cd fpdev/src
-fpc -Fu. ../tests/test_config_management.lpr
-../tests/test_config_management
+# If built from source, run the full regression baseline
+scripts/run_all_tests.sh
+
+# Or run one focused test
+lazbuild -B tests/test_config_management.lpi
+./bin/test_config_management
 ```
 
 ## Troubleshooting

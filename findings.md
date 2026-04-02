@@ -1163,3 +1163,38 @@
 - 结论更新：
   - historical development roadmap 现在也不会再把旧的 `~/.fpdev/fpc/...` 安装布局继续作为可复制示例传播
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, installation-doc test-runner drift)
+- 在 historical roadmap 清理后继续扫描公开安装文档时，又发现 `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md` 的“运行测试套件”仍推荐一条仓库其他文档已经不再主推的旁路：
+  - `cd fpdev/src`
+  - `fpc -Fu. ../tests/test_config_management.lpr`
+  - `../tests/test_config_management`
+- 当前 repo guidance 真相：
+  - `docs/testing.md`：单测标准示例是 `lazbuild -B tests/test_config_management.lpi` + `./bin/test_config_management`
+  - `docs/testing.md` 与 `AGENTS.md`：完整回归基线是 `scripts/run_all_tests.sh`
+  - `CLAUDE.md`：进一步把 Pascal 聚焦测试入口标准化到 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+  - 贡献者指导也明确：`lazbuild -B` 是标准构建路径，直接 `fpc` 只是特例 fallback
+- 这个问题的影响：
+  - 安装指南是源码用户的第一入口之一；如果这里教的是“仓库标准之外的旁路”，用户容易绕过测试脚本、构建恢复逻辑和统一输出路径
+  - 即使这条 `fpc -Fu.` 路径在局部可行，它也会削弱仓库对标准测试入口的收敛
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_installation_docs_use_standard_test_runner_commands` 直接暴露出：
+    - 安装文档没有 `scripts/run_all_tests.sh`
+    - 没有 `lazbuild -B tests/test_config_management.lpi`
+    - 没有 `./bin/test_config_management`
+    - 仍包含 `cd fpdev/src`
+    - 仍包含 `fpc -Fu. ../tests/test_config_management.lpr`
+    - 仍包含 `../tests/test_config_management`
+- 已实施的最小修复：
+  - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：
+    - “运行测试套件”改成 `scripts/run_all_tests.sh`
+    - 补入聚焦单测示例 `lazbuild -B tests/test_config_management.lpi` + `./bin/test_config_management`
+    - 删除 `cd fpdev/src` / `fpc -Fu.` / 直接运行 `../tests/test_config_management` 的旧旁路
+  - `tests/test_official_docs_cli_contract.py`：补齐 installation-doc test-runner 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `29` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`86` tests OK，`1` skipped
+- 结论更新：
+  - 安装指南现在也不会再把源码用户带向旁路测试命令，而是对齐到仓库的标准回归入口
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
