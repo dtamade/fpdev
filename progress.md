@@ -1818,3 +1818,40 @@
 | What's the goal? | Keep the first contributor workflow from teaching a toolchain prerequisite (`pytest`) that the repository does not actually require as its baseline |
 | What have I learned? | Developer docs can drift independently from public docs, and once they do, contributors start standardizing on the wrong local verification commands even if the codebase itself has already moved on |
 | What have I done? | Proved the unittest-discover baseline works, added a developer-doc contract for it, and replaced the stale pytest command in `CLAUDE.md` |
+
+## Session: 2026-04-02 (WARP contributor-doc sync)
+
+### Close-out Execution Follow-up 44
+- **Status:** complete
+- Actions taken:
+  - Continued the docs-contract cleanup loop against `WARP.md`, using parallel explorers plus local CLI/help verification to pin down the next contributor-doc seam
+  - Added focused RED coverage proving `WARP.md` must use the repository-standard test/build entrypoints, current root command surface, and current command-registration architecture
+  - Updated `WARP.md` so quickstart, test strategy, and common command blocks now align with `scripts/run_all_tests.sh`, `scripts/run_single_test.sh`, `src/fpdev.lpr`, and the `system` maintenance namespace
+  - Re-ran the focused contributor-doc suite and a broader docs/release/CI contract regression bundle to green
+- Files created/modified:
+  - `WARP.md`
+  - `tests/test_contributor_docs_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for WARP contributor-doc drift | `python3 -m unittest -v tests.test_contributor_docs_contract` | fail before fix | failed because `WARP.md` still used BuildManager-only test runners, stale root/source CLI examples, wrong FPC entrypoint, and old `fpdev.lpr` import guidance | Observed |
+| Focused contributor-doc verification | `python3 -m unittest -v tests.test_contributor_docs_contract` | pass | `6` tests OK | OK |
+| Contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `95` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `WARP.md` was still outside the contributor-doc contract net, so it kept stale BuildManager-only test commands, nonexistent `source` examples, wrong `fpdev.lpr` fallback guidance, and old lpr-import registration instructions | 1 | Added WARP-specific contributor contracts and rewrote the document around the current repo-standard commands plus bootstrap/import registration model |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The WARP contributor-doc seam is closed and under automated contract coverage |
+| Where am I going? | Commit and push this focused docs-contract cleanup |
+| What's the goal? | Keep contributor-facing documentation aligned with the registry-backed CLI surface and repo-standard validation entrypoints |
+| What have I learned? | Smaller contributor-doc drift keeps reappearing on surfaces that were not yet under contract, so the highest leverage move is to expand the contract net rather than rely on manual spot checks |
+| What have I done? | Added WARP contributor contracts, updated the document, and verified the broader docs/release/CI contract bundle stays green |

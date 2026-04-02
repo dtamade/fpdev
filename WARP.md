@@ -190,34 +190,40 @@ scripts\check_toolchain.bat  # Windows
 bash scripts/check_toolchain.sh  # Linux/macOS
 
 # 3. 编译主程序
-lazbuild fpdev.lpi
+lazbuild -B fpdev.lpi
 # 或使用 fpc 直接编译
-fpc fpdev.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
 # 4. 运行主程序
 .\bin\fpdev.exe system help  # Windows
 ./bin/fpdev system help      # Linux/macOS
+
+# 5. 查看版本信息
+.\bin\fpdev.exe system version  # Windows
+./bin/fpdev system version      # Linux/macOS
 ```
 
 ### 运行测试
 
-```powershell
-# Windows
-tests\fpdev.build.manager\run_tests.bat
+```bash
+# 顶层 Pascal 回归基线
+bash scripts/run_all_tests.sh
 
-# Linux/macOS
-bash tests/fpdev.build.manager/run_tests.sh
+# 聚焦单个 Pascal 测试
+bash scripts/run_single_test.sh tests/test_config_management.lpr
 ```
 
-测试日志输出到 `logs/build_*.log`,包含详细的环境快照、命令行参数和产物验证信息。
+顶层 runner 会在失败时输出对应的 build/test 日志路径,便于回溯具体失败项。
 
 ### 构建命令详解
 
 | 命令 | 说明 |
 |------|------|
-| `lazbuild fpdev.lpi` | 使用 Lazarus 构建系统编译主程序 |
-| `fpc fpdev.lpr` | 直接使用 FPC 编译主程序 |
-| `lazbuild tests/<test>.lpi` | 编译指定测试程序 |
+| `lazbuild -B fpdev.lpi` | 使用 Lazarus clean rebuild 编译主程序 |
+| `fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr` | 直接使用 FPC 编译主程序 |
+| `lazbuild -B tests/test_config_management.lpi` | 编译指定测试程序 |
+| `bash scripts/run_all_tests.sh` | 运行顶层 Pascal 回归基线 |
+| `bash scripts/run_single_test.sh tests/test_config_management.lpr` | 运行单个 Pascal 测试 |
 | `scripts\run_examples.bat` | 编译并运行示例(干跑模式) |
 | `scripts\run_examples_real.bat` | 运行真实构建示例(仅写沙箱) |
 
@@ -440,49 +446,43 @@ end;
 
 ```
 fpdev (根命令)
-├── help       (显示帮助)
-├── version    (显示版本信息)
 ├── fpc        (FPC 管理)
-│   ├── install
-│   ├── list
-│   ├── default
-│   └── remove
 ├── lazarus    (Lazarus 管理)
-│   ├── install
-│   ├── list
-│   ├── default
-│   └── remove
 ├── cross      (交叉编译)
-│   ├── add
-│   ├── list
-│   └── remove
 ├── package    (包管理)
-│   ├── install
-│   ├── list
-│   └── remove
-└── project    (项目管理)
-    ├── new
-    ├── build
-    └── clean
+├── project    (项目管理)
+└── system     (系统维护与帮助)
+    ├── help
+    ├── version
+    ├── doctor
+    ├── env
+    ├── config
+    ├── cache
+    ├── index
+    ├── repo
+    ├── toolchain
+    └── perf
 ```
+
+具体子命令以 `fpdev <namespace> help` 和 `fpdev system help` 的实时输出为准,避免维护静态大表产生漂移。
 
 ### 命令注册流程
 
-1. 主程序导入命令模块
-2. 每个模块的 `initialization` 部分调用 `RegisterCommand(path, factory)`
-3. 运行时,分发器在注册表中查找命令路径
-4. 工厂函数创建命令实例并调用 `Execute(context)`
+1. `src/fpdev.command.imports*.pas` 聚合命令单元,触发命令注册
+2. 每个模块的 `initialization` 部分调用 `GlobalCommandRegistry.RegisterPath(...)` 或 `RegisterSingletonPath(...)`
+3. `src/fpdev.cli.bootstrap.pas` 负责加载 imports 并通过注册表分发命令
+4. 工厂函数创建命令实例并调用 `Execute(..., IContext)`
 
 **示例命令结构**:
 ```pascal
 // fpdev.cmd.fpc.list.pas
 type
   TFPCListCommand = class(TInterfacedObject, ICommand)
-    function Execute(Context: ICommandContext): Integer;
+    function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
 initialization
-  RegisterCommand('fpc.list', @CreateFPCListCommand);
+  GlobalCommandRegistry.RegisterPath(['fpc','list'], @FPCListFactory, []);
 end.
 ```
 
@@ -746,13 +746,14 @@ LBM.Install('main');
 
 ### 4. 命令注册
 
-- ✅ 确保命令模块在主程序中有强引用导入
-- ❌ 未导入的命令模块不会注册,导致 "command not found"
+- ✅ 在命令单元 `initialization` 中注册命令路径
+- ✅ 通过 `src/fpdev.command.imports.<domain>.pas` 聚合命令单元
+- ❌ 不要再依赖在 `src/fpdev.lpr` 中手工导入命令模块
 
 ```pascal
-// fpdev.lpr 中必须导入所有命令模块
+// src/fpdev.command.imports.fpc.pas
 uses
-  fpdev.cmd.fpc,
+  fpdev.cmd.fpc.root,
   fpdev.cmd.fpc.install,
   fpdev.cmd.fpc.list,
   // ...其他命令模块
@@ -812,7 +813,7 @@ WriteLn('Error: Unknown command');
 
 ### 项目文件
 
-- **主程序**: `fpdev.lpr` (主项目源码) + `fpdev.lpi` (Lazarus 项目配置)
+- **主程序**: `src/fpdev.lpr` (主项目源码) + `fpdev.lpi` (Lazarus 项目配置)
 - **测试**: `tests/<test_name>/<test_name>.lpr` + `<test_name>.lpi`
 - **示例**: `plays/<example_name>/<example_name>.lpr` + `<example_name>.lpi`
 
@@ -825,7 +826,8 @@ WriteLn('Error: Unknown command');
 | 类型 | 位置 | 运行方式 | 目标覆盖率 |
 |------|------|----------|------------|
 | **单元测试** | `tests/` | `lazbuild <test>.lpi` | > 80% |
-| **集成测试** | `tests/` | `run_tests.bat` | > 70% |
+| **顶层回归** | `tests/` | `bash scripts/run_all_tests.sh` | 基线回归 |
+| **单项回归** | `tests/` | `bash scripts/run_single_test.sh tests/test_config_management.lpr` | 聚焦验证 |
 | **示例演示** | `plays/` | `run_examples.bat` | N/A |
 
 ### 测试原则
@@ -843,12 +845,12 @@ WriteLn('Error: Unknown command');
 
 ### 运行所有测试
 
-```powershell
-# Windows
-tests\fpdev.build.manager\run_tests.bat
+```bash
+# 顶层 Pascal 回归基线
+bash scripts/run_all_tests.sh
 
-# Linux/macOS
-bash tests/fpdev.build.manager/run_tests.sh
+# 聚焦单个 Pascal 测试
+bash scripts/run_single_test.sh tests/test_config_management.lpr
 ```
 
 ---
@@ -904,13 +906,13 @@ brew install fpc lazarus libgit2
 
 ```powershell
 # 编译主程序
-lazbuild fpdev.lpi
+lazbuild -B fpdev.lpi
 
 # 编译并输出详细信息
 lazbuild -B fpdev.lpi
 
 # 直接使用 FPC 编译
-fpc -Mobjfpc -Scghi -O3 -Xs -XX fpdev.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
 # 清理构建产物
 del /Q bin\*.exe bin\*.o bin\*.ppu  # Windows
@@ -919,17 +921,19 @@ rm -f bin/*.exe bin/*.o bin/*.ppu   # Linux/macOS
 
 ### 测试
 
-```powershell
-# 运行单个测试
-lazbuild tests\test_git2_adapter.lpi
-bin\test_git2_adapter.exe
+```bash
+# 顶层 Pascal 回归基线
+bash scripts/run_all_tests.sh
 
-# 运行所有 BuildManager 测试
-tests\fpdev.build.manager\run_tests.bat
+# 聚焦单个 Pascal 测试
+bash scripts/run_single_test.sh tests/test_config_management.lpr
+
+# 若需要手动编译并执行单个测试
+lazbuild -B tests/test_config_management.lpi
+./bin/test_config_management
 
 # 查看最新测试日志
-type logs\build_*.log | findstr /C:"Summary" /C:"FAIL"  # Windows
-tail -f logs/build_*.log | grep -E "Summary|FAIL"       # Linux/macOS
+tail -f logs/build_*.log | grep -E "FAIL|ERROR"  # 查看失败日志
 ```
 
 ### 示例演示
@@ -949,17 +953,17 @@ buildOrTest.bat strict  # Windows
 STRICT=1 VERBOSE=1 bash buildOrTest.sh  # Linux/macOS
 ```
 
-### Git 操作(使用 fpdev)
+### 系统与仓库命令
 
 ```powershell
-# 克隆 FPC 源码
-.\bin\fpdev.exe source clone main
+# 查看根帮助
+.\bin\fpdev.exe system help
 
-# 检查源码状态
-.\bin\fpdev.exe source status main
+# 查看版本信息
+.\bin\fpdev.exe system version
 
-# 切换分支
-.\bin\fpdev.exe source checkout fixes_3_2
+# 查看仓库管理帮助
+.\bin\fpdev.exe system repo help
 ```
 
 ---
@@ -1021,7 +1025,6 @@ fpdev/
 │   ├── check/
 │   └── examples/
 ├── fpdev.lpi                 # Lazarus 项目文件
-├── fpdev.lpr                 # 主程序源码
 └── WARP.md                   # 本文档
 ```
 
@@ -1061,6 +1064,6 @@ fpdev/
 
 ---
 
-**最后更新**: 2025-01-28  
+**最后更新**: 2026-04-02  
 **维护者**: FPDev Team  
 **许可证**: 见 LICENSE 文件

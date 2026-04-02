@@ -1256,3 +1256,37 @@
 - 结论更新：
   - `CLAUDE.md` 现在不会再把 `pytest` 当成仓库标准全量基线命令
   - contributor / developer docs 继续向当前真实验证入口收敛
+
+## Execution Update (2026-04-02, WARP contributor-doc sync)
+- 新发现的 repo-local seam：
+  - `WARP.md` 仍把 BuildManager 子目录 runner 当成默认“运行所有测试”
+  - `WARP.md` 还宣传了当前 CLI 不存在的 `source clone/status/checkout`
+  - `WARP.md` 同时保留错误的 FPC fallback 入口 `fpdev.lpr` 与旧的 `fpdev.lpr` 手工导入命令模型
+- 当前 repo truth：
+  - 顶层 Pascal 基线是 `bash scripts/run_all_tests.sh`
+  - 聚焦 Pascal runner 是 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+  - 根命令面是 `fpc lazarus cross package project system`
+  - `source` 不是当前注册的顶层命名空间；`./bin/fpdev source help` 会直接返回 `Unknown command: source`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract` 失败
+  - 新增 WARP contributor 契约直接暴露出：
+    - 缺少 repo-standard test/build entrypoints
+    - 仍包含 root `help/version` 的旧静态树
+    - 仍包含 `.\\bin\\fpdev.exe source clone/status/checkout`
+    - 仍包含 `// fpdev.lpr 中必须导入所有命令模块`
+- 已实施的最小修复：
+  - `tests/test_contributor_docs_contract.py`：
+    - 新增 `test_warp_doc_uses_repository_standard_test_commands`
+    - 新增 `test_warp_doc_matches_current_cli_surface`
+    - 新增 `test_warp_doc_uses_current_build_entrypoints`
+    - 扩展 `test_command_registration_guidance_no_longer_points_to_lpr_imports` 覆盖 `WARP.md`
+  - `WARP.md`：
+    - quickstart / 测试策略 / 常用命令 改成当前 repo-standard runner 和 build entrypoint
+    - 命令树压缩为当前高层命名空间，并把帮助/版本语义放回 `system`
+    - 命令注册说明改成 bootstrap/import-aggregator + `GlobalCommandRegistry.RegisterPath(...)`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract`：`6` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`95` tests OK，`1` skipped
+- 结论更新：
+  - `WARP.md` 此前是 contributor-doc coverage 的漏网面，现在已被纳入契约
+  - contributor-facing 文档漂移继续被压缩到自动化可证明范围内

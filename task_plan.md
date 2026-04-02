@@ -875,3 +875,22 @@ Phase 4 complete
 4. 结论：
    - `CLAUDE.md` 现在不再把 `pytest` 当成仓库标准基线命令
    - contributor / developer docs 继续向当前真实验证入口收敛
+
+## Close-out Update (2026-04-02, WARP contributor-doc sync)
+1. 新发现的 repo-local contributor-doc seam：
+   - `WARP.md` 仍把 `tests/fpdev.build.manager/run_tests.*` 写成默认“运行所有测试”
+   - `WARP.md` 还宣传了当前 CLI 不存在的 `source clone/status/checkout`
+   - `WARP.md` 混用了错误的 FPC fallback 入口 `fpdev.lpr` 与旧的 `fpdev.lpr` 导入命令模块模型
+2. 已完成的最小修复：
+   - `tests/test_contributor_docs_contract.py` 新增 WARP contributor guidance 契约
+   - `WARP.md`：
+     - quickstart / 测试策略 / 常用命令统一到 `bash scripts/run_all_tests.sh` 与 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+     - FPC fallback 编译命令统一到 `fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr`
+     - 命令树改成当前高层命名空间，并明确 `fpdev system help` / `fpdev system version`
+     - 命令注册说明改成 `fpdev.command.imports*.pas` + `GlobalCommandRegistry.RegisterPath(...)`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后 `6` tests OK
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`95` tests OK，`1` skipped
+4. 结论：
+   - `WARP.md` 现在已经纳入 contributor-doc contract net，不再继续漂在自动化验证之外
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
