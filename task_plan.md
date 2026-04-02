@@ -4,7 +4,7 @@
 审查 FPDev 项目的当前工程状态，识别“最大的问题”并给出有证据支撑的判断。
 
 ## Current Phase
-Phase 4
+Phase 4 complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -28,8 +28,8 @@ Phase 4
 ### Phase 4: Synthesis
 - [x] Summarize findings by severity
 - [x] Identify the single biggest current project problem
-- [ ] Produce concise evidence-backed recommendation set
-- **Status:** in_progress
+- [x] Produce concise evidence-backed recommendation set
+- **Status:** complete
 
 ## Key Questions
 1. 当前代码库最影响交付质量的工程问题是什么？
@@ -53,3 +53,19 @@ Phase 4
 ## Notes
 - 优先寻找高风险问题、验证缺口和路线图落地阻塞项。
 - 若缺少明确 roadmap 文档，需要基于仓库 TODO/docs/issue-like 文本进行推断并明确标注。
+
+## Recommendation Set (2026-04-02)
+1. 先做变更收敛，再谈“已完成”：
+   - 已将脏工作树保存在 `stabilize/dirty-tree-2026-04-02`
+   - 已把可验证改动重放到干净分支 `restage/p0-cleanup-2026-04-02`
+2. 把发布叙事建立在自动化证据上：
+   - release docs drift 已修复
+   - `scripts/update_test_stats.py --check` 已恢复为 release gate
+   - `bash scripts/release_acceptance_linux.sh` 已在当前分支通过
+3. close-out 线只继续处理新的 focused RED seam：
+   - 当前无新的 locally-provable local seam
+   - network-gated lane 仅在出现新 RED 或 owner 明确批准时继续
+4. 剩余风险明确归类为发布所有权事项，而不是本地代码缺口：
+   - Windows/macOS owner checkpoints
+   - `SHA256SUMS.txt`
+   - 可选的 `--with-install` isolated install lane

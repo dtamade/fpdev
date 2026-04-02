@@ -50,3 +50,28 @@
 
 ## Visual/Browser Findings
 - 暂无
+
+## Execution Update (2026-04-02)
+- 已完成脏工作树保护与分桶重放：
+  - safety branch: `stabilize/dirty-tree-2026-04-02`
+  - clean restage branch: `restage/p0-cleanup-2026-04-02`
+  - 4 个分桶提交已推送到远端并保持工作树干净
+- 新拿到的 focused RED 不是运行时命令缺陷，而是 release gate 自身的 inventory sync 漂移：
+  - `bash scripts/release_acceptance_linux.sh`
+  - 失败点：`python3 scripts/update_test_stats.py --check`
+  - 根因：`README.md` / `README.en.md` 已切换到 `[INFO] Discoverable test programs: ...`，而 `scripts/update_test_stats.py` 仍只接受旧前缀
+- 已最小修复该本地 seam：
+  - `scripts/update_test_stats.py` 现兼容旧前缀并以 `[INFO]` 作为 README 规范输出
+  - `tests/test_update_test_stats.py` 新增并更新回归覆盖
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_update_test_stats`：通过
+  - `python3 scripts/update_test_stats.py --check`：通过
+  - `bash scripts/release_acceptance_linux.sh`：通过
+    - Python regression: `270` tests OK
+    - Pascal regression: `273/273` pass
+    - release build: pass
+    - isolated Linux CLI smoke: pass
+- 结论更新：
+  - 当前“最大问题”仍然是状态叙事与可验证证据必须持续对齐
+  - 但在本地可证明范围内，这条 close-out 线已无新的 live red seam
+  - 剩余风险主要是 owner-run / publish-time 证明，不是当前本地代码回归

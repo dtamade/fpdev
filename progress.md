@@ -84,3 +84,43 @@
 | What's the goal? | Produce an evidence-backed judgment about FPDev’s biggest current problem |
 | What have I learned? | The strongest issue is a mismatch between claimed completion and presently verifiable release/readiness state, amplified by unfinished architecture migration |
 | What have I done? | Refreshed evidence, rechecked failing contract tests, and measured current code/working-tree hotspots |
+
+## Session: 2026-04-02 (Continuation)
+
+### Close-out Execution Follow-up
+- **Status:** complete
+- Actions taken:
+  - Preserved the dirty tree on `stabilize/dirty-tree-2026-04-02` and regrouped the preserved work into a clean restage branch
+  - Landed four clean regrouping commits on `restage/p0-cleanup-2026-04-02`
+  - Pushed the restaged branch to origin
+  - Ran the bounded Linux release acceptance lane and captured a new focused RED in `scripts/update_test_stats.py --check`
+  - Fixed the README inventory-prefix drift with a minimal `update_test_stats.py` + test update
+  - Re-ran focused verification and then the full Linux release acceptance lane to green
+- Files created/modified:
+  - `scripts/update_test_stats.py`
+  - `tests/test_update_test_stats.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Focused RED | `bash scripts/release_acceptance_linux.sh` | pass | failed at `python3 scripts/update_test_stats.py --check` due to README inventory-prefix drift | FAIL |
+| Update-test-stats unit tests | `python3 -m unittest -v tests.test_update_test_stats` | pass | pass | OK |
+| Inventory sync gate | `python3 scripts/update_test_stats.py --check` | pass | pass | OK |
+| Linux release acceptance | `bash scripts/release_acceptance_linux.sh` | pass | pass (`270` Python tests OK, `273/273` Pascal tests pass, release build pass, CLI smoke pass) | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `scripts/update_test_stats.py --check` raised `pattern not found exactly once` for README inventory line | 1 | Updated the script to accept current `[INFO]` inventory lines and added regression coverage |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line complete |
+| Where am I going? | Stop local rolling work unless a new focused RED seam appears |
+| What's the goal? | Keep release/readiness claims aligned with fresh automated evidence |
+| What have I learned? | The remaining local defect was in the release gate itself, not in the runtime command surface |
+| What have I done? | Fixed the gate drift and proved the full Linux release acceptance lane green |
