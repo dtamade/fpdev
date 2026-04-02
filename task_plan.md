@@ -440,3 +440,25 @@ Phase 4 complete
 4. 结论：
    - FPDEVRC 规范文档现在也与运行时真实的 active data-root / active config 模型保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是项目配置规范漂移
+
+## Close-out Update (2026-04-02, fpc management docs toolchain-layout drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确：安装目录布局以当前数据根为核心，FPC 安装路径是 `<data-root>/toolchains/fpc/<version>`
+   - `src/fpdev.fpc.installversionflow.pas` 明确：FPC 源码目录是 `<install-root>/sources/fpc/fpc-<version>`
+   - `tests/test_fpc_verify.lpr` 也把 `InstallRoot/toolchains/fpc/3.2.2/bin` 作为验证时的 canonical 布局
+   - 但 `docs/FPC_MANAGEMENT.md` 与 `docs/FPC_MANAGEMENT.en.md` 仍在宣传：
+     - `~/.fpdev/fpc/3.2.2`
+     - 扁平的 `sources/fpc-3.2.2`
+     - `~/.fpdev/config.json`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_fpc_management_docs_use_data_root_toolchain_layout`
+   - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md` 改为：
+     - 用 `<data-root>/toolchains/fpc/<version>` 和 `<data-root>/sources/fpc/fpc-<version>` 描述真实目录布局
+     - 在目录结构与示例 `install_path` 中明确 canonical toolchain path
+     - 在诊断段改为说明活动数据根中的 `config.json`，并明确 `data/config.json` / `FPDEV_DATA_ROOT`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`63` tests OK，`1` skipped
+4. 结论：
+   - FPC 管理文档现在也与运行时真实的 toolchain/source layout 和 active config path 对齐
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 FPC 文档路径漂移

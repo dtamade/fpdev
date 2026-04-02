@@ -208,6 +208,24 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertIn('XDG_DATA_HOME', text)
             self.assertIn('%APPDATA%\\fpdev\\config.json', text)
 
+    def test_fpc_management_docs_use_data_root_toolchain_layout(self):
+        zh_text = (REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('toolchains/fpc/3.2.2', text)
+            self.assertIn('sources/fpc/fpc-3.2.2', text)
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('data/config.json', text)
+
+        for stale in [
+            '/home/user/.fpdev/fpc/3.2.2',
+            'Check the configuration file at `~/.fpdev/config.json`',
+            '检查配置文件 `~/.fpdev/config.json`',
+        ]:
+            self.assertNotIn(stale, zh_text)
+            self.assertNotIn(stale, en_text)
+
 
 if __name__ == '__main__':
     unittest.main()

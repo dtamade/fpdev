@@ -525,3 +525,37 @@
 - 结论更新：
   - FPDEVRC 规范文档现在也与 active data-root / active config 的运行时模型一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, fpc management docs toolchain-layout drift)
+- 在 FPDEVRC 规范已与活动数据根模型对齐后，继续检查 FPC 管理文档时，又发现目录布局和示例路径仍停留在旧结构：
+  - `docs/FPC_MANAGEMENT.md` 与 `docs/FPC_MANAGEMENT.en.md` 仍把安装目录画成 `~/.fpdev/fpc/<version>`
+  - 源码目录也仍写成扁平的 `sources/fpc-3.2.2`
+  - 诊断段仍提示用户去看 `~/.fpdev/config.json`
+  - 但运行时真相是：
+    - `src/fpdev.paths.pas`：FPC 安装路径来自 `<data-root>/toolchains/fpc/<version>`
+    - `src/fpdev.fpc.installversionflow.pas`：源码目录来自 `<install-root>/sources/fpc/fpc-<version>`
+    - `tests/test_fpc_verify.lpr`：验证用例也把 `InstallRoot/toolchains/fpc/3.2.2/bin` 当作 canonical layout
+- 这个问题的影响：
+  - 用户会在 FPC 专题文档中重新学到已经与运行时脱节的旧目录结构
+  - 配置文件、源码目录、安装目录三条路径语义会再次与 installation / quickstart / fpdevrc 文档分叉
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_fpc_management_docs_use_data_root_toolchain_layout` 直接暴露出：
+    - 文档没有 `toolchains/fpc/3.2.2`
+    - 没有 `sources/fpc/fpc-3.2.2`
+    - 没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json`
+    - 仍保留 `/home/user/.fpdev/fpc/3.2.2` 与 `~/.fpdev/config.json`
+- 已实施的最小修复：
+  - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md`：
+    - 目录结构段改为使用 `<data-root>/toolchains/fpc/...` 与 `<data-root>/sources/fpc/fpc-...`
+    - 补入一条平铺摘要，直接写出 canonical install/source path
+    - 配置示例中的 `install_path` 改为 `toolchains/fpc/3.2.2`
+    - 诊断段改为说明活动数据根里的 `config.json`，并明确 `data/config.json` / `FPDEV_DATA_ROOT`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 FPC 管理文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`63` tests OK，`1` skipped
+- 结论更新：
+  - FPC 管理文档现在也与 canonical toolchain/source layout 和 active config path 语义保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

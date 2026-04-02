@@ -113,19 +113,25 @@ fpdev fpc clean 3.2.2
 
 ### 目录结构
 
+当前数据根由运行时决定：portable release 默认使用 `data/`，也可以通过 `FPDEV_DATA_ROOT` 覆盖。典型布局如下：
+
 ```
-~/.fpdev/
-├── config.json          # 配置文件
-├── fpc/                  # FPC 安装目录
-│   ├── 3.2.2/           # FPC 3.2.2 安装
-│   │   ├── bin/         # 可执行文件
-│   │   ├── lib/         # 库文件
-│   │   └── units/       # 单元文件
-│   └── main/            # 开发版本安装
-└── sources/             # 源码目录
-    ├── fpc-3.2.2/       # FPC 3.2.2 源码
-    └── fpc-main/        # 开发版本源码
+<data-root>/
+├── config.json                 # 配置文件
+├── toolchains/
+│   └── fpc/
+│       ├── 3.2.2/              # FPC 3.2.2 安装
+│       │   ├── bin/            # 可执行文件
+│       │   ├── lib/            # 库文件
+│       │   └── units/          # 单元文件
+│       └── main/               # 开发版本安装
+└── sources/
+    └── fpc/
+        ├── fpc-3.2.2/          # FPC 3.2.2 源码
+        └── fpc-main/           # 开发版本源码
 ```
+
+也就是说，典型安装目录是 `<data-root>/toolchains/fpc/3.2.2`，对应源码目录是 `<data-root>/sources/fpc/fpc-3.2.2`。
 
 ## 配置管理
 
@@ -139,7 +145,7 @@ FPC 版本信息存储在配置文件中：
     "fpc-3.2.2": {
       "type": "release",
       "version": "3.2.2",
-      "install_path": "/home/user/.fpdev/fpc/3.2.2",
+      "install_path": "/opt/fpdev-data/toolchains/fpc/3.2.2",
       "source_url": "https://gitlab.com/freepascal.org/fpc/source.git",
       "branch": "fixes_3_2",
       "installed": true,
@@ -179,7 +185,7 @@ FPC 版本信息存储在配置文件中：
 
 - 编译日志保存在临时目录
 - 使用 `fpdev fpc test <version>` 验证安装
-- 检查配置文件 `~/.fpdev/config.json`
+- 检查当前活动数据根中的 `config.json`（portable release 默认是 `data/config.json`，也可以通过 `FPDEV_DATA_ROOT` 覆盖）
 
 ## 最佳实践
 

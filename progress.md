@@ -885,3 +885,44 @@
 | What's the goal? | Keep the project-configuration spec aligned with the same runtime path contract already enforced in installation and quick-start docs |
 | What have I learned? | Even after high-traffic user docs are fixed, deeper spec docs can still preserve stale global-path assumptions unless they get explicit contract coverage |
 | What have I done? | Added FPDEVRC contract coverage and rewrote both spec docs around the active `config.json` / data-root model |
+
+## Session: 2026-04-02 (fpc management docs toolchain-layout drift)
+
+### Close-out Execution Follow-up 21
+- **Status:** complete
+- Actions taken:
+  - Audited the FPC management docs after fixing the broader data-root guidance and found that the FPC-specific docs still showed the legacy `~/.fpdev/fpc/<version>` layout, a flat `sources/fpc-<version>` layout, and a hard-coded `~/.fpdev/config.json` diagnostic path
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where installed toolchains live under `<data-root>/toolchains/fpc/<version>`
+  - Confirmed the source checkout layout in `src/fpdev.fpc.installversionflow.pas`, where FPC sources live under `<install-root>/sources/fpc/fpc-<version>`
+  - Confirmed with `tests/test_fpc_verify.lpr` that verification code already treats `InstallRoot/toolchains/fpc/3.2.2/bin` as the canonical install layout
+  - Added a failing official-docs contract proving the FPC management docs must describe the data-root-based toolchain/source layout and the active config path
+  - Updated both FPC management docs so they now describe the canonical `toolchains/fpc` and `sources/fpc/fpc-...` layout plus the active `config.json` path semantics
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the FPC docs now match the runtime layout model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/FPC_MANAGEMENT.md`
+  - `docs/FPC_MANAGEMENT.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for fpc-management docs toolchain-layout drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the FPC management docs omitted `toolchains/fpc/3.2.2`, `sources/fpc/fpc-3.2.2`, `FPDEV_DATA_ROOT`, and `data/config.json`, while still carrying legacy install/config paths | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `63` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The FPC management docs still described the legacy install/source layout and a hard-coded home-directory config path | 1 | Added an FPC-management-specific official-docs contract and rewrote the directory, install_path, and diagnostics guidance around the canonical data-root layout |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The FPC management docs now match the canonical toolchain/source layout and active config semantics used by the runtime |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the FPC-focused docs aligned with the same data-root contract already enforced elsewhere in the public docs |
+| What have I learned? | Even after high-level docs are fixed, product-specific topic docs can preserve older directory structures unless they get their own contract coverage |
+| What have I done? | Added FPC-management contract coverage and rewrote both topic docs around the canonical `toolchains/fpc` plus `sources/fpc/fpc-...` layout |

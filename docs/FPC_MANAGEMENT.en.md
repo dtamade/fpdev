@@ -113,19 +113,25 @@ fpdev fpc clean 3.2.2
 
 ### Directory Structure
 
+The active data root is chosen at runtime: portable releases default to `data/`, and you can override it with `FPDEV_DATA_ROOT`. A typical layout looks like this:
+
 ```
-~/.fpdev/
-├── config.json          # Configuration file
-├── fpc/                  # FPC installation directory
-│   ├── 3.2.2/           # FPC 3.2.2 installation
-│   │   ├── bin/         # Executables
-│   │   ├── lib/         # Libraries
-│   │   └── units/       # Unit files
-│   └── main/            # Development version installation
-└── sources/             # Source code directory
-    ├── fpc-3.2.2/       # FPC 3.2.2 source
-    └── fpc-main/        # Development version source
+<data-root>/
+├── config.json                 # Configuration file
+├── toolchains/
+│   └── fpc/
+│       ├── 3.2.2/              # FPC 3.2.2 installation
+│       │   ├── bin/            # Executables
+│       │   ├── lib/            # Libraries
+│       │   └── units/          # Unit files
+│       └── main/               # Development version installation
+└── sources/
+    └── fpc/
+        ├── fpc-3.2.2/          # FPC 3.2.2 source
+        └── fpc-main/           # Development version source
 ```
+
+In other words, a typical installed toolchain lives at `<data-root>/toolchains/fpc/3.2.2`, and the matching source checkout lives at `<data-root>/sources/fpc/fpc-3.2.2`.
 
 ## Configuration Management
 
@@ -139,7 +145,7 @@ FPC version information is stored in the configuration file:
     "fpc-3.2.2": {
       "type": "release",
       "version": "3.2.2",
-      "install_path": "/home/user/.fpdev/fpc/3.2.2",
+      "install_path": "/opt/fpdev-data/toolchains/fpc/3.2.2",
       "source_url": "https://gitlab.com/freepascal.org/fpc/source.git",
       "branch": "fixes_3_2",
       "installed": true,
@@ -179,7 +185,7 @@ After installation, FPDev automatically configures the following environment var
 
 - Build logs are saved in the temporary directory
 - Use `fpdev fpc test <version>` to verify installation
-- Check the configuration file at `~/.fpdev/config.json`
+- Check `config.json` under the active data root (portable releases default to `data/config.json`, and `FPDEV_DATA_ROOT` can override it)
 
 ## Best Practices
 
