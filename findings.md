@@ -494,3 +494,34 @@
   - QUICKSTART 文档现在也与受支持的 data-root/config 语义和并行度配置方式保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
 
+## Execution Update (2026-04-02, fpdevrc docs global-config path drift)
+- 在 QUICKSTART 与 INSTALLATION 都已对齐运行时数据根语义后，继续检查项目配置规范时，又发现 FPDEVRC 文档仍把“全局配置”缩写成单一路径：
+  - `docs/FPDEVRC_SPEC.md` 与 `docs/FPDEVRC_SPEC.en.md` 仍写着 `~/.fpdev/config.json`
+  - 但 `src/fpdev.paths.pas` 的真实运行时逻辑是：
+    - portable release 默认走 `<install-dir>/data/config.json`
+    - `FPDEV_DATA_ROOT` 可以显式覆盖数据根
+    - Linux/macOS 非 portable 模式优先走 `$XDG_DATA_HOME/fpdev/config.json`
+    - Windows 非 portable 模式走 `%APPDATA%\fpdev\config.json`
+  - 同时项目配置解析器 `src/fpdev.config.project.pas` 只是消费上层传入的 global default，并不把全局配置固定在 `~/.fpdev/config.json`
+- 这个问题的影响：
+  - 项目配置规范会把 portable / Windows / XDG 场景的用户重新引回旧 home-path 心智模型
+  - 即使安装文档和 quick-start 已经改正，规范文档仍会重新制造路径语义分叉
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_fpdevrc_docs_describe_active_global_config_paths` 直接暴露出：
+    - FPDEVRC 规范文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json`
+    - 没有 `XDG_DATA_HOME`
+    - 没有 `%APPDATA%\fpdev\config.json`
+- 已实施的最小修复：
+  - `docs/FPDEVRC_SPEC.md` / `docs/FPDEVRC_SPEC.en.md`：
+    - 文件位置段改为说明“全局配置来自当前活动数据根中的 `config.json`”
+    - 补入 portable release、`FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 和 `%APPDATA%\fpdev\config.json` 的路径说明
+    - 优先级段改为引用“活动 `config.json` 中的 `default_toolchain`”，不再把全局默认锚死到 `~/.fpdev/config.json`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 FPDEVRC 文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`62` tests OK，`1` skipped
+- 结论更新：
+  - FPDEVRC 规范文档现在也与 active data-root / active config 的运行时模型一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

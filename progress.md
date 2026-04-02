@@ -846,3 +846,42 @@
 | What have I learned? | Fixing installation docs is not enough if the quick-start guide still reintroduces stale config-path and env-var advice |
 | What have I done? | Added QUICKSTART contract coverage and rewrote both quick-start guides around the supported `FPDEV_DATA_ROOT` + `settings.parallel_jobs` model |
 
+## Session: 2026-04-02 (fpdevrc docs global-config path drift)
+
+### Close-out Execution Follow-up 20
+- **Status:** complete
+- Actions taken:
+  - Audited the FPDEVRC specification docs after aligning INSTALLATION and QUICKSTART, and found that they still hard-coded the global config as `~/.fpdev/config.json`
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where the active config path follows the active data root, including portable `data/config.json`, `FPDEV_DATA_ROOT`, `XDG_DATA_HOME`, and Windows `%APPDATA%\fpdev\config.json`
+  - Confirmed in `src/fpdev.config.project.pas` that project-config resolution consumes higher-level global defaults and does not itself pin the global config to a single home-directory path
+  - Added a failing official-docs contract proving the FPDEVRC docs must describe the active data-root-based global config paths
+  - Updated both FPDEVRC spec docs so they now describe the supported active `config.json` model instead of a single stale Unix home path
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the FPDEVRC docs now match the runtime path model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/FPDEVRC_SPEC.md`
+  - `docs/FPDEVRC_SPEC.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for fpdevrc-docs global-config drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the FPDEVRC docs omitted `FPDEV_DATA_ROOT`, `data/config.json`, `XDG_DATA_HOME`, and `%APPDATA%\fpdev\config.json` | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `62` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The FPDEVRC specification docs still hard-coded the global config path as `~/.fpdev/config.json` instead of following the active data-root model | 1 | Added an FPDEVRC-specific official-docs contract and rewrote the spec around the active `config.json` path semantics |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The FPDEVRC spec docs now match the active data-root and global-config semantics implemented by the runtime |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the project-configuration spec aligned with the same runtime path contract already enforced in installation and quick-start docs |
+| What have I learned? | Even after high-traffic user docs are fixed, deeper spec docs can still preserve stale global-path assumptions unless they get explicit contract coverage |
+| What have I done? | Added FPDEVRC contract coverage and rewrote both spec docs around the active `config.json` / data-root model |

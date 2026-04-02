@@ -198,6 +198,16 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn(stale, zh_text)
             self.assertNotIn(stale, en_text)
 
+    def test_fpdevrc_docs_describe_active_global_config_paths(self):
+        zh_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('data/config.json', text)
+            self.assertIn('XDG_DATA_HOME', text)
+            self.assertIn('%APPDATA%\\fpdev\\config.json', text)
+
 
 if __name__ == '__main__':
     unittest.main()

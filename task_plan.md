@@ -418,3 +418,25 @@ Phase 4 complete
    - QUICKSTART 文档现在与运行时支持的 config/data-root 模型和并行度配置方式保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是入门文档语义漂移
 
+## Close-out Update (2026-04-02, fpdevrc docs global-config path drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确：全局配置路径始终取决于当前数据根，而不是固定写死在 `~/.fpdev/config.json`
+   - 运行时支持的全局配置入口包括：
+     - portable release：`<install-dir>/data/config.json`
+     - 显式覆盖：`FPDEV_DATA_ROOT/config.json`
+     - Linux/macOS 非 portable：`$XDG_DATA_HOME/fpdev/config.json`，未设置时回退 `~/.fpdev/config.json`
+     - Windows 非 portable：`%APPDATA%\fpdev\config.json`
+   - 但 `docs/FPDEVRC_SPEC.md` 与 `docs/FPDEVRC_SPEC.en.md` 仍把全局配置写成单一路径 `~/.fpdev/config.json`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_fpdevrc_docs_describe_active_global_config_paths`
+   - `docs/FPDEVRC_SPEC.md` / `docs/FPDEVRC_SPEC.en.md` 改为：
+     - 明确全局默认来自当前活动数据根中的 `config.json`
+     - 明确 portable release 的 `data/config.json`
+     - 明确 `FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 与 `%APPDATA%\fpdev\config.json` 的路径语义
+     - 将优先级说明改成“活动 `config.json` 中的 `default_toolchain`”，不再把用户引导到单一旧路径
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`62` tests OK，`1` skipped
+4. 结论：
+   - FPDEVRC 规范文档现在也与运行时真实的 active data-root / active config 模型保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是项目配置规范漂移

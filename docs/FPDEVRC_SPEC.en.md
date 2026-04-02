@@ -17,7 +17,13 @@ fpdev searches for configuration files in the following order (highest to lowest
 1. `.fpdevrc` in the current directory
 2. `fpdev.toml` in the current directory
 3. Recursive parent directory search for `.fpdevrc` or `fpdev.toml` (up to 10 levels)
-4. Global configuration `~/.fpdev/config.json`
+4. The global `config.json` under the active data root
+
+The global config path follows the runtime data-root selection:
+- **Default portable release location**: `<install-dir>/data/config.json`
+- **If `FPDEV_DATA_ROOT` is set explicitly**: `$FPDEV_DATA_ROOT/config.json`
+- **Linux/macOS in non-portable mode**: `$XDG_DATA_HOME/fpdev/config.json`; if `XDG_DATA_HOME` is unset, fall back to `~/.fpdev/config.json`
+- **Windows in non-portable mode**: `%APPDATA%\fpdev\config.json`
 
 ## File Format
 
@@ -88,7 +94,7 @@ fpdev currently resolves configuration in the following priority order (highest 
 
 1. **Environment variables** - `FPDEV_FPC_VERSION`, `FPDEV_LAZARUS_VERSION`
 2. **Project configuration** - `.fpdevrc` or `fpdev.toml`
-3. **Global default** - `default_toolchain` in `~/.fpdev/config.json`
+3. **Global default** - `default_toolchain` in the active `config.json` (for example portable-release `data/config.json`, or the data root selected via `FPDEV_DATA_ROOT` / `XDG_DATA_HOME` / `%APPDATA%`)
 4. **System default** - Hardcoded `DEFAULT_FPC_VERSION`
 
 The current CLI does not expose public `--fpc-version` or `--lazarus-version` global switches, so they are not part of the actual runtime priority yet.

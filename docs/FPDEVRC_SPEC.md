@@ -17,7 +17,13 @@ fpdev 按以下顺序查找配置文件（优先级从高到低）：
 1. 当前目录的 `.fpdevrc`
 2. 当前目录的 `fpdev.toml`
 3. 父目录递归查找 `.fpdevrc` 或 `fpdev.toml`（最多向上 10 级）
-4. 全局配置 `~/.fpdev/config.json`
+4. 当前活动数据根中的全局 `config.json`
+
+全局配置路径由运行时数据根决定：
+- **portable release 默认位置**：`<安装目录>/data/config.json`
+- **如果显式设置了 `FPDEV_DATA_ROOT`**：`$FPDEV_DATA_ROOT/config.json`
+- **Linux/macOS 非 portable 模式**：`$XDG_DATA_HOME/fpdev/config.json`；若未设置 `XDG_DATA_HOME`，则回退到 `~/.fpdev/config.json`
+- **Windows 非 portable 模式**：`%APPDATA%\fpdev\config.json`
 
 ## 文件格式
 
@@ -88,7 +94,7 @@ fpdev 当前按以下优先级解析配置（从高到低）：
 
 1. **环境变量** - `FPDEV_FPC_VERSION`, `FPDEV_LAZARUS_VERSION`
 2. **项目配置** - `.fpdevrc` 或 `fpdev.toml`
-3. **全局默认** - `~/.fpdev/config.json` 中的 `default_toolchain`
+3. **全局默认** - 当前活动 `config.json` 中的 `default_toolchain`（例如 portable release 的 `data/config.json`，或 `FPDEV_DATA_ROOT` / `XDG_DATA_HOME` / `%APPDATA%` 对应的数据根）
 4. **系统默认** - 硬编码的 `DEFAULT_FPC_VERSION`
 
 当前 CLI 还没有公开 `--fpc-version`、`--lazarus-version` 这样的全局参数，所以这里不把它们算进实际优先级。
