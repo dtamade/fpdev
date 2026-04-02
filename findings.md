@@ -424,3 +424,39 @@
 - 结论更新：
   - 官方安装指南现在与真实 release asset layout、portable mode 路径语义和打包契约保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更明确地落在外部发布资产和 owner 执行上
+
+## Execution Update (2026-04-02, installation docs env/data-root drift)
+- 在安装布局与 PATH 已对齐后，继续检查安装文档里的运行时路径语义时，又发现一层更深的 drift：
+  - `src/fpdev.paths.pas` 明确：运行时真正支持的数据根覆盖变量是 `FPDEV_DATA_ROOT`
+  - 同一单元也明确：portable release 的默认数据根是程序目录下的 `data/`，因此默认配置/日志路径应是 `data/config.json` 与 `data/logs/`
+  - 但 `docs/INSTALLATION*.md` 仍在宣传：
+    - `FPDEV_HOME`
+    - `FPDEV_CONFIG`
+    - `FPDEV_PARALLEL_JOBS`
+    - `FPDEV_DEBUG`
+    - `FPDEV_VERBOSE`
+  - 并把 portable release 的配置/日志路径继续写成 `~/.fpdev` / `%USERPROFILE%\\.fpdev`
+- 这个问题的影响：
+  - 用户会被文档引导去设置源码里根本没消费的 env var
+  - 即使保留了正确的发布资产布局，也会被误导为配置/日志默认落在家目录，而不是同级 `data/`
+  - 公开安装文档因此继续与实际运行时路径语义脱节
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_installation_docs_use_supported_data_root_env_and_paths` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json` / `data/logs/`
+    - 仍保留一批未实现 env var
+- 已实施的最小修复：
+  - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：
+    - 初始配置段改为说明 portable release 默认使用 `<install-dir>/data/config.json`
+    - 环境变量表改为仅保留受支持的 `FPDEV_DATA_ROOT`
+    - 日志段改为说明 portable release 默认日志目录是 `<install-dir>/data/logs/`
+    - 性能优化段改为通过 `FPDEV_DATA_ROOT` 迁移 mutable data，并通过 `config.json` 的 `settings.parallel_jobs` 调整并行度
+    - 卸载段同步改为删除完整 portable release 目录与可选的 `FPDEV_DATA_ROOT`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应官方安装文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`60` tests OK，`1` skipped
+- 结论更新：
+  - 官方安装指南现在与真实受支持的 env/data-root 模型一致，不再误导用户设置无效 env var
+  - repo-local 可证明的 seam 进一步减少，剩余工作更集中在外部发布执行

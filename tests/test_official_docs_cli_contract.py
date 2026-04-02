@@ -163,6 +163,25 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn(r'C:\fpdev\bin', zh_text)
         self.assertNotIn(r'C:\fpdev\bin', en_text)
 
+    def test_installation_docs_use_supported_data_root_env_and_paths(self):
+        zh_text = (REPO_ROOT / 'docs' / 'INSTALLATION.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'INSTALLATION.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('data/config.json', text)
+            self.assertIn('data/logs/', text)
+
+        for stale in [
+            'FPDEV_HOME',
+            'FPDEV_CONFIG',
+            'FPDEV_PARALLEL_JOBS',
+            'FPDEV_DEBUG',
+            'FPDEV_VERBOSE',
+        ]:
+            self.assertNotIn(stale, zh_text)
+            self.assertNotIn(stale, en_text)
+
 
 if __name__ == '__main__':
     unittest.main()

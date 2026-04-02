@@ -368,3 +368,29 @@ Phase 4 complete
 4. 结论：
    - 官方安装指南现在与发布资产的真实布局、portable mode 触发条件和打包契约保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是安装布局误导
+
+## Close-out Update (2026-04-02, installation docs env/data-root drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确支持的数据根覆盖变量是 `FPDEV_DATA_ROOT`
+   - 同一单元也明确：portable release 默认把 `<install-dir>/data` 当作数据根，因此配置/日志默认落在 `data/config.json` 与 `data/logs/`
+   - 但 `docs/INSTALLATION*.md` 仍在宣传并不存在或未实现的：
+     - `FPDEV_HOME`
+     - `FPDEV_CONFIG`
+     - `FPDEV_PARALLEL_JOBS`
+     - `FPDEV_DEBUG`
+     - `FPDEV_VERBOSE`
+   - 同时还把 portable release 的配置/日志路径写成家目录下的 `~/.fpdev` / `%USERPROFILE%\\.fpdev`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_installation_docs_use_supported_data_root_env_and_paths`
+   - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md` 改为：
+     - 明确 `FPDEV_DATA_ROOT` 才是受支持的数据根覆盖变量
+     - 明确 portable release 默认配置/日志路径为 `data/config.json` 与 `data/logs/`
+     - 删除不受支持的 env var 示例
+     - 将性能优化改为通过 `FPDEV_DATA_ROOT` 放置 mutable data，并提示通过 `config.json` 的 `settings.parallel_jobs` 调整并行度
+     - 卸载说明同步改为删除完整 portable release 目录，而不是只删单个二进制
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`60` tests OK，`1` skipped
+4. 结论：
+   - 官方安装指南现在不再宣传未实现的 env toggles，也不再把 portable release 的配置/日志路径写错
+   - repo-local 剩余工作进一步收敛到外部发布资产与 owner 执行，而不是安装文档和运行时路径语义失配

@@ -148,18 +148,18 @@ lazbuild -B --build-mode=Release fpdev.lpi
 # 创建默认配置并写出配置文件
 fpdev system config show
 
-# 查看配置文件位置
-# Windows: %USERPROFILE%\.fpdev\config.json
-# Linux/macOS: ~/.fpdev/config.json
+# 预编译 portable release 默认配置文件位置
+# <install-dir>/data/config.json
+#
+# 如果显式设置了 FPDEV_DATA_ROOT，则配置文件位置变为：
+# $FPDEV_DATA_ROOT/config.json
 ```
 
 ### 环境变量
 
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
-| `FPDEV_HOME` | FPDev 安装根目录 | `~/.fpdev` |
-| `FPDEV_CONFIG` | 配置文件路径 | `$FPDEV_HOME/config.json` |
-| `FPDEV_PARALLEL_JOBS` | 并行编译任务数 | CPU核心数 |
+| `FPDEV_DATA_ROOT` | 覆盖 FPDev 数据根目录（配置、缓存、日志、锁文件） | portable release 下默认为 `<install-dir>/data` |
 
 ### 代理配置
 ```bash
@@ -254,19 +254,12 @@ git config --global user.email "your.email@example.com"
 
 ### 日志和调试
 
-#### 启用详细日志
-```bash
-# 设置环境变量
-export FPDEV_DEBUG=1
-export FPDEV_VERBOSE=1
-
-# 运行命令
-fpdev fpc install 3.2.2 --from-source
-```
-
 #### 日志文件位置
-- **Windows**: `%USERPROFILE%\.fpdev\logs\`
-- **Linux/macOS**: `~/.fpdev/logs/`
+- **portable release 默认**: `<install-dir>/data/logs/`
+- **若设置 `FPDEV_DATA_ROOT`**: `$FPDEV_DATA_ROOT/logs/`
+- **非 portable 运行（例如源码构建）**:
+  - Windows: `%APPDATA%\\fpdev\\logs\\`
+  - Linux/macOS: `$XDG_DATA_HOME/fpdev/logs/` 或 `~/.fpdev/logs/`
 
 ### 获取帮助
 
@@ -281,13 +274,13 @@ fpdev fpc install 3.2.2 --from-source
 
 ### 完全卸载
 ```bash
-# 删除 FPDev 二进制文件
-sudo rm /usr/local/bin/fpdev  # Linux/macOS
-# 或删除 C:\fpdev\  # Windows
+# 删除完整 portable release 目录（包括 fpdev 与同级 data/）
+rm -rf ~/.local/opt/fpdev          # Linux 示例
+rm -rf "$HOME/Applications/fpdev"  # macOS 示例
+# 或删除 C:\fpdev\                 # Windows 示例
 
-# 删除配置和数据 (可选)
-rm -rf ~/.fpdev  # Linux/macOS
-# 或删除 %USERPROFILE%\.fpdev  # Windows
+# 如果显式设置过 FPDEV_DATA_ROOT，也可一并删除该目录
+rm -rf "$FPDEV_DATA_ROOT"
 
 # 从 PATH 中移除 (如果手动添加过)
 # 编辑 ~/.bashrc 或相应的 shell 配置文件
@@ -297,13 +290,12 @@ rm -rf ~/.fpdev  # Linux/macOS
 
 ### 编译性能
 ```bash
-# 设置并行编译任务数
-export FPDEV_PARALLEL_JOBS=8
-
-# 使用 SSD 存储
-# 将 FPDEV_HOME 设置到 SSD 分区
-export FPDEV_HOME=/fast/ssd/fpdev
+# 使用 SSD 存储 mutable data（配置、缓存、日志）
+export FPDEV_DATA_ROOT=/fast/ssd/fpdev-data
+mkdir -p "$FPDEV_DATA_ROOT"
 ```
+
+如需调整并行编译任务数，请编辑当前数据根中的 `config.json`，修改 `settings.parallel_jobs`。
 
 ### 网络优化
 ```bash

@@ -148,18 +148,18 @@ Until those channels exist, use one of the supported paths above:
 # Create the default configuration file
 fpdev system config show
 
-# Config file locations:
-# Windows: %USERPROFILE%\.fpdev\config.json
-# Linux/macOS: ~/.fpdev/config.json
+# Default config file location for the portable release:
+# <install-dir>/data/config.json
+#
+# If you explicitly set FPDEV_DATA_ROOT, the config file moves to:
+# $FPDEV_DATA_ROOT/config.json
 ```
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FPDEV_HOME` | FPDev installation root directory | `~/.fpdev` |
-| `FPDEV_CONFIG` | Config file path | `$FPDEV_HOME/config.json` |
-| `FPDEV_PARALLEL_JOBS` | Number of parallel build jobs | Number of CPU cores |
+| `FPDEV_DATA_ROOT` | Override the FPDev data root (config, cache, logs, locks) | `<install-dir>/data` for the portable release |
 
 ### Proxy Configuration
 ```bash
@@ -254,19 +254,12 @@ git config --global user.email "your.email@example.com"
 
 ### Logging and Debugging
 
-#### Enable Verbose Logging
-```bash
-# Set environment variables
-export FPDEV_DEBUG=1
-export FPDEV_VERBOSE=1
-
-# Run command
-fpdev fpc install 3.2.2 --from-source
-```
-
 #### Log File Locations
-- **Windows**: `%USERPROFILE%\.fpdev\logs\`
-- **Linux/macOS**: `~/.fpdev/logs/`
+- **Portable release default**: `<install-dir>/data/logs/`
+- **If `FPDEV_DATA_ROOT` is set**: `$FPDEV_DATA_ROOT/logs/`
+- **Non-portable runs (for example, from source builds)**:
+  - Windows: `%APPDATA%\\fpdev\\logs\\`
+  - Linux/macOS: `$XDG_DATA_HOME/fpdev/logs/` or `~/.fpdev/logs/`
 
 ### Getting Help
 
@@ -281,13 +274,13 @@ If you encounter issues, you can get help through the following channels:
 
 ### Complete Uninstall
 ```bash
-# Remove FPDev binary
-sudo rm /usr/local/bin/fpdev  # Linux/macOS
-# Or delete C:\fpdev\  # Windows
+# Remove the full portable release directory (fpdev plus the sibling data/)
+rm -rf ~/.local/opt/fpdev          # Linux example
+rm -rf "$HOME/Applications/fpdev"  # macOS example
+# Or delete C:\fpdev\              # Windows example
 
-# Remove configuration and data (optional)
-rm -rf ~/.fpdev  # Linux/macOS
-# Or delete %USERPROFILE%\.fpdev  # Windows
+# If you explicitly set FPDEV_DATA_ROOT, you can remove that directory too
+rm -rf "$FPDEV_DATA_ROOT"
 
 # Remove from PATH (if manually added)
 # Edit ~/.bashrc or the appropriate shell config file
@@ -297,13 +290,12 @@ rm -rf ~/.fpdev  # Linux/macOS
 
 ### Build Performance
 ```bash
-# Set number of parallel build jobs
-export FPDEV_PARALLEL_JOBS=8
-
-# Use SSD storage
-# Set FPDEV_HOME to an SSD partition
-export FPDEV_HOME=/fast/ssd/fpdev
+# Move mutable data (config, cache, logs) onto SSD storage
+export FPDEV_DATA_ROOT=/fast/ssd/fpdev-data
+mkdir -p "$FPDEV_DATA_ROOT"
 ```
+
+To adjust the parallel build count, edit `settings.parallel_jobs` in the active `config.json` under the current data root.
 
 ### Network Optimization
 ```bash

@@ -766,3 +766,42 @@
 | What's the goal? | Keep public install instructions aligned with the actual packaged release structure |
 | What have I learned? | Packaging and runtime-path semantics can drift away from high-level install docs unless the docs are explicitly constrained by tests |
 | What have I done? | Added layout-focused official-docs coverage and rewrote the install steps so users keep the release bundle intact |
+
+## Session: 2026-04-02 (installation docs env/data-root drift)
+
+### Close-out Execution Follow-up 18
+- **Status:** complete
+- Actions taken:
+  - Audited the installation guides again after fixing the bundle layout and found that they still documented unsupported environment variables and still described the portable release config/log locations as if they lived under the user home directory
+  - Confirmed the runtime truth by checking `src/fpdev.paths.pas`, where `FPDEV_DATA_ROOT` is the supported override and the default portable data root is the sibling `data/` directory next to the executable
+  - Added a failing official-docs contract proving the installation guides must mention `FPDEV_DATA_ROOT`, `data/config.json`, and `data/logs/`, while dropping the unsupported env-variable examples
+  - Updated both installation guides so they now describe the supported data-root override, the real portable config/log locations, the correct uninstall shape, and the supported way to move mutable data to SSD storage
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the public install docs now match the actual runtime path model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/INSTALLATION.md`
+  - `docs/INSTALLATION.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for installation-docs env/data-root drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the installation guides omitted `FPDEV_DATA_ROOT`, omitted `data/config.json` / `data/logs/`, and still documented unsupported env vars | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `60` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Official installation guides still documented unsupported env toggles and the wrong default config/log locations for the portable release | 1 | Added an official-docs contract and rewrote the env/path guidance around the supported `FPDEV_DATA_ROOT` model |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The installation guides now describe the supported data-root override and the real portable config/log paths |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external publish execution |
+| What's the goal? | Keep public installation docs aligned with the runtime data-root semantics actually implemented in the code |
+| What have I learned? | Even after layout fixes, docs can still drift at the environment-variable and data-root level unless those semantics are explicitly locked by tests |
+| What have I done? | Added env/data-root coverage and rewrote the installation docs around the supported `FPDEV_DATA_ROOT` model |
