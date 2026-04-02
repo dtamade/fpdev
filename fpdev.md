@@ -1,132 +1,101 @@
 # fpdev
 
-## version
-显示版本信息和变量
+## system
+系统维护命令。
 
-### fpdev 版本
+### help
+显示帮助信息：`fpdev system help`
 
-### 编译时间
+### version
+显示版本信息和运行时变量：`fpdev system version`
 
-### 编译器版本
-
-### 程序路径
-
-### 操作系统
-
-### cpu架构
-
-### 当前fpc版本
-
-### 当前fpc路径
-
-### 当前lazarus版本
-
-### 当前lazarus路径
-
-### 当前交叉编译目标
-
-### 当前交叉编译环境路径
-
-## help
-显示帮助信息
+### index update
+更新索引数据库：`fpdev system index update`
 
 ## fpc
 
 ### install <version>
-安装指定版本fpc
+安装指定版本 fpc。
 
 ### uninstall <version>
-卸载指定版本fpc
+卸载指定版本 fpc。
 
 ### list
-列出所有已安装的fpc
+列出所有已安装的 fpc。
 
 ### use <version>
-切换当前使用的fpc版本
+切换当前使用的 fpc 版本。
 
-### upgrade <version>
-从源码更新构建fpc
+### update <version>
+从源码更新构建 fpc：`fpdev fpc update <version>`
 
 ## lazarus
 
 ### install <version>
-安装指定版本的lazarus
+安装指定版本的 Lazarus。
 
 ### uninstall <version>
-卸载指定版本的lazarus
+卸载指定版本的 Lazarus。
 
 ### list
-列出所有已安装的lazarus
+列出所有已安装的 Lazarus。
 
-### upgrade <version>
-从仓库代码更新指定版本的lazarus
+### update <version>
+从仓库代码更新指定版本的 Lazarus：`fpdev lazarus update <version>`
 
 ### use <version>
-切换当前使用的lazarus版本
+切换当前使用的 Lazarus 版本。
 
 ### run [version]
-运行lazarus
+运行 Lazarus。
 
 ## cross
-交叉环境
+交叉环境。
 
 ### install <targetOS>-<targetCPU>-[version]
-安装指定平台的交叉环境
+安装指定平台的交叉环境。
 
 ### uninstall <targetOS>-<targetCPU>-[version]
-卸载指定交叉编译环境
+卸载指定交叉编译环境。
 
 ### list
-列出所有已安装的交叉编译环境
+列出所有已安装的交叉编译环境。
 
-### upgrade <targetOS>-<targetCPU>-[version]
-更新指定交叉编译环境
+### update <targetOS>-<targetCPU>-[version]
+更新指定交叉编译环境：`fpdev cross update <targetOS>-<targetCPU>-[version]`
 
 ## package
-组件包管理
+组件包管理。
 
 ### install <package>-<version>
-安装指定的组件包
+安装指定的组件包。
 
-### uninstall  <package>
-卸载指定的组件包
+### uninstall <package>
+卸载指定的组件包。
 
 ### list
-列出所有已安装的组件包
+列出所有已安装的组件包。
 
 ### search <package>
-搜索可用的组件包
+搜索可用的组件包。
 
-### upgrade <package>
-更新包
+### update <package>
+更新包：`fpdev package update <package>`
 
 ## project
-项目管理
+项目管理。
 
 ### new <project>
-创建一个新的fpc项目
+创建一个新的 fpc 项目。
 
 ### build
-编译当前项目
+编译当前项目。
 
 ### run
-编译并运行当前项目
+编译并运行当前项目。
 
 ### clean
-清理当前项目的构建文件
+清理当前项目的构建文件。
 
 ### test
-运行当前项目的测试
-
-### add <package>
-添加依赖包到当前项目
-
-### remove <package>
-从当前项目中移除依赖包
-
-### upgrade
-更新当前项目的依赖包
-
-## update
-更新数据库
-
+运行当前项目的测试。

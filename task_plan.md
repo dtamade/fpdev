@@ -962,3 +962,25 @@ Phase 4 complete
 4. 结论：
    - archive 中仍会被复制引用的 package/install 文档现在已回到当前 active data-root 模型
    - docs-contract cleanup 继续从“命令面漂移”推进到“路径语义漂移”
+
+## Close-out Update (2026-04-02, fpdev-md CLI surface drift)
+1. 新发现的 contributor-doc seam：
+   - 顶层 `fpdev.md` 仍把 `version` / `help` / `update` 写成 root 命令
+   - `fpc` / `lazarus` / `cross` / `package` 段仍使用已收敛掉的 `upgrade`
+   - `project` 段还保留当前未注册的 `add` / `remove` / `upgrade`
+2. 已完成的最小修复：
+   - `tests/test_contributor_docs_contract.py`：
+     - 新增 `FPDEV_MD` 常量
+     - 新增 root heading、旧子命令、namespaced replacement 三组契约
+     - root heading 检查收紧为逐行匹配，避免 `### version` 被误伤
+   - `fpdev.md`：
+     - 重写为当前 namespaced command reference
+     - `system` 段明确 `fpdev system help` / `fpdev system version` / `fpdev system index update`
+     - `fpc` / `lazarus` / `cross` / `package` 段统一改成 `update`
+     - 删除 `project add/remove/upgrade`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后 `9` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`105` tests OK，`1` skipped
+4. 结论：
+   - `fpdev.md` 现在不再传播旧的 root CLI 心智模型
+   - contributor contract 已继续向顶层 public command reference 收口

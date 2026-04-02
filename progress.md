@@ -1971,3 +1971,40 @@
 | What's the goal? | Keep archived but still-referenceable docs aligned with current path semantics so they do not reintroduce old installation/registry assumptions |
 | What have I learned? | Once command names are fixed, the next high-value drift tends to be path semantics; archive docs can stay misleading long after live docs are corrected unless they also enter the contract net |
 | What have I done? | Added two archive data-root assertions, updated three archive docs to active data-root wording, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-02 (fpdev-md CLI surface drift)
+
+### Close-out Execution Follow-up 48
+- **Status:** complete
+- Actions taken:
+  - Reused parallel exploration output to bound the next seam to `fpdev.md`, a top-level command reference that still advertised removed root commands and stale subcommands
+  - Confirmed the current source of truth in the live registry/import units: help/version now live under `system`, update verbs are namespaced, `project add/remove/upgrade` are not registered, and database refresh is `system index update`
+  - Extended `tests/test_contributor_docs_contract.py` with `fpdev.md` coverage, including a small refinement from substring-based heading checks to exact line checks after the first GREEN attempt exposed that `### version` would otherwise false-positive
+  - Rewrote `fpdev.md` into a current namespaced command reference and re-ran focused plus broad contract verification
+- Files created/modified:
+  - `tests/test_contributor_docs_contract.py`
+  - `fpdev.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for `fpdev.md` CLI drift | `python3 -m unittest -v tests.test_contributor_docs_contract` | fail before fix | failed because `fpdev.md` still exposed root `version/help/update`, stale `upgrade` subcommands, and unregistered project verbs | Observed |
+| Focused contributor-doc verification | `python3 -m unittest -v tests.test_contributor_docs_contract` | pass | `9` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `105` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The first GREEN attempt still failed because `assertNotIn('## version', text)` also matched the valid `### version` heading in the rewritten `system` section | 1 | Tightened the contract to compare exact lines for banned root headings, then re-ran the focused suite to green |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | `fpdev.md` is now under contributor-doc contract and aligned to the current CLI namespace model |
+| Where am I going? | Commit and push this `fpdev.md` cleanup checkpoint, then continue to the next uncovered top-level or archive doc seam |
+| What's the goal? | Prevent top-level command references from reintroducing removed root commands or stale verb names after the live docs have already been corrected |
+| What have I learned? | Top-level short reference docs drift differently from long guides: they need heading-level assertions, and those assertions must be precise enough to avoid matching valid nested headings |
+| What have I done? | Added `fpdev.md` contract coverage, rewrote the file to current namespaced commands, handled one false-positive in the contract, and re-verified the full docs/release/CI bundle |

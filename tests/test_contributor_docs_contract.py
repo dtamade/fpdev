@@ -6,6 +6,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_MD = REPO_ROOT / 'CLAUDE.md'
 AGENTS_MD = REPO_ROOT / 'AGENTS.md'
 WARP_MD = REPO_ROOT / 'WARP.md'
+FPDEV_MD = REPO_ROOT / 'fpdev.md'
 
 
 class ContributorDocsContractTests(unittest.TestCase):
@@ -78,6 +79,39 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertNotIn('fpc fpdev.lpr', text)
         self.assertNotIn('fpc -Mobjfpc -Scghi -O3 -Xs -XX fpdev.lpr', text)
         self.assertNotIn('run_tests.bat', text)
+
+    def test_fpdev_md_does_not_advertise_removed_root_commands(self):
+        text = FPDEV_MD.read_text(encoding='utf-8')
+
+        lines = text.splitlines()
+        self.assertNotIn('## version', lines)
+        self.assertNotIn('## help', lines)
+        self.assertNotIn('## update', lines)
+
+    def test_fpdev_md_does_not_advertise_removed_or_renamed_subcommands(self):
+        text = FPDEV_MD.read_text(encoding='utf-8')
+
+        banned_tokens = [
+            '### upgrade <version>',
+            '### upgrade <targetOS>-<targetCPU>-[version]',
+            '### upgrade <package>',
+            '### add <package>',
+            '### remove <package>',
+            '### upgrade',
+        ]
+        for token in banned_tokens:
+            self.assertNotIn(token, text)
+
+    def test_fpdev_md_points_to_current_namespaced_replacements(self):
+        text = FPDEV_MD.read_text(encoding='utf-8')
+
+        self.assertIn('fpdev system help', text)
+        self.assertIn('fpdev system version', text)
+        self.assertIn('fpdev fpc update', text)
+        self.assertIn('fpdev lazarus update', text)
+        self.assertIn('fpdev cross update', text)
+        self.assertIn('fpdev package update', text)
+        self.assertIn('fpdev system index update', text)
 
 
 if __name__ == '__main__':

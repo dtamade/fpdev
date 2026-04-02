@@ -1397,3 +1397,36 @@
 - 结论更新：
   - archive 文档中的 registry/install 路径语义现在回到当前 active-data-root 真相
   - 下一条高价值 seam 可继续转向其他未纳入契约的 archive/live docs surface
+
+## Execution Update (2026-04-02, fpdev-md CLI surface drift)
+- 新发现的 repo-local seam：
+  - `fpdev.md` 仍把 `version` / `help` / `update` 暴露成 root heading
+  - `fpdev.md` 仍把 `upgrade` 当作 `fpc` / `lazarus` / `cross` / `package` 的公开子命令
+  - `fpdev.md` 的 `project` 段还列出当前未注册的 `add` / `remove` / `upgrade`
+- 当前 repo truth：
+  - `src/fpdev.command.imports.system.pas` + `src/fpdev.cmd.system.help.pas` + `src/fpdev.cmd.system.version.pas`：帮助与版本入口在 `system`
+  - `src/fpdev.cmd.fpc.update.pas` / `src/fpdev.cmd.lazarus.update.pas` / `src/fpdev.cmd.cross.update.pas` / `src/fpdev.cmd.package.update.pas`：对外更新动词已统一为 `update`
+  - `src/fpdev.command.imports.project.pas`：project 公开命令面不包含 `add/remove/upgrade`
+  - `src/fpdev.cmd.index.update.pas`：索引更新入口是 `fpdev system index update`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract` 失败
+  - 新增 contributor 契约直接暴露出：
+    - `fpdev.md` 仍包含 root `## version` / `## help` / `## update`
+    - 仍包含 `### upgrade <version>`、`### upgrade <targetOS>-<targetCPU>-[version]`、`### upgrade <package>`、`### add <package>`、`### remove <package>`、`### upgrade`
+    - 缺少 `fpdev system help` / `fpdev system version` / `fpdev system index update` 与各 namespace 的 `update`
+- 已实施的最小修复：
+  - `tests/test_contributor_docs_contract.py`：
+    - 新增 `FPDEV_MD`
+    - 新增 root-command / stale-subcommand / namespaced-replacement 三组断言
+    - 将 root-heading 检查改成逐行匹配，避免误伤 `### version`
+  - `fpdev.md`：
+    - 改成当前 namespaced command reference
+    - `system` 段明确 `help` / `version` / `index update`
+    - `fpc` / `lazarus` / `cross` / `package` 统一改成 `update`
+    - 删除 `project add/remove/upgrade`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract`：`9` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`105` tests OK，`1` skipped
+- 结论更新：
+  - `fpdev.md` 这个顶层命令参考已回到当前 CLI 注册真相
+  - docs-contract cleanup 继续把“未被保护的顶层 markdown”纳入自动化约束
