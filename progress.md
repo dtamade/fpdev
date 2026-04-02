@@ -1200,3 +1200,41 @@
 | What's the goal? | Keep even the roadmap-referenced philosophy docs aligned with the same install-path contract already enforced across the rest of the public docs |
 | What have I learned? | Live design docs can silently reintroduce stale runtime assumptions even after the user-facing guides are repaired |
 | What have I done? | Added TODO-FPC-v1 contract coverage and rewrote the live philosophy/install-path language around the active data-root model |
+
+## Session: 2026-04-02 (roadmap activate-flag drift)
+
+### Close-out Execution Follow-up 29
+- **Status:** complete
+- Actions taken:
+  - Scanned the remaining live docs after the TODO-FPC-v1 alignment and found that `docs/ROADMAP.md` still advertised `--activate` in its Development Philosophy section
+  - Re-verified the runtime/help truth in `src/fpdev.cmd.fpc.install.pas`, `src/fpdev.help.details.fpc.pas`, and `src/fpdev.i18n.strings.pas`: the current install CLI exposes `--from-source`, `--from-binary`, `--from=`, `--jobs=`, `--prefix=`, `--offline`, and `--no-cache`, but not `--activate`
+  - Added a failing official-docs contract proving the roadmap must not advertise the removed install activate flag
+  - Updated `docs/ROADMAP.md` so the activation principle now points users to explicit `fpdev fpc use <version>` after install instead of the removed `--activate`
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the live roadmap/status doc now matches the shipped CLI help surface
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/ROADMAP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for roadmap activate-flag drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `ROADMAP.md` still contained `` `--activate` `` even though current install help no longer exposes that flag | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `71` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `ROADMAP.md` still advertised the removed `install --activate` path even after the live install philosophy had been updated elsewhere | 1 | Added a roadmap contract and rewrote the activation principle around explicit post-install `use` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The live `ROADMAP.md` document now matches the shipped CLI activation surface as well as the active install-path model |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the roadmap/status document aligned with the real install/activation surface, not just the broader path model |
+| What have I learned? | Even after path semantics are fixed, small stale flag references in status docs can still mislead users toward removed CLI behavior |
+| What have I done? | Added roadmap activate-flag contract coverage and removed the stale `--activate` guidance from the live roadmap |

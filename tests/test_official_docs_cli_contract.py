@@ -286,6 +286,12 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('Project-scoped installation (`.fpdev/toolchains/`)', text)
         self.assertNotIn('User-scoped installation (`~/.fpdev/fpc/`)', text)
 
+    def test_roadmap_does_not_advertise_removed_install_activate_flag(self):
+        text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
+
+        self.assertIn('explicit `use`', text)
+        self.assertNotIn('`--activate`', text)
+
     def test_todo_fpc_v1_uses_active_data_root_install_model(self):
         text = (REPO_ROOT / 'docs' / 'TODO-FPC-v1.md').read_text(encoding='utf-8')
 

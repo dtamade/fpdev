@@ -43,7 +43,7 @@ Following the TODO-FPC-v1.md philosophy:
 ### Core Principles
 1. **Scope-Aware**: Project-local isolation via `FPDEV_DATA_ROOT` → runtime default data root → system-level only with consent
 2. **Source-Agnostic**: Auto (prefer binary → fallback source)
-3. **Activation**: Off by default (explicit `use` or `--activate`)
+3. **Activation**: Off by default (explicit `use` after install when shell/project activation is needed)
 4. **Smart Reuse**: No redundant clones/builds; leverage existing repos and caches
 5. **Verification**: Mandatory smoke tests (version check + hello.pas compilation)
 

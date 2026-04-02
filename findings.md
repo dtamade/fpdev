@@ -781,3 +781,31 @@
 - 结论更新：
   - `TODO-FPC-v1.md` 现在也与活动数据根安装路径模型保持一致，不再把旧的 scope/data-root 设计叙事重新引回 live philosophy 层
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, roadmap activate-flag drift)
+- 在 `TODO-FPC-v1.md` 已与当前 install/data-root 模型对齐后，继续审计 live roadmap/status 文档时，又发现一条更细但仍然会误导用户的 CLI drift：
+  - `docs/ROADMAP.md` 的 Development Philosophy 仍写着 `Activation: Off by default (explicit use or --activate)`
+  - 但当前 install CLI 帮助面已经不再提供 `--activate`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.fpc.install.pas`：未知选项集合只允许 `--from-source`、`--from-binary`、`--from=`、`--jobs=`、`--prefix=`、`--offline`、`--no-cache`
+  - 同文件的 `--help` 输出也只打印这些 install options
+  - `src/fpdev.help.details.fpc.pas` 与 `src/fpdev.i18n.strings.pas`：install 详细帮助同样没有 `--activate`
+  - 也就是说，当前激活路径应是安装后显式执行 `fpdev fpc use <version>`，而不是在 install 阶段附加旧 flag
+- 这个问题的影响：
+  - 即使路径模型已经修正，用户仍会被 live roadmap/status 文档引导去尝试不存在的 `--activate`
+  - 这类小漂移会直接削弱公开文档对当前 CLI help surface 的可信度
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_roadmap_does_not_advertise_removed_install_activate_flag` 直接暴露出：
+    - `ROADMAP.md` 仍包含 `` `--activate` ``
+    - 同时也证明文档应该继续保留 explicit `use` 的激活叙事
+- 已实施的最小修复：
+  - `docs/ROADMAP.md`：
+    - 将 Activation 原则改成 “Off by default (explicit `use` after install when shell/project activation is needed)”
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 roadmap activate-flag 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`71` tests OK，`1` skipped
+- 结论更新：
+  - `ROADMAP.md` 现在也与当前 install/activation help surface 保持一致，不再宣传已移除的 `install --activate`
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

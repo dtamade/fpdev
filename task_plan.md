@@ -601,3 +601,17 @@ Phase 4 complete
 4. 结论：
    - `TODO-FPC-v1.md` 现在也与公开活动数据根安装模型保持一致，不再把旧的 scope/data-root 叙事重新引回 roadmap 哲学层
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, roadmap activate-flag drift)
+1. 新发现的 repo-local live-status seam：
+   - `docs/ROADMAP.md` 的 Development Philosophy 仍写着 `Activation: Off by default (explicit use or --activate)`
+   - 但当前 `fpdev fpc install` 的帮助和参数解析已经没有 `--activate`，激活应通过安装后的 `fpdev fpc use <version>` 完成
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_roadmap_does_not_advertise_removed_install_activate_flag`
+   - `docs/ROADMAP.md` 将该原则改成“需要 shell/project activation 时，安装后显式执行 `use`”
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`71` tests OK，`1` skipped
+4. 结论：
+   - `ROADMAP.md` 现在不再宣传已移除的 `install --activate` 参数，live status 文档与当前 CLI 帮助面再次保持一致
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
