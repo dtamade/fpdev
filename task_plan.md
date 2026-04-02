@@ -674,3 +674,21 @@ Phase 4 complete
 4. 结论：
    - Quickstart 文档现在也与活动数据根备份模型保持一致，不再把 `.fpdev` 当成默认状态目录
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, manifest migration dry-run drift)
+1. 新发现的 repo-local live-doc seam：
+   - `docs/MANIFEST-MIGRATION.md` 仍把 `fpc install`、`lazarus install`、`cross install` 都写成支持 `--dry-run`
+   - 但当前 CLI 只有 `cross build --dry-run` 是真实支持的 dry-run 路径；三个 install 命令都不接受这些示例里的 flag 组合
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_manifest_migration_doc_does_not_advertise_unsupported_install_dry_run_flags`
+   - `docs/MANIFEST-MIGRATION.md`：
+     - 删掉三个不存在的 `install --dry-run` 示例
+     - 改为使用 `./bin/test_manifest_parser`
+     - 改为使用受支持的 `./bin/fpdev fpc install --help`、`./bin/fpdev lazarus install --help`
+     - 改为使用真实支持 dry-run 的 `./bin/fpdev cross build aarch64-linux --dry-run`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`76` tests OK，`1` skipped
+4. 结论：
+   - `MANIFEST-MIGRATION.md` 现在也与当前 install/build help surface 保持一致，不再鼓励用户复制不存在的 `install --dry-run`
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

@@ -232,11 +232,20 @@ cd ~/projects/fpdev-cross
 mv manifest-new.json manifest.json
 ```
 
-### Step 5: Test Integration
+### Step 5: Review Supported Integration Commands
 
 ```bash
 cd ~/projects/fpdev
-./bin/fpdev fpc install 3.2.2 --dry-run
+
+# Keep parser validation as the primary manifest contract
+./bin/test_manifest_parser
+
+# Review the supported install entrypoints before running networked installs
+./bin/fpdev fpc install --help
+./bin/fpdev lazarus install --help
+
+# cross dry-run is supported on build planning, not install
+./bin/fpdev cross build aarch64-linux --dry-run
 ```
 
 ### Step 6: Commit Changes
@@ -367,17 +376,27 @@ Passed: 57
 Failed: 0
 ```
 
-### Integration Tests
+### Integration Checks
 
 ```bash
-# Test FPC installation with new manifest
-./bin/fpdev fpc install 3.2.2 --dry-run
+# Keep parser validation as the primary manifest contract
+./bin/test_manifest_parser
 
-# Test Lazarus installation with new manifest
-./bin/fpdev lazarus install 3.8 --dry-run
+# Review the real supported install command surfaces
+./bin/fpdev fpc install --help
+./bin/fpdev lazarus install --help
 
-# Test cross-compilation toolchain with new manifest
-./bin/fpdev cross install aarch64-linux --dry-run
+# cross dry-run is supported on build planning, not install
+./bin/fpdev cross build aarch64-linux --dry-run
+```
+
+For networked end-to-end validation, run the install commands without the removed
+`--dry-run` flag:
+
+```bash
+./bin/fpdev fpc install 3.2.2
+./bin/fpdev lazarus install 3.8
+./bin/fpdev cross install aarch64-linux
 ```
 
 ---

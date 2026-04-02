@@ -316,6 +316,17 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('~/.fpdev/cache/manifests/fpc.json', text)
         self.assertNotIn('~/.fpdev/toolchains/fpc/<version>', text)
 
+    def test_manifest_migration_doc_does_not_advertise_unsupported_install_dry_run_flags(self):
+        text = (REPO_ROOT / 'docs' / 'MANIFEST-MIGRATION.md').read_text(encoding='utf-8')
+
+        self.assertIn('./bin/test_manifest_parser', text)
+        self.assertIn('./bin/fpdev fpc install --help', text)
+        self.assertIn('./bin/fpdev lazarus install --help', text)
+        self.assertIn('./bin/fpdev cross build aarch64-linux --dry-run', text)
+        self.assertNotIn('./bin/fpdev fpc install 3.2.2 --dry-run', text)
+        self.assertNotIn('./bin/fpdev lazarus install 3.8 --dry-run', text)
+        self.assertNotIn('./bin/fpdev cross install aarch64-linux --dry-run', text)
+
     def test_roadmap_success_metrics_use_active_install_path_model(self):
         text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
 

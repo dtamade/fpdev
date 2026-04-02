@@ -911,3 +911,37 @@
 - 结论更新：
   - Quickstart 文档现在也与活动数据根备份模型保持一致，不再把 `.fpdev` 当成默认状态目录
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, manifest migration dry-run drift)
+- 在 Quickstart 的 live-doc seams 收敛后，继续扫描仍会被直接复制执行的维护文档时，又发现 `docs/MANIFEST-MIGRATION.md` 还在宣传三条不存在的 install dry-run 命令：
+  - `./bin/fpdev fpc install 3.2.2 --dry-run`
+  - `./bin/fpdev lazarus install 3.8 --dry-run`
+  - `./bin/fpdev cross install aarch64-linux --dry-run`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.fpc.install.pas`：只接受 `--from-source`、`--from-binary`、`--from=`、`--jobs=`、`--prefix=`、`--offline`、`--no-cache`
+  - `src/fpdev.cmd.lazarus.install.pas`：只接受 `--from-source`、`--from=`、`--fpc=`、`--jobs=`、`--no-configure`
+  - `src/fpdev.cmd.cross.install.pas`：除 `--help` 外不接受 install flags
+  - `src/fpdev.cmd.cross.build.pas`：`cross build --dry-run` 才是当前真实存在的 dry-run 入口
+- 这个问题的影响：
+  - `MANIFEST-MIGRATION.md` 会把维护者引到三个 usage-error 命令，而不是当前实际支持的验证入口
+  - 这类历史迁移文档一旦保留错误 copy-paste 命令，会重新制造“文档说能用、CLI 实际不行”的 live-contract drift
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_manifest_migration_doc_does_not_advertise_unsupported_install_dry_run_flags` 直接暴露出：
+    - 文档仍包含三条 install dry-run 假命令
+    - 且还没有切换到受支持的 `install --help` / `cross build --dry-run` 验证入口
+- 已实施的最小修复：
+  - `docs/MANIFEST-MIGRATION.md`：
+    - Step 5 改成 review supported integration commands
+    - Integration Tests 改成 Integration Checks
+    - 保留 `./bin/test_manifest_parser` 作为主 manifest contract
+    - 改为展示 `./bin/fpdev fpc install --help`、`./bin/fpdev lazarus install --help`
+    - 改为展示 `./bin/fpdev cross build aarch64-linux --dry-run`
+    - 如需真正 end-to-end install，则明确要求去掉已移除的 `--dry-run`
+  - `tests/test_official_docs_cli_contract.py`：补齐 manifest-migration dry-run 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`76` tests OK，`1` skipped
+- 结论更新：
+  - `MANIFEST-MIGRATION.md` 现在也与当前 install/build 帮助面保持一致，不再宣传不存在的 `install --dry-run`
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

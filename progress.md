@@ -1393,3 +1393,41 @@
 | What's the goal? | Keep even the small operational tips in onboarding docs aligned with the same active data-root model as the rest of the live docs |
 | What have I learned? | Legacy path assumptions can survive in “tips” sections long after the main install/config guidance is repaired |
 | What have I done? | Added quickstart backup-path contract coverage and rewrote the backup tip around the active data root |
+
+## Session: 2026-04-02 (manifest migration dry-run drift)
+
+### Close-out Execution Follow-up 34
+- **Status:** complete
+- Actions taken:
+  - Re-scanned remaining live maintenance docs after the quickstart cleanup and found that `docs/MANIFEST-MIGRATION.md` still advertised three unsupported install dry-run commands
+  - Re-verified the current command surface in `src/fpdev.cmd.fpc.install.pas`, `src/fpdev.cmd.lazarus.install.pas`, `src/fpdev.cmd.cross.install.pas`, and `src/fpdev.cmd.cross.build.pas`: only `cross build --dry-run` is a valid dry-run entrypoint
+  - Added a failing official-docs contract proving the manifest migration guide must not advertise `install --dry-run` for FPC, Lazarus, or cross installs
+  - Updated `docs/MANIFEST-MIGRATION.md` so it now points maintainers at the primary parser contract, supported `install --help` checks, and the real `cross build --dry-run` path
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the migration guide now matches the shipped install/build CLI surface
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/MANIFEST-MIGRATION.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for manifest migration dry-run drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/MANIFEST-MIGRATION.md` still contained three unsupported `install --dry-run` examples and lacked the supported verification commands required by the new contract | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `24` tests OK | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `76` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/MANIFEST-MIGRATION.md` still advertised unsupported `fpc/lazarus/cross install --dry-run` examples | 1 | Added a manifest-migration docs contract and rewrote the guide around `test_manifest_parser`, supported `install --help`, and `cross build --dry-run` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The manifest migration guide now aligns with the shipped install/build CLI surface as well as the parser contract |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep even historical migration docs aligned with the real command surface so maintainers are not sent into usage errors by copy-paste examples |
+| What have I learned? | Historical maintenance docs can preserve removed CLI flags long after the primary onboarding docs are repaired, so they need the same contract treatment |
+| What have I done? | Added manifest-migration dry-run contract coverage and replaced the stale install dry-run examples with supported verification commands |
