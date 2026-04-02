@@ -937,3 +937,28 @@ Phase 4 complete
 4. 结论：
    - contributor-doc contract 现在不仅覆盖显式工作流段落，也开始覆盖嵌入式旧示例和文档树漏网 token
    - docs-contract cleanup 的漏网面继续缩小
+
+## Close-out Update (2026-04-02, archive data-root path drift)
+1. 新发现的 archive-doc seam：
+   - `docs/archive/WEEK10-PLAN.md` 仍把 package registry 写成固定的 `~/.fpdev/registry/`，并把配置路径写成 `~/.fpdev/registry/config.json` / `~/.fpdev/config.json`
+   - `docs/archive/WEEK10-SUMMARY.md` 仍把 Week 10 registry 初始化和结构图写成 `~/.fpdev/registry/`
+   - `docs/archive/COMPLETION_SUMMARY.md` 仍把 user scope 安装路径写死为 `~/.fpdev/fpc/<version>/`
+2. 已完成的最小修复：
+   - `tests/test_archive_docs_contract.py`：
+     - 新增 `test_archive_week10_registry_docs_use_active_data_root_paths`
+     - 新增 `test_archive_completion_summary_describes_user_scope_via_active_data_root`
+   - `docs/archive/WEEK10-PLAN.md`：
+     - registry 结构和配置路径改成 `<data-root>/registry/` 与 `<data-root>/config.json`
+     - 补入 active data-root 说明，明确 `FPDEV_DATA_ROOT` / portable `data/` / 平台默认路径
+   - `docs/archive/WEEK10-SUMMARY.md`：
+     - Week 10 registry 功能与结构图改成 `<data-root>/registry/`
+     - 补入 `FPDEV_DATA_ROOT` 可重定位 registry 的说明
+   - `docs/archive/COMPLETION_SUMMARY.md`：
+     - user scope 安装路径改成 `<data-root>/toolchains/fpc/<version>/`
+     - 补入 `FPDEV_DATA_ROOT`、portable `data/` 与平台默认 data-root 说明
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_archive_docs_contract`：先 RED，修复后 `7` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`102` tests OK，`1` skipped
+4. 结论：
+   - archive 中仍会被复制引用的 package/install 文档现在已回到当前 active data-root 模型
+   - docs-contract cleanup 继续从“命令面漂移”推进到“路径语义漂移”

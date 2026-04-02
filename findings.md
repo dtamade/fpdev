@@ -1360,3 +1360,40 @@
 - 结论更新：
   - contributor-doc contract 不再只覆盖显式命令块，而是开始兜住嵌入式旧字符串和树状示例
   - AGENTS / WARP 这两个 contributor surface 的剩余显眼漏口已被收口
+
+## Execution Update (2026-04-02, archive data-root path drift)
+- 新发现的 repo-local seam：
+  - `docs/archive/WEEK10-PLAN.md`、`docs/archive/WEEK10-SUMMARY.md` 仍把本地 registry 根路径写死为 `~/.fpdev/registry/`
+  - `WEEK10-PLAN.md` 还把 registry/global config 写成 `~/.fpdev/registry/config.json` 和 `~/.fpdev/config.json`
+  - `docs/archive/COMPLETION_SUMMARY.md` 仍把 user scope FPC 安装写成 `~/.fpdev/fpc/<version>/`
+- 当前 repo truth：
+  - `src/fpdev.paths.pas`：活动数据根优先取 `FPDEV_DATA_ROOT`，portable release 默认用 `data/`
+  - `src/fpdev.paths.pas`：Windows 默认是 `%APPDATA%\fpdev\`
+  - `src/fpdev.paths.pas`：Linux/macOS 默认是 `$XDG_DATA_HOME/fpdev/`，未设置时回退 `~/.fpdev/`
+  - `src/fpdev.cmd.package.publish.pas`：本地 registry 正确模式是 `GetDataRoot + PathDelim + 'registry'`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_archive_docs_contract` 失败
+  - 新增 archive 契约直接暴露出：
+    - Week 10 archive docs 缺少 `<data-root>/registry/` 与 `FPDEV_DATA_ROOT`
+    - `WEEK10-PLAN.md` 仍保留 `~/.fpdev/registry` 和 `~/.fpdev/config.json`
+    - `COMPLETION_SUMMARY.md` 仍保留 `~/.fpdev/fpc/<version>/`
+- 已实施的最小修复：
+  - `tests/test_archive_docs_contract.py`：
+    - 新增 Week 10 registry data-root 契约
+    - 新增 completion summary user-scope data-root 契约
+  - `docs/archive/WEEK10-PLAN.md`：
+    - registry 结构图改为 `<data-root>/registry/`
+    - config 示例改为 `<data-root>/registry/config.json` 和 `<data-root>/config.json`
+    - 补入 active data-root 来源说明
+  - `docs/archive/WEEK10-SUMMARY.md`：
+    - registry 初始化与结构图改为 `<data-root>/registry/`
+    - 补入 `FPDEV_DATA_ROOT` 可重定位说明
+  - `docs/archive/COMPLETION_SUMMARY.md`：
+    - user scope 路径改为 `<data-root>/toolchains/fpc/<version>/`
+    - 补入 `FPDEV_DATA_ROOT` / portable / 平台默认 data-root 说明
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_archive_docs_contract`：`7` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`102` tests OK，`1` skipped
+- 结论更新：
+  - archive 文档中的 registry/install 路径语义现在回到当前 active-data-root 真相
+  - 下一条高价值 seam 可继续转向其他未纳入契约的 archive/live docs surface

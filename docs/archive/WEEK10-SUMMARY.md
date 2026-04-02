@@ -43,7 +43,7 @@ Week 10 successfully implemented a complete Package Publishing System for fpdev,
 **File**: `src/fpdev.package.registry.pas`
 
 **Key Features**:
-- Registry structure initialization (`~/.fpdev/registry/`)
+- Registry structure initialization (`<data-root>/registry/`, relocatable via `FPDEV_DATA_ROOT`)
 - JSON-based package index management
 - Package metadata CRUD operations
 - Version listing and querying
@@ -106,7 +106,7 @@ Week 10 successfully implemented a complete Package Publishing System for fpdev,
 ### Registry Structure
 
 ```
-~/.fpdev/registry/
+<data-root>/registry/
 ├── index.json              # Package index (all packages)
 ├── config.json             # Registry configuration
 └── packages/
@@ -116,6 +116,8 @@ Week 10 successfully implemented a complete Package Publishing System for fpdev,
             ├── packagename-version.tar.gz.sha256
             └── package.json
 ```
+
+`<data-root>` is the active FPDev data root. Portable releases default to `data/`, and `FPDEV_DATA_ROOT` can override it for local or CI registry isolation.
 
 ### Module Design
 

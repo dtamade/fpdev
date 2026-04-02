@@ -115,7 +115,7 @@ Installed packages:
 
 **Registry Structure**:
 ```
-~/.fpdev/registry/
+<data-root>/registry/
 ├── index.json              # Package index (all packages)
 ├── packages/
 │   ├── mylib/
@@ -132,6 +132,8 @@ Installed packages:
 │       └── ...
 └── config.json             # Registry configuration
 ```
+
+`<data-root>` means the active FPDev data root. In the current runtime this can come from a portable `data/` directory, an explicit `FPDEV_DATA_ROOT` override, Windows `%APPDATA%\fpdev\`, or Linux/macOS `$XDG_DATA_HOME/fpdev/` with `~/.fpdev/` as fallback.
 
 **index.json Format**:
 ```json
@@ -426,12 +428,12 @@ fpdev package install mylib --registry /custom/registry
 
 ### 4. Configuration
 
-**Registry Configuration** (`~/.fpdev/registry/config.json`):
+**Registry Configuration** (`<data-root>/registry/config.json`):
 ```json
 {
   "version": "1.0",
   "registry": {
-    "path": "~/.fpdev/registry",
+    "path": "<data-root>/registry",
     "type": "local"
   },
   "publish": {
@@ -445,11 +447,11 @@ fpdev package install mylib --registry /custom/registry
 }
 ```
 
-**Global Configuration Enhancement** (`~/.fpdev/config.json`):
+**Global Configuration Enhancement** (`<data-root>/config.json`):
 ```json
 {
   "registry": {
-    "default": "~/.fpdev/registry",
+    "default": "<data-root>/registry",
     "mirrors": []
   }
 }

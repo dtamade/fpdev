@@ -161,8 +161,9 @@ This document summarizes all completed features in the FPDev project as of Janua
 
 **Implementation Details**:
 - **Project Scope**: Installs to `.fpdev/toolchains/<version>/`
-- **User Scope**: Installs to `~/.fpdev/fpc/<version>/`
+- **User Scope**: Installs under the active data root at `<data-root>/toolchains/fpc/<version>/`
 - **System Scope**: Installs to system-wide location (with consent)
+- **Active Data Root**: Use `FPDEV_DATA_ROOT` to relocate user-scoped installs; otherwise portable releases default to `data/`, Windows uses `%APPDATA%\fpdev\`, and Linux/macOS use `$XDG_DATA_HOME/fpdev/` with `~/.fpdev/` as fallback
 - **Metadata Tracking**: Records installation scope, timestamp, version
 
 **Test Coverage**:

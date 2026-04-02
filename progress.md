@@ -1932,3 +1932,42 @@
 | What's the goal? | Stop contributor-facing docs from leaking old subdir runners or hidden root-help examples back into the repo workflow |
 | What have I learned? | Exact-token bans are useful for a first pass, but scattered legacy strings need broader contributor contracts or they survive in code snippets and tree diagrams |
 | What have I done? | Tightened the contributor-doc contract, updated AGENTS/WARP, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-02 (archive data-root path drift)
+
+### Close-out Execution Follow-up 47
+- **Status:** complete
+- Actions taken:
+  - Continued the archive-doc cleanup from command-surface drift into path-semantics drift, focusing on the still copyable Week 10 / completion summaries that hard-coded `~/.fpdev/...`
+  - Confirmed the current runtime truth from `src/fpdev.paths.pas` and `src/fpdev.cmd.package.publish.pas`: registry and user-scoped installs are rooted in the active data root, with `FPDEV_DATA_ROOT` override and portable/platform defaults
+  - Extended `tests/test_archive_docs_contract.py` so archive docs must describe `<data-root>/registry/` and `<data-root>/toolchains/fpc/<version>/` instead of stale home-directory literals
+  - Updated `WEEK10-PLAN.md`, `WEEK10-SUMMARY.md`, and `COMPLETION_SUMMARY.md` to the active data-root model and re-ran focused plus broad regression coverage
+- Files created/modified:
+  - `tests/test_archive_docs_contract.py`
+  - `docs/archive/WEEK10-PLAN.md`
+  - `docs/archive/WEEK10-SUMMARY.md`
+  - `docs/archive/COMPLETION_SUMMARY.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for archive data-root path drift | `python3 -m unittest -v tests.test_archive_docs_contract` | fail before fix | failed because the Week 10 archive docs still hard-coded `~/.fpdev/registry` and `COMPLETION_SUMMARY.md` still hard-coded `~/.fpdev/fpc/<version>/` | Observed |
+| Focused archive-doc verification | `python3 -m unittest -v tests.test_archive_docs_contract` | pass | `7` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `102` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/archive/WEEK10-PLAN.md`, `docs/archive/WEEK10-SUMMARY.md`, and `docs/archive/COMPLETION_SUMMARY.md` still taught stale home-directory paths instead of the active data-root model | 1 | Added archive data-root contract coverage and rewrote the affected registry/install path guidance around `<data-root>` plus `FPDEV_DATA_ROOT` / portable / platform defaults |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The archive-doc contract now covers both command-surface drift and data-root path drift |
+| Where am I going? | Commit and push this archive data-root cleanup checkpoint, then move to the next uncovered doc surface |
+| What's the goal? | Keep archived but still-referenceable docs aligned with current path semantics so they do not reintroduce old installation/registry assumptions |
+| What have I learned? | Once command names are fixed, the next high-value drift tends to be path semantics; archive docs can stay misleading long after live docs are corrected unless they also enter the contract net |
+| What have I done? | Added two archive data-root assertions, updated three archive docs to active data-root wording, and re-verified the full docs/release/CI bundle |
