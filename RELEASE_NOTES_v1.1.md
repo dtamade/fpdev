@@ -258,7 +258,7 @@ Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v1.1.0/
 Expand-Archive -Path "fpdev-v1.1.0.zip" -DestinationPath "C:\fpdev"
 
 # Verify version
-fpdev version
+fpdev system version
 # Output: FPDev v1.1.0
 ```
 
@@ -270,7 +270,7 @@ tar -xzf fpdev-linux-x64.tar.gz
 sudo mv fpdev /usr/local/bin/
 
 # Verify version
-fpdev version
+fpdev system version
 # Output: FPDev v1.1.0
 ```
 

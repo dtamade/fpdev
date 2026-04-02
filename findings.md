@@ -1008,3 +1008,31 @@
 - 结论更新：
   - contributor docs 现在也与 active data-root 语义保持一致，不再把 Windows 数据根写回旧的 `.fpdev`
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, legacy release-notes version-command drift)
+- 在 contributor docs 也收口后，继续扫描 top-level public markdown 时，又发现一条 release-note 层的命令面 drift：
+  - `RELEASE_NOTES_v1.1.md` 的 Windows / Linux/macOS 升级说明都仍让用户执行 `fpdev version`
+  - 但当前 runtime 已经把公开版本入口收敛到 `fpdev system version`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.system.version.pas`：注册路径是 `['system', 'version']`
+  - `src/fpdev.help.rootview.pas` 与 `src/fpdev.help.usage.pas`：帮助文本也统一指向 `fpdev system version`
+  - `tests/test_command_registry.lpr`：`system version` 的注册与退出码路径有覆盖
+- 这个问题的影响：
+  - 即使这是旧版本发布说明，只要它还作为顶层 public doc 留在仓库里，就会继续给用户一个现在会失败的 copy-paste 命令
+  - release notes 作为升级说明文档，命令 drift 会比普通叙述 drift 更容易被直接照抄
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_legacy_release_notes_use_current_version_command` 直接暴露出：
+    - `RELEASE_NOTES_v1.1.md` 没有 `fpdev system version`
+    - `RELEASE_NOTES_v1.1.md` 仍包含 `fpdev version`
+- 已实施的最小修复：
+  - `RELEASE_NOTES_v1.1.md`：
+    - Windows 验证命令改成 `fpdev system version`
+    - Linux/macOS 验证命令改成 `fpdev system version`
+  - `tests/test_release_docs_contract.py`：补齐 legacy release-notes version-command 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`81` tests OK，`1` skipped
+- 结论更新：
+  - 历史 release note 现在也不会再把公开升级说明引回已移除的 `fpdev version`
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

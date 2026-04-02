@@ -7,6 +7,7 @@ OWNER_CHECKPOINTS = REPO_ROOT / 'docs' / 'plans' / '2026-03-25-v2.1.0-release-ow
 MVP_ACCEPTANCE = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
 MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
 RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES.md'
+LEGACY_RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES_v1.1.md'
 CHANGELOG = REPO_ROOT / 'CHANGELOG.md'
 LATEST_BASELINE_SUMMARY = 'logs/release_acceptance/20260402_104133/summary.txt'
 LATEST_INSTALL_SUMMARY = 'logs/release_acceptance/20260402_111602/summary.txt'
@@ -21,6 +22,7 @@ class ReleaseDocsContractTests(unittest.TestCase):
         cls.mvp_text = MVP_ACCEPTANCE.read_text(encoding='utf-8')
         cls.mvp_en_text = MVP_ACCEPTANCE_EN.read_text(encoding='utf-8')
         cls.release_notes_text = RELEASE_NOTES.read_text(encoding='utf-8')
+        cls.legacy_release_notes_text = LEGACY_RELEASE_NOTES.read_text(encoding='utf-8')
         cls.changelog_text = CHANGELOG.read_text(encoding='utf-8')
 
     def test_owner_checkpoint_doc_uses_shared_smoke_scripts(self):
@@ -67,6 +69,10 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertNotIn('system version/help', self.release_notes_text)
         self.assertNotIn('fpc --help', self.release_notes_text)
         self.assertNotIn('fpc list --all', self.release_notes_text)
+
+    def test_legacy_release_notes_use_current_version_command(self):
+        self.assertIn('fpdev system version', self.legacy_release_notes_text)
+        self.assertNotIn('fpdev version', self.legacy_release_notes_text)
 
     def test_owner_checkpoint_exit_criteria_include_release_evidence(self):
         self.assertIn('RELEASE_EVIDENCE.md', self.text)

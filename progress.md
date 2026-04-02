@@ -1508,3 +1508,41 @@
 | What's the goal? | Keep repository guidance from reintroducing stale path assumptions that would contaminate future code, tests, or docs |
 | What have I learned? | Contributor docs can lag behind user docs and quietly re-seed obsolete path conventions back into the codebase if they are not contract-checked |
 | What have I done? | Added contributor-doc data-root contract coverage and rewrote `AGENTS.md` plus `WARP.md` around the active data-root model |
+
+## Session: 2026-04-02 (legacy release-notes version-command drift)
+
+### Close-out Execution Follow-up 37
+- **Status:** complete
+- Actions taken:
+  - Re-scanned top-level public markdown after the contributor-doc cleanup and found that `RELEASE_NOTES_v1.1.md` still told users to verify upgrades with `fpdev version`
+  - Re-verified the current version-command source of truth in `src/fpdev.cmd.system.version.pas`, `src/fpdev.help.rootview.pas`, `src/fpdev.help.usage.pas`, and `tests/test_command_registry.lpr`: the shipped CLI now exposes `fpdev system version`
+  - Added a failing release-doc contract proving the legacy release notes must use the current public version command
+  - Updated both upgrade instruction blocks in `RELEASE_NOTES_v1.1.md` so they now use `fpdev system version`
+  - Re-ran the focused release-doc suite and the broader close-out regression bundle to confirm the legacy release note no longer advertises the removed top-level version command
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `RELEASE_NOTES_v1.1.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for legacy release-notes version drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `RELEASE_NOTES_v1.1.md` still used `fpdev version` and lacked `fpdev system version` in its upgrade instructions | Observed |
+| Focused release-doc verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | `14` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `81` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `RELEASE_NOTES_v1.1.md` still advertised the removed top-level `fpdev version` command in public upgrade instructions | 1 | Added a release-doc contract and rewrote both upgrade verification examples to use `fpdev system version` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Historical top-level release notes now align with the shipped public version command as well as the current release and contributor docs |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep public upgrade instructions from reintroducing removed top-level commands, even in historical release-note files |
+| What have I learned? | Historical release notes can quietly preserve old copy-paste commands long after the main docs are corrected, so they also need contract coverage when they remain top-level docs |
+| What have I done? | Added legacy release-note version-command contract coverage and replaced `fpdev version` with `fpdev system version` in `RELEASE_NOTES_v1.1.md` |
