@@ -6,6 +6,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OWNER_CHECKPOINTS = REPO_ROOT / 'docs' / 'plans' / '2026-03-25-v2.1.0-release-owner-checkpoints.md'
 MVP_ACCEPTANCE = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
 MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
+RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES.md'
 LATEST_BASELINE_SUMMARY = 'logs/release_acceptance/20260402_104133/summary.txt'
 LATEST_INSTALL_SUMMARY = 'logs/release_acceptance/20260402_111602/summary.txt'
 STALE_BASELINE_SUMMARY = 'logs/release_acceptance/20260325_204342/summary.txt'
@@ -18,6 +19,7 @@ class ReleaseDocsContractTests(unittest.TestCase):
         cls.text = OWNER_CHECKPOINTS.read_text(encoding='utf-8')
         cls.mvp_text = MVP_ACCEPTANCE.read_text(encoding='utf-8')
         cls.mvp_en_text = MVP_ACCEPTANCE_EN.read_text(encoding='utf-8')
+        cls.release_notes_text = RELEASE_NOTES.read_text(encoding='utf-8')
 
     def test_owner_checkpoint_doc_uses_shared_smoke_scripts(self):
         self.assertIn('scripts/cli_smoke.ps1', self.text)
@@ -42,6 +44,16 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('--baseline-summary logs/release_acceptance/<baseline-run>/summary.txt', self.text)
         self.assertIn('If the network-gated install lane was executed', self.text)
         self.assertIn('--install-summary logs/release_acceptance/<install-run>/summary.txt', self.text)
+
+    def test_release_closeout_docs_include_release_evidence_handoff(self):
+        self.assertIn('RELEASE_EVIDENCE.md', self.text)
+        self.assertIn('RELEASE_EVIDENCE.md', self.mvp_text)
+        self.assertIn('RELEASE_EVIDENCE.md', self.mvp_en_text)
+        self.assertIn('RELEASE_EVIDENCE.md', self.release_notes_text)
+        self.assertIn(
+            'Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS + RELEASE_EVIDENCE.md',
+            self.release_notes_text,
+        )
 
     def test_owner_checkpoint_doc_stops_inlining_smoke_commands(self):
         self.assertNotIn('.\\fpdev.exe system version', self.text)

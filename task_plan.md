@@ -228,3 +228,19 @@ Phase 4 complete
 4. 结论：
    - release evidence handoff 现在与 “install lane 可选” 的 close-out 叙事保持一致
    - 剩余工作继续收敛到外部 owner checkpoint / release asset prerequisites
+
+## Close-out Update (2026-04-02, release-evidence publish narrative)
+1. 新发现的 repo-local 文档漂移：
+   - owner-checkpoint 文档已要求生成并上传 `RELEASE_EVIDENCE.md`
+   - 但 `docs/MVP_ACCEPTANCE_CRITERIA*.md` 仍只把 owner checkpoints 与 `SHA256SUMS.txt` 视为剩余 publish-time proof
+   - `RELEASE_NOTES.md` 也仍把 remaining publish-time proof 写成 “Windows/macOS owner checkpoints + SHA256SUMS”
+2. 已完成的最小修复：
+   - `tests/test_release_docs_contract.py` 新增 `test_release_closeout_docs_include_release_evidence_handoff`
+   - `docs/MVP_ACCEPTANCE_CRITERIA.md` 与 `docs/MVP_ACCEPTANCE_CRITERIA.en.md` 的 Owner Checkpoints / Release Exit Criteria 补入 `RELEASE_EVIDENCE.md`
+   - `RELEASE_NOTES.md` 的 remaining publish-time proof、发布资产清单、owner 动作列表同步补入 `RELEASE_EVIDENCE.md`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`53` tests OK，`1` skipped
+4. 结论：
+   - 公开 release 叙事现在与 owner-checkpoint handoff 要求一致，不再遗漏 `RELEASE_EVIDENCE.md`
+   - 仓库内剩余工作继续集中在真实资产、checksums 与 owner sign-off 的外部执行

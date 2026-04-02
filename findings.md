@@ -250,3 +250,25 @@
 - 结论更新：
   - release evidence helper 与 release close-out 文档现在对 install lane 的 optional 性达成一致
   - repo-local 剩余阻塞继续集中在真实资产与 owner sign-off，而不是 handoff 工具约束过严
+
+## Execution Update (2026-04-02, release-evidence publish narrative)
+- 在修复 handoff helper 后继续检查公开发布叙事，发现还有一层文档漂移：
+  - owner-checkpoint 文档已经要求生成/上传 `RELEASE_EVIDENCE.md`
+  - 但 `docs/MVP_ACCEPTANCE_CRITERIA*.md` 的 Owner Checkpoints 仍只列出 owner smoke + `SHA256SUMS.txt`
+  - `RELEASE_NOTES.md` 也把 remaining publish-time proof 写成 “Windows/macOS owner checkpoints + SHA256SUMS”
+- 这会造成对外发布叙事低估剩余收口物：
+  - release handoff 实际还需要 `RELEASE_EVIDENCE.md`
+  - 但 acceptance / release notes 会让人误以为只差 checksums 和 owner smoke
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_release_closeout_docs_include_release_evidence_handoff` 证明 acceptance docs 与 release notes 尚未纳入 `RELEASE_EVIDENCE.md`
+- 已实施的最小修复：
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md` / `.en.md`：Owner Checkpoints 与 Release Exit Criteria 补入 `RELEASE_EVIDENCE.md`
+  - `RELEASE_NOTES.md`：remaining publish-time proof、计划发布资产、owner-run 动作同步补入 `RELEASE_EVIDENCE.md`
+  - `tests/test_release_docs_contract.py`：新增并收紧对应文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`53` tests OK，`1` skipped
+- 结论更新：
+  - 公开发布说明、acceptance checklist 与 owner-checkpoint handoff 现在都明确把 `RELEASE_EVIDENCE.md` 视为剩余 publish-time proof 的一部分
+  - repo-local 剩余 seam 继续减少，更多转向真实发布资产与 owner 执行

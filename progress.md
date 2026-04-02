@@ -463,3 +463,42 @@
 | What's the goal? | Keep release helper behavior aligned with the documented close-out workflow so publish handoff stays usable at every stage |
 | What have I learned? | Optional lanes need optional evidence inputs too; otherwise the toolchain silently hard-codes a stricter process than the docs describe |
 | What have I done? | Added regression coverage, relaxed the evidence generator, and synchronized the owner-checkpoint instructions |
+
+## Session: 2026-04-02 (release-evidence publish narrative)
+
+### Close-out Execution Follow-up 10
+- **Status:** complete
+- Actions taken:
+  - Audited the public release narrative after the evidence-helper fix and found that `RELEASE_EVIDENCE.md` was still missing from acceptance docs and release notes even though the owner-checkpoint plan requires it
+  - Added a failing contract proving release-closeout docs must explicitly include `RELEASE_EVIDENCE.md`
+  - Updated both acceptance-criteria variants and `RELEASE_NOTES.md` so remaining publish-time proof, exit criteria, and owner actions all acknowledge the release-evidence handoff
+  - Re-ran the focused docs contract and the expanded release-contract suite to confirm the narrative is now synchronized
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+  - `RELEASE_NOTES.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for release-evidence doc drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because acceptance docs omitted `RELEASE_EVIDENCE.md` | Observed |
+| Focused release docs verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `53` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Public release docs still described remaining publish-time proof as only owner checkpoints + `SHA256SUMS.txt`, omitting `RELEASE_EVIDENCE.md` | 1 | Added a doc contract and synchronized acceptance docs plus release notes to include `RELEASE_EVIDENCE.md` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Repo-local release-closeout docs now agree that `RELEASE_EVIDENCE.md` is part of the remaining publish-time proof |
+| Where am I going? | Keep looking only for in-repo inconsistencies; the major remaining work is still real assets and owner sign-off outside this workspace |
+| What's the goal? | Make the public release narrative match the actual close-out handoff so no publish artifact is silently omitted |
+| What have I learned? | Even after helper/tooling fixes, public release docs can lag behind and understate what publish-time evidence is still required |
+| What have I done? | Added a regression contract and synchronized acceptance docs plus release notes around `RELEASE_EVIDENCE.md` |

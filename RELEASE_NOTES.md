@@ -35,7 +35,7 @@
 Roadmap checklist: 121/121 complete
 Test inventory: 273 discoverable test_*.lpr programs (same inventory rules as CI)
 Primary release gate: Linux automated acceptance passed
-Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS
+Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS + RELEASE_EVIDENCE.md
 ```
 
 ## 计划发布资产
@@ -45,6 +45,7 @@ Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS
 - `fpdev-macos-x64.tar.gz`
 - `fpdev-macos-arm64.tar.gz`
 - `SHA256SUMS.txt`
+- `RELEASE_EVIDENCE.md`
 
 ## 本地验收
 
@@ -69,7 +70,7 @@ lazbuild -B --build-mode=Release fpdev.lpi
 
 1. 解压 Windows x64 资产并运行 `system version/help`、`fpc --help`、`fpc list --all`
 2. 解压 macOS x64 和 arm64 资产并运行同样的 smoke commands
-3. 生成并上传 `SHA256SUMS.txt`
+3. 生成并上传 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
 4. 在 owner checkpoint ledger 中填写 owner、日期和证据
 
 ## 参考文档

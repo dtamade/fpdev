@@ -56,6 +56,7 @@ This document replaces the older MVP-era checklist with a bounded release close-
 - [ ] macOS x64 release asset is extracted and smoke-tested
 - [ ] macOS arm64 release asset is extracted and smoke-tested
 - [ ] `SHA256SUMS.txt` is generated for the published assets
+- [ ] `RELEASE_EVIDENCE.md` is generated from acceptance summaries, checksums, and owner-proof transcripts
 
 ## Release Exit Criteria
 
@@ -64,6 +65,7 @@ Release close-out is complete when:
 1. the automated Linux baseline is green
 2. the release documents and download URLs are synchronized to `v2.1.0`
 3. the owner checkpoint ledger is fully signed off
+4. `RELEASE_EVIDENCE.md` is ready for the release draft handoff
 
 ## Notes
 
