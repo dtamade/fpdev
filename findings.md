@@ -862,3 +862,29 @@
 - 结论更新：
   - Quickstart 文档现在也与 binary-first 的当前安装策略保持一致，不再把源码构建写成首次上手默认路径
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, quickstart package-status drift)
+- 在 Quickstart 的 install path 已对齐后，继续扫描同一份 onboarding 文档时，又发现一条状态叙事 drift：
+  - 中文 `docs/QUICKSTART.md` 在包管理段仍把 `fpdev package search` 与 `fpdev package install` 标成“功能开发中”
+  - 但英文 quickstart 没有这个标记，而且当前 CLI 中这些命令已经真实存在
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.package.search.pas`：`package search` 命令单元存在
+  - `tests/test_package_commands.lpr`、`tests/test_command_registry.lpr`、`tests/test_cli_package*.lpr`：package search/install 的注册、帮助与 CLI 行为都有覆盖
+  - 这说明“功能开发中”不再是当前仓库内可证明的公开状态
+- 这个问题的影响：
+  - 中文 onboarding 文档会低估 package commands 的当前可用性
+  - 中英文 quickstart 的状态叙事出现分叉，也会削弱文档可信度
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_quickstart_docs_do_not_mark_package_commands_as_in_development` 直接暴露出：
+    - `docs/QUICKSTART.md` 仍包含 `功能开发中`
+- 已实施的最小修复：
+  - `docs/QUICKSTART.md`：
+    - 删除 `fpdev package search` / `fpdev package install` 旁边的“功能开发中”标记
+  - `tests/test_official_docs_cli_contract.py`：补齐 quickstart package-status 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`74` tests OK，`1` skipped
+- 结论更新：
+  - 中文 Quickstart 现在也与实际 package-command surface 保持一致，不再把已实现命令错标为“功能开发中”
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

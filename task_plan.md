@@ -646,3 +646,17 @@ Phase 4 complete
 4. 结论：
    - Quickstart 文档现在也与 binary-first 的当前安装策略保持一致，不再把更慢、更脆弱的源码构建写成首次上手默认路径
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, quickstart package-status drift)
+1. 新发现的 repo-local live-onboarding seam：
+   - 中文 `docs/QUICKSTART.md` 的包管理段仍把 `fpdev package search` 和 `fpdev package install` 标成“功能开发中”
+   - 但这些命令已经存在于当前 CLI：命令已注册，帮助/用法字符串存在，且有对应测试覆盖
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_quickstart_docs_do_not_mark_package_commands_as_in_development`
+   - `docs/QUICKSTART.md` 删除两处“功能开发中”状态标签，保持与英文 quickstart 和实际命令面一致
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`74` tests OK，`1` skipped
+4. 结论：
+   - 中文 Quickstart 现在不再把已存在的 package commands 错标为“功能开发中”，中英文入门文档的状态叙事重新一致
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

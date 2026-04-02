@@ -142,10 +142,10 @@ fpdev project info gui
 # 列出已安装的包
 fpdev package list
 
-# 搜索包 (功能开发中)
+# 搜索包
 fpdev package search synapse
 
-# 安装包 (功能开发中)
+# 安装包
 fpdev package install synapse
 ```
 

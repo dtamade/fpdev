@@ -1316,3 +1316,41 @@
 | What's the goal? | Keep the first-run onboarding flow aligned with the same installation strategy already enforced in the rest of the live docs |
 | What have I learned? | Onboarding docs can preserve a “works eventually” path that is still the wrong default, even after deeper command references are corrected |
 | What have I done? | Added quickstart binary-first contract coverage and rewrote the FPC install step around the default binary path plus explicit source fallback |
+
+## Session: 2026-04-02 (quickstart package-status drift)
+
+### Close-out Execution Follow-up 32
+- **Status:** complete
+- Actions taken:
+  - Re-scanned the live quickstart after the install-path fixes and found that the Chinese package-management section still labeled `fpdev package search` and `fpdev package install` as “功能开发中”
+  - Re-verified the runtime surface: package search/install commands are registered, have help text, and are covered by CLI/registry tests
+  - Added a failing official-docs contract proving the quickstart must not mark those package commands as “in development”
+  - Updated `docs/QUICKSTART.md` to remove the stale status labels so it matches the English quickstart and the actual CLI surface
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the quickstart status wording now matches the implemented package-command surface
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/QUICKSTART.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart package-status drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/QUICKSTART.md` still contained `功能开发中` beside `fpdev package search` and `fpdev package install` | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `74` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The Chinese quickstart still marked implemented package commands as “in development,” creating a cross-language status mismatch | 1 | Added a quickstart package-status contract and removed the stale labels from the Chinese onboarding doc |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The quickstart docs now align on the implemented package-command surface as well as the install strategy and supported flags |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the first-run onboarding docs free of stale status labels that contradict the shipped CLI surface |
+| What have I learned? | Even after command examples are correct, stale “status” labels can still distort user expectations about what exists today |
+| What have I done? | Added quickstart package-status contract coverage and removed the stale “功能开发中” labels from the Chinese quickstart |
