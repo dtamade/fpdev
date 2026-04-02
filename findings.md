@@ -143,3 +143,19 @@
 - 结论更新：
   - 本地 close-out seam 仍然主要集中在“公开发布叙事是否持续指向当前真实证据”
   - 这次已把 changelog inventory 与 acceptance evidence path 一并重新对齐，局部发布叙事更稳定
+
+## Execution Update (2026-04-02, release packaging verification)
+- 继续做 release close-out 验证时，补跑了完整的发布资产/证据/owner-smoke Python 套件：
+  - `tests.test_package_release_assets`
+  - `tests.test_generate_release_checksums`
+  - `tests.test_generate_release_evidence`
+  - `tests.test_record_owner_smoke_sh`
+  - `tests.test_release_scripts_contract`
+  - `tests.test_release_docs_contract`
+  - `tests.test_ci_release_contracts`
+  - `tests.test_release_status_wording`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording`：`25` tests OK
+- 结论更新：
+  - 当前本地不仅文档叙事与 evidence pointer 已对齐，连 release packaging / checksum / evidence handoff 辅助脚本也都在回归覆盖内保持 green
+  - 本地 close-out 线已没有新的可证明 live seam；剩余事项依赖真实跨平台资产和 owner-run sign-off

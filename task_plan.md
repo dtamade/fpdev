@@ -122,3 +122,16 @@ Phase 4 complete
 5. 当前剩余本地不可闭合事项不变：
    - Windows/macOS owner checkpoints
    - 全部计划发布资产到位后的打包、`SHA256SUMS.txt`、正式 release evidence 生成
+
+## Close-out Update (2026-04-02, release packaging verification)
+1. 在完成 inventory / evidence path 对齐后，又补跑了完整的 release packaging / handoff 相关 Python 套件。
+2. 最新额外验证命令：
+   - `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording`
+3. 最新额外验证结果：
+   - `25` tests OK
+   - 涵盖 release asset packaging、`SHA256SUMS` 生成、release evidence 汇总、owner smoke transcript、release docs / scripts / CI contracts
+4. 这轮 sweep 没有暴露新的本地可证明 seam，说明当前本地 close-out 已基本收尽。
+5. 仍然剩余的工作全部依赖外部条件：
+   - Windows/macOS owner checkpoints
+   - 真正的 Windows/macOS 发布资产
+   - 资产齐备后的正式 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`

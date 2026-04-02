@@ -247,3 +247,30 @@
 | What's the goal? | Keep every public release status document aligned with the latest locally proven acceptance evidence |
 | What have I learned? | Even after inventory counts are synchronized, evidence pointers can still drift unless they are reviewed and contract-checked explicitly |
 | What have I done? | Synced changelog inventory, updated public acceptance evidence pointers to April 2 logs, and added contracts preventing rollback to stale March 25 paths |
+
+## Session: 2026-04-02 (release packaging verification)
+
+### Close-out Verification Sweep
+- **Status:** complete
+- Actions taken:
+  - Re-scanned the repository for stale release refs after the evidence-path sync and found no new locally actionable doc drift
+  - Ran the remaining release packaging / checksum / evidence / owner-smoke / CI contract / wording Python suites, including `tests.test_package_release_assets`
+  - Confirmed that the local close-out line now ends at external publish prerequisites rather than additional repo-local regressions
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Release packaging verification sweep | `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording` | pass | `25` tests OK | OK |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out work is exhausted after the packaging/evidence verification sweep |
+| Where am I going? | Wait for real release assets or owner-run checkpoints before doing more release work |
+| What's the goal? | Keep the branch ready for publish without fabricating evidence that depends on missing cross-platform assets |
+| What have I learned? | The remaining release path is now blocked by external publish prerequisites, not by repo-local docs or helper-script drift |
+| What have I done? | Verified the remaining release packaging/evidence helper suite end-to-end and confirmed no new local seam remains |
