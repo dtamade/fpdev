@@ -1161,3 +1161,42 @@
 | What's the goal? | Keep the roadmap/status document aligned with the same install-path contract already enforced across the rest of the public docs |
 | What have I learned? | Even “success metrics” sections in status docs can silently preserve obsolete architecture assumptions if they are not contract-checked |
 | What have I done? | Added roadmap install-path contract coverage and rewrote the relevant roadmap language around the active data-root model |
+
+## Session: 2026-04-02 (todo-fpc-v1 active-install-model drift)
+
+### Close-out Execution Follow-up 28
+- **Status:** complete
+- Actions taken:
+  - Audited `docs/TODO-FPC-v1.md` after aligning `ROADMAP.md` and found that the live philosophy doc still described the legacy install/data-root model (`FPDEV_HOME`, `%LOCALAPPDATA%/fpdev`, implicit `.fpdev/` project mode, and `--scope`)
+  - Re-verified the runtime/public truth in `src/fpdev.paths.pas` and `src/fpdev.cmd.fpc.install.pas`: active data root comes from portable `data/`, explicit `FPDEV_DATA_ROOT`, `%APPDATA%\\fpdev`, or `$XDG_DATA_HOME/fpdev` with `~/.fpdev` fallback, and the current install CLI exposes `--from-source`, `--from-binary`, `--from=`, `--jobs=`, `--prefix=`, `--offline`, and `--no-cache`
+  - Checked `src/fpdev.fpc.activation.pas` / `src/fpdev.fpc.activator.pas` so the fix would preserve the still-live `.fpdev/env` activation behavior while removing the stale automatic data-root story
+  - Added a failing official-docs contract proving `TODO-FPC-v1.md` must use the active data-root install model
+  - Updated `docs/TODO-FPC-v1.md` so its philosophy, directory strategy, install options, and default install path now match the active `<data-root>/toolchains/fpc/<version>` model
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the live philosophy doc no longer reintroduces the old scope-driven install path story
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/TODO-FPC-v1.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for TODO-FPC-v1 active-install-model drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `TODO-FPC-v1.md` still described `FPDEV_HOME`, `%LOCALAPPDATA%/fpdev`, implicit `.fpdev/` project mode, and `--scope` instead of the active data-root model | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `70` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `TODO-FPC-v1.md` still taught the legacy scope/data-root install model even though `ROADMAP.md` treats it as a live philosophy source | 1 | Added a TODO-FPC-v1 contract and rewrote the philosophy/install-path language around the active data-root model while preserving the still-live activation script story |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The live `TODO-FPC-v1.md` philosophy doc now matches the active data-root install-path model used across the rest of the public docs |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep even the roadmap-referenced philosophy docs aligned with the same install-path contract already enforced across the rest of the public docs |
+| What have I learned? | Live design docs can silently reintroduce stale runtime assumptions even after the user-facing guides are repaired |
+| What have I done? | Added TODO-FPC-v1 contract coverage and rewrote the live philosophy/install-path language around the active data-root model |

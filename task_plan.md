@@ -576,3 +576,28 @@ Phase 4 complete
 4. 结论：
    - `ROADMAP.md` 现在也与活动数据根安装路径模型保持一致，不再把旧的 `.fpdev/toolchains/` / `~/.fpdev/fpc/` 当成当前成功标准
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 roadmap 中的旧安装路径叙事
+
+## Close-out Update (2026-04-02, todo-fpc-v1 active-install-model drift)
+1. 新发现的 repo-local live-design seam：
+   - `docs/ROADMAP.md` 已经声明 “Following the TODO-FPC-v1.md philosophy”，所以 `docs/TODO-FPC-v1.md` 仍然是 live design input，而不是单纯历史草稿
+   - 但该文档仍把 install/data-root 模型写成旧版本：
+     - `FPDEV_HOME`
+     - `%LOCALAPPDATA%/fpdev`
+     - `~/.local/share/fpdev`
+     - 自动 `.fpdev/` project-mode data root
+     - `--scope user|project|system`
+     - `project: .fpdev/toolchains/fpc/<version>` / `user: <DATA_ROOT>/toolchains/fpc/<version>`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_todo_fpc_v1_uses_active_data_root_install_model`
+   - `docs/TODO-FPC-v1.md` 改为：
+     - 使用 `FPDEV_DATA_ROOT` 与活动 data root 作为默认安装模型
+     - 平台默认路径改为 `%APPDATA%\fpdev`、`$XDG_DATA_HOME/fpdev` 与 `~/.fpdev`
+     - install 选项清单改成当前 CLI 实际支持的 `--from-source` / `--from-binary` / `--from=` / `--jobs=` / `--prefix=` / `--offline` / `--no-cache`
+     - 默认安装路径改成 `<data-root>/toolchains/fpc/<version>`
+     - 保留 `use` 的 project/user activation 语义，不再把 `.fpdev/` 描述成自动 data-root 切换
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`70` tests OK，`1` skipped
+4. 结论：
+   - `TODO-FPC-v1.md` 现在也与公开活动数据根安装模型保持一致，不再把旧的 scope/data-root 叙事重新引回 roadmap 哲学层
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

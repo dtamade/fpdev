@@ -286,6 +286,22 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('Project-scoped installation (`.fpdev/toolchains/`)', text)
         self.assertNotIn('User-scoped installation (`~/.fpdev/fpc/`)', text)
 
+    def test_todo_fpc_v1_uses_active_data_root_install_model(self):
+        text = (REPO_ROOT / 'docs' / 'TODO-FPC-v1.md').read_text(encoding='utf-8')
+
+        self.assertIn('FPDEV_DATA_ROOT', text)
+        self.assertIn('%APPDATA%\\fpdev', text)
+        self.assertIn('$XDG_DATA_HOME/fpdev', text)
+        self.assertIn('~/.fpdev', text)
+        self.assertIn('<data-root>/toolchains/fpc/<version>', text)
+        self.assertNotIn('FPDEV_HOME', text)
+        self.assertNotIn('%LOCALAPPDATA%/fpdev', text)
+        self.assertNotIn('~/.local/share/fpdev', text)
+        self.assertNotIn('Project mode: if `.fpdev/` present → use `.fpdev/` as data root', text)
+        self.assertNotIn('`--scope user|project|system`', text)
+        self.assertNotIn('project: `.fpdev/toolchains/fpc/<version>`', text)
+        self.assertNotIn('user: `<DATA_ROOT>/toolchains/fpc/<version>`', text)
+
     def test_config_architecture_docs_describe_active_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'config-architecture.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'config-architecture.en.md').read_text(encoding='utf-8')
