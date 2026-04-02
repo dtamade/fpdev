@@ -1741,6 +1741,45 @@
 | What have I learned? | Even when a fallback command technically works, public install docs should not drift away from the repository’s standardized validation paths because users will treat them as the canonical workflow |
 | What have I done? | Added installation-doc test-runner contract coverage, rewrote both install guides around standard test commands, and removed the generated test binary from the worktree |
 
+## Session: 2026-04-02 (testing-doc full-suite runner drift)
+
+### Close-out Execution Follow-up 43
+- **Status:** complete
+- Actions taken:
+  - Switched this round to parallel exploration and dispatched three explorer agents across public docs, contributor docs, and remaining historical docs to surface the next high-confidence seams faster
+  - Used the returned evidence plus local verification to confirm that `docs/testing.md` still advertised a nonexistent `scripts\\run_all_tests.bat` full-suite runner
+  - Re-verified the canonical runner path in `scripts/release_acceptance_linux.sh`, `AGENTS.md`, and `CLAUDE.md`: the maintained Pascal full-suite entrypoint is `bash scripts/run_all_tests.sh`
+  - Added a failing official-docs contract proving the testing guide must use that supported full-suite runner
+  - Updated `docs/testing.md` so the “Run All Tests” section now points to `bash scripts/run_all_tests.sh`
+  - Re-ran the focused official-docs suite and then the broader close-out regression bundle, now including `tests.test_developer_docs_cli_contract`, to confirm the testing-guide cleanup stays aligned with contributor and release guidance
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/testing.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for testing-doc full-suite runner drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/testing.md` lacked `bash scripts/run_all_tests.sh` and still advertised `scripts\\run_all_tests.bat` | Observed |
+| Focused official-docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `30` tests OK | OK |
+| Contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `89` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/testing.md` still pointed readers at a nonexistent `scripts\\run_all_tests.bat` full-suite runner | 1 | Added a testing-doc contract and rewrote the full-suite guidance to the supported `bash scripts/run_all_tests.sh` entrypoint |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The dedicated testing guide now uses the same full-suite runner as release acceptance and contributor guidance |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep all testing guidance converged on the same maintained top-level runners so users do not hit missing scripts or partial validation paths |
+| What have I learned? | Parallel explorers are useful here because the remaining seams are smaller and scattered, but they still need the same red-green proof before any edit lands |
+| What have I done? | Used multi-agent scanning to identify the next seam, added testing-guide full-suite runner contract coverage, and rewrote `docs/testing.md` to the supported runner |
+
 ## Session: 2026-04-02 (claude-doc python-test-runner drift)
 
 ### Close-out Execution Follow-up 43

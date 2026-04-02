@@ -1199,6 +1199,35 @@
   - 安装指南现在也不会再把源码用户带向旁路测试命令，而是对齐到仓库的标准回归入口
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
 
+## Execution Update (2026-04-02, testing-doc full-suite runner drift)
+- 在安装指南对齐后，继续用并行 explorer 扫 contributor/testing guidance 时，又发现 `docs/testing.md` 里还保留着一个直接 copy-paste 就会失败的 full-suite runner：
+  - `Run All Tests` 仍写 `scripts\\run_all_tests.bat`
+  - 本地仓库实际只有 `scripts/run_all_tests.sh`
+- 当前 repo truth：
+  - `scripts/run_all_tests.sh` 是唯一存在的顶层 Pascal full-suite runner
+  - `scripts/release_acceptance_linux.sh`：`run_logged pascal_regression bash scripts/run_all_tests.sh`
+  - `AGENTS.md`：常用跑法已经统一到 `scripts/run_all_tests.sh`
+  - `CLAUDE.md`：full test baselines 也已统一到 `bash scripts/run_all_tests.sh`
+- 这个问题的影响：
+  - `docs/testing.md` 是专门的测试指南；这里如果继续保留一个不存在的脚本名，会直接让读者在最核心的测试入口上撞“文件不存在”
+  - 更糟的是，它会让 repo 的测试入口重新分叉成“acceptance / contributor docs 用 `.sh`，testing guide 用不存在的 `.bat`”
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_testing_doc_uses_supported_full_suite_runner` 直接暴露出：
+    - 文档没有 `bash scripts/run_all_tests.sh`
+    - 文档仍包含 `scripts\\run_all_tests.bat`
+- 已实施的最小修复：
+  - `docs/testing.md`：
+    - `Run All Tests` 改成 `bash scripts/run_all_tests.sh`
+    - 删除 `scripts\\run_all_tests.bat`
+  - `tests/test_official_docs_cli_contract.py`：补齐 testing-doc full-suite runner 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `30` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`89` tests OK，`1` skipped
+- 结论更新：
+  - `docs/testing.md` 现在也与 acceptance / contributor docs 的标准测试入口保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
 ## Execution Update (2026-04-02, claude-doc python-test-runner drift)
 - 在安装指南测试入口也收口后，继续检查 contributor/developer guidance 时，又发现 `CLAUDE.md` 仍把 `python3 -m pytest tests -q` 写成 “Run the full test baselines”
 - 当前 repo guidance 真相：

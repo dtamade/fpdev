@@ -203,6 +203,12 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn('fpc -Fu. ../tests/test_config_management.lpr', text)
             self.assertNotIn('../tests/test_config_management', text)
 
+    def test_testing_doc_uses_supported_full_suite_runner(self):
+        text = (REPO_ROOT / 'docs' / 'testing.md').read_text(encoding='utf-8')
+
+        self.assertIn('bash scripts/run_all_tests.sh', text)
+        self.assertNotIn(r'scripts\run_all_tests.bat', text)
+
     def test_quickstart_docs_use_supported_config_and_parallelism_guidance(self):
         zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')

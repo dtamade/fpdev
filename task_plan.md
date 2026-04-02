@@ -842,6 +842,22 @@ Phase 4 complete
    - 安装指南现在也与仓库标准测试入口保持一致，不再教用户走一次性的 `fpc -Fu.` 旁路
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
 
+## Close-out Update (2026-04-02, testing-doc full-suite runner drift)
+1. 新发现的 repo-local live-testing seam：
+   - `docs/testing.md` 的 `Run All Tests` 仍写着 Windows 使用 `scripts\\run_all_tests.bat`
+   - 但仓库里并不存在这个脚本，当前真实维护的 full Pascal baseline 是 `bash scripts/run_all_tests.sh`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_testing_doc_uses_supported_full_suite_runner`
+   - `docs/testing.md`：
+     - `Run All Tests` 改成单一标准入口 `bash scripts/run_all_tests.sh`
+     - 删除不存在的 `scripts\\run_all_tests.bat`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `30` tests OK
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`89` tests OK，`1` skipped
+4. 结论：
+   - `docs/testing.md` 现在不再指向不存在的 full-suite runner，而是与 acceptance / contributor guidance 对齐到同一个脚本
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
 ## Close-out Update (2026-04-02, claude-doc python-test-runner drift)
 1. 新发现的 repo-local developer-doc seam：
    - `CLAUDE.md` 的 “Run the full test baselines” 仍写 `python3 -m pytest tests -q`

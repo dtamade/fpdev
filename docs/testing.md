@@ -50,11 +50,8 @@ buildOrTest.fpcunit.bat
 ### Run All Tests
 
 ```bash
-# Windows
-scripts\run_all_tests.bat
-
-# Linux/macOS
-scripts/run_all_tests.sh
+# Full Pascal regression baseline
+bash scripts/run_all_tests.sh
 ```
 
 ## Test-Driven Development (TDD)
