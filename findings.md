@@ -592,3 +592,30 @@
 - 结论更新：
   - toolchain 文档现在也与 active data-root、sandbox 和 cache 的运行时语义保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, repo spec mirror-config path drift)
+- 在 toolchain 文档已与 active data-root 语义对齐后，继续检查资源仓规范时，又发现镜像配置章节仍把配置文件路径写死：
+  - `docs/REPO_SPECIFICATION.md` 与 `docs/REPO_SPECIFICATION.en.md` 仍写着用户在 `~/.fpdev/config.json` 中配置镜像源
+  - 但 `src/fpdev.paths.pas` 的运行时逻辑已经明确：活动配置路径取决于当前数据根
+  - 同时 `src/fpdev.config.commandflow.pas` 通过 `GetConfigPath` 读写 `settings.mirror` 与 `settings.custom_repo_url`
+- 这个问题的影响：
+  - 资源仓规范会把用户重新引回固定的 Unix home-path，和 installation / quickstart / fpdevrc / toolchain 里已经统一过的 active-config 模型打架
+  - Windows、portable release 与显式 `FPDEV_DATA_ROOT` 场景都会被文档误导
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_repo_spec_docs_describe_active_config_path_for_mirror_settings` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json`
+    - 没有 `XDG_DATA_HOME`
+    - 没有 `%APPDATA%\fpdev\config.json`
+- 已实施的最小修复：
+  - `docs/REPO_SPECIFICATION.md` / `docs/REPO_SPECIFICATION.en.md`：
+    - 用户配置段改为说明镜像配置保存在当前活动数据根中的 `config.json`
+    - 补入 portable release、`FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 与 `%APPDATA%\fpdev\config.json` 的路径说明
+  - `tests/test_official_docs_cli_contract.py`：补齐对应资源仓规范契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`65` tests OK，`1` skipped
+- 结论更新：
+  - REPO_SPECIFICATION 文档现在也与活动配置路径和镜像配置的真实落点保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

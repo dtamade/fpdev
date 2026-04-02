@@ -326,7 +326,12 @@ The workflow fpdev uses to download binary files:
 
 ### User Configuration
 
-Users can configure mirror sources in `~/.fpdev/config.json`:
+Users can configure mirror sources in `config.json` under the active data root:
+
+- Default portable release location: `<install-dir>/data/config.json`
+- If `FPDEV_DATA_ROOT` is set explicitly: `$FPDEV_DATA_ROOT/config.json`
+- Linux/macOS in non-portable mode: `$XDG_DATA_HOME/fpdev/config.json`; if `XDG_DATA_HOME` is unset, fall back to `~/.fpdev/config.json`
+- Windows in non-portable mode: `%APPDATA%\fpdev\config.json`
 
 ```json
 {

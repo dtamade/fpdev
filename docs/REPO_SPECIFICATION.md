@@ -326,7 +326,12 @@ fpdev 下载二进制文件的流程：
 
 ### 用户配置
 
-用户可以在 `~/.fpdev/config.json` 中配置镜像源：
+用户可以在当前活动数据根中的 `config.json` 里配置镜像源：
+
+- portable release 默认位置：`<install-dir>/data/config.json`
+- 如果显式设置了 `FPDEV_DATA_ROOT`：`$FPDEV_DATA_ROOT/config.json`
+- Linux/macOS 非 portable 模式：`$XDG_DATA_HOME/fpdev/config.json`；若未设置 `XDG_DATA_HOME`，则回退到 `~/.fpdev/config.json`
+- Windows 非 portable 模式：`%APPDATA%\fpdev\config.json`
 
 ```json
 {

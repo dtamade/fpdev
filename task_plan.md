@@ -481,3 +481,21 @@ Phase 4 complete
 4. 结论：
    - toolchain 文档现在也与 active data-root、sandbox 和 cache 的真实运行时模型保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是离线工具链文档的 repo-root 假设
+
+## Close-out Update (2026-04-02, repo spec mirror-config path drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确：镜像配置所在的 `config.json` 取决于当前活动数据根，而不是固定的 `~/.fpdev/config.json`
+   - `src/fpdev.config.commandflow.pas` 也围绕 `GetConfigPath` 读写配置项，包括 `settings.mirror` 与 `settings.custom_repo_url`
+   - 但 `docs/REPO_SPECIFICATION.md` 与 `docs/REPO_SPECIFICATION.en.md` 在镜像源选择章节仍把用户配置路径写死为 `~/.fpdev/config.json`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_repo_spec_docs_describe_active_config_path_for_mirror_settings`
+   - `docs/REPO_SPECIFICATION.md` / `docs/REPO_SPECIFICATION.en.md` 改为：
+     - 明确镜像配置写入当前活动数据根中的 `config.json`
+     - 补入 portable release 的 `data/config.json`
+     - 补入 `FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 与 `%APPDATA%\fpdev\config.json` 的路径语义
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`65` tests OK，`1` skipped
+4. 结论：
+   - REPO_SPECIFICATION 文档现在也与活动配置路径和镜像配置的真实落点保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是仓库规范文档中的固定 home-path 假设

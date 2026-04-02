@@ -966,3 +966,43 @@
 | What's the goal? | Keep the offline-toolchain docs aligned with the same active data-root contract already enforced across the rest of the public docs |
 | What have I learned? | Topic-specific offline workflows can keep repo-local assumptions alive even after the broader install/config docs are fixed |
 | What have I done? | Added toolchain-docs contract coverage and rewrote both toolchain docs around the active `<data-root>` model |
+
+## Session: 2026-04-02 (repo spec mirror-config path drift)
+
+### Close-out Execution Follow-up 23
+- **Status:** complete
+- Actions taken:
+  - Audited the repository-spec docs after aligning the broader config-path story and found that the mirror-configuration section still hard-coded `~/.fpdev/config.json`
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where the active config path follows the active data root instead of a fixed home-directory path
+  - Confirmed in `src/fpdev.config.commandflow.pas` that mirror-related settings are persisted through `GetConfigPath`, so the spec should describe the active `config.json` path rather than a single Unix path
+  - Added a failing official-docs contract proving the repo-spec docs must describe the active config path used for mirror settings
+  - Updated both repository-spec docs so they now describe the active `config.json` location for portable, `FPDEV_DATA_ROOT`, XDG, and Windows APPDATA scenarios
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the mirror-config docs now match the runtime config-path model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/REPO_SPECIFICATION.md`
+  - `docs/REPO_SPECIFICATION.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for repo-spec mirror-config drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the repo-spec docs omitted `FPDEV_DATA_ROOT`, `data/config.json`, `XDG_DATA_HOME`, and `%APPDATA%\\fpdev\\config.json` for mirror configuration | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `65` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The repository-spec docs still hard-coded the mirror-settings path to `~/.fpdev/config.json` instead of following the active config path model | 1 | Added a repo-spec contract and rewrote the mirror-settings section around the active `config.json` location |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The repository-spec docs now match the active config-path model used for mirror configuration |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the repository-spec docs aligned with the same active config-path contract already enforced across the rest of the public docs |
+| What have I learned? | Small “user configuration” notes in spec docs can silently reintroduce hard-coded home-directory paths unless they get explicit contract coverage |
+| What have I done? | Added repo-spec contract coverage and rewrote both repository-spec docs around the active `config.json` path model |
