@@ -18,12 +18,19 @@ type
   TFPCInstallDownloadSourceFunc = function(const AVersion, ASourceDir: string): Boolean of object;
   TFPCInstallEnsureBootstrapFunc = function(const AVersion: string): Boolean of object;
   TFPCInstallBuildSourceFunc = function(const ASourceDir, AInstallPath: string): Boolean of object;
+  TFPCInstallWriteMetadataFunc = function(
+    const AVersion, AInstallPath: string;
+    AFromSource: Boolean
+  ): Boolean of object;
   TFPCInstallSetupEnvironmentFunc = function(const AVersion, AInstallPath: string): Boolean of object;
   TFPCInstallBinaryFunc = function(const AVersion, APrefix: string): Boolean of object;
 
 function ResolveFPCInstallPathCore(const APrefix, ADefaultInstallPath: string): string;
 function BuildFPCSourceInstallPathCore(const AInstallRoot, AVersion: string): string;
 function BuildFPCInstalledExecutablePathCore(const AInstallPath: string): string;
+function ResolveInstalledFPCInstallPathCore(
+  const APreferredInstallPath, AVersion: string
+): string;
 function ShouldReuseInstalledFPCVersionCore(
   AAlreadyInstalled: Boolean;
   const APrefix: string;
@@ -32,7 +39,7 @@ function ShouldReuseInstalledFPCVersionCore(
 
 function ExecuteFPCInstallVersionCore(
   const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
-  AFromSource, AEnsure, AAlreadyInstalled: Boolean;
+  AFromSource, AEnsure, AAlreadyInstalled, AUseCache: Boolean;
   Outp, Errp: IOutput;
   AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
   AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
@@ -41,6 +48,7 @@ function ExecuteFPCInstallVersionCore(
   ADownloadSource: TFPCInstallDownloadSourceFunc;
   AEnsureBootstrap: TFPCInstallEnsureBootstrapFunc;
   ABuildFromSource: TFPCInstallBuildSourceFunc;
+  AWriteMetadata: TFPCInstallWriteMetadataFunc;
   ASetupEnvironment: TFPCInstallSetupEnvironmentFunc;
   AInstallBinary: TFPCInstallBinaryFunc
 ): Boolean;
@@ -81,6 +89,32 @@ begin
   {$ENDIF}
 end;
 
+function ResolveInstalledFPCInstallPathCore(
+  const APreferredInstallPath, AVersion: string
+): string;
+var
+  RootDir: string;
+  LegacyInstallPath: string;
+begin
+  Result := APreferredInstallPath;
+
+  if (APreferredInstallPath = '') or
+     FileExists(BuildFPCInstalledExecutablePathCore(APreferredInstallPath)) then
+    Exit;
+
+  RootDir := ExtractFileDir(
+    ExtractFileDir(
+      ExtractFileDir(ExcludeTrailingPathDelimiter(APreferredInstallPath))
+    )
+  );
+  if RootDir = '' then
+    Exit;
+
+  LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + AVersion;
+  if FileExists(BuildFPCInstalledExecutablePathCore(LegacyInstallPath)) then
+    Result := LegacyInstallPath;
+end;
+
 function ShouldReuseInstalledFPCVersionCore(
   AAlreadyInstalled: Boolean;
   const APrefix: string;
@@ -92,6 +126,7 @@ end;
 
 function ExecuteFPCSourceInstallFlowCore(
   const AVersion, AInstallRoot, AInstallPath: string;
+  AUseCache: Boolean;
   Outp, Errp: IOutput;
   AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
   ARestoreCachedArtifacts: TFPCInstallRestoreArtifactsFunc;
@@ -99,6 +134,7 @@ function ExecuteFPCSourceInstallFlowCore(
   ADownloadSource: TFPCInstallDownloadSourceFunc;
   AEnsureBootstrap: TFPCInstallEnsureBootstrapFunc;
   ABuildFromSource: TFPCInstallBuildSourceFunc;
+  AWriteMetadata: TFPCInstallWriteMetadataFunc;
   ASetupEnvironment: TFPCInstallSetupEnvironmentFunc
 ): Boolean;
 var
@@ -108,7 +144,7 @@ begin
   Result := False;
   CacheRestored := False;
 
-  if Assigned(AHasCachedArtifacts) and AHasCachedArtifacts(AVersion) then
+  if AUseCache and Assigned(AHasCachedArtifacts) and AHasCachedArtifacts(AVersion) then
   begin
     WriteLine(Outp, 'Restoring from build cache...');
     if Assigned(ARestoreCachedArtifacts) and
@@ -119,6 +155,9 @@ begin
       WriteLine(Outp, _(MSG_FPC_STEP_SETUP));
       Result := Assigned(ASetupEnvironment) and
         ASetupEnvironment(AVersion, AInstallPath);
+      if Result and Assigned(AWriteMetadata) and
+         (not AWriteMetadata(AVersion, AInstallPath, True)) then
+        WriteLine(Errp, 'Warning: Failed to write installation metadata');
     end
     else
       WriteLine(Outp, 'Cache restore failed, building from source...');
@@ -156,8 +195,11 @@ begin
   WriteLine(Outp, _(MSG_FPC_STEP_SETUP));
   Result := Assigned(ASetupEnvironment) and
     ASetupEnvironment(AVersion, AInstallPath);
+  if Result and Assigned(AWriteMetadata) and
+     (not AWriteMetadata(AVersion, AInstallPath, True)) then
+    WriteLine(Errp, 'Warning: Failed to write installation metadata');
 
-  if Result and Assigned(ASaveBuildArtifacts) then
+  if Result and AUseCache and Assigned(ASaveBuildArtifacts) then
   begin
     WriteLine(Outp, 'Saving build artifacts to cache...');
     if ASaveBuildArtifacts(AVersion, AInstallPath) then
@@ -169,7 +211,7 @@ end;
 
 function ExecuteFPCInstallVersionCore(
   const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
-  AFromSource, AEnsure, AAlreadyInstalled: Boolean;
+  AFromSource, AEnsure, AAlreadyInstalled, AUseCache: Boolean;
   Outp, Errp: IOutput;
   AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
   AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
@@ -178,6 +220,7 @@ function ExecuteFPCInstallVersionCore(
   ADownloadSource: TFPCInstallDownloadSourceFunc;
   AEnsureBootstrap: TFPCInstallEnsureBootstrapFunc;
   ABuildFromSource: TFPCInstallBuildSourceFunc;
+  AWriteMetadata: TFPCInstallWriteMetadataFunc;
   ASetupEnvironment: TFPCInstallSetupEnvironmentFunc;
   AInstallBinary: TFPCInstallBinaryFunc
 ): Boolean;
@@ -217,6 +260,7 @@ begin
       AVersion,
       AInstallRoot,
       InstallPath,
+      AUseCache,
       Outp,
       Errp,
       AHasCachedArtifacts,
@@ -225,12 +269,16 @@ begin
       ADownloadSource,
       AEnsureBootstrap,
       ABuildFromSource,
+      AWriteMetadata,
       ASetupEnvironment
     )
   else
   begin
     WriteLine(Outp, _(MSG_FPC_STEP_DOWNLOAD_BIN));
     Result := Assigned(AInstallBinary) and AInstallBinary(AVersion, APrefix);
+    if Result and Assigned(AWriteMetadata) and
+       (not AWriteMetadata(AVersion, InstallPath, False)) then
+      WriteLine(Errp, 'Warning: Failed to write installation metadata');
   end;
 
   if Result then

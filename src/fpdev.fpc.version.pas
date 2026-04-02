@@ -63,6 +63,7 @@ type
 
     { Checks if a version is installed by checking executable existence. }
     function CheckVersionInstalled(const AVersion: string): Boolean;
+    function TryGetConfiguredInstallPath(const AVersion: string; out AInstallPath: string): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager);
@@ -113,7 +114,7 @@ type
 
     { Gets the Git tag for a version.
       AVersion: Version string (e.g., '3.2.2')
-      Returns: Git tag (e.g., '3_2_2') or empty string if not found }
+      Returns: Git tag (e.g., 'release_3_2_2') or empty string if not found }
     function GetGitTag(const AVersion: string): string;
 
     { Gets the Git branch for a version.
@@ -147,7 +148,39 @@ function SameMajorMinor(const AVersion1, AVersion2: string): Boolean;
 implementation
 
 uses
-  fpdev.i18n, fpdev.i18n.strings, fpdev.version.registry;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.version.registry, fpdev.fpc.types;
+
+function RegistryHasFPCReleases(const AReleases: TFPCReleaseArray): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  for i := 0 to High(AReleases) do
+  begin
+    if Trim(AReleases[i].Version) <> '' then
+      Exit(True);
+  end;
+end;
+
+function TryGetStaticFPCVersionInfo(const AVersion: string; out Info: TFPCVersionInfo): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  for i := 0 to High(FPC_RELEASES) do
+  begin
+    if SameText(FPC_RELEASES[i].Version, AVersion) then
+    begin
+      Info.Version := FPC_RELEASES[i].Version;
+      Info.ReleaseDate := FPC_RELEASES[i].ReleaseDate;
+      Info.GitTag := FPC_RELEASES[i].GitTag;
+      Info.Branch := FPC_RELEASES[i].Branch;
+      Info.Available := FPC_RELEASES[i].Available;
+      Info.Installed := False;
+      Exit(True);
+    end;
+  end;
+end;
 
 { TFPCVersionManager }
 
@@ -162,13 +195,22 @@ begin
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ENDIF}
-  end;
+    FInstallRoot := GetDataRoot;
+end;
+
+function TFPCVersionManager.TryGetConfiguredInstallPath(const AVersion: string;
+  out AInstallPath: string): Boolean;
+var
+  Info: TToolchainInfo;
+begin
+  AInstallPath := '';
+  Result := False;
+  if FConfigManager = nil then
+    Exit;
+  if not FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, Info) then
+    Exit;
+  AInstallPath := Trim(Info.InstallPath);
+  Result := AInstallPath <> '';
 end;
 
 function TFPCVersionManager.GetVersionInstallPath(const AVersion: string): string;
@@ -188,6 +230,9 @@ begin
       Exit;
     end;
   end;
+
+  if TryGetConfiguredInstallPath(AVersion, Result) then
+    Exit;
 
   // User scope: toolchains under InstallRoot.
   Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
@@ -230,8 +275,15 @@ begin
 end;
 
 function TFPCVersionManager.ValidateVersionInternal(const AVersion: string): Boolean;
+var
+  Releases: TFPCReleaseArray;
+  Info: TFPCVersionInfo;
 begin
-  Result := TVersionRegistry.Instance.IsFPCVersionValid(AVersion);
+  Releases := TVersionRegistry.Instance.GetFPCReleases;
+  if RegistryHasFPCReleases(Releases) then
+    Exit(TVersionRegistry.Instance.IsFPCVersionValid(AVersion));
+
+  Result := TryGetStaticFPCVersionInfo(AVersion, Info);
 end;
 
 function TFPCVersionManager.GetAvailableVersions: TFPCVersionArray;
@@ -241,17 +293,30 @@ var
 begin
   Initialize(Result);
 
-  // Always use version registry as the authoritative source
-  // This ensures development versions like 'main' are always included
   Releases := TVersionRegistry.Instance.GetFPCReleases;
-  SetLength(Result, Length(Releases));
-  for i := 0 to High(Releases) do
+  if RegistryHasFPCReleases(Releases) then
   begin
-    Result[i].Version := Releases[i].Version;
-    Result[i].ReleaseDate := Releases[i].ReleaseDate;
-    Result[i].GitTag := Releases[i].GitTag;
-    Result[i].Branch := Releases[i].Branch;
-    Result[i].Available := True;
+    SetLength(Result, Length(Releases));
+    for i := 0 to High(Releases) do
+    begin
+      Result[i].Version := Releases[i].Version;
+      Result[i].ReleaseDate := Releases[i].ReleaseDate;
+      Result[i].GitTag := Releases[i].GitTag;
+      Result[i].Branch := Releases[i].Branch;
+      Result[i].Available := True;
+      Result[i].Installed := CheckVersionInstalled(Result[i].Version);
+    end;
+    Exit;
+  end;
+
+  SetLength(Result, Length(FPC_RELEASES));
+  for i := 0 to High(FPC_RELEASES) do
+  begin
+    Result[i].Version := FPC_RELEASES[i].Version;
+    Result[i].ReleaseDate := FPC_RELEASES[i].ReleaseDate;
+    Result[i].GitTag := FPC_RELEASES[i].GitTag;
+    Result[i].Branch := FPC_RELEASES[i].Branch;
+    Result[i].Available := FPC_RELEASES[i].Available;
     Result[i].Installed := CheckVersionInstalled(Result[i].Version);
   end;
 end;
@@ -411,19 +476,29 @@ begin
 
   // Query version registry for release information
   Releases := TVersionRegistry.Instance.GetFPCReleases;
-  for i := 0 to High(Releases) do
+  if RegistryHasFPCReleases(Releases) then
   begin
-    if SameText(Releases[i].Version, AVersion) then
+    for i := 0 to High(Releases) do
     begin
-      Info.Version := Releases[i].Version;
-      Info.ReleaseDate := Releases[i].ReleaseDate;
-      Info.GitTag := Releases[i].GitTag;
-      Info.Branch := Releases[i].Branch;
-      Info.Available := True;
-      Info.Installed := CheckVersionInstalled(AVersion);
-      Result := True;
-      Exit;
+      if SameText(Releases[i].Version, AVersion) then
+      begin
+        Info.Version := Releases[i].Version;
+        Info.ReleaseDate := Releases[i].ReleaseDate;
+        Info.GitTag := Releases[i].GitTag;
+        Info.Branch := Releases[i].Branch;
+        Info.Available := True;
+        Info.Installed := CheckVersionInstalled(AVersion);
+        Result := True;
+        Exit;
+      end;
     end;
+    Exit;
+  end;
+
+  if TryGetStaticFPCVersionInfo(AVersion, Info) then
+  begin
+    Info.Installed := CheckVersionInstalled(AVersion);
+    Result := True;
   end;
 end;
 

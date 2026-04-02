@@ -24,7 +24,9 @@ uses
   SysUtils, Classes, test_config_isolation, test_temp_paths,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.cmd.env, fpdev.cmd.env.vars, fpdev.cmd.env.path, fpdev.cmd.env.export;
+  fpdev.cmd.env, fpdev.cmd.env.vars, fpdev.cmd.env.path, fpdev.cmd.env.export,
+  fpdev.cmd.env.hook,
+  fpdev.utils;
 
 var
   GTestCount: Integer = 0;
@@ -44,6 +46,14 @@ begin
     Inc(GFailCount);
     WriteLn('[FAIL] ', AName);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 { Test output capture }
@@ -291,6 +301,37 @@ begin
   Test('Overview shows Key Environment Variables', Pos('Key Environment Variables', Output) > 0);
 end;
 
+procedure TestOverviewUsesSameProcessEnvOverride;
+var
+  Cmd: ICommand;
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+  SavedFPCDir: string;
+  ProbeFPCDir: string;
+begin
+  SavedFPCDir := get_env('FPCDIR');
+  ProbeFPCDir := '/tmp/fpdev-env-overview-probe';
+  try
+    Test('set FPCDIR for overview',
+      set_env('FPCDIR', ProbeFPCDir));
+
+    OutBuf := TStringOutput.Create;
+    Ctx := TTestContext.Create(OutBuf, OutBuf);
+    Cmd := CreateEnvCommand;
+
+    Ret := Cmd.Execute([], Ctx);
+    Output := OutBuf.GetBuffer;
+
+    Test('Overview with same-process env override returns exit code 0', Ret = 0);
+    Test('Overview reflects same-process FPCDIR override',
+      Pos('FPCDIR:       ' + ProbeFPCDir, Output) > 0);
+  finally
+    RestoreEnv('FPCDIR', SavedFPCDir);
+  end;
+end;
+
 procedure TestVarsOutput;
 var
   OutBuf: TStringOutput;
@@ -316,6 +357,37 @@ begin
   Test('Vars shows Cross-Compilation Variables', Pos('Cross-Compilation Variables:', Output) > 0);
 end;
 
+procedure TestVarsUseSameProcessEnvOverride;
+var
+  Cmd: ICommand;
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+  SavedFPCOpt: string;
+  ProbeFPCOpt: string;
+begin
+  SavedFPCOpt := get_env('FPCOPT');
+  ProbeFPCOpt := '-Fu/tmp/fpdev-env-vars-probe';
+  try
+    Test('set FPCOPT for vars',
+      set_env('FPCOPT', ProbeFPCOpt));
+
+    OutBuf := TStringOutput.Create;
+    Ctx := TTestContext.Create(OutBuf, OutBuf);
+    Cmd := CreateEnvVarsCommand;
+
+    Ret := Cmd.Execute([], Ctx);
+    Output := OutBuf.GetBuffer;
+
+    Test('Vars with same-process env override returns exit code 0', Ret = 0);
+    Test('Vars reflects same-process FPCOPT override',
+      Pos('FPCOPT:       ' + ProbeFPCOpt, Output) > 0);
+  finally
+    RestoreEnv('FPCOPT', SavedFPCOpt);
+  end;
+end;
+
 procedure TestPathOutput;
 var
   OutBuf: TStringOutput;
@@ -336,6 +408,50 @@ begin
   Test('Path returns exit code 0', Ret = 0);
   Test('Path shows PATH Configuration', Pos('PATH Configuration', Output) > 0);
   Test('Path shows Total entries', Pos('Total entries:', Output) > 0);
+end;
+
+procedure TestPathUsesSameProcessEnvOverride;
+var
+  Cmd: ICommand;
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+  TempDir: string;
+  FirstDir: string;
+  SecondDir: string;
+  SavedPath: string;
+  ProbePath: string;
+begin
+  SavedPath := get_env('PATH');
+  TempDir := CreateUniqueTempDir('test_cmd_env_path');
+  FirstDir := TempDir + PathDelim + 'one';
+  SecondDir := TempDir + PathDelim + 'two';
+  ForceDirectories(FirstDir);
+  ForceDirectories(SecondDir);
+  ProbePath := FirstDir + PathSeparator + SecondDir;
+  try
+    Test('set PATH for path command',
+      set_env('PATH', ProbePath));
+
+    OutBuf := TStringOutput.Create;
+    Ctx := TTestContext.Create(OutBuf, OutBuf);
+    Cmd := CreateEnvPathCommand;
+
+    Ret := Cmd.Execute([], Ctx);
+    Output := OutBuf.GetBuffer;
+
+    Test('Path with same-process env override returns exit code 0', Ret = 0);
+    Test('Path reflects overridden entry count',
+      Pos('Total entries: 2', Output) > 0);
+    Test('Path reflects first overridden entry',
+      Pos(FirstDir, Output) > 0);
+    Test('Path reflects second overridden entry',
+      Pos(SecondDir, Output) > 0);
+  finally
+    RestoreEnv('PATH', SavedPath);
+    CleanupTempDir(TempDir);
+  end;
 end;
 
 procedure TestExportBashOutput;
@@ -407,6 +523,48 @@ begin
 
   Test('Export ps returns exit code 0', Ret = 0);
   Test('Export ps shows $env:', Pos('$env:FPDEV_ROOT=', Output) > 0);
+end;
+
+procedure TestHookRejectsExtraArg;
+var
+  Cmd: ICommand;
+  OutBuf: TStringOutput;
+  ErrBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, ErrBuf);
+  Cmd := ShellHookCommandFactory;
+
+  Ret := Cmd.Execute(['bash', 'extra'], Ctx);
+
+  Test('Hook extra arg returns usage error', Ret = 2);
+  Test('Hook extra arg keeps stdout empty', Trim(OutBuf.GetBuffer) = '');
+  Test('Hook extra arg prints usage to stderr',
+    Pos('Usage: fpdev system env hook <shell>', ErrBuf.GetBuffer) > 0);
+end;
+
+procedure TestHookRejectsUnknownOption;
+var
+  Cmd: ICommand;
+  OutBuf: TStringOutput;
+  ErrBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, ErrBuf);
+  Cmd := ShellHookCommandFactory;
+
+  Ret := Cmd.Execute(['--unknown'], Ctx);
+
+  Test('Hook unknown option returns usage error', Ret = 2);
+  Test('Hook unknown option keeps stdout empty', Trim(OutBuf.GetBuffer) = '');
+  Test('Hook unknown option prints usage to stderr',
+    Pos('Usage: fpdev system env hook <shell>', ErrBuf.GetBuffer) > 0);
 end;
 
 procedure TestUnknownSubcommand;
@@ -485,11 +643,16 @@ begin
   TestFindSubReturnsNil;
   TestHelpOutput;
   TestOverviewOutput;
+  TestOverviewUsesSameProcessEnvOverride;
   TestVarsOutput;
+  TestVarsUseSameProcessEnvOverride;
   TestPathOutput;
+  TestPathUsesSameProcessEnvOverride;
   TestExportBashOutput;
   TestExportCmdOutput;
   TestExportPsOutput;
+  TestHookRejectsExtraArg;
+  TestHookRejectsUnknownOption;
   TestUnknownSubcommand;
   TestDefaultContextUsesExplicitConfigPath;
   TestDefaultContextUsesIsolatedDefaultConfigPath;

@@ -35,6 +35,7 @@ function TProjectInfoCommand.Execute(const AParams: array of string; const Ctx: 
 var
   LTemplate: string;
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -49,9 +50,21 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_INFO_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   if Length(AParams) < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['template']));
+    Ctx.Err.WriteLn(_(HELP_PROJECT_INFO_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) > 1 then
+  begin
     Ctx.Err.WriteLn(_(HELP_PROJECT_INFO_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;

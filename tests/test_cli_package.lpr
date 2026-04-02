@@ -22,6 +22,7 @@ uses
   fpdev.config.interfaces,
   fpdev.utils,
   fpdev.utils.fs,
+  fpdev.paths,
   fpdev.command.intf, fpdev.command.registry,
   fpdev.exitcodes,
   fpdev.cmd.package.root,
@@ -46,6 +47,14 @@ uses
 
 var
   GTempDir: string;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
 
 {$I test_cli_package_core.inc}
 
@@ -112,7 +121,9 @@ begin
     TestSearchMissingQuery;
     TestSearchBlankQuery;
     TestSearchUnknownOption;
+    TestSearchUnexpectedArg;
     TestSearchNoResultsOutput;
+    TestSearchJsonUsesFPDEVDataRootRegistry;
 
     WriteLn('');
     WriteLn('--- info ---');
@@ -133,6 +144,7 @@ begin
     TestPublishMissingMetadata;
     TestPublishAfterInstallLocalUsesMetadataVersion;
     TestPublishWorksAfterOriginalSourceDeleted;
+    TestPublishUsesFPDEVDataRootArchiveRoot;
     TestPublishRejectsInvalidMetadataSourcePath;
     TestPublishRejectsEmptyMetadataSourceFiles;
     TestPublishResolvesRelativeMetadataSourcePath;

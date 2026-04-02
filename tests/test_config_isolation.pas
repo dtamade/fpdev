@@ -15,7 +15,7 @@ function CreateIsolatedConfigManager: IConfigManager;
 implementation
 
 uses
-  SysUtils, fpdev.config.managers, fpdev.utils.fs;
+  SysUtils, fpdev.config.managers, test_temp_paths;
 
 var
   GIsolatedConfigPath: string = '';
@@ -28,8 +28,7 @@ begin
   if TestName = '' then
     TestName := ChangeFileExt(ExtractFileName(ParamStr(0)), '');
 
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + TestName + '-config-' + IntToStr(GetTickCount64) + PathDelim + 'config.json';
+  Result := CreateUniqueTempDir(TestName + '-config') + PathDelim + 'config.json';
 end;
 
 procedure UseIsolatedDefaultConfigPath(const ATestName: string);
@@ -54,7 +53,7 @@ begin
 
   ConfigDir := ExtractFileDir(GIsolatedConfigPath);
   if (ConfigDir <> '') and DirectoryExists(ConfigDir) then
-    DeleteDirRecursive(ConfigDir);
+    CleanupTempDir(ConfigDir);
   GIsolatedConfigPath := '';
 end;
 

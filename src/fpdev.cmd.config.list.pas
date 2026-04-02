@@ -215,17 +215,27 @@ end;
 function TConfigListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   I: Integer;
+  LHasHelpFlag: Boolean;
 begin
   Result := EXIT_OK;
+  LHasHelpFlag := False;
 
   // Check for help flag
   for I := 0 to High(AParams) do
   begin
     if (AParams[I] = 'help') or (AParams[I] = '--help') or (AParams[I] = '-h') then
+      LHasHelpFlag := True;
+  end;
+
+  if LHasHelpFlag then
+  begin
+    if Length(AParams) <> 1 then
     begin
-      ShowHelp(Ctx);
-      Exit;
+      Ctx.Err.WriteLn('Usage: fpdev system config list [options]');
+      Exit(EXIT_USAGE_ERROR);
     end;
+    ShowHelp(Ctx);
+    Exit;
   end;
 
   // Load config

@@ -360,21 +360,21 @@ begin
 
   FFPCReleases[0].Version := '3.2.2';
   FFPCReleases[0].ReleaseDate := '2021-05-19';
-  FFPCReleases[0].GitTag := '3_2_2';
+  FFPCReleases[0].GitTag := 'release_3_2_2';
   FFPCReleases[0].Branch := 'fixes_3_2';
   FFPCReleases[0].Channel := 'stable';
   FFPCReleases[0].LTS := True;
 
   FFPCReleases[1].Version := '3.2.0';
   FFPCReleases[1].ReleaseDate := '2020-06-19';
-  FFPCReleases[1].GitTag := '3_2_0';
+  FFPCReleases[1].GitTag := 'release_3_2_0';
   FFPCReleases[1].Branch := 'fixes_3_2';
   FFPCReleases[1].Channel := 'stable';
   FFPCReleases[1].LTS := False;
 
   FFPCReleases[2].Version := '3.0.4';
   FFPCReleases[2].ReleaseDate := '2017-11-21';
-  FFPCReleases[2].GitTag := '3_0_4';
+  FFPCReleases[2].GitTag := 'release_3_0_4';
   FFPCReleases[2].Branch := 'fixes_3_0';
   FFPCReleases[2].Channel := 'legacy';
   FFPCReleases[2].LTS := False;

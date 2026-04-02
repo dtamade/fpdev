@@ -5,7 +5,8 @@ program test_package_create;
 uses
   SysUtils, test_config_isolation, Classes, fpjson, jsonparser,
   fpdev.package.manager, fpdev.package.creation,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.utils.fs, test_temp_paths;
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths,
+  fpdev.utils, fpdev.utils.fs, test_temp_paths;
 
 type
   TTestCallback = procedure;
@@ -39,6 +40,22 @@ begin
     AssertTrue(True, AMessage)
   else
     AssertTrue(False, Format('%s: expected %d, got %d', [AMessage, AExpected, AActual]));
+end;
+
+procedure AssertEquals(const AExpected, AActual, AMessage: string); overload;
+begin
+  if AExpected = AActual then
+    AssertTrue(True, AMessage)
+  else
+    AssertTrue(False, AMessage + ': expected "' + AExpected + '", got "' + AActual + '"');
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 function MakeTempDir(const APrefix: string): string;
@@ -156,6 +173,114 @@ begin
     WriteLn('[PASS] Basic package creation test');
   finally
     Mgr.Free;
+  end;
+end;
+
+procedure TestPackageManagerUsesSameProcessInstallRootFallback;
+var
+  Mgr: TPackageManager;
+  Config: IConfigManager;
+  Settings: TFPDevSettings;
+  ProbeHome: string;
+  ExpectedRoot: string;
+  SavedDataRoot: string;
+  SavedHome: string;
+  SavedAppData: string;
+  SavedUserProfile: string;
+  SavedXDGDataHome: string;
+begin
+  WriteTestHeader('TestPackageManagerUsesSameProcessInstallRootFallback');
+
+  ProbeHome := MakeTempDir('fpdev-package-install-root');
+  Config := CreateTestConfig('package same-process install root');
+  Settings := Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := '';
+  AssertTrue(Config.GetSettingsManager.SetSettings(Settings),
+    'same-process install root test should clear configured install root');
+
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedAppData := get_env('APPDATA');
+  {$ELSE}
+  SavedHome := get_env('HOME');
+  {$ENDIF}
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('USERPROFILE', ProbeHome);
+    set_env('APPDATA', ProbeHome);
+    {$ELSE}
+    set_env('HOME', ProbeHome);
+    {$ENDIF}
+    ExpectedRoot := GetDataRoot;
+
+    Mgr := TPackageManager.Create(Config);
+    try
+      AssertEquals(ExpectedRoot, Config.GetSettingsManager.GetSettings.InstallRoot,
+        'package manager persists same-process install root fallback');
+      AssertTrue(DirectoryExists(ExpectedRoot + PathDelim + 'packages'),
+        'package manager creates package registry under same-process install root');
+    finally
+      Mgr.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    RestoreEnv('APPDATA', SavedAppData);
+    {$ELSE}
+    RestoreEnv('HOME', SavedHome);
+    {$ENDIF}
+    CleanupTempDir(ProbeHome);
+  end;
+end;
+
+procedure TestPackageManagerUsesFPDEVDataRootOverride;
+var
+  Mgr: TPackageManager;
+  Config: IConfigManager;
+  Settings: TFPDevSettings;
+  ProbeDataRoot: string;
+  ExpectedRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  WriteTestHeader('TestPackageManagerUsesFPDEVDataRootOverride');
+
+  ProbeDataRoot := MakeTempDir('fpdev-package-data-root');
+  Config := CreateTestConfig('package data-root install root');
+  Settings := Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := '';
+  AssertTrue(Config.GetSettingsManager.SetSettings(Settings),
+    'data-root install root test should clear configured install root');
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    AssertTrue(set_env('FPDEV_DATA_ROOT', ProbeDataRoot),
+      'package manager data-root test should set FPDEV_DATA_ROOT');
+    ExpectedRoot := GetDataRoot;
+
+    Mgr := TPackageManager.Create(Config);
+    try
+      AssertEquals(ExpectedRoot, Config.GetSettingsManager.GetSettings.InstallRoot,
+        'package manager persists FPDEV_DATA_ROOT install root override');
+      AssertTrue(DirectoryExists(ExpectedRoot + PathDelim + 'packages'),
+        'package manager creates package registry under FPDEV_DATA_ROOT');
+    finally
+      Mgr.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeDataRoot);
   end;
 end;
 
@@ -356,6 +481,8 @@ begin
     // Run all tests
     TestEnsurePackageMetadataFileCoreCreatesDefaultMetadata;
     TestEnsurePackageMetadataFileCorePreservesExistingMetadata;
+    TestPackageManagerUsesSameProcessInstallRootFallback;
+    TestPackageManagerUsesFPDEVDataRootOverride;
     TestBasicPackageCreation;
     TestPackageWithMetadata;
     TestPackageWithDependencies;

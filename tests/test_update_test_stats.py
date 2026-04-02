@@ -66,6 +66,17 @@ class UpdateTestStatsTests(unittest.TestCase):
         self.assertIn('mapfile -t TEST_FILES < <(python3 "${SCRIPT_DIR}/update_test_stats.py" --list)', updated)
         self.assertNotIn('legacy.py', updated)
 
+    def test_render_ci_yml_leaves_release_acceptance_lane_unchanged(self):
+        sample = (
+            'jobs:\n'
+            '  release-acceptance-linux:\n'
+            '    steps:\n'
+            '    - name: Run Linux release acceptance lane\n'
+            '      run: bash scripts/release_acceptance_linux.sh\n'
+        )
+        updated = self.mod.render_ci_yml(sample)
+        self.assertEqual(sample, updated)
+
     def test_render_readme_md_updates_badge_and_summary_markers(self):
         sample = (
             '<!-- TEST-INVENTORY-BADGE:BEGIN -->\n'
@@ -82,6 +93,37 @@ class UpdateTestStatsTests(unittest.TestCase):
         self.assertIn('tests-216%20discoverable', updated)
         self.assertIn('[OK] Discoverable test programs: 216 (same inventory rules as CI)', updated)
         self.assertIn('总计: 216 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）', updated)
+
+    def test_render_roadmap_updates_public_test_count_lines(self):
+        sample = (
+            '### Current State (v2.1.0)\n'
+            '- ✅ **Test Coverage**: 272 discoverable tests, 272/272 passing in the latest local full run\n'
+            '\n'
+            '### Production Readiness\n'
+            '- Test Coverage: 272 discoverable tests, 272/272 passing in the latest local full run\n'
+        )
+        updated = self.mod.render_roadmap_md(sample, 216)
+        self.assertIn(
+            '- ✅ **Test Coverage**: 216 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately',
+            updated,
+        )
+        self.assertIn(
+            '- Test Coverage: 216 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately',
+            updated,
+        )
+        self.assertNotIn('272/272', updated)
+
+    def test_render_mvp_acceptance_updates_gate_count(self):
+        sample = (
+            '## Mandatory Automated Gates\n\n'
+            '- [x] Test inventory is synchronized at `272` discoverable `test_*.lpr` programs\n'
+        )
+        updated = self.mod.render_mvp_acceptance_md(sample, 216)
+        self.assertIn(
+            '- [x] Test inventory is synchronized at `216` discoverable `test_*.lpr` programs',
+            updated,
+        )
+        self.assertNotIn('`272`', updated)
 
 
 if __name__ == '__main__':

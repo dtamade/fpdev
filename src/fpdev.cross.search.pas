@@ -66,15 +66,15 @@ type
     constructor Create;
 
     { Search all layers for binutils }
-    function SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult;
+    function SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult; virtual;
     function SearchBinutilsWithConfig(const ATarget: TCrossTarget;
-      const AFpcCfgPath: string): TCrossSearchResult;
+      const AFpcCfgPath: string): TCrossSearchResult; virtual;
 
     { Search for cross-compilation libraries }
-    function SearchLibraries(const ATarget: TCrossTarget): TStringArray;
+    function SearchLibraries(const ATarget: TCrossTarget): TStringArray; virtual;
 
     { Diagnose toolchain status for a specific target (for cross doctor) }
-    function DiagnoseTarget(const ATarget: TCrossTarget): TStringArray;
+    function DiagnoseTarget(const ATarget: TCrossTarget): TStringArray; virtual;
 
     { Diagnostics }
     function GetSearchLog: TStringArray;

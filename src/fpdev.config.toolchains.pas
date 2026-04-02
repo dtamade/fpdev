@@ -81,6 +81,8 @@ begin
     if Index >= 0 then
     begin
       FToolchains.Delete(Index);
+      if SameText(FDefaultToolchain, AName) then
+        FDefaultToolchain := '';
       if Assigned(FNotifier) then
         FNotifier.NotifyConfigChanged;
       Result := True;
@@ -176,6 +178,9 @@ begin
       FToolchains.Values[Key] := AToolchains.Items[I].AsJSON;
     end;
   end;
+
+  if (FDefaultToolchain <> '') and (FToolchains.IndexOfName(FDefaultToolchain) < 0) then
+    FDefaultToolchain := '';
 end;
 
 procedure TToolchainManager.SaveToJSON(out AToolchains: TJSONObject; out ADefaultToolchain: string);

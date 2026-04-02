@@ -87,6 +87,8 @@ begin
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('list --help returns EXIT_OK', Ret = EXIT_OK);
     Check('list --help shows usage', StdOut.Contains('list'));
+    Check('list --help usage advertises optional json flag',
+      StdOut.Contains('Usage: fpdev fpc list [--all] [--json]'));
     Check('list --help shows --all option', StdOut.Contains('all'));
     Check('list --help shows --json option', StdOut.Contains('json'));
   finally
@@ -146,6 +148,67 @@ begin
     Check('list --json returns EXIT_OK', Ret = EXIT_OK);
     // JSON output should contain "versions" key
     Check('list --json contains versions key', StdOut.Contains('versions'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestListJsonOutputUsesNullWhenDefaultUnset;
+var
+  Cmd: TFPCListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--json'], Ctx);
+    Check('list --json default-unset returns EXIT_OK', Ret = EXIT_OK);
+    Check('list --json default-unset uses has_default false',
+      StdOut.Contains('"has_default" : false'));
+    Check('list --json default-unset uses null default',
+      StdOut.Contains('"default" : null'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestListUnexpectedArg;
+var
+  Cmd: TFPCListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('list unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('list unexpected arg shows usage', StdErr.Contains('list'));
+    Check('list unexpected arg usage advertises optional json flag',
+      StdErr.Contains('Usage: fpdev fpc list [--all] [--json]'));
+    Check('list unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestListUnknownOption;
+var
+  Cmd: TFPCListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('list unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('list unknown option shows usage', StdErr.Contains('list'));
+    Check('list unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -250,6 +313,25 @@ begin
   end;
 end;
 
+procedure TestUseHelpUnexpectedArg;
+var
+  Cmd: TFPCUseCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('use help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('use help unexpected arg shows usage', StdErr.Contains('use'));
+    Check('use help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 7: fpc use - Missing Arguments ===== }
 
 procedure TestUseMissingVersion;
@@ -267,6 +349,44 @@ begin
     Check('use no args returns error', Ret <> EXIT_OK);
     Check('use no args shows error message',
       StdErr.Contains('version') or StdErr.Contains('Usage') or StdErr.Contains('Error'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUseUnexpectedArg;
+var
+  Cmd: TFPCUseCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('use unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('use unexpected arg shows usage', StdErr.Contains('use'));
+    Check('use unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUseUnknownOption;
+var
+  Cmd: TFPCUseCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUseCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--unknown'], Ctx);
+    Check('use unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('use unknown option shows usage', StdErr.Contains('use'));
+    Check('use unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -389,6 +509,25 @@ begin
   end;
 end;
 
+procedure TestCurrentHelpAdvertisesJsonUsage;
+var
+  Cmd: TFPCCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Check('current --help usage advertises optional json flag', Ret = EXIT_OK);
+    Check('current --help usage advertises optional json flag',
+      StdOut.Contains('Usage: fpdev fpc current [--json]'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 12: fpc current - Execution ===== }
 
 procedure TestCurrentNoArgs;
@@ -430,6 +569,27 @@ begin
   end;
 end;
 
+procedure TestCurrentJsonOutputUsesNullWhenDefaultUnset;
+var
+  Cmd: TFPCCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--json'], Ctx);
+    Check('current --json default-unset returns EXIT_OK', Ret = EXIT_OK);
+    Check('current --json default-unset uses has_default false',
+      StdOut.Contains('"has_default" : false'));
+    Check('current --json default-unset uses null version',
+      StdOut.Contains('"version" : null'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestCurrentUnexpectedArg;
 var
   Cmd: TFPCCurrentCommand;
@@ -442,6 +602,8 @@ begin
   try
     Ret := Cmd.Execute(['extra'], Ctx);
     Check('current unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('current unexpected arg usage advertises optional json flag',
+      StdErr.Contains('Usage: fpdev fpc current [--json]'));
   finally
     Cmd.Free;
   end;
@@ -559,6 +721,25 @@ begin
   end;
 end;
 
+procedure TestShowHelpUnexpectedArg;
+var
+  Cmd: TFPCShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('show help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('show help unexpected arg shows usage', StdErr.Contains('show'));
+    Check('show help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 16: fpc show - Missing Arguments ===== }
 
 procedure TestShowMissingVersion;
@@ -574,6 +755,44 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('show no args returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
     Check('show no args shows error on stderr', StdErr.Contains('version'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestShowUnexpectedArg;
+var
+  Cmd: TFPCShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('show unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('show unexpected arg shows usage', StdErr.Contains('show'));
+    Check('show unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestShowUnknownOption;
+var
+  Cmd: TFPCShowCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCShowCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--unknown'], Ctx);
+    Check('show unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('show unknown option shows usage', StdErr.Contains('show'));
+    Check('show unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -645,6 +864,9 @@ begin
     WriteLn('--- fpc list: Execution ---');
     TestListNoArgs;
     TestListJsonFlag;
+    TestListJsonOutputUsesNullWhenDefaultUnset;
+    TestListUnexpectedArg;
+    TestListUnknownOption;
 
     // Group 4: fpc list registration
     WriteLn('');
@@ -663,11 +885,14 @@ begin
     WriteLn('--- fpc use: Help Output ---');
     TestUseHelpFlag;
     TestUseHelpShortFlag;
+    TestUseHelpUnexpectedArg;
 
     // Group 7: fpc use missing args
     WriteLn('');
     WriteLn('--- fpc use: Argument Validation ---');
     TestUseMissingVersion;
+    TestUseUnexpectedArg;
+    TestUseUnknownOption;
 
     // Group 8: fpc use not-installed version
     WriteLn('');
@@ -691,12 +916,14 @@ begin
     WriteLn('--- fpc current: Help Output ---');
     TestCurrentHelpFlag;
     TestCurrentHelpShortFlag;
+    TestCurrentHelpAdvertisesJsonUsage;
 
     // Group 12: fpc current execution
     WriteLn('');
     WriteLn('--- fpc current: Execution ---');
     TestCurrentNoArgs;
     TestCurrentJsonFlag;
+    TestCurrentJsonOutputUsesNullWhenDefaultUnset;
     TestCurrentUnexpectedArg;
     TestCurrentUnknownOption;
 
@@ -717,11 +944,14 @@ begin
     WriteLn('--- fpc show: Help Output ---');
     TestShowHelpFlag;
     TestShowHelpShortFlag;
+    TestShowHelpUnexpectedArg;
 
     // Group 16: fpc show missing args
     WriteLn('');
     WriteLn('--- fpc show: Argument Validation ---');
     TestShowMissingVersion;
+    TestShowUnexpectedArg;
+    TestShowUnknownOption;
 
     // Group 17: fpc show execution
     WriteLn('');

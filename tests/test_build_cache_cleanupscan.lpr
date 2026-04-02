@@ -3,7 +3,7 @@ program test_build_cache_cleanupscan;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.utils.fs,
+  SysUtils, Classes, test_temp_paths,
   fpdev.build.cache.types,
   fpdev.build.cache.cleanupscan;
 
@@ -18,8 +18,7 @@ var
 
 function BuildTempDir: string;
 begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'fpdev_cache_cleanupscan_' + IntToStr(GetTickCount64);
+  Result := CreateUniqueTempDir('fpdev-cache-cleanupscan');
 end;
 
 function TStubInfoLoader.LoadInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
@@ -65,10 +64,9 @@ var
   Found321: Boolean;
 begin
   TempDir := BuildTempDir;
-  ForceDirectories(TempDir);
   try
-    AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(TempDir)) = 1, 'temp dir uses system temp root');
+    AssertTrue(PathUsesSystemTempRoot(TempDir),
+      'temp dir uses system temp root');
 
     SL := TStringList.Create;
     try
@@ -108,8 +106,7 @@ begin
       Loader.Free;
     end;
   finally
-    if DirectoryExists(TempDir) then
-      DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 

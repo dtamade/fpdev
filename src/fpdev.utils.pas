@@ -117,6 +117,14 @@ implementation
 function c_setenv(name, value: PChar; overwrite: cint): cint; cdecl; external 'c' name 'setenv';
 function c_unsetenv(name: PChar): cint; cdecl; external 'c' name 'unsetenv';
 function c_getenv(name: PChar): PChar; cdecl; external 'c' name 'getenv';
+var
+  environ: PPAnsiChar; cvar; external;
+
+procedure SyncUnixEnvSnapshot;
+begin
+  if environ <> nil then
+    envp := environ;
+end;
 {$ENDIF}
 
 // Essential implementations
@@ -187,6 +195,8 @@ function unset_env(const aName: string): Boolean;
 begin
   {$IFDEF UNIX}
   Result := c_unsetenv(PChar(aName)) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   Result := SetEnvironmentVariableW(PWideChar(UTF8Decode(aName)), nil);
@@ -203,6 +213,8 @@ begin
     Result := c_unsetenv(PChar(aName)) = 0
   else
     Result := c_setenv(PChar(aName), PChar(aValue), 1) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   if aValue = '' then

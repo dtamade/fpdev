@@ -111,8 +111,7 @@ begin
   
   try
     AssertTrue(
-      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-        ExpandFileName(FTestConfigPath)) = 1,
+      PathUsesSystemTempRoot(FTestConfigPath),
       'Config path should live under system temp'
     );
 

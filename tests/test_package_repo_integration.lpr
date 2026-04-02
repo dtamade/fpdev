@@ -7,7 +7,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, fpdev.config, fpjson, jsonparser, fpdev.package.manager, fpdev.utils.fs;
+  SysUtils, Classes, test_temp_paths, fpdev.config, fpjson, jsonparser, fpdev.package.manager;
 
 procedure AssertTrue(const ACond: Boolean; const AMsg: string);
 begin
@@ -41,9 +41,7 @@ begin
   RepoURL := 'file://' + RepoPath;
   {$ENDIF}
 
-  TempRoot := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'fpdev-package-repo-integration-' + IntToStr(GetTickCount64);
-  ForceDirectories(TempRoot);
+  TempRoot := CreateUniqueTempDir('fpdev-package-repo-integration');
   ConfigPath := IncludeTrailingPathDelimiter(TempRoot) + 'config.json';
 
   // 初始化配置
@@ -53,8 +51,8 @@ begin
     if not Cfg.LoadConfig then
       AssertTrue(Cfg.CreateDefaultConfig, 'Create default config');
 
-    AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(Cfg.ConfigPath)) = 1, 'Config path should use system temp root');
+    AssertTrue(PathUsesSystemTempRoot(Cfg.ConfigPath),
+      'Config path should use system temp root');
 
     // Set InstallRoot to local temp directory to avoid permission issues
     Settings := Cfg.GetSettings;
@@ -76,8 +74,7 @@ begin
   finally
     Cfg.Free;
     DeleteFile(ConfigPath);
-    if DirectoryExists(TempRoot) then
-      DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 

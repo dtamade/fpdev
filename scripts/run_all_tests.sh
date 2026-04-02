@@ -24,11 +24,22 @@ declare -a FAILED_TESTS
 declare -a PASSED_TESTS
 declare -a TEST_FILES
 
+get_test_tmp_parent() {
+  local tmp_parent="${FPDEV_TEST_TMPDIR:-${TMPDIR:-/tmp}}"
+  if [ -z "${tmp_parent}" ]; then
+    tmp_parent="/tmp"
+  fi
+  mkdir -p "${tmp_parent}"
+  printf '%s\n' "${tmp_parent%/}"
+}
+
 create_test_tmp_root() {
+  local tmp_parent=""
   local tmp_root=""
-  tmp_root="$(mktemp -d /tmp/fpdev-tests.XXXXXX 2>/dev/null || true)"
+  tmp_parent="$(get_test_tmp_parent)"
+  tmp_root="$(mktemp -d "${tmp_parent}/fpdev-tests.XXXXXX" 2>/dev/null || true)"
   if [ -z "${tmp_root}" ] || [ ! -d "${tmp_root}" ]; then
-    tmp_root="/tmp/fpdev-tests.$$"
+    tmp_root="${tmp_parent}/fpdev-tests.$$"
     mkdir -p "${tmp_root}"
   fi
   printf '%s\n' "${tmp_root}"
@@ -40,6 +51,9 @@ init_test_environment() {
   TEST_LAZARUS_CONFIG_ROOT="${TEST_TMP_ROOT}/lazarus-config"
   mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}"
 
+  export TMPDIR="${TEST_TMP_ROOT}"
+  export TMP="${TEST_TMP_ROOT}"
+  export TEMP="${TEST_TMP_ROOT}"
   export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
   export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
   export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"

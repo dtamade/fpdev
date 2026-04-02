@@ -13,7 +13,7 @@ unit fpdev.cmd.package.search;
   - Partial match support
 
   Usage:
-    Search := TPackageSearchCommand.Create('~/.fpdev/registry');
+    Search := TPackageSearchCommand.Create(GetDataRoot + PathDelim + 'registry');
     Results := Search.Search('json');
     for I := 0 to Results.Count - 1 do
       WriteLn(Results[I]);
@@ -24,7 +24,8 @@ interface
 uses
   SysUtils, Classes, fpjson, jsonparser,
   fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.exitcodes;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.exitcodes,
+  fpdev.paths;
 
 type
   { TPackageSearchCommand - Functional class for package search }
@@ -287,6 +288,12 @@ begin
     Exit(EXIT_USAGE_ERROR);
   end;
 
+  if CountPositionalArgs(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Get query (first non-flag argument)
   Q := '';
   for I := 0 to High(AParams) do
@@ -310,7 +317,8 @@ begin
   if LJsonOutput then
   begin
     // JSON output mode using TPackageSearchCommand
-    LSearch := TPackageSearchCommand.Create(ExpandFileName('~/.fpdev/registry'));
+    LSearch := TPackageSearchCommand.Create(
+      IncludeTrailingPathDelimiter(GetDataRoot) + 'registry');
     try
       LResults := LSearch.Search(Q);
       try

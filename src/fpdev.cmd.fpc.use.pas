@@ -85,12 +85,19 @@ var
   LResolved: TResolvedConfig;
   LAutoInstall, LEnsure: Boolean;
   LGlobalFPC: string;
+  LUnknownOption: string;
+  LPositionalCount: Integer;
 begin
   Result := 0;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_USE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_USE_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_USE_DESC));
@@ -115,11 +122,24 @@ begin
       LGlobalFPC := Copy(LGlobalFPC, 5, Length(LGlobalFPC));
   end;
 
+  if FindUnknownOption(AParams, ['--ensure'], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_USE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LPositionalCount := CountPositionalArgs(AParams);
+  if LPositionalCount > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_USE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Create config resolver
   LResolver := TProjectConfigResolver.Create(LGlobalFPC, '');
   try
     // No arguments: use project config or global default
-    if Length(AParams) < 1 then
+    if LPositionalCount < 1 then
     begin
       LResolved := LResolver.ResolveConfig(GetCurrentDir);
       LVer := LResolved.FPCVersion;
@@ -140,7 +160,7 @@ begin
     end
     else
     begin
-      LVer := AParams[0];
+      LVer := GetPositionalArg(AParams, 0);
       // Resolve version alias
       LVer := LResolver.ResolveVersionAlias(LVer);
 
@@ -228,4 +248,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['fpc','use'], @FPCUseFactory, []);
 
 end.
-

@@ -122,6 +122,125 @@ begin
   end;
 end;
 
+{ Test: uninstalling the default version clears current/default state }
+procedure TestUninstallDefaultVersionClearsCurrentVersion;
+var
+  Manager: TFPCManager;
+  ToolchainInfo: TToolchainInfo;
+  InstallPath: string;
+  FPCExe: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: Uninstall default version clears current/default state');
+  WriteLn('==================================================');
+
+  Manager := TFPCManager.Create(ConfigManager);
+  try
+    InstallPath := Manager.GetVersionInstallPath('3.2.2');
+    ForceDirectories(InstallPath + PathDelim + 'bin');
+    {$IFDEF MSWINDOWS}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    FPCExe := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    with TStringList.Create do
+    try
+      Add('mock fpc');
+      SaveToFile(FPCExe);
+    finally
+      Free;
+    end;
+
+    FillChar(ToolchainInfo, SizeOf(ToolchainInfo), 0);
+    ToolchainInfo.ToolchainType := ttRelease;
+    ToolchainInfo.Version := '3.2.2';
+    ToolchainInfo.InstallPath := InstallPath;
+    ToolchainInfo.Installed := True;
+    ToolchainInfo.InstallDate := Now;
+
+    AssertTrue(ConfigManager.GetToolchainManager.AddToolchain('fpc-3.2.2', ToolchainInfo),
+      'Should add installed toolchain before uninstall');
+    AssertTrue(ConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-3.2.2'),
+      'Should set default toolchain before uninstall');
+    AssertEqualsStr('3.2.2', Manager.GetCurrentVersion,
+      'GetCurrentVersion should follow default toolchain before uninstall');
+
+    AssertTrue(Manager.UninstallVersion('3.2.2'),
+      'UninstallVersion should succeed for installed default version');
+    AssertEqualsStr('', ConfigManager.GetToolchainManager.GetDefaultToolchain,
+      'Default toolchain should clear after uninstall removes it');
+    AssertEqualsStr('', Manager.GetCurrentVersion,
+      'GetCurrentVersion should return empty after uninstalling default version');
+    AssertFalse(DirectoryExists(InstallPath),
+      'UninstallVersion should remove the installed version directory');
+  finally
+    Manager.Free;
+  end;
+end;
+
+{ Test: loading config clears stale default toolchain when entry is missing }
+procedure TestLoadConfigClearsMissingDefaultToolchain;
+var
+  ReloadedConfig: IConfigManager;
+  Manager: TFPCManager;
+  StaleConfigRoot: string;
+  StaleConfigPath: string;
+  ConfigText: TStringList;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: LoadConfig clears missing default toolchain');
+  WriteLn('==================================================');
+
+  StaleConfigRoot := BuildTempRoot('test_current_reload_');
+  StaleConfigPath := IncludeTrailingPathDelimiter(StaleConfigRoot) + 'config.json';
+  ConfigText := TStringList.Create;
+  try
+    ConfigText.Add('{');
+    ConfigText.Add('  "version": "1.0",');
+    ConfigText.Add('  "default_toolchain": "fpc-3.2.2",');
+    ConfigText.Add('  "toolchains": {},');
+    ConfigText.Add('  "lazarus": {');
+    ConfigText.Add('    "default_version": "",');
+    ConfigText.Add('    "versions": {}');
+    ConfigText.Add('  },');
+    ConfigText.Add('  "cross_targets": {},');
+    ConfigText.Add('  "repositories": {');
+    ConfigText.Add('    "official_fpc": "https://gitlab.com/freepascal.org/fpc/source.git",');
+    ConfigText.Add('    "official_lazarus": "https://gitlab.com/freepascal.org/lazarus/lazarus.git"');
+    ConfigText.Add('  },');
+    ConfigText.Add('  "settings": {');
+    ConfigText.Add('    "auto_update": false,');
+    ConfigText.Add('    "parallel_jobs": 4,');
+    ConfigText.Add('    "keep_sources": true,');
+    ConfigText.Add('    "install_root": "' + StringReplace(
+      IncludeTrailingPathDelimiter(StaleConfigRoot), '\', '\\', [rfReplaceAll]) + '",');
+    ConfigText.Add('    "default_repo": "",');
+    ConfigText.Add('    "mirror": "auto",');
+    ConfigText.Add('    "custom_repo_url": ""');
+    ConfigText.Add('  }');
+    ConfigText.Add('}');
+    ConfigText.SaveToFile(StaleConfigPath);
+
+    ReloadedConfig := TConfigManager.Create(StaleConfigPath);
+    AssertTrue(ReloadedConfig.LoadConfig, 'LoadConfig should succeed for stale default fixture');
+
+    Manager := TFPCManager.Create(ReloadedConfig);
+    try
+      AssertEqualsStr('', ReloadedConfig.GetToolchainManager.GetDefaultToolchain,
+        'LoadConfig should clear missing default toolchain');
+      AssertEqualsStr('', Manager.GetCurrentVersion,
+        'GetCurrentVersion should ignore stale default toolchain after reload');
+    finally
+      Manager.Free;
+    end;
+  finally
+    ConfigText.Free;
+    CleanupTempDir(StaleConfigRoot);
+  end;
+end;
+
 { Test: TFPCManager creation }
 procedure TestManagerCreation;
 var
@@ -179,6 +298,8 @@ begin
       TestTempPathsUseSystemTempRoot;
       TestManagerCreation;
       TestGetCurrentVersionEmpty;
+      TestUninstallDefaultVersionClearsCurrentVersion;
+      TestLoadConfigClearsMissingDefaultToolchain;
       TestSetDefaultNonInstalled;
 
       WriteLn;

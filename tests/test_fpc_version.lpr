@@ -13,10 +13,13 @@ program test_fpc_version;
 }
 
 uses
-  SysUtils, Classes, fpdev.fpc.version, fpdev.config, fpdev.paths;
+  SysUtils, Classes, fpdev.fpc.version, fpdev.config, fpdev.paths, fpdev.types,
+  fpdev.utils, fpdev.version.registry;
 
 var
   TestInstallRoot: string;
+  TestWorkingDir: string;
+  OriginalCurrentDir: string;
   ConfigManager: TFPDevConfigManager;
   VersionManager: TFPCVersionManager;
   TestsPassed: Integer = 0;
@@ -36,6 +39,9 @@ begin
   if TestInstallRoot = '' then
     TestInstallRoot := BuildTempRoot('test_version_root_');
   ForceDirectories(TestInstallRoot);
+  TestWorkingDir := TestInstallRoot + PathDelim + 'user_scope_cwd';
+  ForceDirectories(TestWorkingDir);
+  SetCurrentDir(TestWorkingDir);
 
   // Setup config manager to use test directory
   Settings := ConfigManager.GetSettings;
@@ -71,6 +77,9 @@ procedure TeardownTestEnvironment;
   end;
 
 begin
+  if OriginalCurrentDir <> '' then
+    SetCurrentDir(OriginalCurrentDir);
+
   if DirectoryExists(TestInstallRoot) then
   begin
     DeleteDirectory(TestInstallRoot);
@@ -139,6 +148,14 @@ begin
     WriteLn('  PASSED: ', AMessage);
     Inc(TestsPassed);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 { Test: GetAvailableVersions returns all known versions }
@@ -223,6 +240,173 @@ begin
   AssertTrue(VersionManager.ValidateVersion('Main'), 'Main should be valid (case insensitive)');
 end;
 
+procedure TestGetVersionInstallPathUsesSameProcessHomeFallback;
+var
+  SavedDir: string;
+  SavedHome, SavedAppData, SavedUserProfile: string;
+  SavedDataRoot, SavedXDGDataHome: string;
+  SavedInstallRoot, ProbeHome, UserDir: string;
+  Settings: TFPDevSettings;
+  LocalVersionManager: TFPCVersionManager;
+  InstallPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetVersionInstallPath - Same-process HOME fallback');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  SavedHome := get_env('HOME');
+  SavedAppData := get_env('APPDATA');
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  LocalVersionManager := nil;
+
+  try
+    ProbeHome := TestInstallRoot + PathDelim + 'env_home_probe';
+    UserDir := TestInstallRoot + PathDelim + 'env_home_user_scope';
+    ForceDirectories(ProbeHome);
+    ForceDirectories(UserDir);
+
+    Settings.InstallRoot := '';
+    ConfigManager.SetSettings(Settings);
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+
+    {$IFDEF MSWINDOWS}
+    AssertTrue(set_env('APPDATA', ProbeHome),
+      'Should set same-process APPDATA override for version install root fallback');
+    AssertTrue(set_env('USERPROFILE', ProbeHome),
+      'Should set same-process USERPROFILE override for version install root fallback');
+    {$ELSE}
+    AssertTrue(set_env('HOME', ProbeHome),
+      'Should set same-process HOME override for version install root fallback');
+    {$ENDIF}
+
+    AssertTrue(SetCurrentDir(UserDir),
+      'Should change into user-scope temp directory for version install root fallback');
+
+    LocalVersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
+    InstallPath := LocalVersionManager.GetVersionInstallPath('3.2.2');
+
+    AssertEqualsStr(
+      BuildFPCInstallDirFromInstallRoot(GetDataRoot, '3.2.2'),
+      InstallPath,
+      'Should resolve version install path from same-process HOME/APPDATA fallback'
+    );
+  finally
+    LocalVersionManager.Free;
+    SetCurrentDir(SavedDir);
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    RestoreEnv('HOME', SavedHome);
+    RestoreEnv('APPDATA', SavedAppData);
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+  end;
+end;
+
+procedure TestGetVersionInstallPathUsesFPDEVDataRootOverride;
+var
+  SavedDir: string;
+  SavedDataRoot: string;
+  SavedInstallRoot: string;
+  ProbeRoot: string;
+  UserDir: string;
+  Settings: TFPDevSettings;
+  LocalVersionManager: TFPCVersionManager;
+  InstallPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetVersionInstallPath - FPDEV_DATA_ROOT override');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  LocalVersionManager := nil;
+
+  try
+    ProbeRoot := TestInstallRoot + PathDelim + 'data_root_probe';
+    UserDir := TestInstallRoot + PathDelim + 'data_root_user_scope';
+    ForceDirectories(ProbeRoot);
+    ForceDirectories(UserDir);
+
+    Settings.InstallRoot := '';
+    ConfigManager.SetSettings(Settings);
+    SetPortableMode(False);
+    AssertTrue(set_env('FPDEV_DATA_ROOT', ProbeRoot),
+      'Should set same-process FPDEV_DATA_ROOT override for version install path');
+    AssertTrue(SetCurrentDir(UserDir),
+      'Should change into user-scope temp directory for FPDEV_DATA_ROOT probe');
+
+    LocalVersionManager := TFPCVersionManager.Create(ConfigManager.AsConfigManager);
+    InstallPath := LocalVersionManager.GetVersionInstallPath('3.2.2');
+
+    AssertEqualsStr(
+      BuildFPCInstallDirFromInstallRoot(GetDataRoot, '3.2.2'),
+      InstallPath,
+      'Should resolve version install path from FPDEV_DATA_ROOT override'
+    );
+  finally
+    LocalVersionManager.Free;
+    SetCurrentDir(SavedDir);
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+  end;
+end;
+
+procedure TestValidateVersionFallsBackToStaticCatalogWhenRegistryEmpty;
+var
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: ValidateVersion - Empty registry falls back to static catalog');
+  WriteLn('==================================================');
+
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-version-empty-validate.json';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "releases": []');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Empty version registry data should reload');
+
+    AssertTrue(VersionManager.ValidateVersion('3.2.2'),
+      '3.2.2 should remain valid when registry releases are empty');
+    AssertTrue(VersionManager.ValidateVersion('main'),
+      'main should remain valid when registry releases are empty');
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+  end;
+end;
+
 { Test: IsVersionInstalled returns false for non-installed versions }
 procedure TestIsVersionInstalledFalse;
 begin
@@ -301,7 +485,7 @@ begin
 
   AssertTrue(Found, 'Should find info for 3.2.2');
   AssertEqualsStr('3.2.2', Info.Version, 'Version should be 3.2.2');
-  AssertEqualsStr('3_2_2', Info.GitTag, 'GitTag should be 3_2_2');
+  AssertEqualsStr('release_3_2_2', Info.GitTag, 'GitTag should be release_3_2_2');
   AssertEqualsStr('fixes_3_2', Info.Branch, 'Branch should be fixes_3_2');
   AssertTrue(Info.Available, 'Should be available');
 end;
@@ -330,10 +514,53 @@ begin
   WriteLn('Test: GetGitTag');
   WriteLn('==================================================');
 
-  AssertEqualsStr('3_2_2', VersionManager.GetGitTag('3.2.2'), 'GitTag for 3.2.2');
-  AssertEqualsStr('3_2_0', VersionManager.GetGitTag('3.2.0'), 'GitTag for 3.2.0');
+  AssertEqualsStr('release_3_2_2', VersionManager.GetGitTag('3.2.2'), 'GitTag for 3.2.2');
+  AssertEqualsStr('release_3_2_0', VersionManager.GetGitTag('3.2.0'), 'GitTag for 3.2.0');
   AssertEqualsStr('main', VersionManager.GetGitTag('main'), 'GitTag for main');
   AssertEqualsStr('', VersionManager.GetGitTag('9.9.9'), 'GitTag for unknown version');
+end;
+
+procedure TestGetGitTagFallsBackToStaticCatalogWhenRegistryEmpty;
+var
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetGitTag - Empty registry falls back to static catalog');
+  WriteLn('==================================================');
+
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-version-empty-gittag.json';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "releases": []');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Empty version registry data should reload for GetGitTag');
+
+    AssertEqualsStr('release_3_2_2', VersionManager.GetGitTag('3.2.2'),
+      'GetGitTag should use static catalog when registry releases are empty');
+    AssertEqualsStr('main', VersionManager.GetGitTag('main'),
+      'GetGitTag should preserve main git tag when registry releases are empty');
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+  end;
 end;
 
 { Test: GetBranch returns correct branch }
@@ -434,6 +661,47 @@ begin
   AssertTrue(Pos('3.2.2', Path) > 0, 'Path should contain version "3.2.2"');
 end;
 
+procedure TestGetVersionInstallPathUsesConfiguredCustomPrefix;
+var
+  SavedDir: string;
+  Info: TToolchainInfo;
+  CustomPath: string;
+  Path: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetVersionInstallPath honors configured custom prefix');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  try
+    SetCurrentDir(TestInstallRoot);
+    CustomPath := TestInstallRoot + PathDelim + 'custom-fpc-3.3.1';
+    ForceDirectories(CustomPath + PathDelim + 'bin');
+
+    Initialize(Info);
+    Info.Version := '3.3.1';
+    Info.InstallPath := CustomPath;
+    Info.Installed := True;
+    ConfigManager.AddToolchain('fpc-3.3.1', Info);
+
+    Path := VersionManager.GetVersionInstallPath('3.3.1');
+    AssertEqualsStr(CustomPath, Path, 'Configured install path should override default');
+
+    {$IFDEF MSWINDOWS}
+    AssertEqualsStr(CustomPath + PathDelim + 'bin' + PathDelim + 'fpc.exe',
+      VersionManager.GetFPCExecutablePath('3.3.1'),
+      'Executable path should be derived from configured custom prefix');
+    {$ELSE}
+    AssertEqualsStr(CustomPath + PathDelim + 'bin' + PathDelim + 'fpc',
+      VersionManager.GetFPCExecutablePath('3.3.1'),
+      'Executable path should be derived from configured custom prefix');
+    {$ENDIF}
+  finally
+    SetCurrentDir(SavedDir);
+  end;
+end;
+
 { Test: GetFPCExecutablePath returns correct path }
 procedure TestGetFPCExecutablePath;
 var
@@ -453,6 +721,62 @@ begin
   {$ENDIF}
 end;
 
+procedure TestGetAvailableVersionsFallsBackToStaticCatalogWhenRegistryEmpty;
+var
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+  Versions: TFPCVersionArray;
+  i: Integer;
+  Has322: Boolean;
+  HasMain: Boolean;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetAvailableVersions - Empty registry falls back to static catalog');
+  WriteLn('==================================================');
+
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-version-empty-list.json';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "releases": []');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Empty version registry data should reload for GetAvailableVersions');
+
+    Versions := VersionManager.GetAvailableVersions;
+    Has322 := False;
+    HasMain := False;
+    for i := 0 to High(Versions) do
+    begin
+      if Versions[i].Version = '3.2.2' then Has322 := True;
+      if Versions[i].Version = 'main' then HasMain := True;
+    end;
+
+    AssertTrue(Length(Versions) >= 4,
+      'GetAvailableVersions should not become empty when registry releases are empty');
+    AssertTrue(Has322, 'GetAvailableVersions should include 3.2.2 from static catalog');
+    AssertTrue(HasMain, 'GetAvailableVersions should include main from static catalog');
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+  end;
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('  TFPCVersionManager Unit Test Suite');
@@ -461,6 +785,7 @@ begin
 
   try
     // Initialize config manager
+    OriginalCurrentDir := GetCurrentDir;
     TestInstallRoot := BuildTempRoot('test_version_root_');
     ForceDirectories(TestInstallRoot);
     ConfigManager := TFPDevConfigManager.Create(IncludeTrailingPathDelimiter(TestInstallRoot) + 'config.json');
@@ -480,18 +805,24 @@ begin
           TestValidateVersionKnown;
           TestValidateVersionUnknown;
           TestValidateVersionCaseInsensitive;
+          TestGetVersionInstallPathUsesSameProcessHomeFallback;
+          TestGetVersionInstallPathUsesFPDEVDataRootOverride;
+          TestValidateVersionFallsBackToStaticCatalogWhenRegistryEmpty;
           TestIsVersionInstalledFalse;
           TestIsVersionInstalledTrue;
           TestGetInstalledVersions;
           TestGetVersionInfo;
           TestGetVersionInfoUnknown;
           TestGetGitTag;
+          TestGetGitTagFallsBackToStaticCatalogWhenRegistryEmpty;
           TestGetBranch;
           TestParseVersion;
           TestCompareSemVer;
           TestSameMajorMinor;
           TestGetVersionInstallPath;
+          TestGetVersionInstallPathUsesConfiguredCustomPrefix;
           TestGetFPCExecutablePath;
+          TestGetAvailableVersionsFallsBackToStaticCatalogWhenRegistryEmpty;
 
           // Summary
           WriteLn;

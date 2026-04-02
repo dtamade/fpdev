@@ -23,7 +23,7 @@ uses
   fpdev.command.intf, fpdev.command.registry,
   fpdev.config.interfaces,
   fpdev.exitcodes,
-  fpdev.cmd.cross, fpdev.cross.downloader,
+  fpdev.cmd.cross, fpdev.cross.downloader, fpdev.cross.search,
   fpdev.cmd.cross.root,
   fpdev.cmd.cross.list,
   fpdev.cmd.cross.show,
@@ -37,17 +37,30 @@ uses
   fpdev.cmd.cross.test,
   fpdev.cmd.cross.update,
   fpdev.cmd.cross.clean,
+  fpdev.utils,
   test_cli_helpers, test_temp_paths;
 
 var
   GTempDir: string;
   GManifestLoadCalled: Boolean = False;
+  GSpyManifestURL: string = '';
+  GSearchBinutilsCalled: Boolean = False;
+  GSearchLibrariesCalled: Boolean = False;
+  GSpyBinutilsResult: TCrossSearchResult;
+  GSpyLibrariesResult: TStringArray;
 
 type
   { TSpyCrossToolchainDownloader - detects unexpected manifest loads during local-only operations }
   TSpyCrossToolchainDownloader = class(TCrossToolchainDownloader)
   public
     function LoadManifest: Boolean; override;
+  end;
+
+  { TSpyCrossToolchainSearch - provides deterministic autodetect results for configure CLI tests }
+  TSpyCrossToolchainSearch = class(TCrossToolchainSearch)
+  public
+    function SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult; override;
+    function SearchLibraries(const ATarget: TCrossTarget): TStringArray; override;
   end;
 
 function TSpyCrossToolchainDownloader.LoadManifest: Boolean;
@@ -58,7 +71,36 @@ end;
 
 function CreateSpyDownloader(const ADataRoot, AManifestURL: string): TCrossToolchainDownloader;
 begin
+  if ADataRoot = '' then;
+  GSpyManifestURL := AManifestURL;
   Result := TSpyCrossToolchainDownloader.Create(ADataRoot, AManifestURL);
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
+function TSpyCrossToolchainSearch.SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult;
+begin
+  if ATarget.CPU = '' then;
+  GSearchBinutilsCalled := True;
+  Result := GSpyBinutilsResult;
+end;
+
+function TSpyCrossToolchainSearch.SearchLibraries(const ATarget: TCrossTarget): TStringArray;
+begin
+  if ATarget.OS = '' then;
+  GSearchLibrariesCalled := True;
+  Result := GSpyLibrariesResult;
+end;
+
+function CreateSpyToolchainSearch: TCrossToolchainSearch;
+begin
+  Result := TSpyCrossToolchainSearch.Create;
 end;
 
 { ===== list ===== }
@@ -115,6 +157,40 @@ begin
     end;
   finally
     CrossToolchainDownloaderFactory := nil;
+  end;
+end;
+
+procedure TestListEnvManifestURLOverrideVisible;
+var
+  Cmd: TCrossListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  SavedManifestURL: string;
+  CustomManifestURL: string;
+begin
+  SavedManifestURL := get_env('FPDEV_CROSS_MANIFEST_URL');
+  CustomManifestURL := 'https://example.invalid/custom-cross-manifest.json';
+  GManifestLoadCalled := False;
+  GSpyManifestURL := '';
+  CrossToolchainDownloaderFactory := @CreateSpyDownloader;
+  try
+    Check('set cross manifest env for list spy',
+      set_env('FPDEV_CROSS_MANIFEST_URL', CustomManifestURL));
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossListCommand.Create;
+    try
+      Ret := Cmd.Execute([], Ctx);
+      Check('list with env manifest override returns valid code', Ret >= 0);
+      Check('list with env manifest override should not load cross manifest', not GManifestLoadCalled);
+      Check('list with env manifest override passes env manifest URL to downloader',
+        GSpyManifestURL = CustomManifestURL);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainDownloaderFactory := nil;
+    RestoreEnv('FPDEV_CROSS_MANIFEST_URL', SavedManifestURL);
   end;
 end;
 
@@ -365,6 +441,34 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestInstallDownloadFailureShowsLibrariesFlagHint;
+var
+  Cmd: TCrossInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  GManifestLoadCalled := False;
+  CrossToolchainDownloaderFactory := @CreateSpyDownloader;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossInstallCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64'], Ctx);
+      Check('install download failure returns EXIT_ERROR', Ret = EXIT_ERROR);
+      Check('install download failure loads manifest', GManifestLoadCalled);
+      Check('install download failure shows --libraries hint',
+        StdOut.Contains('--libraries=/path/to/libs'));
+      Check('install download failure does not show --libs hint',
+        not StdOut.Contains('--libs=/path/to/libs'));
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainDownloaderFactory := nil;
+  end;
+end;
+
 { ===== uninstall ===== }
 
 procedure TestUninstallName;
@@ -472,6 +576,309 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestConfigureEmptyBinutilsValue;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  AutoBinDir, ExplicitLibDir: string;
+begin
+  AutoBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-empty-binutils-auto-bin';
+  ExplicitLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-empty-binutils-lib';
+  ForceDirectories(AutoBinDir);
+  ForceDirectories(ExplicitLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  GSpyBinutilsResult.Found := True;
+  GSpyBinutilsResult.BinutilsPath := AutoBinDir;
+  GSpyBinutilsResult.BinutilsPrefix := 'x86_64-w64-mingw32-';
+  GSpyBinutilsResult.Layer := 1;
+  GSpyBinutilsResult.LayerName := 'test-spy';
+  SetLength(GSpyLibrariesResult, 0);
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--binutils=', '--libraries=' + ExplicitLibDir], Ctx);
+      Check('configure empty --binutils returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+      Check('configure empty --binutils shows usage', StdErr.Contains('configure'));
+      Check('configure empty --binutils keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+      Check('configure empty --binutils does not trigger autodetect', not GSearchBinutilsCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureEmptyLibrariesValue;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ExplicitBinDir, AutoLibDir: string;
+begin
+  ExplicitBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-empty-libraries-bin';
+  AutoLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-empty-libraries-auto-lib';
+  ForceDirectories(ExplicitBinDir);
+  ForceDirectories(AutoLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  SetLength(GSpyLibrariesResult, 1);
+  GSpyLibrariesResult[0] := AutoLibDir;
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--binutils=' + ExplicitBinDir, '--libraries='], Ctx);
+      Check('configure empty --libraries returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+      Check('configure empty --libraries shows usage', StdErr.Contains('configure'));
+      Check('configure empty --libraries keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+      Check('configure empty --libraries does not trigger autodetect', not GSearchLibrariesCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureMissingLibrariesWithoutAutoRequiresExplicitAuto;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ExplicitBinDir, AutoLibDir: string;
+begin
+  ExplicitBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-manual-bin-no-auto-bin';
+  AutoLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-manual-bin-no-auto-lib';
+  ForceDirectories(ExplicitBinDir);
+  ForceDirectories(AutoLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  SetLength(GSpyLibrariesResult, 1);
+  GSpyLibrariesResult[0] := AutoLibDir;
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--binutils=' + ExplicitBinDir], Ctx);
+      Check('configure missing --libraries without --auto returns EXIT_USAGE_ERROR',
+        Ret = EXIT_USAGE_ERROR);
+      Check('configure missing --libraries without --auto mentions --auto',
+        StdErr.Contains('--auto'));
+      Check('configure missing --libraries without --auto keeps stdout empty',
+        Trim(StdOut.GetBuffer) = '');
+      Check('configure missing --libraries without --auto does not trigger autodetect',
+        not GSearchLibrariesCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureMissingBinutilsWithoutAutoRequiresExplicitAuto;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  AutoBinDir, ExplicitLibDir: string;
+begin
+  AutoBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-manual-lib-no-auto-bin';
+  ExplicitLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-manual-lib-no-auto-lib';
+  ForceDirectories(AutoBinDir);
+  ForceDirectories(ExplicitLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  GSpyBinutilsResult.Found := True;
+  GSpyBinutilsResult.BinutilsPath := AutoBinDir;
+  GSpyBinutilsResult.BinutilsPrefix := 'x86_64-w64-mingw32-';
+  GSpyBinutilsResult.Layer := 1;
+  GSpyBinutilsResult.LayerName := 'test-spy';
+  SetLength(GSpyLibrariesResult, 0);
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--libraries=' + ExplicitLibDir], Ctx);
+      Check('configure missing --binutils without --auto returns EXIT_USAGE_ERROR',
+        Ret = EXIT_USAGE_ERROR);
+      Check('configure missing --binutils without --auto mentions --auto',
+        StdErr.Contains('--auto'));
+      Check('configure missing --binutils without --auto keeps stdout empty',
+        Trim(StdOut.GetBuffer) = '');
+      Check('configure missing --binutils without --auto does not trigger autodetect',
+        not GSearchBinutilsCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureAutoWithExplicitBinutilsAutodetectsLibraries;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ExplicitBinDir, AutoLibDir: string;
+begin
+  ExplicitBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-auto-explicit-bin-bin';
+  AutoLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-auto-explicit-bin-lib';
+  ForceDirectories(ExplicitBinDir);
+  ForceDirectories(AutoLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  SetLength(GSpyLibrariesResult, 1);
+  GSpyLibrariesResult[0] := AutoLibDir;
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--auto', '--binutils=' + ExplicitBinDir], Ctx);
+      Check('configure --auto with explicit --binutils returns EXIT_OK', Ret = EXIT_OK);
+      Check('configure --auto with explicit --binutils autodetects libraries',
+        StdOut.Contains('Auto-detected libraries: ' + AutoLibDir));
+      Check('configure --auto with explicit --binutils keeps explicit binutils',
+        not GSearchBinutilsCalled);
+      Check('configure --auto with explicit --binutils searches libraries',
+        GSearchLibrariesCalled);
+      Check('configure --auto with explicit --binutils writes success',
+        StdOut.Contains('configured successfully'));
+      Check('configure --auto with explicit --binutils keeps stderr empty',
+        Trim(StdErr.GetBuffer) = '');
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureAutoWithExplicitLibrariesAutodetectsBinutils;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  AutoBinDir, ExplicitLibDir: string;
+begin
+  AutoBinDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-auto-explicit-lib-bin';
+  ExplicitLibDir := IncludeTrailingPathDelimiter(GTempDir) + 'configure-auto-explicit-lib-lib';
+  ForceDirectories(AutoBinDir);
+  ForceDirectories(ExplicitLibDir);
+
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  GSpyBinutilsResult.Found := True;
+  GSpyBinutilsResult.BinutilsPath := AutoBinDir;
+  GSpyBinutilsResult.BinutilsPrefix := 'x86_64-w64-mingw32-';
+  GSpyBinutilsResult.Layer := 1;
+  GSpyBinutilsResult.LayerName := 'test-spy';
+  SetLength(GSpyLibrariesResult, 0);
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['x86_64-win64', '--auto', '--libraries=' + ExplicitLibDir], Ctx);
+      Check('configure --auto with explicit --libraries returns EXIT_OK', Ret = EXIT_OK);
+      Check('configure --auto with explicit --libraries autodetects binutils',
+        StdOut.Contains('Auto-detected binutils: ' + AutoBinDir));
+      Check('configure --auto with explicit --libraries searches binutils',
+        GSearchBinutilsCalled);
+      Check('configure --auto with explicit --libraries keeps explicit libraries',
+        not GSearchLibrariesCalled);
+      Check('configure --auto with explicit --libraries writes success',
+        StdOut.Contains('configured successfully'));
+      Check('configure --auto with explicit --libraries keeps stderr empty',
+        Trim(StdErr.GetBuffer) = '');
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
+procedure TestConfigureUnsupportedTargetWithoutPaths;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['bogus'], Ctx);
+    Check('configure unsupported target without paths returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('configure unsupported target without paths reports unsupported target',
+      StdErr.Contains('Unsupported cross target: bogus'));
+    Check('configure unsupported target without paths keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestConfigureUnsupportedTargetWithAuto;
+var
+  Cmd: TCrossConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  GSearchBinutilsCalled := False;
+  GSearchLibrariesCalled := False;
+  GSpyBinutilsResult := Default(TCrossSearchResult);
+  SetLength(GSpyLibrariesResult, 0);
+  CrossToolchainSearchFactory := @CreateSpyToolchainSearch;
+  try
+    Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+    Cmd := TCrossConfigureCommand.Create;
+    try
+      Ret := Cmd.Execute(['bogus-linux', '--auto'], Ctx);
+      Check('configure unsupported target with --auto returns EXIT_ERROR', Ret = EXIT_ERROR);
+      Check('configure unsupported target with --auto reports unsupported target',
+        StdErr.Contains('Unsupported cross target: bogus-linux'));
+      Check('configure unsupported target with --auto keeps stdout empty',
+        Trim(StdOut.GetBuffer) = '');
+      Check('configure unsupported target with --auto does not trigger autodetect',
+        not GSearchBinutilsCalled);
+    finally
+      Cmd.Free;
+    end;
+  finally
+    CrossToolchainSearchFactory := nil;
+  end;
+end;
+
 { ===== build ===== }
 
 procedure TestBuildName;
@@ -493,6 +900,19 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestBuildHelpUnexpectedArg;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('build help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build help unexpected arg shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
 procedure TestBuildMissingTarget;
 var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
@@ -501,6 +921,71 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('build no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildUnexpectedArg;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--dry-run', 'extra'], Ctx);
+    Check('build unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build unexpected arg shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildUnknownOption;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--dry-run', '--unknown'], Ctx);
+    Check('build unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build unknown option shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildEmptySourceValue;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--dry-run', '--source='], Ctx);
+    Check('build empty --source value returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build empty --source value shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build empty --source value keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildEmptySandboxValue;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--dry-run', '--sandbox='], Ctx);
+    Check('build empty --sandbox value returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build empty --sandbox value shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build empty --sandbox value keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildEmptyVersionValue;
+var Cmd: TCrossBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TCrossBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['x86_64-win64', '--dry-run', '--version='], Ctx);
+    Check('build empty --version value returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build empty --version value shows usage', StdErr.Contains('fpdev cross build'));
+    Check('build empty --version value keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally Cmd.Free; end;
 end;
 
@@ -819,10 +1304,11 @@ begin
   try
     WriteLn('--- list ---');
     TestListName;
-    TestListHelp;
-    TestListNoArgs;
-    TestListNoArgsDoesNotLoadManifest;
-    TestListJsonOutput;
+  TestListHelp;
+  TestListNoArgs;
+  TestListNoArgsDoesNotLoadManifest;
+  TestListEnvManifestURLOverrideVisible;
+  TestListJsonOutput;
     TestListUnexpectedArg;
     TestListUnknownOption;
 
@@ -857,6 +1343,7 @@ begin
     TestInstallMissingTarget;
     TestInstallUnexpectedArg;
     TestInstallUnknownOption;
+    TestInstallDownloadFailureShowsLibrariesFlagHint;
 
     WriteLn('');
     WriteLn('--- uninstall ---');
@@ -873,12 +1360,26 @@ begin
     TestConfigureMissingTarget;
     TestConfigureUnexpectedArg;
     TestConfigureUnknownOption;
+    TestConfigureEmptyBinutilsValue;
+    TestConfigureEmptyLibrariesValue;
+    TestConfigureMissingLibrariesWithoutAutoRequiresExplicitAuto;
+    TestConfigureMissingBinutilsWithoutAutoRequiresExplicitAuto;
+    TestConfigureAutoWithExplicitBinutilsAutodetectsLibraries;
+    TestConfigureAutoWithExplicitLibrariesAutodetectsBinutils;
+    TestConfigureUnsupportedTargetWithoutPaths;
+    TestConfigureUnsupportedTargetWithAuto;
 
     WriteLn('');
     WriteLn('--- build ---');
     TestBuildName;
     TestBuildHelp;
+    TestBuildHelpUnexpectedArg;
     TestBuildMissingTarget;
+    TestBuildUnexpectedArg;
+    TestBuildUnknownOption;
+    TestBuildEmptySourceValue;
+    TestBuildEmptySandboxValue;
+    TestBuildEmptyVersionValue;
 
     WriteLn('');
     WriteLn('--- doctor ---');

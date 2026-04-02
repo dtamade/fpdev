@@ -53,7 +53,7 @@ channel = "stable"
 
 [cross]
 # 交叉编译目标（可选）
-targets = ["aarch64-linux", "x86_64-windows"]
+targets = ["aarch64-linux", "x86_64-win64"]
 
 [settings]
 # 镜像源（可选）

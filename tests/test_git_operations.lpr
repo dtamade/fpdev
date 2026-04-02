@@ -27,6 +27,8 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+procedure EnsureRepoUserConfig(const ARepoDir: string); forward;
+
 constructor TMockGitCliRunner.Create;
 begin
   inherited Create;
@@ -90,6 +92,25 @@ begin
   begin
     WriteLn('[FAIL] ', ATestName);
     Inc(TestsFailed);
+  end;
+end;
+
+function RunCommandInDir(const AProgram: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  ProcResult: TProcessResult;
+begin
+  ProcResult := TProcessExecutor.Execute(AProgram, AArgs, AWorkDir);
+  Result := ProcResult.Success and (ProcResult.ExitCode = 0);
+  if not Result then
+  begin
+    WriteLn('  [CMD FAIL] ', AProgram, ' in ', AWorkDir);
+    if ProcResult.StdOut <> '' then
+      WriteLn('  stdout: ', ProcResult.StdOut);
+    if ProcResult.StdErr <> '' then
+      WriteLn('  stderr: ', ProcResult.StdErr);
+    if ProcResult.ErrorMessage <> '' then
+      WriteLn('  error: ', ProcResult.ErrorMessage);
   end;
 end;
 
@@ -185,13 +206,102 @@ begin
   end;
 end;
 
+procedure TestCloneChecksOutTagWithLibgit2;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  RepoDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  Repo: IGitRepository;
+  SL: TStringList;
+  TagResult: TProcessResult;
+begin
+  WriteLn('');
+  WriteLn('=== Test 5: Clone checks out tag with libgit2 ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_clone_tag');
+    RepoDir := TempRoot + PathDelim + 'repo';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(RepoDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    Repo := Mgr.InitRepository(RepoDir, False);
+    Check('InitRepository for tag clone succeeds', Repo <> nil);
+    if Repo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(RepoDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'tagged-release';
+      SL.SaveToFile(RepoDir + PathDelim + 'release.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add release.txt', Git.Add(RepoDir, 'release.txt'));
+    Check('Commit tagged release', Git.Commit(RepoDir, 'tagged release'));
+
+    TagResult := TProcessExecutor.Execute('git', ['tag', '3_2_2'], RepoDir);
+    Check('Create git tag 3_2_2', TagResult.Success);
+    if not TagResult.Success then
+      Exit;
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'post-tag-head';
+      SL.SaveToFile(RepoDir + PathDelim + 'release.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Add post-tag head content', Git.Add(RepoDir, 'release.txt'));
+    Check('Commit post-tag head', Git.Commit(RepoDir, 'post tag head'));
+
+    Check('Clone local repo at tag 3_2_2', Git.Clone(RepoDir, CloneDir, '3_2_2'));
+    Check('Clone directory exists', DirectoryExists(CloneDir));
+    Check('Tagged file exists after clone', FileExists(CloneDir + PathDelim + 'release.txt'));
+
+    SL := TStringList.Create;
+    try
+      if FileExists(CloneDir + PathDelim + 'release.txt') then
+        SL.LoadFromFile(CloneDir + PathDelim + 'release.txt');
+      Check('Tagged file content matches', Trim(SL.Text) = 'tagged-release');
+    finally
+      SL.Free;
+    end;
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
 procedure TestIsRepository;
 var
   Git: TGitOperations;
   ProjectRoot: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 5: IsRepository ===');
+  WriteLn('=== Test 6: IsRepository ===');
 
   Git := TGitOperations.Create;
   try
@@ -225,7 +335,7 @@ var
   Branch: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 6: GetCurrentBranch ===');
+  WriteLn('=== Test 7: GetCurrentBranch ===');
 
   Git := TGitOperations.Create;
   try
@@ -257,7 +367,7 @@ var
   Git: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 7: Verbose Property ===');
+  WriteLn('=== Test 8: Verbose Property ===');
 
   Git := TGitOperations.Create;
   try
@@ -339,7 +449,7 @@ var
   i: Integer;
 begin
   WriteLn('');
-  WriteLn('=== Test 8: Commit (libgit2) ===');
+  WriteLn('=== Test 9: Commit (libgit2) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -500,7 +610,7 @@ var
   RefName: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 9: Push (libgit2 local bare remote) ===');
+  WriteLn('=== Test 10: Push (libgit2 local bare remote) ===');
 
   Git := TGitOperations.Create;
   TempRoot := '';
@@ -808,6 +918,7 @@ var
   Hash1: string;
   Hash2: string;
   HashAfterPull: string;
+  PulledContent: TStringList;
   OriginalPath: string;
   NoGitPath: string;
 begin
@@ -917,6 +1028,136 @@ begin
 
     HashAfterPull := Git.GetShortHeadHash(SeedRepoDir, 40);
     Check('Seed updated after pull', HashAfterPull = Hash2);
+
+    PulledContent := TStringList.Create;
+    try
+      PulledContent.LoadFromFile(SeedRepoDir + PathDelim + 'seed.txt');
+      Check('Seed worktree content updated after pull',
+        (PulledContent.Count > 0) and (Trim(PulledContent[0]) = 'seed-updated'));
+    finally
+      PulledContent.Free;
+    end;
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
+procedure TestPullDeletesTrackedFileNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  SeedRepoDir: string;
+  RemoteBareDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  SeedRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  SL: TStringList;
+  Branch: string;
+  OriginalPath: string;
+  NoGitPath: string;
+  RemovedTxt: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 10: Pull removes deleted tracked files (no CLI) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_pull_delete_nocli');
+    SeedRepoDir := TempRoot + PathDelim + 'seed';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(SeedRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    SeedRepo := Mgr.InitRepository(SeedRepoDir, False);
+    Check('Init seed repository succeeds', SeedRepo <> nil);
+    if SeedRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(SeedRepoDir);
+    EnsureRepoRemoteConfig(SeedRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'keep';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'keep.txt');
+      SL.Text := 'remove-me';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'remove.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit base', Git.Commit(SeedRepoDir, 'base commit'));
+
+    Branch := Git.GetCurrentBranch(SeedRepoDir);
+    Check('Seed branch not empty', Branch <> '');
+    Check('Seed push base to origin', Git.Push(SeedRepoDir, 'origin', ''));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Clone from bare remote (no CLI)', Git.Clone(RemoteBareDir, CloneDir, Branch));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    EnsureRepoUserConfig(CloneDir);
+
+    Check('Delete remove.txt in clone', DeleteFile(CloneDir + PathDelim + 'remove.txt'));
+    Check('Clone add all', Git.Add(CloneDir, '.'));
+    Check('Clone commit delete', Git.Commit(CloneDir, 'delete tracked file'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Push delete commit (no CLI)', Git.Push(CloneDir, 'origin', ''));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Fetch origin (no CLI)', Git.Fetch(SeedRepoDir, 'origin'));
+      Check('Pull delete commit (no CLI)', Git.Pull(SeedRepoDir));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    RemovedTxt := SeedRepoDir + PathDelim + 'remove.txt';
+    Check('Seed removed tracked file after pull', not FileExists(RemovedTxt));
+    Check('Seed keep.txt still exists', FileExists(SeedRepoDir + PathDelim + 'keep.txt'));
+    Check('Seed clean after delete pull', SeedRepo.IsClean);
   finally
     Git.Free;
     CleanupTempDir(TempRoot);
@@ -941,6 +1182,7 @@ var
   PullRes: TGitPullFastForwardResult;
   PullErr: string;
   RemoteTxt: string;
+  BaseTxt: string;
 begin
   WriteLn('');
   WriteLn('=== Test 10: PullFastForward creates missing files (no CLI) ===');
@@ -1016,6 +1258,8 @@ begin
 
     SL := TStringList.Create;
     try
+      SL.Text := 'base-updated';
+      SL.SaveToFile(CloneDir + PathDelim + 'base.txt');
       SL.Text := 'remote';
       SL.SaveToFile(CloneDir + PathDelim + 'remote.txt');
     finally
@@ -1050,7 +1294,9 @@ begin
 
     Check('PullFastForward fast-forwarded', PullRes = gpffFastForwarded);
     RemoteTxt := SeedRepoDir + PathDelim + 'remote.txt';
+    BaseTxt := SeedRepoDir + PathDelim + 'base.txt';
     Check('Seed has remote.txt after PullFastForward', FileExists(RemoteTxt));
+    Check('Seed keeps base.txt after PullFastForward', FileExists(BaseTxt));
 
     if FileExists(RemoteTxt) then
     begin
@@ -1063,7 +1309,162 @@ begin
       end;
     end;
 
+    if FileExists(BaseTxt) then
+    begin
+      SL := TStringList.Create;
+      try
+        SL.LoadFromFile(BaseTxt);
+        Check('Seed base.txt content updated after PullFastForward', Trim(SL.Text) = 'base-updated');
+      finally
+        SL.Free;
+      end;
+    end;
+
     Check('Seed clean after PullFastForward', SeedRepo.IsClean);
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
+procedure TestPullFastForwardExtRenameNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  SeedRepoDir: string;
+  RemoteBareDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  SeedRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  Ext: IGitRepositoryExt;
+  SL: TStringList;
+  Branch: string;
+  OriginalPath: string;
+  NoGitPath: string;
+  PullRes: TGitPullFastForwardResult;
+  PullErr: string;
+  OldTxt: string;
+  NewTxt: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 12: PullFastForward applies rename-only changes (no CLI) ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_pullff_rename_nocli');
+    SeedRepoDir := TempRoot + PathDelim + 'seed';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(SeedRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    SeedRepo := Mgr.InitRepository(SeedRepoDir, False);
+    Check('Init seed repository succeeds', SeedRepo <> nil);
+    if SeedRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(SeedRepoDir);
+    EnsureRepoRemoteConfig(SeedRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'rename-me';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'old-name.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit base', Git.Commit(SeedRepoDir, 'base commit'));
+
+    Branch := Git.GetCurrentBranch(SeedRepoDir);
+    Check('Seed branch not empty', Branch <> '');
+    Check('Seed push base to origin', Git.Push(SeedRepoDir, 'origin', ''));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Clone from bare remote (no CLI)', Git.Clone(RemoteBareDir, CloneDir, Branch));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    EnsureRepoUserConfig(CloneDir);
+
+    Check('Rename old-name.txt -> new-name.txt',
+      RenameFile(CloneDir + PathDelim + 'old-name.txt', CloneDir + PathDelim + 'new-name.txt'));
+    Check('Clone add all', Git.Add(CloneDir, '.'));
+    Check('Clone commit rename', Git.Commit(CloneDir, 'rename tracked file'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      Check('Push rename commit (no CLI)', Git.Push(CloneDir, 'origin', ''));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SeedRepo := Mgr.OpenRepository(SeedRepoDir);
+    Check('Open seed repository', SeedRepo <> nil);
+    Check('Seed supports IGitRepositoryExt', Supports(SeedRepo, IGitRepositoryExt, Ext));
+    if (SeedRepo = nil) or (not Supports(SeedRepo, IGitRepositoryExt, Ext)) then
+      Exit;
+
+    PullErr := '';
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH', set_env('PATH', NoGitPath));
+    try
+      PullRes := Ext.PullFastForward('origin', PullErr);
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Check('PullFastForward fast-forwarded rename commit', PullRes = gpffFastForwarded);
+    OldTxt := SeedRepoDir + PathDelim + 'old-name.txt';
+    NewTxt := SeedRepoDir + PathDelim + 'new-name.txt';
+    Check('Seed removed old-name.txt after PullFastForward', not FileExists(OldTxt));
+    Check('Seed has new-name.txt after PullFastForward', FileExists(NewTxt));
+
+    if FileExists(NewTxt) then
+    begin
+      SL := TStringList.Create;
+      try
+        SL.LoadFromFile(NewTxt);
+        Check('Seed new-name.txt content ok', Trim(SL.Text) = 'rename-me');
+      finally
+        SL.Free;
+      end;
+    end;
+
+    Check('Seed clean after rename PullFastForward', SeedRepo.IsClean);
   finally
     Git.Free;
     CleanupTempDir(TempRoot);
@@ -1226,6 +1627,143 @@ begin
     end;
 
     Check('Seed clean after merge pull', SeedRepo.IsClean);
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
+end;
+
+procedure TestPullFastForwardOnlyRejectsDivergedNoCLI;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  SeedRepoDir: string;
+  RemoteBareDir: string;
+  CloneDir: string;
+  Mgr: IGitManager;
+  SeedRepo: IGitRepository;
+  RemoteRepo: IGitRepository;
+  SL: TStringList;
+  Branch: string;
+  OriginalPath: string;
+  NoGitPath: string;
+  PullOk: Boolean;
+begin
+  WriteLn('');
+  WriteLn('=== Test 12: PullFastForwardOnly rejects diverged history ===');
+
+  Git := TGitOperations.Create;
+  TempRoot := '';
+  try
+    if Git.Backend <> gbLibgit2 then
+    begin
+      WriteLn('  [SKIP] libgit2 backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_pull_ffonly_diverged');
+    SeedRepoDir := TempRoot + PathDelim + 'seed';
+    RemoteBareDir := TempRoot + PathDelim + 'remote.git';
+    CloneDir := TempRoot + PathDelim + 'clone';
+    ForceDirectories(SeedRepoDir);
+    ForceDirectories(RemoteBareDir);
+
+    Mgr := NewGitManager();
+    if not Mgr.Initialize then
+    begin
+      WriteLn('  [SKIP] libgit2 initialize failed');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    SeedRepo := Mgr.InitRepository(SeedRepoDir, False);
+    Check('Init seed repository for ff-only succeeds', SeedRepo <> nil);
+    if SeedRepo = nil then
+      Exit;
+
+    RemoteRepo := Mgr.InitRepository(RemoteBareDir, True);
+    Check('Init bare remote repository for ff-only succeeds', RemoteRepo <> nil);
+    if RemoteRepo = nil then
+      Exit;
+
+    EnsureRepoUserConfig(SeedRepoDir);
+    EnsureRepoRemoteConfig(SeedRepoDir, 'origin', RemoteBareDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'base';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'base.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('Seed add all for ff-only', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit base for ff-only', Git.Commit(SeedRepoDir, 'base commit'));
+
+    Branch := Git.GetCurrentBranch(SeedRepoDir);
+    Check('Seed branch for ff-only not empty', Branch <> '');
+    Check('Seed push base to origin for ff-only', Git.Push(SeedRepoDir, 'origin', ''));
+
+    OriginalPath := get_env('PATH');
+    {$IFDEF MSWINDOWS}
+    NoGitPath := 'C:\\__fpdev_no_git__';
+    {$ELSE}
+    NoGitPath := '/__fpdev_no_git__';
+    {$ENDIF}
+
+    Check('Hide git from PATH for ff-only clone', set_env('PATH', NoGitPath));
+    try
+      Check('Clone from bare remote for ff-only (no CLI)', Git.Clone(RemoteBareDir, CloneDir, Branch));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    EnsureRepoUserConfig(CloneDir);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'remote';
+      SL.SaveToFile(CloneDir + PathDelim + 'remote.txt');
+    finally
+      SL.Free;
+    end;
+    Check('Clone add all remote ff-only', Git.Add(CloneDir, '.'));
+    Check('Clone commit remote ff-only', Git.Commit(CloneDir, 'remote commit'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH for ff-only push', set_env('PATH', NoGitPath));
+    try
+      Check('Push remote commit for ff-only (no CLI)', Git.Push(CloneDir, 'origin', ''));
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'local';
+      SL.SaveToFile(SeedRepoDir + PathDelim + 'local.txt');
+    finally
+      SL.Free;
+    end;
+    Check('Seed add all local ff-only', Git.Add(SeedRepoDir, '.'));
+    Check('Seed commit local ff-only', Git.Commit(SeedRepoDir, 'local commit'));
+
+    OriginalPath := get_env('PATH');
+    Check('Hide git from PATH for ff-only pull', set_env('PATH', NoGitPath));
+    try
+      PullOk := Git.PullFastForwardOnly(SeedRepoDir);
+      Check('PullFastForwardOnly rejects diverged history', not PullOk);
+    finally
+      set_env('PATH', OriginalPath);
+    end;
+
+    Check('PullFastForwardOnly reports diverged history',
+      Pos('merge/rebase', LowerCase(Git.LastError)) > 0);
+    Check('PullFastForwardOnly keeps local-only file',
+      FileExists(SeedRepoDir + PathDelim + 'local.txt'));
+    Check('PullFastForwardOnly does not materialize remote file',
+      not FileExists(SeedRepoDir + PathDelim + 'remote.txt'));
   finally
     Git.Free;
     CleanupTempDir(TempRoot);
@@ -1416,7 +1954,7 @@ var
   Git1, Git2: TGitOperations;
 begin
   WriteLn('');
-  WriteLn('=== Test 13: Multiple Instances ===');
+  WriteLn('=== Test 14: Multiple Instances ===');
 
   Git1 := TGitOperations.Create;
   try
@@ -1440,11 +1978,116 @@ end;
 procedure TestGitBackendToString;
 begin
   WriteLn('');
-  WriteLn('=== Test 14: GitBackendToString ===');
+  WriteLn('=== Test 15: GitBackendToString ===');
 
   Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
   Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
   Check('gbNone -> none', GitBackendToString(gbNone) = 'none');
+end;
+
+procedure TestCheckoutCliOnlyPrefersRequestedRemoteBranchOverSameNamedTag;
+var
+  Git: TGitOperations;
+  TempRoot: string;
+  OriginDir: string;
+  WorkDir: string;
+  LocalDir: string;
+  VersionPath: string;
+  SL: TStringList;
+  CurrentBranch: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test 13: CLI-only checkout prefers remote branch over same-named tag ===');
+
+  Git := TGitOperations.Create(nil, True);
+  TempRoot := '';
+  try
+    if Git.Backend <> gbCommandLine then
+    begin
+      WriteLn('  [SKIP] command-line git backend not available');
+      Inc(TestsPassed);
+      Exit;
+    end;
+
+    TempRoot := CreateUniqueTempDir('test_gitops_cli_checkout_branch_vs_tag');
+    OriginDir := TempRoot + PathDelim + 'origin.git';
+    WorkDir := TempRoot + PathDelim + 'work';
+    LocalDir := TempRoot + PathDelim + 'local';
+    VersionPath := LocalDir + PathDelim + 'version.txt';
+
+    ForceDirectories(WorkDir);
+
+    Check('CLI branch-vs-tag creates bare origin',
+      RunCommandInDir('git', ['init', '--bare', OriginDir], TempRoot));
+    Check('CLI branch-vs-tag initializes work repo',
+      RunCommandInDir('git', ['init'], WorkDir));
+    Check('CLI branch-vs-tag configures work repo email',
+      RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], WorkDir));
+    Check('CLI branch-vs-tag configures work repo user',
+      RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], WorkDir));
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'main';
+      SL.SaveToFile(WorkDir + PathDelim + 'version.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('CLI branch-vs-tag stages main file',
+      RunCommandInDir('git', ['add', 'version.txt'], WorkDir));
+    Check('CLI branch-vs-tag commits main branch',
+      RunCommandInDir('git', ['commit', '-m', 'main branch'], WorkDir));
+    Check('CLI branch-vs-tag renames branch to main',
+      RunCommandInDir('git', ['branch', '-M', 'main'], WorkDir));
+    Check('CLI branch-vs-tag adds origin',
+      RunCommandInDir('git', ['remote', 'add', 'origin', OriginDir], WorkDir));
+    Check('CLI branch-vs-tag pushes main',
+      RunCommandInDir('git', ['push', '-u', 'origin', 'main'], WorkDir));
+    Check('CLI branch-vs-tag creates same-named tag',
+      RunCommandInDir('git', ['tag', 'release'], WorkDir));
+    Check('CLI branch-vs-tag creates release branch',
+      RunCommandInDir('git', ['checkout', '-b', 'release'], WorkDir));
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'branch-release';
+      SL.SaveToFile(WorkDir + PathDelim + 'version.txt');
+    finally
+      SL.Free;
+    end;
+
+    Check('CLI branch-vs-tag stages release branch file',
+      RunCommandInDir('git', ['add', 'version.txt'], WorkDir));
+    Check('CLI branch-vs-tag commits release branch',
+      RunCommandInDir('git', ['commit', '-m', 'release branch'], WorkDir));
+    Check('CLI branch-vs-tag pushes release branch',
+      RunCommandInDir('git', ['push', '-u', 'origin', 'refs/heads/release:refs/heads/release'], WorkDir));
+    Check('CLI branch-vs-tag pushes same-named tag',
+      RunCommandInDir('git', ['push', 'origin', 'refs/tags/release:refs/tags/release'], WorkDir));
+    Check('CLI branch-vs-tag clones local repo on main',
+      RunCommandInDir('git', ['clone', '-b', 'main', OriginDir, LocalDir], TempRoot));
+
+    Check('CLI-only checkout prefers remote branch over tag',
+      Git.Checkout(LocalDir, 'release', False));
+    CurrentBranch := Git.GetCurrentBranch(LocalDir);
+    if not SameText(CurrentBranch, 'release') then
+      WriteLn('  Current branch after checkout: ', CurrentBranch);
+    Check('CLI-only checkout switches to requested branch',
+      SameText(CurrentBranch, 'release'));
+
+    SL := TStringList.Create;
+    try
+      SL.LoadFromFile(VersionPath);
+      Check('CLI-only checkout materializes branch content',
+        Trim(SL.Text) = 'branch-release');
+    finally
+      SL.Free;
+    end;
+  finally
+    Git.Free;
+    CleanupTempDir(TempRoot);
+  end;
 end;
 
 begin
@@ -1456,6 +2099,7 @@ begin
   TestBackendDetection;
   TestInjectedCliRunnerCliOnly;
   TestInjectedCliRunnerUnavailable;
+  TestCloneChecksOutTagWithLibgit2;
   TestIsRepository;
   TestGetCurrentBranch;
   TestVerboseProperty;
@@ -1463,9 +2107,13 @@ begin
   TestPushLocalBareRemote;
   TestAddPathspecDirAndGlob;
   TestRemoteOpsNoCLI;
+  TestPullDeletesTrackedFileNoCLI;
   TestPullFastForwardExtNoCLI;
+  TestPullFastForwardExtRenameNoCLI;
   TestPullMergeNoCLI;
+  TestPullFastForwardOnlyRejectsDivergedNoCLI;
   TestForceCheckoutNoCLI;
+  TestCheckoutCliOnlyPrefersRequestedRemoteBranchOverSameNamedTag;
   TestMultipleInstances;
   TestGitBackendToString;
 

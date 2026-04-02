@@ -38,10 +38,13 @@ fpdev fpc install 3.2.2 --from-source
 
 ### Q4: 如何安装 FPC？
 
-**A**: 推荐使用源码安装：
+**A**: 默认先使用二进制安装，速度更快；需要自定义构建或二进制不可用时再退回源码安装：
 
 ```bash
-# 从源码安装（推荐）
+# 优先：二进制安装
+fpdev fpc install 3.2.2
+
+# 需要源码构建时
 fpdev fpc install 3.2.2 --from-source
 
 # 激活版本
@@ -127,7 +130,7 @@ fpc myapp.lpr
 # 或使用 lazbuild
 lazbuild myapp.lpi
 
-# 或使用 fpdev（未来版本）
+# 或使用 fpdev
 fpdev project build
 ```
 

@@ -24,7 +24,10 @@ function CreateSystemVersionCommand: ICommand;
 implementation
 
 uses
-  fpdev.paths;
+  fpdev.paths,
+  fpdev.version,
+  fpdev.i18n,
+  fpdev.i18n.strings;
 
 function CreateSystemVersionCommand: ICommand;
 begin
@@ -63,8 +66,8 @@ begin
     Exit(EXIT_USAGE_ERROR);
   end;
 
-  Ctx.Out.WriteLn('fpdev version 2.0.0-beta');
-  Ctx.Out.WriteLn('FreePascal Development Environment Manager');
+  Ctx.Out.WriteLn(Format(_(MSG_VERSION), [GetFullVersionString]));
+  Ctx.Out.WriteLn(FPDEV_DESCRIPTION);
   if IsPortableMode then
     Ctx.Out.WriteLn('Mode: Portable')
   else

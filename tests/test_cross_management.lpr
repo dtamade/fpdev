@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, test_pause_control, Classes,
-  fpdev.config, test_temp_paths;
+  fpdev.config, fpdev.cross.manager, fpdev.utils, test_temp_paths, fpdev.paths;
 
 type
   { TCrossManagementTest }
@@ -34,11 +34,21 @@ type
     procedure TestCrossTargetConfiguration;
     procedure TestCrossTargetEnableDisable;
     procedure TestCrossCommandInterface;
+    procedure TestCrossManagerUsesSameProcessInstallRootFallback;
+    procedure TestCrossManagerUsesFPDEVDataRootOverride;
     
     // 属性
     property TestsPassed: Integer read FTestsPassed;
     property TestsFailed: Integer read FTestsFailed;
   end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
 
 { TCrossManagementTest }
 
@@ -94,6 +104,8 @@ begin
   TestCrossTargetConfiguration;
   TestCrossTargetEnableDisable;
   TestCrossCommandInterface;
+  TestCrossManagerUsesSameProcessInstallRootFallback;
+  TestCrossManagerUsesFPDEVDataRootOverride;
   
   WriteLn;
   WriteLn('=== Test Results ===');
@@ -281,6 +293,140 @@ begin
   WriteLn;
 end;
 
+procedure TCrossManagementTest.TestCrossManagerUsesSameProcessInstallRootFallback;
+var
+  Manager: TCrossCompilerManager;
+  Settings: TFPDevSettings;
+  ProbeHome: string;
+  ExpectedRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  {$IFDEF MSWINDOWS}
+  SavedAppData: string;
+  SavedUserProfile: string;
+  {$ELSE}
+  SavedHome: string;
+  {$ENDIF}
+begin
+  WriteLn('--- Testing Cross Manager Same-Process Install Root Fallback ---');
+
+  try
+    ProbeHome := CreateUniqueTempDir('test_cross_manager_home');
+    Settings := FConfigManager.GetSettings;
+    Settings.InstallRoot := '';
+    AssertTrue(FConfigManager.SetSettings(Settings),
+      'Should clear install root before same-process fallback probe');
+
+    {$IFDEF MSWINDOWS}
+    SavedUserProfile := get_env('USERPROFILE');
+    SavedAppData := get_env('APPDATA');
+    {$ELSE}
+    SavedHome := get_env('HOME');
+    {$ENDIF}
+    SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+    SavedXDGDataHome := get_env('XDG_DATA_HOME');
+    try
+      SetPortableMode(False);
+      unset_env('FPDEV_DATA_ROOT');
+      unset_env('XDG_DATA_HOME');
+      {$IFDEF MSWINDOWS}
+      set_env('USERPROFILE', ProbeHome);
+      set_env('APPDATA', ProbeHome);
+      {$ELSE}
+      set_env('HOME', ProbeHome);
+      {$ENDIF}
+      ExpectedRoot := GetDataRoot;
+
+      Manager := TCrossCompilerManager.Create(FConfigManager);
+      try
+        AssertEquals(ExpectedRoot, FConfigManager.GetSettings.InstallRoot,
+          'Cross manager should persist same-process install root fallback');
+        AssertTrue(DirectoryExists(ExpectedRoot),
+          'Cross manager should create same-process install root directory');
+      finally
+        Manager.Free;
+      end;
+    finally
+      {$IFDEF MSWINDOWS}
+      if SavedUserProfile <> '' then
+        set_env('USERPROFILE', SavedUserProfile)
+      else
+        unset_env('USERPROFILE');
+      if SavedAppData <> '' then
+        set_env('APPDATA', SavedAppData)
+      else
+        unset_env('APPDATA');
+      {$ELSE}
+      RestoreEnv('HOME', SavedHome);
+      {$ENDIF}
+      RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+      RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+      CleanupTempDir(ProbeHome);
+    end;
+
+    WriteLn('✓ Cross manager same-process install root fallback successful');
+  except
+    on E: Exception do
+    begin
+      AssertTrue(False, 'Exception during cross manager fallback test: ' + E.Message);
+    end;
+  end;
+
+  WriteLn;
+end;
+
+procedure TCrossManagementTest.TestCrossManagerUsesFPDEVDataRootOverride;
+var
+  Manager: TCrossCompilerManager;
+  Settings: TFPDevSettings;
+  ProbeRoot: string;
+  ExpectedRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  WriteLn('--- Testing Cross Manager FPDEV_DATA_ROOT Override ---');
+
+  try
+    ProbeRoot := CreateUniqueTempDir('test_cross_manager_data_root');
+    Settings := FConfigManager.GetSettings;
+    Settings.InstallRoot := '';
+    AssertTrue(FConfigManager.SetSettings(Settings),
+      'Should clear install root before FPDEV_DATA_ROOT probe');
+
+    SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+    SavedXDGDataHome := get_env('XDG_DATA_HOME');
+    try
+      SetPortableMode(False);
+      unset_env('XDG_DATA_HOME');
+      set_env('FPDEV_DATA_ROOT', ProbeRoot);
+      ExpectedRoot := GetDataRoot;
+
+      Manager := TCrossCompilerManager.Create(FConfigManager);
+      try
+        AssertEquals(ExpectedRoot, FConfigManager.GetSettings.InstallRoot,
+          'Cross manager should persist FPDEV_DATA_ROOT install root');
+        AssertTrue(DirectoryExists(ExpectedRoot),
+          'Cross manager should create FPDEV_DATA_ROOT install root directory');
+      finally
+        Manager.Free;
+      end;
+    finally
+      RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+      RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+      CleanupTempDir(ProbeRoot);
+    end;
+
+    WriteLn('✓ Cross manager FPDEV_DATA_ROOT override successful');
+  except
+    on E: Exception do
+    begin
+      AssertTrue(False, 'Exception during cross manager FPDEV_DATA_ROOT test: ' + E.Message);
+    end;
+  end;
+
+  WriteLn;
+end;
+
 // 全局测试函数
 procedure RunCrossManagementTests;
 var
@@ -289,6 +435,8 @@ begin
   Test := TCrossManagementTest.Create;
   try
     Test.RunAllTests;
+    if Test.TestsFailed > 0 then
+      ExitCode := 1;
   finally
     Test.Free;
   end;

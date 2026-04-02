@@ -3,7 +3,7 @@ program test_resource_repo_query;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_temp_paths,
   fpdev.resource.repo.types,
   fpdev.resource.repo.package,
   fpdev.resource.repo.search;
@@ -125,12 +125,15 @@ end;
 
 begin
   Randomize;
-  TempDir := IncludeTrailingPathDelimiter(GetTempDir(True)) + 'test_repo_query_' + IntToStr(Random(100000));
-  ForceDirectories(TempDir);
-
-  TestLoadPackageInfoFromFile;
-  TestListPackagesCore;
-  TestSearchPackagesCore;
+  TempDir := CreateUniqueTempDir('test_repo_query');
+  try
+    Check(PathUsesSystemTempRoot(TempDir), 'TempDir lives under system temp');
+    TestLoadPackageInfoFromFile;
+    TestListPackagesCore;
+    TestSearchPackagesCore;
+  finally
+    CleanupTempDir(TempDir);
+  end;
 
   WriteLn;
   WriteLn('Passed: ', TestsPassed);

@@ -122,7 +122,7 @@ function GetDefaultLazarusVersion: string;
 implementation
 
 uses
-  fpdev.constants;
+  fpdev.constants, fpdev.utils;
 
 const
   PROJECT_CONFIG_FILES: array[0..1] of string = ('.fpdevrc', 'fpdev.toml');
@@ -435,12 +435,12 @@ end;
 
 function TProjectConfigResolver.GetEnvFPCVersion: string;
 begin
-  Result := GetEnvironmentVariable('FPDEV_FPC_VERSION');
+  Result := get_env('FPDEV_FPC_VERSION');
 end;
 
 function TProjectConfigResolver.GetEnvLazarusVersion: string;
 begin
-  Result := GetEnvironmentVariable('FPDEV_LAZARUS_VERSION');
+  Result := get_env('FPDEV_LAZARUS_VERSION');
 end;
 
 function TProjectConfigResolver.ResolveConfig(const AStartDir: string): TResolvedConfig;

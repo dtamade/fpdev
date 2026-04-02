@@ -5,7 +5,7 @@ program test_cross_query;
 uses
   SysUtils, test_config_isolation, test_temp_paths, Classes,
   fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.cross.query, fpdev.utils.fs;
+  fpdev.cross.query;
 
 var
   PassCount: Integer = 0;
@@ -43,17 +43,15 @@ procedure TestConfigManagerUsesIsolatedDefaultConfigPath;
 var
   Config: IConfigManager;
   ConfigPath: string;
-  TempRoot: string;
   ExpectedPath: string;
 begin
   Config := CreateIsolatedConfigManager;
   ConfigPath := ExpandFileName(Config.GetConfigPath);
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
   ExpectedPath := ExpandFileName(GetIsolatedDefaultConfigPath);
 
   StartTest('Config path uses system temp root');
-  if Pos(TempRoot, ConfigPath) = 1 then Pass
-  else Fail('Expected temp root ' + TempRoot + ', got ' + ConfigPath);
+  if PathUsesSystemTempRoot(ConfigPath) then Pass
+  else Fail('Expected temp root, got ' + ConfigPath);
 
   StartTest('Config path uses isolated default override');
   if ConfigPath = ExpectedPath then Pass

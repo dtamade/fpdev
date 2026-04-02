@@ -222,11 +222,7 @@ begin
 
   if FInstallRoot = '' then
   begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
-    {$ENDIF}
+    FInstallRoot := GetDataRoot;
 
     Settings.InstallRoot := FInstallRoot;
     FConfigManager.GetSettingsManager.SetSettings(Settings);

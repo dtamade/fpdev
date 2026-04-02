@@ -95,13 +95,14 @@ begin
   Meta.SourceMode := smBinary;
   Meta.Channel := 'stable';
   Meta.Prefix := '';
+  Meta.Verify.Timestamp := EncodeDate(2026, 3, 19) + EncodeTime(10, 11, 12, 0);
   Meta.Verify.OK := True;
   Meta.Verify.DetectedVersion := '3.2.2';
   Meta.Verify.SmokeTestPassed := True;
   Meta.Origin.RepoURL := '';
   Meta.Origin.Commit := '';
   Meta.Origin.BuiltFromSource := False;
-  Meta.InstalledAt := Now;
+  Meta.InstalledAt := EncodeDate(2026, 3, 18) + EncodeTime(8, 9, 10, 0);
 
   AssertTrue(WriteFPCMetadata(TestDir, Meta), 'WriteFPCMetadata succeeds');
   AssertTrue(FileExists(GetMetadataPath(TestDir)), 'Metadata file created');
@@ -129,7 +130,11 @@ begin
   AssertTrue(Meta.Verify.OK, 'Verify.OK is True');
   AssertEquals('3.2.2', Meta.Verify.DetectedVersion, 'DetectedVersion matches');
   AssertTrue(Meta.Verify.SmokeTestPassed, 'SmokeTestPassed is True');
+  AssertTrue(Abs(Meta.Verify.Timestamp - (EncodeDate(2026, 3, 19) + EncodeTime(10, 11, 12, 0))) < 1 / SecsPerDay,
+    'Verify.Timestamp preserved');
   AssertTrue(not Meta.Origin.BuiltFromSource, 'BuiltFromSource is False');
+  AssertTrue(Abs(Meta.InstalledAt - (EncodeDate(2026, 3, 18) + EncodeTime(8, 9, 10, 0))) < 1 / SecsPerDay,
+    'InstalledAt preserved');
 end;
 
 procedure TestRoundTrip_AllScopes;

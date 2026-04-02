@@ -19,7 +19,9 @@ uses
   fpdev.exitcodes,
   fpdev.logger.intf,
   fpdev.output.intf,
-  fpdev.utils.fs,
+  fpdev.utils,
+  fpdev.utils.process,
+  test_temp_paths,
   // Import all command units to trigger registration
   fpdev.command.imports;
 
@@ -28,6 +30,8 @@ var
   TestsFailed: Integer = 0;
   GTempConfigRoot: string = '';
   GContextCounter: Integer = 0;
+  GTemplateUpdateDataRoot: string = '';
+  GSavedDataRoot: string = '';
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
 begin
@@ -97,11 +101,7 @@ type
 function EnsureTempConfigRoot: string;
 begin
   if GTempConfigRoot = '' then
-  begin
-    GTempConfigRoot := IncludeTrailingPathDelimiter(GetTempDir(False))
-      + 'fpdev-command-registry-' + IntToStr(GetTickCount64);
-    ForceDirectories(GTempConfigRoot);
-  end;
+    GTempConfigRoot := CreateUniqueTempDir('fpdev-command-registry');
   Result := GTempConfigRoot;
 end;
 
@@ -114,6 +114,75 @@ begin
     + 'ctx-' + IntToStr(GContextCounter);
   ForceDirectories(ContextDir);
   Result := IncludeTrailingPathDelimiter(ContextDir) + 'config.json';
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
+procedure WriteTextFile(const APath, AContent: string);
+var
+  Lines: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  Lines := TStringList.Create;
+  try
+    Lines.Text := AContent;
+    Lines.SaveToFile(APath);
+  finally
+    Lines.Free;
+  end;
+end;
+
+function RunCommandInDir(const AProgram: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  ProcResult: TProcessResult;
+begin
+  ProcResult := TProcessExecutor.Execute(AProgram, AArgs, AWorkDir);
+  Result := ProcResult.Success and (ProcResult.ExitCode = 0);
+  if not Result then
+  begin
+    WriteLn('  [CMD FAIL] ', AProgram, ' in ', AWorkDir);
+    if ProcResult.StdOut <> '' then
+      WriteLn('  stdout: ', ProcResult.StdOut);
+    if ProcResult.StdErr <> '' then
+      WriteLn('  stderr: ', ProcResult.StdErr);
+    if ProcResult.ErrorMessage <> '' then
+      WriteLn('  error: ', ProcResult.ErrorMessage);
+  end;
+end;
+
+procedure SetupLocalTemplateUpdateRepo;
+var
+  RepoDir, TemplatesDir: string;
+begin
+  GSavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  GTemplateUpdateDataRoot := CreateUniqueTempDir('fpdev_command_registry_tpl_update_data');
+  SetPortableMode(False);
+  set_env('FPDEV_DATA_ROOT', GTemplateUpdateDataRoot);
+
+  RepoDir := IncludeTrailingPathDelimiter(GTemplateUpdateDataRoot) + 'resources';
+  TemplatesDir := RepoDir + PathDelim + 'templates';
+  ForceDirectories(TemplatesDir);
+  WriteTextFile(RepoDir + PathDelim + 'manifest.json', '{"version":"1.0.0"}');
+
+  if not RunCommandInDir('git', ['init'], RepoDir) then
+    raise Exception.Create('Failed to initialize local template update repo');
+  if not RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], RepoDir) then
+    raise Exception.Create('Failed to configure template update repo email');
+  if not RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], RepoDir) then
+    raise Exception.Create('Failed to configure template update repo user');
+  if not RunCommandInDir('git', ['add', 'manifest.json'], RepoDir) then
+    raise Exception.Create('Failed to stage template update manifest');
+  if not RunCommandInDir('git', ['commit', '-m', 'initial'], RepoDir) then
+    raise Exception.Create('Failed to commit template update manifest');
+  if not RunCommandInDir('git', ['branch', '-M', 'main'], RepoDir) then
+    raise Exception.Create('Failed to rename template update branch');
 end;
 
 procedure TBufferOutput.Write(const S: string);
@@ -260,8 +329,9 @@ begin
   CtxObj := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
 
   DefaultConfigPath := ExpandFileName(GetConfigPath);
-  AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-    ExpandFileName(CtxObj.ConfigPath)) = 1,
+  AssertTrue(PathUsesSystemTempRoot(EnsureTempConfigRoot),
+    'temp config root lives under system temp');
+  AssertTrue(PathUsesSystemTempRoot(CtxObj.ConfigPath),
     'context config lives under system temp');
   AssertTrue(ExpandFileName(CtxObj.ConfigPath) <> DefaultConfigPath,
     'context config should not use default user config path');
@@ -871,6 +941,38 @@ begin
 end;
 
 // ============================================================================
+// Test: system help should preserve the system namespace for nested help paths
+// ============================================================================
+procedure TestSystemHelpNestedNamespaceCoverage;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestSystemHelpNestedNamespaceCoverage');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'help', 'env'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'system help env exits 0');
+  AssertTrue(Pos('Usage: fpdev system env [command]', OutBufObj.Text) > 0,
+    'system help env prints system env usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'help', 'toolchain'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'system help toolchain exits 0');
+  AssertTrue(Pos('Usage: fpdev system toolchain <command>', OutBufObj.Text) > 0,
+    'system help toolchain prints namespace usage');
+  AssertTrue(Pos('check', LowerCase(OutBufObj.Text)) > 0,
+    'system help toolchain lists registered subcommands');
+end;
+
+// ============================================================================
 // Test: fpc help should cover all shipped fpc subcommands
 // ============================================================================
 procedure TestFPCHelpSubcommandsCoverage;
@@ -890,6 +992,26 @@ begin
   Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help'], Ctx);
   AssertEquals(EXIT_OK, Code, 'fpc help exits 0');
   AssertTrue(Pos('use, default', LowerCase(OutBufObj.Text)) = 0, 'fpc help should not mention default alias');
+  AssertTrue(Pos('  policy', LowerCase(OutBufObj.Text)) > 0,
+    'fpc help overview lists policy namespace');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help', 'list'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'fpc help list exits 0');
+  AssertTrue(Pos('Usage: fpdev fpc list [--all] [--json]', OutBufObj.Text) > 0,
+    'fpc help list prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'fpc help list shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help', 'current'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'fpc help current exits 0');
+  AssertTrue(Pos('Usage: fpdev fpc current [--json]', OutBufObj.Text) > 0,
+    'fpc help current prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'fpc help current lists json option details');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -914,6 +1036,15 @@ begin
   Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help', 'cache'], Ctx);
   AssertEquals(EXIT_OK, Code, 'fpc help cache exits 0');
   AssertTrue(Pos('Usage: fpdev fpc cache <subcommand>', OutBufObj.Text) > 0, 'fpc help cache prints usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help', 'policy'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'fpc help policy exits 0');
+  AssertTrue(Pos('Usage: fpdev fpc policy <subcommand>', OutBufObj.Text) > 0,
+    'fpc help policy prints usage');
+  AssertTrue(Pos('  check', LowerCase(OutBufObj.Text)) > 0,
+    'fpc help policy lists check subcommand');
 end;
 
 // ============================================================================
@@ -930,6 +1061,24 @@ begin
   OutBufObj := TBufferOutput.Create;
   ErrBufObj := TBufferOutput.Create;
   Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['cross', 'list', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'cross list --help exits 0');
+  AssertTrue(Pos('Usage: fpdev cross list [options]', OutBufObj.Text) > 0,
+    'cross list --help prints usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'cross list --help shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['cross', 'help', 'list'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'cross help list exits 0');
+  AssertTrue(Pos('Usage: fpdev cross list [options]', OutBufObj.Text) > 0,
+    'cross help list prints usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'cross help list shows json option details');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -961,6 +1110,23 @@ begin
   Code := GlobalCommandRegistry.DispatchPath(['lazarus', 'help'], Ctx);
   AssertEquals(EXIT_OK, Code, 'lazarus help exits 0');
   AssertTrue(Pos('use, default', LowerCase(OutBufObj.Text)) = 0, 'lazarus help should not mention default alias');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['lazarus', 'help', 'list'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'lazarus help list exits 0');
+  AssertTrue(Pos('Usage: fpdev lazarus list', OutBufObj.Text) > 0, 'lazarus help list prints usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'lazarus help list shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['lazarus', 'help', 'current'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'lazarus help current exits 0');
+  AssertTrue(Pos('Usage: fpdev lazarus current [--json]', OutBufObj.Text) > 0,
+    'lazarus help current prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'lazarus help current lists json option details');
 end;
 
 // ============================================================================
@@ -992,6 +1158,42 @@ begin
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'list', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'package list --help exits 0');
+  AssertTrue(Pos('Usage: fpdev package list [options]', OutBufObj.Text) > 0,
+    'package list --help prints usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'package list --help shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'help', 'list'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'package help list exits 0');
+  AssertTrue(Pos('Usage: fpdev package list [options]', OutBufObj.Text) > 0,
+    'package help list prints usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'package help list shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'search', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'package search --help exits 0');
+  AssertTrue(Pos('Usage: fpdev package search <query> [--json]', OutBufObj.Text) > 0,
+    'package search --help prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'package search --help shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'help', 'search'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'package help search exits 0');
+  AssertTrue(Pos('Usage: fpdev package search <query> [--json]', OutBufObj.Text) > 0,
+    'package help search prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'package help search shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['package', 'help', 'create'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'package help create exits usage error');
 
@@ -1013,6 +1215,57 @@ begin
   AssertEquals(EXIT_OK, Code, 'package help why exits 0');
   AssertTrue(Pos('Usage: fpdev package why', OutBufObj.Text) > 0, 'package help why prints usage');
   AssertTrue(Pos('for examples', OutBufObj.Text) > 0, 'package help why prints hint');
+end;
+
+// ============================================================================
+// Test: project help should advertise shipped template namespace
+// ============================================================================
+procedure TestProjectHelpContractDrift;
+var
+  OutBufObj, ErrBufObj: TBufferOutput;
+  Ctx: IContext;
+  Code: Integer;
+begin
+  WriteLn('[TEST] TestProjectHelpContractDrift');
+
+  OutBufObj := TBufferOutput.Create;
+  ErrBufObj := TBufferOutput.Create;
+  Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'project help exits 0');
+  AssertTrue(Pos('  template', OutBufObj.Text) > 0, 'project help lists template');
+  AssertTrue(Pos('manage project templates', LowerCase(OutBufObj.Text)) > 0,
+    'project help template description is shown');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'list', '--help'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'project list --help exits 0');
+  AssertTrue(Pos('Usage: fpdev project list [--json]', OutBufObj.Text) > 0,
+    'project list --help prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'project list --help shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'help', 'list'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'project help list exits 0');
+  AssertTrue(Pos('Usage: fpdev project list [--json]', OutBufObj.Text) > 0,
+    'project help list prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'project help list shows json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'help', 'template'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'project help template exits 0');
+  AssertTrue(Pos('Usage: fpdev project template <subcommand>', OutBufObj.Text) > 0,
+    'project help template prints usage');
+  AssertTrue(Pos('  update        Update project templates from the remote repository', OutBufObj.Text) > 0,
+    'project help template lists update subcommand');
 end;
 
 // ============================================================================
@@ -1052,7 +1305,7 @@ begin
 end;
 
 // ============================================================================
-// Test: Shell hook scripts should not hardcode $HOME/.fpdev paths
+// Test: Shell hook scripts should resolve activation root via data-root command
 // ============================================================================
 procedure TestShellHookNoHardcodedHomePath;
 var
@@ -1070,13 +1323,19 @@ begin
   ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'hook', 'bash'], Ctx);
   AssertEquals(EXIT_OK, Code, 'system env hook bash exits 0');
-  AssertTrue(Pos('$HOME/.fpdev/env', OutBufObj.Text) = 0, 'shell-hook bash should not hardcode $HOME/.fpdev/env');
+  AssertTrue(Pos('$HOME/.fpdev', OutBufObj.Text) = 0,
+    'shell-hook bash should not hardcode $HOME/.fpdev');
+  AssertTrue(Pos('fpdev system env data-root', OutBufObj.Text) > 0,
+    'shell-hook bash should resolve activation root via data-root command');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'hook', 'fish'], Ctx);
   AssertEquals(EXIT_OK, Code, 'system env hook fish exits 0');
-  AssertTrue(Pos('$HOME/.fpdev/env', OutBufObj.Text) = 0, 'shell-hook fish should not hardcode $HOME/.fpdev/env');
+  AssertTrue(Pos('$HOME/.fpdev', OutBufObj.Text) = 0,
+    'shell-hook fish should not hardcode $HOME/.fpdev');
+  AssertTrue(Pos('fpdev system env data-root', OutBufObj.Text) > 0,
+    'shell-hook fish should resolve activation root via data-root command');
 end;
 
 // ============================================================================
@@ -1294,6 +1553,22 @@ begin
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'config', 'list', '--help', '--fpc'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'config list help with extra option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'config list help with extra option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system config list [options]', ErrBufObj.Text) > 0,
+    'config list help with extra option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'doctor', '--help', '--quick'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'system doctor help with extra option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'system doctor help with extra option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system doctor', ErrBufObj.Text) > 0,
+    'system doctor help with extra option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['system', 'index', 'status', 'extra'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'index status extra arg exits usage error');
 
@@ -1309,6 +1584,22 @@ begin
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'hook', 'bash', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'env hook extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'env hook extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system env hook <shell>', ErrBufObj.Text) > 0,
+    'env hook extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'hook', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'env hook unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'env hook unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system env hook <shell>', ErrBufObj.Text) > 0,
+    'env hook unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'export', '--unknown'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'env export unknown option exits usage error');
 
@@ -1316,6 +1607,22 @@ begin
   ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'export', '--shell'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'env export missing shell value exits usage error');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'resolve', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'env resolve extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'env resolve extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system env resolve [--json]', ErrBufObj.Text) > 0,
+    'env resolve extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['system', 'env', 'resolve', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'env resolve unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'env resolve unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev system env resolve [--json]', ErrBufObj.Text) > 0,
+    'env resolve unknown option prints usage to stderr');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -1386,6 +1693,205 @@ begin
   ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['lazarus', 'doctor', '--unknown'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'lazarus doctor unknown option exits usage error');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'new', 'console', 'demo', '.', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project new extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project new extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project new <template> <name> [dir]', ErrBufObj.Text) > 0,
+    'project new extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'new', 'console', 'demo', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project new unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project new unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project new <template> <name> [dir]', ErrBufObj.Text) > 0,
+    'project new unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'build', '.', 'win64', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project build extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project build extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project build [dir] [target]', ErrBufObj.Text) > 0,
+    'project build extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'build', '.', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project build unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project build unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project build [dir] [target]', ErrBufObj.Text) > 0,
+    'project build unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'run', '.', '--demo-flag', 'value'], Ctx);
+  AssertTrue(Code <> EXIT_USAGE_ERROR, 'project run option-like args avoid usage error');
+  AssertTrue(Pos('Usage: fpdev project run [dir] [args...]', ErrBufObj.Text) = 0,
+    'project run option-like args do not print usage');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'list', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project list extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project list extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project list [--json]', ErrBufObj.Text) > 0,
+    'project list extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'list', '--help', '--json'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project list help with extra option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project list help with extra option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project list [--json]', ErrBufObj.Text) > 0,
+    'project list help with extra option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'list', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project list unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project list unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project list [--json]', ErrBufObj.Text) > 0,
+    'project list unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'info', 'console', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project info extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project info extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project info <template>', ErrBufObj.Text) > 0,
+    'project info extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'info', 'console', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project info unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project info unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project info <template>', ErrBufObj.Text) > 0,
+    'project info unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'test', '.', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project test extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project test extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project test [dir]', ErrBufObj.Text) > 0,
+    'project test extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'test', '.', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project test unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project test unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project test [dir]', ErrBufObj.Text) > 0,
+    'project test unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'clean', '.', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project clean extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project clean extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project clean [dir]', ErrBufObj.Text) > 0,
+    'project clean extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'clean', '.', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project clean unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project clean unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project clean [dir]', ErrBufObj.Text) > 0,
+    'project clean unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'list', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template list extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template list extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template list', ErrBufObj.Text) > 0,
+    'project template list extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'list', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template list unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template list unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template list', ErrBufObj.Text) > 0,
+    'project template list unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'install', 'missing_tpl_path', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template install extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template install extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template install <path>', ErrBufObj.Text) > 0,
+    'project template install extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'install', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template install unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template install unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template install <path>', ErrBufObj.Text) > 0,
+    'project template install unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'remove', 'missing_tpl_name', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template remove extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template remove extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template remove <name>', ErrBufObj.Text) > 0,
+    'project template remove extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'remove', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template remove unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template remove unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template remove <name>', ErrBufObj.Text) > 0,
+    'project template remove unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'update', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template update extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template update extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template update', ErrBufObj.Text) > 0,
+    'project template update extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['project', 'template', 'update', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'project template update unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'project template update unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev project template update', ErrBufObj.Text) > 0,
+    'project template update unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'info', 'missing_pkg_for_info', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'package info extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'package info extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev package info <name>', ErrBufObj.Text) > 0,
+    'package info extra arg prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'info', 'missing_pkg_for_info', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'package info unknown option exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'package info unknown option keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev package info <name>', ErrBufObj.Text) > 0,
+    'package info unknown option prints usage to stderr');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['package', 'search', 'json', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'package search extra arg exits usage error');
+  AssertTrue(Trim(OutBufObj.Text) = '', 'package search extra arg keeps stdout empty');
+  AssertTrue(Pos('Usage: fpdev package search <query> [--json]', ErrBufObj.Text) > 0,
+    'package search extra arg prints usage to stderr');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -1612,6 +2118,7 @@ begin
   WriteLn('========================================');
   WriteLn('');
 
+  SetupLocalTemplateUpdateRepo;
   TestContextUsesIsolatedConfigPath;
   TestRootCommandsRegistered;
   TestFPCSubcommandsRegistered;
@@ -1629,10 +2136,12 @@ begin
     TestRootHelpHelperLeafFallback;
     TestRootHelpHelperUsesDynamicDomainHelp;
     TestSystemMaintenanceCommands;
+    TestSystemHelpNestedNamespaceCoverage;
     TestFPCHelpSubcommandsCoverage;
   TestCrossHelpSubcommandsCoverage;
   TestLazarusHelpContractDrift;
   TestPackageHelpContractDrift;
+  TestProjectHelpContractDrift;
   TestHelpAliasPruningStaysEnforced;
   TestShellHookNoHardcodedHomePath;
   TestCrossBuildDryRunNoSources;
@@ -1649,8 +2158,10 @@ begin
     WriteLn('FAILED: ', TestsFailed, ' of ', TestsPassed + TestsFailed, ' tests failed');
   WriteLn('========================================');
 
-  if (GTempConfigRoot <> '') and DirectoryExists(GTempConfigRoot) then
-    DeleteDirRecursive(GTempConfigRoot);
+  CleanupTempDir(GTempConfigRoot);
+  RestoreEnv('FPDEV_DATA_ROOT', GSavedDataRoot);
+  if GTemplateUpdateDataRoot <> '' then
+    CleanupTempDir(GTemplateUpdateDataRoot);
 
   if TestsFailed > 0 then
     Halt(1);

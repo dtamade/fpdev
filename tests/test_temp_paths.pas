@@ -16,6 +16,29 @@ uses
 var
   GTempPathSequence: Int64 = 0;
 
+function ResolvePreferredTempEnvRoot: string;
+begin
+  Result := Trim(GetEnvironmentVariable('TMPDIR'));
+  if Result = '' then
+    Result := Trim(GetEnvironmentVariable('TMP'));
+  if Result = '' then
+    Result := Trim(GetEnvironmentVariable('TEMP'));
+  if Result = '' then
+    Result := Trim(GetEnvironmentVariable('FPDEV_TEST_TMPDIR'));
+end;
+
+function ResolveTestTempRoot: string;
+begin
+  Result := ResolvePreferredTempEnvRoot;
+  if Result <> '' then
+  begin
+    Result := ExpandFileName(Result);
+    ForceDirectories(Result);
+  end
+  else
+    Result := GetTempDir(False);
+end;
+
 function NormalizePrefix(const APrefix: string): string;
 begin
   Result := Trim(APrefix);
@@ -29,14 +52,14 @@ var
 begin
   Prefix := NormalizePrefix(APrefix);
   Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
+  Result := IncludeTrailingPathDelimiter(ResolveTestTempRoot)
     + Prefix + '_' + IntToStr(GetTickCount64) + '_' + IntToStr(GTempPathSequence);
   ForceDirectories(Result);
 end;
 
 function PathUsesSystemTempRoot(const APath: string): Boolean;
 begin
-  Result := Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
+  Result := Pos(IncludeTrailingPathDelimiter(ExpandFileName(ResolveTestTempRoot)),
     ExpandFileName(APath)) = 1;
 end;
 

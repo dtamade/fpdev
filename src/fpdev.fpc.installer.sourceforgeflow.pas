@@ -30,6 +30,12 @@ begin
     AOut.WriteLn(AText);
 end;
 
+procedure TryRemoveEmptyDir(const ADir: string);
+begin
+  if (ADir <> '') and DirectoryExists(ADir) then
+    RemoveDir(ADir);
+end;
+
 function ExecuteFPCSourceForgeInstallFlow(const AVersion,
   AInstallPath: string; const AOut, AErr: IOutput;
   ADownloadBinary: TFPCSourceForgeDownloadHandler;
@@ -98,6 +104,7 @@ begin
 
     if FileExists(TempFile) then
       DeleteFile(TempFile);
+    TryRemoveEmptyDir(ExtractFileDir(TempFile));
 
     if DirectoryExists(AInstallPath + PathDelim + 'bin') or
        DirectoryExists(AInstallPath + PathDelim + 'lib') then

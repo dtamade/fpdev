@@ -63,6 +63,7 @@ type
 
     { Gets the FPC executable path for a given version. }
     function GetFPCExecutablePath(const AVersion: string): string;
+    function TryGetConfiguredInstallPath(const AVersion: string; out AInstallPath: string): Boolean;
     function LookupToolchainInfo(const AVersion: string; out AInfo: TToolchainInfo): Boolean;
     function ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
 
@@ -96,13 +97,13 @@ type
 implementation
 
 uses
-  fpdev.i18n.strings;
+  fpdev.i18n.strings, fpdev.fpc.installversionflow;
 
 procedure WritePlainToolchainInfo(const AOut: IOutput; const AInfo: TToolchainInfo);
 begin
   if AOut <> nil then
   begin
-    AOut.WriteLn('Install Date: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', AInfo.InstallDate));
+    AOut.WriteLn('Install Date: ' + FormatToolchainInstallDate(AInfo.InstallDate));
     AOut.WriteLn('Source URL: ' + AInfo.SourceURL);
   end;
 end;
@@ -125,13 +126,7 @@ begin
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
-    {$ENDIF}
-  end;
+    FInstallRoot := GetDataRoot;
 end;
 
 function TFPCValidator.GetVersionInstallPath(const AVersion: string): string;
@@ -152,40 +147,35 @@ begin
     end;
   end;
 
+  if TryGetConfiguredInstallPath(AVersion, Result) then
+    Exit;
+
   // User scope: toolchains under InstallRoot.
   Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
+end;
+
+function TFPCValidator.TryGetConfiguredInstallPath(const AVersion: string;
+  out AInstallPath: string): Boolean;
+var
+  Info: TToolchainInfo;
+begin
+  AInstallPath := '';
+  Result := False;
+  if not LookupToolchainInfo(AVersion, Info) then
+    Exit;
+  AInstallPath := Trim(Info.InstallPath);
+  Result := AInstallPath <> '';
 end;
 
 function TFPCValidator.GetFPCExecutablePath(const AVersion: string): string;
 var
   InstallPath: string;
-  RootDir: string;
-  LegacyInstallPath: string;
-  LegacyExe: string;
 begin
-  InstallPath := GetVersionInstallPath(AVersion);
-  {$IFDEF MSWINDOWS}
-  Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-  {$ELSE}
-  Result := InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
-  {$ENDIF}
-
-  if FileExists(Result) then
-    Exit;
-
-  // Legacy fallback: <root>/fpc/<version>/bin/fpc(.exe)
-  RootDir := ExtractFileDir(ExtractFileDir(ExtractFileDir(InstallPath)));
-  if RootDir <> '' then
-  begin
-    LegacyInstallPath := RootDir + PathDelim + 'fpc' + PathDelim + AVersion;
-    {$IFDEF MSWINDOWS}
-    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc.exe';
-    {$ELSE}
-    LegacyExe := LegacyInstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
-    {$ENDIF}
-    if FileExists(LegacyExe) then
-      Result := LegacyExe;
-  end;
+  InstallPath := ResolveInstalledFPCInstallPathCore(
+    GetVersionInstallPath(AVersion),
+    AVersion
+  );
+  Result := BuildFPCInstalledExecutablePathCore(InstallPath);
 end;
 
 function TFPCValidator.IsVersionInstalled(const AVersion: string): Boolean;

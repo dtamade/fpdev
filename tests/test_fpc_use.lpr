@@ -4,7 +4,7 @@ program test_fpc_use;
 
 uses
   SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config, fpdev.fpc.activation,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, fpdev.types, test_temp_paths;
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, fpdev.types, fpdev.utils, test_temp_paths;
 
 var
   TestRootDir: string;
@@ -70,6 +70,14 @@ begin
     WriteLn('  Actual:   "', Actual, '"');
     Inc(TestsFailed);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 
@@ -343,6 +351,217 @@ begin
   end;
 end;
 
+procedure TestUserScopeActivationUsesConfiguredCustomPrefix;
+var
+  UserDir: string;
+  CustomInstallPath: string;
+  ActivResult: TActivationResult;
+  ScriptContent: TStringList;
+  SavedDir: string;
+  Settings: TFPDevSettings;
+  Info: TToolchainInfo;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test 4b: User Scope Activation Uses Configured Custom Prefix');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  try
+    UserDir := TestRootDir + PathDelim + 'user_test_custom_prefix';
+    ForceDirectories(UserDir);
+    AssertTrue(SetCurrentDir(UserDir), 'SetCurrentDir to user dir for custom prefix',
+      'Failed to chdir to: ' + UserDir);
+
+    Settings := ConfigManager.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := TestRootDir;
+    ConfigManager.GetSettingsManager.SetSettings(Settings);
+
+    FPCManager := TFPCManager.Create(ConfigManager);
+
+    CustomInstallPath := TestRootDir + PathDelim + 'custom-fpc-3.3.1';
+    CreateMockFPCInstallation(CustomInstallPath, '3.3.1');
+
+    Initialize(Info);
+    Info.Version := '3.3.1';
+    Info.InstallPath := CustomInstallPath;
+    Info.Installed := True;
+    ConfigManager.GetToolchainManager.AddToolchain('fpc-3.3.1', Info);
+
+    ActivResult := FPCManager.ActivateVersion('3.3.1');
+    AssertTrue(ActivResult.Success, 'Configured custom-prefix activation succeeded',
+      'Expected activation to succeed, got: ' + ActivResult.ErrorMessage);
+    AssertTrue(FileExists(ActivResult.ActivationScript), 'Configured custom-prefix activation script created',
+      'Expected script at: ' + ActivResult.ActivationScript);
+
+    ScriptContent := TStringList.Create;
+    try
+      if FileExists(ActivResult.ActivationScript) then
+        ScriptContent.LoadFromFile(ActivResult.ActivationScript);
+      AssertTrue(Pos(CustomInstallPath + PathDelim + 'bin', ScriptContent.Text) > 0,
+        'Activation script uses configured custom prefix bin path',
+        'Expected "' + CustomInstallPath + PathDelim + 'bin' + '" in script:' + LineEnding + ScriptContent.Text);
+    finally
+      ScriptContent.Free;
+    end;
+
+    FPCManager.Free;
+    FPCManager := nil;
+  finally
+    SetCurrentDir(SavedDir);
+  end;
+end;
+
+procedure TestUserScopeActivationUsesSameProcessHomeFallback;
+var
+  UserDir, ProbeHome, ProbeBinDir: string;
+  ActivResult: TActivationResult;
+  SavedDir, SavedHome, SavedAppData, SavedUserProfile: string;
+  SavedDataRoot, SavedXDGDataHome: string;
+  SavedPortableMode: Boolean;
+  Settings: TFPDevSettings;
+  ActivationManager: TFPCActivationManager;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test 4c: User Scope Activation Uses Same-Process Home Fallback');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  SavedHome := get_env('HOME');
+  SavedAppData := get_env('APPDATA');
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  SavedPortableMode := IsPortableMode;
+  ActivationManager := nil;
+  try
+    UserDir := TestRootDir + PathDelim + 'user_test_same_process_home';
+    ProbeHome := TestRootDir + PathDelim + 'same_process_home_probe';
+    ProbeBinDir := ProbeHome + PathDelim + 'custom-fpc-bin';
+    ForceDirectories(UserDir);
+    ForceDirectories(ProbeHome);
+    ForceDirectories(ProbeBinDir);
+    AssertTrue(SetCurrentDir(UserDir), 'SetCurrentDir to user dir for same-process home fallback',
+      'Failed to chdir to: ' + UserDir);
+
+    Settings := ConfigManager.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := '';
+    ConfigManager.GetSettingsManager.SetSettings(Settings);
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+
+    {$IFDEF MSWINDOWS}
+    AssertTrue(set_env('APPDATA', ProbeHome), 'Set same-process APPDATA for activation fallback',
+      'Expected APPDATA override to succeed');
+    AssertTrue(set_env('USERPROFILE', ProbeHome), 'Set same-process USERPROFILE for activation fallback',
+      'Expected USERPROFILE override to succeed');
+    {$ELSE}
+    AssertTrue(set_env('HOME', ProbeHome), 'Set same-process HOME for activation fallback',
+      'Expected HOME override to succeed');
+    {$ENDIF}
+
+    ActivationManager := TFPCActivationManager.Create(ConfigManager);
+    ActivResult := ActivationManager.ActivateVersion('3.2.2', ProbeBinDir);
+
+    AssertTrue(ActivResult.Success, 'Same-process home fallback activation succeeded',
+      'Expected activation to succeed, got: ' + ActivResult.ErrorMessage);
+    AssertTrue(ActivResult.Scope = isUser, 'Same-process home fallback keeps user scope',
+      'Expected user scope activation');
+    AssertTrue(Pos(ProbeHome + PathDelim + '.fpdev' + PathDelim + 'env', ActivResult.ActivationScript) = 1,
+      'Activation script path uses same-process home fallback',
+      'Expected activation script under "' + ProbeHome + PathDelim + '.fpdev' + PathDelim + 'env' +
+      '", got "' + ActivResult.ActivationScript + '"');
+  finally
+    ActivationManager.Free;
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    RestoreEnv('HOME', SavedHome);
+    RestoreEnv('APPDATA', SavedAppData);
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    SetPortableMode(SavedPortableMode);
+    SetCurrentDir(SavedDir);
+  end;
+end;
+
+procedure TestUserScopeActivationUsesFPDEVDataRootOverride;
+var
+  UserDir, ProbeRoot, ProbeHome, ProbeBinDir: string;
+  ActivResult: TActivationResult;
+  SavedDir, SavedHome, SavedAppData, SavedUserProfile: string;
+  SavedDataRoot, SavedXDGDataHome: string;
+  SavedPortableMode: Boolean;
+  Settings: TFPDevSettings;
+  ActivationManager: TFPCActivationManager;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test 4d: User Scope Activation Uses FPDEV_DATA_ROOT Override');
+  WriteLn('==================================================');
+
+  SavedDir := GetCurrentDir;
+  SavedHome := get_env('HOME');
+  SavedAppData := get_env('APPDATA');
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  SavedPortableMode := IsPortableMode;
+  ActivationManager := nil;
+  try
+    UserDir := TestRootDir + PathDelim + 'user_test_data_root';
+    ProbeRoot := TestRootDir + PathDelim + 'activation_data_root_probe';
+    ProbeHome := TestRootDir + PathDelim + 'activation_fallback_home_probe';
+    ProbeBinDir := ProbeRoot + PathDelim + 'custom-fpc-bin';
+    ForceDirectories(UserDir);
+    ForceDirectories(ProbeRoot);
+    ForceDirectories(ProbeHome);
+    ForceDirectories(ProbeBinDir);
+    AssertTrue(SetCurrentDir(UserDir), 'SetCurrentDir to user dir for activation data-root probe',
+      'Failed to chdir to: ' + UserDir);
+
+    Settings := ConfigManager.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := '';
+    ConfigManager.GetSettingsManager.SetSettings(Settings);
+    SetPortableMode(False);
+    AssertTrue(set_env('FPDEV_DATA_ROOT', ProbeRoot),
+      'Set FPDEV_DATA_ROOT for activation data-root probe',
+      'Expected FPDEV_DATA_ROOT override to succeed');
+    unset_env('XDG_DATA_HOME');
+
+    {$IFDEF MSWINDOWS}
+    AssertTrue(set_env('APPDATA', ProbeHome), 'Set same-process APPDATA fallback for activation data-root probe',
+      'Expected APPDATA override to succeed');
+    AssertTrue(set_env('USERPROFILE', ProbeHome), 'Set same-process USERPROFILE fallback for activation data-root probe',
+      'Expected USERPROFILE override to succeed');
+    {$ELSE}
+    AssertTrue(set_env('HOME', ProbeHome), 'Set same-process HOME fallback for activation data-root probe',
+      'Expected HOME override to succeed');
+    {$ENDIF}
+
+    ActivationManager := TFPCActivationManager.Create(ConfigManager);
+    ActivResult := ActivationManager.ActivateVersion('3.2.2', ProbeBinDir);
+
+    AssertTrue(ActivResult.Success, 'Activation data-root probe succeeded',
+      'Expected activation to succeed, got: ' + ActivResult.ErrorMessage);
+    AssertTrue(ActivResult.Scope = isUser, 'Activation data-root probe keeps user scope',
+      'Expected user scope activation');
+    AssertTrue(Pos(IncludeTrailingPathDelimiter(GetDataRoot) + 'env', ActivResult.ActivationScript) = 1,
+      'Activation script path uses FPDEV_DATA_ROOT override',
+      'Expected activation script under "' + IncludeTrailingPathDelimiter(GetDataRoot) + 'env' +
+      '", got "' + ActivResult.ActivationScript + '"');
+  finally
+    ActivationManager.Free;
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    RestoreEnv('HOME', SavedHome);
+    RestoreEnv('APPDATA', SavedAppData);
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    SetPortableMode(SavedPortableMode);
+    SetCurrentDir(SavedDir);
+  end;
+end;
+
 // ============================================================================
 // Test 5: VS Code Settings Integration
 // ============================================================================
@@ -481,6 +700,9 @@ begin
       TestProjectScopeActivation;
       TestActivationScriptContent;
       TestUserScopeActivation;
+      TestUserScopeActivationUsesConfiguredCustomPrefix;
+      TestUserScopeActivationUsesSameProcessHomeFallback;
+      TestUserScopeActivationUsesFPDEVDataRootOverride;
       TestVSCodeIntegration;
       TestActivationCommand;
 

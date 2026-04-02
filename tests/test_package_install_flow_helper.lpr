@@ -4,7 +4,8 @@ program test_package_install_flow_helper;
 
 uses
   SysUtils, Classes,
-  fpdev.package.installflow, fpdev.utils.fs;
+  fpdev.package.installflow, fpdev.utils.fs,
+  test_temp_paths;
 
 type
   TStubInstallFlow = class
@@ -26,17 +27,12 @@ procedure AssertTrue(ACondition: Boolean; const AMessage: string); forward;
 
 function MakeSandboxDir(const APrefix: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64);
-  ForceDirectories(Result);
+  Result := CreateUniqueTempDir(APrefix);
 end;
 
 procedure AssertUsesSystemTempPath(const APath, ALabel: string);
-var
-  TempPrefix: string;
 begin
-  TempPrefix := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-  AssertTrue(Pos(TempPrefix, ExpandFileName(APath)) = 1,
+  AssertTrue(PathUsesSystemTempRoot(APath),
     ALabel + ' lives under system temp');
 end;
 
@@ -115,8 +111,7 @@ begin
     AssertTrue(not DirectoryExists(TempDir), 'temp dir is removed when keepArtifacts is false');
     AssertEquals('', CleanupWarningPath, 'no cleanup warning path on successful cleanup');
   finally
-    if DirectoryExists(SandboxDir) then
-      DeleteDirRecursive(SandboxDir);
+    CleanupTempDir(SandboxDir);
     GStubInstallFlow := nil;
     Stub.Free;
   end;
@@ -148,8 +143,7 @@ begin
     AssertTrue(DirectoryExists(TempDir), 'temp dir is preserved when keepArtifacts is true');
     AssertEquals('', CleanupWarningPath, 'no cleanup warning path when keeping artifacts');
   finally
-    if DirectoryExists(SandboxDir) then
-      DeleteDirRecursive(SandboxDir);
+    CleanupTempDir(SandboxDir);
     GStubInstallFlow := nil;
     Stub.Free;
   end;

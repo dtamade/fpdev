@@ -4,7 +4,8 @@ program test_cache_space;
 
 uses
   SysUtils, Classes,
-  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
+  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -24,28 +25,6 @@ begin
   end;
 end;
 
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
-  ForceDirectories(Result);
-end;
-
-procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
-begin
-  Assert(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ATestName
-  );
-end;
-
-procedure CleanupTestDir(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
 procedure TestCleanupRemovesNestedDirectories;
 var
   CacheDir: string;
@@ -55,8 +34,9 @@ var
 begin
   WriteLn('=== TestCleanupRemovesNestedDirectories ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-space-cleanup');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Cache space cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-space-cleanup');
+  Assert(PathUsesSystemTempRoot(CacheDir),
+    'Cache space cleanup temp directory should live under system temp');
 
   NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
   NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'artifact.bin';
@@ -70,7 +50,7 @@ begin
     TestData.Free;
   end;
 
-  CleanupTestDir(CacheDir);
+  CleanupTempDir(CacheDir);
   Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache space test directory');
 end;
 
@@ -81,8 +61,9 @@ var
 begin
   WriteLn('=== TestSpaceLimitConfiguration ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-space-config');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Space limit temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-space-config');
+  Assert(PathUsesSystemTempRoot(CacheDir),
+    'Space limit temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -96,7 +77,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -111,8 +92,9 @@ var
 begin
   WriteLn('=== TestLRUCleanup ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-lru');
-  AssertPathIsUnderSystemTemp(CacheDir, 'LRU cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-lru');
+  Assert(PathUsesSystemTempRoot(CacheDir),
+    'LRU cleanup temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -168,7 +150,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -182,8 +164,9 @@ var
 begin
   WriteLn('=== TestUnlimitedCache ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-unlimited');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Unlimited cache temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-unlimited');
+  Assert(PathUsesSystemTempRoot(CacheDir),
+    'Unlimited cache temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -211,7 +194,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 

@@ -189,6 +189,72 @@ begin
   WriteLn('PASS: Build artifacts deleted, source files preserved');
 end;
 
+procedure TestCleanUsesCurrentVersionWhenVersionBlank;
+var
+  CurrentSourceDir: string;
+  CurrentCompilerDir: string;
+  TestFile: TextFile;
+  Success: Boolean;
+  Toolchain: TToolchainInfo;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: CleanSources uses current version when version blank');
+  WriteLn('==================================================');
+
+  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  CurrentCompilerDir := CurrentSourceDir + PathDelim + 'compiler';
+  ForceDirectories(CurrentCompilerDir);
+
+  AssignFile(TestFile, CurrentCompilerDir + PathDelim + 'currentver.o');
+  Rewrite(TestFile);
+  WriteLn(TestFile, 'dummy object file');
+  CloseFile(TestFile);
+
+  AssignFile(TestFile, CurrentCompilerDir + PathDelim + 'currentver.pas');
+  Rewrite(TestFile);
+  WriteLn(TestFile, 'program currentver; begin end.');
+  CloseFile(TestFile);
+
+  Toolchain := Default(TToolchainInfo);
+  Toolchain.Version := 'currentver';
+  Toolchain.InstallPath := CurrentSourceDir;
+  Toolchain.Installed := True;
+  if not ConfigManager.GetToolchainManager.AddToolchain('fpc-currentver', Toolchain) then
+  begin
+    WriteLn('FAIL: Could not register current FPC toolchain for blank clean test');
+    Halt(1);
+  end;
+
+  if not ConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-currentver') then
+  begin
+    WriteLn('FAIL: Could not seed current FPC version for blank clean test');
+    Halt(1);
+  end;
+
+  Success := FPCManager.CleanSources('');
+
+  if not Success then
+  begin
+    WriteLn('FAIL: Expected CleanSources("") to use current version instead of main');
+    Halt(1);
+  end;
+
+  if FileExists(CurrentCompilerDir + PathDelim + 'currentver.o') then
+  begin
+    WriteLn('FAIL: current-version object file was not deleted');
+    Halt(1);
+  end;
+
+  if not FileExists(CurrentCompilerDir + PathDelim + 'currentver.pas') then
+  begin
+    WriteLn('FAIL: current-version source file was deleted');
+    Halt(1);
+  end;
+
+  WriteLn('PASS: CleanSources uses current version when version blank');
+end;
+
 procedure TestCleanNonExistentDirectory;
 var
   Success: Boolean;
@@ -269,10 +335,13 @@ begin
         // Test 2: Clean build artifacts
         TestCleanRemovesBuildArtifacts;
 
-        // Test 2: Handle non-existent directory
+        // Test 3: Blank version uses current version
+        TestCleanUsesCurrentVersionWhenVersionBlank;
+
+        // Test 4: Handle non-existent directory
         TestCleanNonExistentDirectory;
 
-        // Test 3: Handle empty directory
+        // Test 5: Handle empty directory
         TestCleanEmptyDirectory;
 
         WriteLn;

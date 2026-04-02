@@ -148,12 +148,32 @@ begin
   end;
 end;
 
+procedure TestBuildResourceRepoStatusCoreShowsNeverWhenNotChecked;
+var
+  Harness: TRepoStatusHarness;
+  StatusText: string;
+begin
+  Harness := TRepoStatusHarness.Create;
+  try
+    Harness.IsRepo := True;
+    Harness.CommitHash := 'abc123';
+    StatusText := BuildResourceRepoStatusCore('/tmp/repo', 0, @Harness.IsGitRepository, @Harness.GetLastCommitHash);
+    Check('status shows never when last check missing',
+      Pos('Last update check: never', StatusText) > 0, StatusText);
+    Check('status does not show epoch date when last check missing',
+      Pos('1899', StatusText) = 0, StatusText);
+  finally
+    Harness.Free;
+  end;
+end;
+
 begin
   TestGetLastCommitHashCoreReturnsUnknownWhenNotRepo;
   TestGetLastCommitHashCoreUsesTrimmedStdout;
   TestGetLastCommitHashCoreReturnsUnknownOnQueryFailure;
   TestBuildResourceRepoStatusCoreReportsNotInitialized;
   TestBuildResourceRepoStatusCoreFormatsThreeLines;
+  TestBuildResourceRepoStatusCoreShowsNeverWhenNotChecked;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);
