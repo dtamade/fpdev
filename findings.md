@@ -712,3 +712,33 @@
 - 结论更新：
   - FAQ 文档现在也与活动数据根路径模型保持一致，不再宣传隐式 `.fpdev/toolchains/` 项目作用域安装
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, roadmap install-path success-metric drift)
+- 在 FAQ 已与活动数据根模型对齐后，继续扫描 live roadmap/status 文档时，又发现 `ROADMAP.md` 仍在成功标准里保留旧安装路径叙事：
+  - Phase 2 success metrics 仍写着：
+    - `Project-scoped installation (.fpdev/toolchains/)`
+    - `User-scoped installation (~/.fpdev/fpc/)`
+  - Development Philosophy 的 Scope-Aware 原则也仍写着 `Project-level (if .fpdev exists) → User-level`
+  - 但当前公开路径模型已经统一到活动数据根：
+    - 通过 `FPDEV_DATA_ROOT` 可以实现项目本地隔离
+    - canonical 安装目录是 `<data-root>/toolchains/fpc/<version>`
+- 这个问题的影响：
+  - `ROADMAP.md` 会把旧 install model 重新包装成“已完成能力”，与更权威的 installation / FAQ / FPC management / manifest 文档直接冲突
+  - 这会把 roadmap 本身变成一个 live status source 的错误回退点
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_roadmap_success_metrics_use_active_install_path_model` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `<data-root>/toolchains/fpc/<version>`
+    - 仍保留两条旧 success metrics
+- 已实施的最小修复：
+  - `docs/ROADMAP.md`：
+    - Scope-Aware 原则改为 `FPDEV_DATA_ROOT` / runtime default data root / system-level with consent
+    - Phase 2 success metrics 改为 active install layout 与 project-local isolation via `FPDEV_DATA_ROOT`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 roadmap 安装路径契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`69` tests OK，`1` skipped
+- 结论更新：
+  - `ROADMAP.md` 现在也与活动数据根安装路径模型保持一致，不再把旧的 `.fpdev/toolchains/` / `~/.fpdev/fpc/` 当成当前成功标准
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

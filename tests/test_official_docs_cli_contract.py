@@ -278,6 +278,14 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('~/.fpdev/cache/manifests/fpc.json', text)
         self.assertNotIn('~/.fpdev/toolchains/fpc/<version>', text)
 
+    def test_roadmap_success_metrics_use_active_install_path_model(self):
+        text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
+
+        self.assertIn('FPDEV_DATA_ROOT', text)
+        self.assertIn('<data-root>/toolchains/fpc/<version>', text)
+        self.assertNotIn('Project-scoped installation (`.fpdev/toolchains/`)', text)
+        self.assertNotIn('User-scoped installation (`~/.fpdev/fpc/`)', text)
+
     def test_config_architecture_docs_describe_active_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'config-architecture.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'config-architecture.en.md').read_text(encoding='utf-8')

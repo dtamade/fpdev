@@ -41,7 +41,7 @@ Following the TODO-FPC-v1.md philosophy:
 > **Purpose**: Prepare a verifiable, switchable, reproducible FPC toolchain with smart reuse (cache/repos), without touching the system environment by default.
 
 ### Core Principles
-1. **Scope-Aware**: Project-level (if .fpdev exists) → User-level → System-level (with consent)
+1. **Scope-Aware**: Project-local isolation via `FPDEV_DATA_ROOT` → runtime default data root → system-level only with consent
 2. **Source-Agnostic**: Auto (prefer binary → fallback source)
 3. **Activation**: Off by default (explicit `use` or `--activate`)
 4. **Smart Reuse**: No redundant clones/builds; leverage existing repos and caches
@@ -566,8 +566,8 @@ end;
 - [x] `fpdev fpc install --from-source` for source builds
 - [x] `fpdev fpc verify <version>` runs smoke tests
 - [x] `fpdev fpc use <version>` activates toolchain
-- [x] Project-scoped installation (`.fpdev/toolchains/`)
-- [x] User-scoped installation (`~/.fpdev/fpc/`)
+- [x] Active install layout (`<data-root>/toolchains/fpc/<version>`)
+- [x] Project-local isolation via `FPDEV_DATA_ROOT`
 - [x] Metadata tracking (`.fpdev-meta.json`)
 - [x] VS Code terminal integration
 - [x] Cross-platform activation scripts

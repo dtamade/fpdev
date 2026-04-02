@@ -557,3 +557,22 @@ Phase 4 complete
 4. 结论：
    - FAQ 文档现在也与活动数据根路径模型保持一致，不再宣传隐式的 `.fpdev/toolchains/` 项目作用域安装
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 FAQ 中的旧安装路径叙事
+
+## Close-out Update (2026-04-02, roadmap install-path success-metric drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `docs/ROADMAP.md` 的 Phase 2 success metrics 仍把以下旧路径模型写成“ALL ACHIEVED”：
+     - `Project-scoped installation (.fpdev/toolchains/)`
+     - `User-scoped installation (~/.fpdev/fpc/)`
+   - 同文件的 Development Philosophy 也仍写着 `Project-level (if .fpdev exists) → User-level`
+   - 但当前公开路径模型已经统一到活动数据根，由 `FPDEV_DATA_ROOT` 或运行时默认数据根决定，canonical 安装目录是 `<data-root>/toolchains/fpc/<version>`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_roadmap_success_metrics_use_active_install_path_model`
+   - `docs/ROADMAP.md` 改为：
+     - 将 Scope-Aware 原则改成 `FPDEV_DATA_ROOT` / active data root 模型
+     - 将旧的 project/user scoped install success metrics 改成 active install layout 与 project-local isolation via `FPDEV_DATA_ROOT`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`69` tests OK，`1` skipped
+4. 结论：
+   - `ROADMAP.md` 现在也与活动数据根安装路径模型保持一致，不再把旧的 `.fpdev/toolchains/` / `~/.fpdev/fpc/` 当成当前成功标准
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 roadmap 中的旧安装路径叙事

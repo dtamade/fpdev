@@ -1123,3 +1123,41 @@
 | What's the goal? | Keep FAQ-level guidance consistent with the same install-path contract already enforced across the rest of the public docs |
 | What have I learned? | Short FAQ answers can preserve obsolete workflows long after the deeper technical docs are corrected |
 | What have I done? | Added FAQ contract coverage and rewrote the project-local install answer around explicit `FPDEV_DATA_ROOT` isolation |
+
+## Session: 2026-04-02 (roadmap install-path success-metric drift)
+
+### Close-out Execution Follow-up 27
+- **Status:** complete
+- Actions taken:
+  - Audited the live `docs/ROADMAP.md` status document after aligning the public install-path story and found that its Phase 2 success metrics still marked `.fpdev/toolchains/` and `~/.fpdev/fpc/` as achieved installation models
+  - Confirmed the current truth from the already-aligned public docs: project-local isolation is now expressed through `FPDEV_DATA_ROOT`, and the canonical install layout is `<data-root>/toolchains/fpc/<version>`
+  - Added a failing official-docs contract proving the roadmap success metrics must describe the active install-path model instead of the legacy project/user-scoped path pair
+  - Updated `docs/ROADMAP.md` so both the Scope-Aware principle and the Phase 2 success metrics now point at the active data-root install model
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the roadmap no longer reintroduces the old install-path story
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/ROADMAP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for roadmap install-path success-metric drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `ROADMAP.md` still described Phase 2 install success in terms of `.fpdev/toolchains/` and `~/.fpdev/fpc/` instead of the active data-root model | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `69` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `ROADMAP.md` still treated legacy project/user-scoped install paths as current success metrics | 1 | Added a roadmap contract and rewrote both the Scope-Aware principle and Phase 2 success metrics around the active data-root install model |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The live roadmap now matches the active data-root install-path model used across the rest of the public docs |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the roadmap/status document aligned with the same install-path contract already enforced across the rest of the public docs |
+| What have I learned? | Even “success metrics” sections in status docs can silently preserve obsolete architecture assumptions if they are not contract-checked |
+| What have I done? | Added roadmap install-path contract coverage and rewrote the relevant roadmap language around the active data-root model |
