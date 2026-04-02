@@ -1065,3 +1065,21 @@ Phase 4 complete
 4. 结论：
    - `docs/build-manager.md` 不再把未检入的 workflow 文件写成仓库事实
    - official-doc contract 继续把“技术专题文档中的路径存在性”自动化约束住
+
+## Close-out Update (2026-04-03, WARP clean-build example drift)
+1. 新发现的 contributor-doc seam：
+   - `WARP.md` 已经包含正确的 `lazbuild -B fpdev.lpi`，但“标准构建流程”和“测试分类”里仍混有可直接复制的裸 `lazbuild fpdev.lpi`、裸 `lazbuild <test>.lpi`、以及不带 `-B` 的交叉编译示例
+   - 这会把 contributor docs 又带回非 clean rebuild 的旧心智模型，与当前仓库标准入口不一致
+2. 已完成的最小修复：
+   - `tests/test_contributor_docs_contract.py`：
+     - 新增 `test_warp_doc_uses_clean_build_examples_consistently`
+   - `WARP.md`：
+     - 将“标准构建流程”里的默认主程序示例统一到 `lazbuild -B fpdev.lpi`
+     - 将交叉编译示例统一到 `lazbuild -B --os=linux --cpu=x86_64 fpdev.lpi`
+     - 将测试分类表中的单元测试命令改成 `lazbuild -B <test>.lpi`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后 `10` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`111` tests OK，`1` skipped
+4. 结论：
+   - `WARP.md` 现在不再把裸 `lazbuild` 示例包装成仓库标准构建命令
+   - contributor-doc contract 已继续向“构建命令一致性”收口

@@ -2159,3 +2159,40 @@
 | What's the goal? | Keep technical docs from turning inline examples into fake repository file contracts |
 | What have I learned? | Path-existence drift is especially dangerous in CI examples because it looks authoritative and is easy to cargo-cult into automation |
 | What have I done? | Added one build-manager path-existence assertion, rewrote the CI section wording, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-03 (WARP clean-build example drift)
+
+### Close-out Execution Follow-up 53
+- **Status:** complete
+- Actions taken:
+  - Continued into the contributor-doc layer and isolated a new seam in `WARP.md`: the file already had the right `-B` entrypoints, but still mixed in copy-pastable plain `lazbuild` examples in sections that read like standard repo workflow
+  - Re-verified the current build truth from `AGENTS.md`, `CLAUDE.md`, and `scripts/run_all_tests.sh`
+  - Added one focused contributor-doc contract for clean-build command consistency in `WARP.md`
+  - Normalized the standard build flow, cross-compile example, and unit-test command examples to the clean rebuild form
+- Files created/modified:
+  - `tests/test_contributor_docs_contract.py`
+  - `WARP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for WARP clean-build drift | `python3 -m unittest -v tests.test_contributor_docs_contract` | fail before fix | failed because `WARP.md` still mixed bare `lazbuild fpdev.lpi`, bare `lazbuild <test>.lpi`, and a non-`-B` cross-build example into contributor-facing workflow sections | Observed |
+| Focused contributor-doc verification | `python3 -m unittest -v tests.test_contributor_docs_contract` | pass | `10` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `111` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-03 | `WARP.md` still mixed clean rebuild guidance with copy-pastable plain `lazbuild` examples, weakening the contributor build contract | 1 | Added a focused contributor-doc assertion and normalized the examples to `lazbuild -B` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | `WARP.md` is now under explicit contributor-doc contract for clean-build example consistency |
+| Where am I going? | Commit and push this contributor-doc checkpoint, then continue to the next uncovered seam with the updated 111-test baseline |
+| What's the goal? | Keep contributor-facing build examples aligned with the repository’s standard clean rebuild workflow |
+| What have I learned? | Partial doc cleanup is not enough; once a document contains both old and new command forms, contributors will copy the shortest one unless the contract forbids it |
+| What have I done? | Added one WARP clean-build assertion, rewrote the remaining plain `lazbuild` examples, and re-verified the full docs/release/CI bundle |

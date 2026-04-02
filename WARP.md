@@ -257,23 +257,20 @@ lazbuild [选项] <项目文件.lpi>
 # 1. 检查可用的构建模式
 lazbuild --build-mode-list fpdev.lpi
 
-# 2. 简单编译（增量构建）
-lazbuild fpdev.lpi
-
-# 3. 完全重新编译（推荐用于测试重大更改）
+# 2. 仓库标准构建（clean rebuild）
 lazbuild -B fpdev.lpi
 
-# 4. 编译并构建依赖包
+# 3. 编译并构建依赖包
 lazbuild -B -r fpdev.lpi
 
-# 5. 指定构建模式（Release 模式，启用优化）
+# 4. 指定构建模式（Release 模式，启用优化）
 lazbuild -B --build-mode=Release fpdev.lpi
 
-# 6. 安静模式（减少输出）
+# 5. 安静模式（减少输出）
 lazbuild -B -q fpdev.lpi
 
-# 7. 交叉编译示例（Linux x86_64）
-lazbuild --os=linux --cpu=x86_64 fpdev.lpi
+# 6. 交叉编译示例（Linux x86_64）
+lazbuild -B --os=linux --cpu=x86_64 fpdev.lpi
 ```
 
 #### FPDev 项目构建模式
@@ -825,7 +822,7 @@ WriteLn('Error: Unknown command');
 
 | 类型 | 位置 | 运行方式 | 目标覆盖率 |
 |------|------|----------|------------|
-| **单元测试** | `tests/` | `lazbuild <test>.lpi` | > 80% |
+| **单元测试** | `tests/` | `lazbuild -B <test>.lpi` | > 80% |
 | **顶层回归** | `tests/` | `bash scripts/run_all_tests.sh` | 基线回归 |
 | **单项回归** | `tests/` | `bash scripts/run_single_test.sh tests/test_config_management.lpr` | 聚焦验证 |
 | **示例演示** | `plays/` | `run_examples.bat` | N/A |

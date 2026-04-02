@@ -80,6 +80,15 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertNotIn('fpc -Mobjfpc -Scghi -O3 -Xs -XX fpdev.lpr', text)
         self.assertNotIn('run_tests.bat', text)
 
+    def test_warp_doc_uses_clean_build_examples_consistently(self):
+        text = WARP_MD.read_text(encoding='utf-8')
+
+        self.assertIn('lazbuild -B tests/test_config_management.lpi', text)
+        self.assertIn('lazbuild -B --os=linux --cpu=x86_64 fpdev.lpi', text)
+        self.assertNotIn('lazbuild fpdev.lpi', text)
+        self.assertNotIn('lazbuild <test>.lpi', text)
+        self.assertNotIn('lazbuild --os=linux --cpu=x86_64 fpdev.lpi', text)
+
     def test_fpdev_md_does_not_advertise_removed_root_commands(self):
         text = FPDEV_MD.read_text(encoding='utf-8')
 

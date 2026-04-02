@@ -1561,3 +1561,32 @@
 - 结论更新：
   - build-manager 专题文档已不再把不存在的 workflow 文件包装成 repo 事实
   - docs-contract cleanup 继续向“路径存在性”这类高误导性文档漂移收口
+
+## Execution Update (2026-04-03, WARP clean-build example drift)
+- 新发现的 repo-local seam：
+  - `WARP.md` 虽然已经包含 `lazbuild -B fpdev.lpi`，但“标准构建流程”里仍把裸 `lazbuild fpdev.lpi` 列为实际步骤
+  - 同一文档的测试分类表也仍写着 `lazbuild <test>.lpi`
+  - 交叉编译示例也仍使用不带 `-B` 的 `lazbuild --os=linux --cpu=x86_64 fpdev.lpi`
+- 当前 repo truth：
+  - `AGENTS.md` / `CLAUDE.md`：都将 `lazbuild -B` 作为仓库标准构建入口
+  - `scripts/run_all_tests.sh`：内部对测试工程统一使用 `lazbuild -B`
+  - `tests/test_contributor_docs_contract.py`：此前已约束 `WARP.md` 的主程序构建入口与测试 runner；当前缺口是 clean-build 一致性
+- RED 证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract` 失败
+  - 新增 contributor-doc 契约直接暴露出：
+    - 文档缺少 `lazbuild -B --os=linux --cpu=x86_64 fpdev.lpi`
+    - 仍保留裸 `lazbuild fpdev.lpi`
+    - 仍保留裸 `lazbuild <test>.lpi`
+- 已实施的最小修复：
+  - `tests/test_contributor_docs_contract.py`：
+    - 新增 WARP clean-build 示例一致性契约
+  - `WARP.md`：
+    - 标准构建流程改成 clean rebuild 口径
+    - 交叉编译示例补上 `-B`
+    - 测试分类表中的单元测试命令改成 `lazbuild -B <test>.lpi`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract`：`10` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`111` tests OK，`1` skipped
+- 结论更新：
+  - `WARP.md` 已不再在 contributor-facing 示例里混用裸 `lazbuild`
+  - docs-contract cleanup 继续把“文档已经部分修正但仍残留旧命令”这类漂移自动化收口
