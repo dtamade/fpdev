@@ -1740,3 +1740,42 @@
 | What's the goal? | Keep the first-source-build experience aligned with the same test runners and recovery logic the repository already standardizes elsewhere |
 | What have I learned? | Even when a fallback command technically works, public install docs should not drift away from the repository’s standardized validation paths because users will treat them as the canonical workflow |
 | What have I done? | Added installation-doc test-runner contract coverage, rewrote both install guides around standard test commands, and removed the generated test binary from the worktree |
+
+## Session: 2026-04-02 (claude-doc python-test-runner drift)
+
+### Close-out Execution Follow-up 43
+- **Status:** complete
+- Actions taken:
+  - Continued scanning contributor/developer docs after the installation-doc cleanup and found that `CLAUDE.md` still advertised `python3 -m pytest tests -q` as part of the “full test baselines”
+  - Re-verified the current Python regression entrypoint by running `python3 -m unittest discover -s tests -p 'test_*.py'`, which passed end-to-end in this worktree
+  - Added a failing developer-doc contract proving `CLAUDE.md` must use the repository-standard unittest command rather than `pytest`
+  - Updated `CLAUDE.md` so the baseline test block now uses `python3 -m unittest discover -s tests -p 'test_*.py'` alongside the existing Pascal baseline and focused Pascal test runner
+  - Re-ran the focused developer-doc suite and a broader close-out regression bundle that now includes `tests.test_developer_docs_cli_contract`
+- Files created/modified:
+  - `tests/test_developer_docs_cli_contract.py`
+  - `CLAUDE.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Python regression entrypoint proof | `python3 -m unittest discover -s tests -p 'test_*.py'` | pass | `312` tests OK, `1` skipped | OK |
+| RED proof for CLAUDE.md python test-runner drift | `python3 -m unittest -v tests.test_developer_docs_cli_contract` | fail before fix | failed because `CLAUDE.md` still used `python3 -m pytest tests -q` and lacked the repository-standard unittest discover command | Observed |
+| Focused developer-doc verification | `python3 -m unittest -v tests.test_developer_docs_cli_contract` | pass | `2` tests OK | OK |
+| Contributor + developer + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `88` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `CLAUDE.md` still advertised `pytest` as the baseline Python regression command even though the repository now standardizes on `unittest` | 1 | Added a developer-doc contract and rewrote the baseline command to `python3 -m unittest discover -s tests -p 'test_*.py'` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Contributor and developer docs now align more closely with the repository’s actual Python and Pascal validation entrypoints |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the first contributor workflow from teaching a toolchain prerequisite (`pytest`) that the repository does not actually require as its baseline |
+| What have I learned? | Developer docs can drift independently from public docs, and once they do, contributors start standardizing on the wrong local verification commands even if the codebase itself has already moved on |
+| What have I done? | Proved the unittest-discover baseline works, added a developer-doc contract for it, and replaced the stale pytest command in `CLAUDE.md` |

@@ -28,7 +28,7 @@ lazbuild -B --build-mode=Release fpdev.lpi
 ### Run the full test baselines
 
 ```bash
-python3 -m pytest tests -q
+python3 -m unittest discover -s tests -p 'test_*.py'
 bash scripts/run_all_tests.sh
 ```
 

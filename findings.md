@@ -1198,3 +1198,32 @@
 - 结论更新：
   - 安装指南现在也不会再把源码用户带向旁路测试命令，而是对齐到仓库的标准回归入口
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, claude-doc python-test-runner drift)
+- 在安装指南测试入口也收口后，继续检查 contributor/developer guidance 时，又发现 `CLAUDE.md` 仍把 `python3 -m pytest tests -q` 写成 “Run the full test baselines”
+- 当前 repo guidance 真相：
+  - `docs/testing.md`：测试文档已经围绕 Lazarus/fpcunit 与 `scripts/run_all_tests.sh` 展开
+  - 本地 fresh verification 证明 `python3 -m unittest discover -s tests -p 'test_*.py'` 可以直接跑通当前 Python regression layer
+    - 结果：`312` tests OK，`1` skipped
+  - 此前会话里的错误记录也已经说明：本仓库并不把 `pytest` 当成标准前提
+- 这个问题的影响：
+  - `CLAUDE.md` 是 contributor 第一入口之一；如果它继续把 `pytest` 写成标准基线，新的开发者会优先学到一个仓库未标准化、且在部分环境中根本不存在的前提
+  - 这类 drift 不会直接影响用户，但会持续污染贡献者的本地验证习惯
+- RED 证据：
+  - `python3 -m unittest -v tests.test_developer_docs_cli_contract` 失败
+  - 新增契约 `test_claude_doc_uses_repository_standard_test_commands` 直接暴露出：
+    - `CLAUDE.md` 没有 `python3 -m unittest discover -s tests -p 'test_*.py'`
+    - 仍包含 `python3 -m pytest tests -q`
+- 已实施的最小修复：
+  - `CLAUDE.md`：
+    - “Run the full test baselines” 改成 `python3 -m unittest discover -s tests -p 'test_*.py'`
+    - 保留 `bash scripts/run_all_tests.sh`
+    - 保留 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+  - `tests/test_developer_docs_cli_contract.py`：补齐 developer-doc test-runner 契约
+- 当前最新本地证据：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'`：`312` tests OK，`1` skipped
+  - `python3 -m unittest -v tests.test_developer_docs_cli_contract`：先 RED，修复后 `2` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`88` tests OK，`1` skipped
+- 结论更新：
+  - `CLAUDE.md` 现在不会再把 `pytest` 当成仓库标准全量基线命令
+  - contributor / developer docs 继续向当前真实验证入口收敛

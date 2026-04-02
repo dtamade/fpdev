@@ -841,3 +841,21 @@ Phase 4 complete
 4. 结论：
    - 安装指南现在也与仓库标准测试入口保持一致，不再教用户走一次性的 `fpc -Fu.` 旁路
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, claude-doc python-test-runner drift)
+1. 新发现的 repo-local developer-doc seam：
+   - `CLAUDE.md` 的 “Run the full test baselines” 仍写 `python3 -m pytest tests -q`
+   - 但当前仓库的 Python regression layer 已统一使用 `unittest`，而且本地环境此前也已证明 `pytest` 不是标准前提
+2. 已完成的最小修复：
+   - `tests/test_developer_docs_cli_contract.py` 新增 `test_claude_doc_uses_repository_standard_test_commands`
+   - `CLAUDE.md`：
+     - 将 Python 基线命令改成 `python3 -m unittest discover -s tests -p 'test_*.py'`
+     - 保留 `bash scripts/run_all_tests.sh`
+     - 保留 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+3. 已完成验证：
+   - `python3 -m unittest discover -s tests -p 'test_*.py'`：`312` tests OK，`1` skipped
+   - `python3 -m unittest -v tests.test_developer_docs_cli_contract`：先 RED，修复后 `2` tests OK
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`88` tests OK，`1` skipped
+4. 结论：
+   - `CLAUDE.md` 现在不再把 `pytest` 当成仓库标准基线命令
+   - contributor / developer docs 继续向当前真实验证入口收敛
