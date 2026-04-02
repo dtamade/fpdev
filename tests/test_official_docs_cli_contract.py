@@ -209,6 +209,17 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertIn('bash scripts/run_all_tests.sh', text)
         self.assertNotIn(r'scripts\run_all_tests.bat', text)
 
+    def test_test_infra_doc_describes_current_runner_and_output_patterns(self):
+        text = (REPO_ROOT / 'docs' / '测试基建规范.md').read_text(encoding='utf-8')
+
+        self.assertIn('scripts/run_all_tests.sh', text)
+        self.assertIn('tests/fpdev.build.manager/run_tests.bat', text)
+        self.assertIn('../../bin', text)
+        self.assertIn('../../lib/$(TargetCPU)-$(TargetOS)', text)
+        self.assertNotIn('buildOrTest.bat <name.lpr> [Default|Debug|Release]', text)
+        self.assertNotIn('UnitOutputDirectory=lib/$(TargetCPU)-$(TargetOS)', text)
+        self.assertNotIn('产物输出当前保留在各测试子目录的 bin/ 与 lib/ 下', text)
+
     def test_libgit2_integration_docs_reference_existing_repo_artifacts(self):
         zh_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.en.md').read_text(encoding='utf-8')

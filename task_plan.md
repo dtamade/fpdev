@@ -1009,3 +1009,22 @@ Phase 4 complete
 4. 结论：
    - libgit2 live docs 现在不再把已经消失的 helper script / loader unit 当成当前仓库事实
    - official-doc contract 已继续向专题技术文档扩展
+
+## Close-out Update (2026-04-02, test-infra doc layout drift)
+1. 新发现的 official-doc seam：
+   - `docs/测试基建规范.md` 仍把 `buildOrTest.bat`、子目录 `bin/` / `lib/`、`UnitOutputDirectory=lib/$(TargetCPU)-$(TargetOS)` 写成 tests 子树的统一前提
+   - 但当前维护中的 `tests/fpdev.build.manager` 已切到 repo-root `bin/` / `lib/` 和显式 `run_tests.bat` / `run_tests.sh`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py`：
+     - 新增 `test_test_infra_doc_describes_current_runner_and_output_patterns`
+   - `docs/测试基建规范.md`：
+     - 目录规范改成“至少包含 `*.lpr`，runner / `.lpi` 可选”
+     - `.lpi` 约定改成当前 `tests/fpdev.build.manager/test_build_manager.lpi` 的 repo-root 输出示例（`../../bin` / `../../lib/...`）
+     - 构建与脚本改成 `scripts/run_all_tests.sh`、`scripts/run_single_test.sh` 和显式提供时才使用的项目级 `run_tests.*`
+     - 明确 `buildOrTest.bat` 只应视为遗留局部工具，不是全仓统一前提
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `33` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`108` tests OK，`1` skipped
+4. 结论：
+   - 测试基建规范现在回到“当前仓库支持的几种 runner / 输出模式”，不再把遗留模板误写成统一规范
+   - official-doc contract 继续向工程实践文档收口

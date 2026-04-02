@@ -1468,3 +1468,37 @@
 - 结论更新：
   - libgit2 专题文档现在回到当前存在的绑定文件和测试工件
   - docs-contract cleanup 已从通用用户文档扩展到专题技术文档
+
+## Execution Update (2026-04-02, test-infra doc layout drift)
+- 新发现的 repo-local seam：
+  - `docs/测试基建规范.md` 仍把 `buildOrTest.bat`、本地 `bin/` / `lib/`、以及 `UnitOutputDirectory=lib/$(TargetCPU)-$(TargetOS)` 当作 tests 子树统一模板
+  - 但当前 `tests/fpdev.build.manager/run_tests.bat` 已从仓库根构建到 `bin\...`
+  - `tests/fpdev.build.manager/test_build_manager.lpi` 也把目标与单元输出显式设到 `../../bin` 和 `../../lib/$(TargetCPU)-$(TargetOS)`
+  - 同目录下也不存在 `buildOrTest.bat`，只有显式的 `run_tests.bat` / `run_tests.sh`
+- 当前 repo truth：
+  - `scripts/run_all_tests.sh`：当前顶层 Pascal 回归基线
+  - `scripts/run_single_test.sh tests/test_config_management.lpr`：当前顶层聚焦 runner
+  - `tests/fpdev.build.manager/run_tests.bat` / `tests/fpdev.build.manager/run_tests.sh`：当前 build-manager 子树的显式项目级 runner
+  - `tests/fpdev.build.manager/test_build_manager.lpi`：当前 `.lpi` 输出模式是 `../../bin` + `../../lib/...`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增 official-doc 契约直接暴露出：
+    - 文档缺少 `scripts/run_all_tests.sh`
+    - 缺少 `tests/fpdev.build.manager/run_tests.bat`
+    - 缺少 `../../bin` 与 `../../lib/$(TargetCPU)-$(TargetOS)`
+    - 仍保留 `buildOrTest.bat <name.lpr> [Default|Debug|Release]`
+    - 仍保留 `UnitOutputDirectory=lib/$(TargetCPU)-$(TargetOS)` 与“各测试子目录的 bin/ 与 lib/ 下”
+- 已实施的最小修复：
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 test-infra 文档当前 runner/output 模式契约
+  - `docs/测试基建规范.md`：
+    - 将“统一模板”改成“当前仓库常见模式”
+    - `.lpi` 示例切到 `tests/fpdev.build.manager/test_build_manager.lpi` 的 repo-root 输出
+    - 构建脚本段切到顶层 runner + 显式项目 runner
+    - 将 `buildOrTest.bat` 明确降级为遗留局部工具
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`33` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`108` tests OK，`1` skipped
+- 结论更新：
+  - test-infra 文档已回到当前仓库的 runner / output 真相
+  - docs-contract cleanup 继续把“工程规范类文档”纳入自动化验证

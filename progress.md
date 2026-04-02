@@ -2048,3 +2048,40 @@
 | What's the goal? | Keep technical reference docs from teaching removed helper scripts or nonexistent source files after the implementation has been consolidated |
 | What have I learned? | Technical subsystem docs drift toward missing file paths as the implementation consolidates; path-existence contracts catch that class of drift well |
 | What have I done? | Added libgit2 official-doc assertions, updated four libgit2 docs to current artifacts, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-02 (test-infra doc layout drift)
+
+### Close-out Execution Follow-up 50
+- **Status:** complete
+- Actions taken:
+  - Continued to the next repo-local doc seam surfaced earlier: the Chinese test-infra guideline still described `buildOrTest.bat` and subdir-local `bin/lib` as universal structure
+  - Re-verified the current source of truth from `tests/fpdev.build.manager/run_tests.bat`, `tests/fpdev.build.manager/run_tests.sh`, and `tests/fpdev.build.manager/test_build_manager.lpi`: maintained tests can build from the repo root into top-level `bin/` and `lib/`
+  - Added a focused official-doc contract for `docs/测试基建规范.md`
+  - Rewrote the guideline around current runner/output patterns and re-ran focused plus broad regression coverage
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/测试基建规范.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for test-infra layout drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/测试基建规范.md` still taught universal `buildOrTest.bat` and local `bin/lib` outputs, while omitting current root-runner/root-output patterns | Observed |
+| Focused official-doc verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `33` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `108` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The test-infra guideline still generalized a legacy `buildOrTest.bat` + local `bin/lib` layout that no longer matches the maintained build-manager test subtree | 1 | Added focused official-doc contract coverage and rewrote the guideline around current root runners, explicit project runners, and repo-root output paths |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The test-infra guideline is now under official-doc contract and aligned to maintained runner/output patterns |
+| Where am I going? | Commit and push this test-infra docs checkpoint, then continue to the next uncovered public doc seam |
+| What's the goal? | Prevent engineering-guideline docs from standardizing obsolete local layouts that the maintained test projects no longer use |
+| What have I learned? | “规范” 文档 drift 的破坏性更强，因为它会把少数遗留模式重新合法化； targeted contract checks are worth adding as soon as such a doc is found |
+| What have I done? | Added one focused official-doc assertion, rewrote `docs/测试基建规范.md` to current runner/output truth, and re-verified the full docs/release/CI bundle |
