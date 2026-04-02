@@ -10,7 +10,8 @@ uses
   fpdev.package.publishflow,
   fpdev.exitcodes,
   fpdev.output.intf,
-  test_cli_helpers;
+  test_cli_helpers,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -37,14 +38,10 @@ begin
 end;
 
 function CreateTempDir(const ASuffix: string): string;
-var
-  TempPath: string;
 begin
-  TempPath := GetTempFileName(GetTempDir(False), 'pkg');
-  if FileExists(TempPath) then
-    DeleteFile(TempPath);
-  Result := TempPath + '_' + ASuffix;
-  ForceDirectories(Result);
+  Result := CreateUniqueTempDir('fpdev-pkg-metadata-' + ASuffix);
+  AssertTrue(PathUsesSystemTempRoot(Result),
+    'metadata temp dir lives under system temp');
 end;
 
 procedure WriteTextFile(const APath, AContent: string);
@@ -119,7 +116,7 @@ begin
       JsonData.Free;
     end;
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -162,7 +159,7 @@ begin
     AssertEquals('https://example.com/overlay', Info.Homepage, 'metadata overlay updates homepage');
     AssertEquals('https://example.com/repo.git', Info.Repository, 'metadata overlay updates repository');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -190,7 +187,7 @@ begin
     AssertEquals('1.0.0', Info.Version, 'invalid metadata keeps fallback version');
     AssertEquals('fallback description', Info.Description, 'invalid metadata keeps fallback description');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -214,7 +211,7 @@ begin
     AssertEquals('pkg_from_meta', PackageName,
       'metadata name overrides directory fallback');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -233,7 +230,7 @@ begin
     AssertEquals('dir_name', PackageName,
       'invalid metadata keeps directory-name fallback');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -283,7 +280,7 @@ begin
     AssertEquals(ExpandFileName(RelativeSourceDir), ArchiveSourcePath,
       'relative source_path is resolved against install dir');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -326,7 +323,7 @@ begin
     AssertEquals('missing_src', ErrorText,
       'missing source path returns original metadata path');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 
@@ -419,7 +416,7 @@ begin
     AssertTrue(Trim(StdErr.GetBuffer) = '',
       'publish archive helper keeps stderr empty on success');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 procedure TestTryLoadPackageMetadataCoreReportsInvalidJson;
@@ -442,7 +439,7 @@ begin
     AssertTrue(Status = pmlsInvalidJSON, 'invalid json status is reported');
     AssertTrue(ErrorText <> '', 'invalid json returns parse detail');
   finally
-    DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 

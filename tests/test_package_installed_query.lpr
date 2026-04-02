@@ -7,7 +7,8 @@ uses
   fpdev.package.types,
   fpdev.utils.fs,
   fpdev.package.query.info,
-  fpdev.package.query.installed;
+  fpdev.package.query.installed,
+  test_temp_paths;
 
 type
   TStubPackageReader = class
@@ -48,14 +49,10 @@ begin
 end;
 
 function CreateTempDir(const ASuffix: string): string;
-var
-  TempPath: string;
 begin
-  TempPath := GetTempFileName(GetTempDir(False), 'pkg');
-  if FileExists(TempPath) then
-    DeleteFile(TempPath);
-  Result := TempPath + '_' + ASuffix;
-  ForceDirectories(Result);
+  Result := CreateUniqueTempDir('fpdev-pkg-installed-' + ASuffix);
+  AssertTrue(PathUsesSystemTempRoot(Result),
+    'installed-query temp dir lives under system temp');
 end;
 
 procedure WriteTextFile(const APath, AContent: string);
@@ -95,7 +92,7 @@ begin
     AssertTrue(not IsPackageInstalledCore(RegistryDir, 'missing'),
       'missing package directory is reported as not installed');
   finally
-    DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 
@@ -147,7 +144,7 @@ begin
     AssertEquals('/src/alpha', Info.SourcePath, 'metadata source path is loaded');
     AssertEquals(PackageDir, Info.InstallPath, 'install path comes from registry layout');
   finally
-    DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 
@@ -170,7 +167,7 @@ begin
     AssertEquals('Installed package', Info.Description,
       'missing metadata uses fallback description');
   finally
-    DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 
@@ -197,7 +194,7 @@ begin
     AssertEquals('Installed package', Info.Description,
       'invalid metadata uses fallback description');
   finally
-    DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 
@@ -247,7 +244,7 @@ begin
       Reader.Free;
     end;
   finally
-    DeleteDirRecursive(TempRoot);
+    CleanupTempDir(TempRoot);
   end;
 end;
 

@@ -17,7 +17,8 @@ program test_package_properties;
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.cmd.package, fpdev.package.types, fpdev.hash, fpdev.paths;
+  fpdev.cmd.package, fpdev.package.types, fpdev.hash, fpdev.paths,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -43,30 +44,9 @@ end;
 { Helper: Create temporary directory }
 function CreateTempDir(const AName: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir) + 'fpdev_test_' + AName + '_' + IntToStr(GetTickCount64);
-  ForceDirectories(Result);
-end;
-
-{ Helper: Remove directory recursively }
-procedure RemoveDirRecursive(const ADir: string);
-var
-  SR: TSearchRec;
-  P: string;
-begin
-  if not DirectoryExists(ADir) then Exit;
-  if FindFirst(IncludeTrailingPathDelimiter(ADir) + '*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      if (SR.Name = '.') or (SR.Name = '..') then Continue;
-      P := IncludeTrailingPathDelimiter(ADir) + SR.Name;
-      if (SR.Attr and faDirectory) <> 0 then
-        RemoveDirRecursive(P)
-      else
-        DeleteFile(P);
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-  RemoveDir(ADir);
+  Result := CreateUniqueTempDir('fpdev_test_' + AName);
+  if not PathUsesSystemTempRoot(Result) then
+    raise Exception.Create('property test temp dir should live under system temp: ' + Result);
 end;
 
 { Helper: Create test file with content }
@@ -275,7 +255,7 @@ begin
       Assert(VerifyResult.Version = TestPackages[i].Version, 'Verify ' + TestPackages[i].Name + ' - version matches');
       Assert(Length(VerifyResult.MissingFiles) = 0, 'Verify ' + TestPackages[i].Name + ' - no missing files');
     finally
-      RemoveDirRecursive(TestDir);
+      CleanupTempDir(TestDir);
     end;
   end;
 
@@ -345,7 +325,7 @@ begin
       'Non-existent file rejected');
 
   finally
-    RemoveDirRecursive(TestDir);
+    CleanupTempDir(TestDir);
   end;
 
   Inc(TestsPassed);
@@ -457,8 +437,8 @@ begin
     Assert(FileExists(OutputPath), 'ZIP file exists');
 
   finally
-    RemoveDirRecursive(SourceDir);
-    RemoveDirRecursive(OutputDir);
+    CleanupTempDir(SourceDir);
+    CleanupTempDir(OutputDir);
   end;
 
   Inc(TestsPassed);
@@ -555,7 +535,7 @@ begin
       Assert(not IsBuildArtifact(SourceFiles[i]), 'Not artifact: ' + SourceFiles[i]);
 
   finally
-    RemoveDirRecursive(TestDir);
+    CleanupTempDir(TestDir);
   end;
 
   Inc(TestsPassed);
@@ -659,7 +639,7 @@ begin
     Assert(not ValidatePackageSourcePath('/nonexistent/path'), 'Non-existent dir fails');
 
   finally
-    RemoveDirRecursive(TestDir);
+    CleanupTempDir(TestDir);
   end;
 end;
 
@@ -703,7 +683,7 @@ begin
     Assert(not ValidatePackageMetadata(MetaPath), 'Non-existent file fails');
 
   finally
-    RemoveDirRecursive(TestDir);
+    CleanupTempDir(TestDir);
   end;
 end;
 
@@ -736,7 +716,7 @@ begin
     Assert(Length(Missing) > 0, 'Non-existent dir reports missing');
 
   finally
-    RemoveDirRecursive(TestDir);
+    CleanupTempDir(TestDir);
   end;
 end;
 

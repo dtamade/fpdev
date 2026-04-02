@@ -13,6 +13,7 @@ unit fpdev.package.registry;
   - Version management
 
   Registry Structure:
+    <data-root>/registry/
     registry/
     +-- index.json          # Package index
     +-- config.json         # Registry configuration
@@ -24,7 +25,7 @@ unit fpdev.package.registry;
                 +-- package.json
 
   Usage:
-    Registry := TPackageRegistry.Create('~/.fpdev/registry');
+    Registry := TPackageRegistry.Create(GetDataRoot + PathDelim + 'registry');
     if Registry.Initialize then
     begin
       Registry.AddPackage('mylib-1.0.0.tar.gz');
