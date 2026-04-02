@@ -23,9 +23,9 @@ This document describes the complete libgit2 integration solution in the FPDev p
 
 ### Core Components
 
-1. **libgit2.pas** - Complete C API bindings
-2. **git2.modern.pas** - Modern Pascal interface wrappers
-3. **Build scripts** - Cross-platform libgit2 builds
+1. **src/libgit2.pas** - Complete C API bindings
+2. **src/git2.modern.pas** - Modern Pascal interface wrappers
+3. **3rd/libgit2/** - Upstream source tree used for manual CMake builds
 4. **Test suite** - Functional verification and examples
 
 ## File Structure
@@ -33,21 +33,21 @@ This document describes the complete libgit2 integration solution in the FPDev p
 ```
 fpdev/
 ├── src/
-│   ├── libgit2.pas           # C API bindings
-│   ├── git2.modern.pas       # Modern interface wrappers
-│   └── fpdev.fpc.source.pas  # FPC source management
+│   ├── libgit2.pas                    # C API bindings
+│   ├── git2.modern.pas                # Modern interface wrappers
+│   ├── fpdev.git2.pas                 # OO Git wrapper layer
+│   └── fpdev.fpc.source.pas           # FPC source management
 ├── 3rd/
-│   └── libgit2/              # libgit2 source and build
-│       ├── build/            # Build directory
-│       └── install/          # Installation directory
-├── scripts/
-│   ├── build_libgit2_simple.bat    # Windows build script
-│   ├── build_libgit2_linux.sh      # Linux build script
-│   └── get_git2_dll.bat            # DLL acquisition script
+│   └── libgit2/                       # libgit2 source and manual build tree
+│       ├── build/                    # CMake build directory
+│       └── install/                  # Installation directory
 ├── tests/
-│   ├── test_libgit2_complete.lpr   # Complete functionality tests
-│   ├── test_git_real.lpr           # Real Git operation tests
-│   └── test_fpc_source.lpr         # FPC source management tests
+│   ├── fpdev.libgit2.base/
+│   │   └── test_libgit2_complete.lpr # Complete functionality tests
+│   ├── fpdev.git2.adapter/
+│   │   └── test_git_real.lpr         # Real Git operation tests
+│   └── fpdev.core.misc/
+│       └── test_dyn_loader.lpr       # Windows DLL discovery smoke test
 └── docs/
     └── LIBGIT2_INTEGRATION.md      # This document
 ```
@@ -148,7 +148,7 @@ end;
 
 ### Windows Build (MinGW)
 
-**Script**: `scripts/build_libgit2_simple.bat`
+The current repository no longer maintains a dedicated libgit2 helper build script for Windows. If you need to rebuild the bundled copy, run CMake directly inside `3rd/libgit2/`.
 
 **Dependencies**:
 - CMake 3.16+
@@ -160,8 +160,7 @@ end;
 # 1. Clone source code
 git clone https://github.com/libgit2/libgit2.git 3rd/libgit2
 
-# 2. Run build script
-scripts\build_libgit2_simple.bat
+# 2. Run a manual CMake / MinGW build inside 3rd/libgit2
 
 # 3. Output files
 3rd\libgit2\install\bin\libgit2.dll      # Dynamic library
@@ -171,7 +170,7 @@ scripts\build_libgit2_simple.bat
 
 ### Linux Build
 
-**Script**: `scripts/build_libgit2_linux.sh`
+The current repository no longer maintains a dedicated libgit2 helper build script for Linux. If you need to rebuild the bundled copy, run CMake directly inside `3rd/libgit2/`.
 
 **Dependencies**:
 ```bash
@@ -184,8 +183,7 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 
 **Build Steps**:
 ```bash
-# 1. Run build script
-./scripts/build_libgit2_linux.sh
+# 1. Run a manual CMake build inside 3rd/libgit2
 
 # 2. Output files
 3rd/libgit2/install/lib/libgit2.so       # Dynamic library
@@ -197,27 +195,30 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 
 ### Test Programs
 
-1. **test_libgit2_complete.lpr** - Complete functionality tests
+1. **tests/fpdev.libgit2.base/test_libgit2_complete.lpr** - Complete functionality tests
    - libgit2 initialization tests
    - Repository operation tests
    - Commit information tests
    - Remote operation tests
    - OID operation tests
 
-2. **test_git_real.lpr** - Real Git operation tests
+2. **tests/fpdev.git2.adapter/test_git_real.lpr** - Real Git operation tests
    - Git environment checks
    - Actual repository cloning
    - Network connectivity tests
 
-3. **test_fpc_source.lpr** - FPC source management tests
-   - FPC version management
-   - Source path management
-   - Branch information display
+3. **tests/fpdev.core.misc/test_dyn_loader.lpr** - Dynamic library discovery smoke test
+   - `TGitManager.Initialize` path
+   - Windows `git2.dll` discovery and failure messaging
+   - Minimal exception handling and exit-code behavior
 
 ### Running Tests
 
 ```bash
-# Compile test programs
+# Lazarus/FPC test projects
+lazbuild --build-all --no-write-project tests/fpdev.libgit2.base/test_libgit2_complete.lpi
+lazbuild --build-all --no-write-project tests/fpdev.git2.adapter/test_git_real.lpi
+lazbuild -B tests/fpdev.core.misc/test_dyn_loader.lpi
 fpc -Fusrc test_libgit2_complete.lpr
 fpc -Fusrc test_git_real.lpr
 fpc -Fusrc test_fpc_source.lpr

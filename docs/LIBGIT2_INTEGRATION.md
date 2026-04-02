@@ -22,9 +22,9 @@
 
 ### 核心组件
 
-1. **libgit2.pas** - 完整的C API绑定
-2. **git2.modern.pas** - 现代Pascal接口封装
-3. **构建脚本** - 跨平台libgit2构建
+1. **src/libgit2.pas** - 完整的 C API 绑定
+2. **src/git2.modern.pas** - 现代 Pascal 接口封装
+3. **3rd/libgit2/** - 手动 CMake 构建时使用的上游源码目录
 4. **测试套件** - 功能验证和示例
 
 ## 📁 文件结构
@@ -32,21 +32,21 @@
 ```
 fpdev/
 ├── src/
-│   ├── libgit2.pas           # C API绑定
-│   ├── git2.modern.pas       # 现代接口封装
-│   └── fpdev.fpc.source.pas  # FPC源码管理
+│   ├── libgit2.pas                    # C API绑定
+│   ├── git2.modern.pas                # 现代接口封装
+│   ├── fpdev.git2.pas                 # 面向对象 Git 包装层
+│   └── fpdev.fpc.source.pas           # FPC源码管理
 ├── 3rd/
-│   └── libgit2/              # libgit2源码和构建
-│       ├── build/            # 构建目录
-│       └── install/          # 安装目录
-├── scripts/
-│   ├── build_libgit2_simple.bat    # Windows构建脚本
-│   ├── build_libgit2_linux.sh      # Linux构建脚本
-│   └── get_git2_dll.bat            # DLL获取脚本
+│   └── libgit2/                       # libgit2源码和手动构建目录
+│       ├── build/                    # CMake 构建目录
+│       └── install/                  # 安装目录
 ├── tests/
-│   ├── test_libgit2_complete.lpr   # 完整功能测试
-│   ├── test_git_real.lpr           # 实际Git操作测试
-│   └── test_fpc_source.lpr         # FPC源码管理测试
+│   ├── fpdev.libgit2.base/
+│   │   └── test_libgit2_complete.lpr # 完整功能测试
+│   ├── fpdev.git2.adapter/
+│   │   └── test_git_real.lpr         # 实际Git操作测试
+│   └── fpdev.core.misc/
+│       └── test_dyn_loader.lpr       # Windows DLL 发现冒烟用例
 └── docs/
     └── LIBGIT2_INTEGRATION.md      # 本文档
 ```
@@ -147,7 +147,7 @@ end;
 
 ### Windows构建 (MinGW)
 
-**脚本**: `scripts/build_libgit2_simple.bat`
+当前仓库不再维护独立的 libgit2 Windows 辅助构建脚本；如需重新构建 bundled libgit2，请直接在 `3rd/libgit2/` 下使用 CMake。
 
 **依赖**:
 - CMake 3.16+
@@ -159,8 +159,7 @@ end;
 # 1. 克隆源码
 git clone https://github.com/libgit2/libgit2.git 3rd/libgit2
 
-# 2. 运行构建脚本
-scripts\build_libgit2_simple.bat
+# 2. 在 3rd/libgit2 下手动运行 CMake / MinGW 构建
 
 # 3. 输出文件
 3rd\libgit2\install\bin\libgit2.dll      # 动态库
@@ -170,7 +169,7 @@ scripts\build_libgit2_simple.bat
 
 ### Linux构建
 
-**脚本**: `scripts/build_libgit2_linux.sh`
+当前仓库不再维护独立的 libgit2 Linux 辅助构建脚本；如需重新构建 bundled libgit2，请直接在 `3rd/libgit2/` 下使用 CMake。
 
 **依赖**:
 ```bash
@@ -183,8 +182,7 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 
 **构建步骤**:
 ```bash
-# 1. 运行构建脚本
-./scripts/build_libgit2_linux.sh
+# 1. 在 3rd/libgit2 下手动运行 CMake 构建
 
 # 2. 输出文件
 3rd/libgit2/install/lib/libgit2.so       # 动态库
@@ -196,35 +194,30 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 
 ### 测试程序
 
-1. **test_libgit2_complete.lpr** - 完整功能测试
+1. **tests/fpdev.libgit2.base/test_libgit2_complete.lpr** - 完整功能测试
    - libgit2初始化测试
    - 仓库操作测试
    - 提交信息测试
    - 远程操作测试
    - OID操作测试
 
-2. **test_git_real.lpr** - 实际Git操作测试
+2. **tests/fpdev.git2.adapter/test_git_real.lpr** - 实际Git操作测试
    - Git环境检查
    - 实际仓库克隆
    - 网络连接测试
 
-3. **test_fpc_source.lpr** - FPC源码管理测试
-   - FPC版本管理
-   - 源码路径管理
-   - 分支信息显示
+3. **tests/fpdev.core.misc/test_dyn_loader.lpr** - 动态库发现冒烟测试
+   - `TGitManager.Initialize` 初始化路径
+   - Windows `git2.dll` 发现与错误提示
+   - 最小异常处理和退出码验证
 
 ### 运行测试
 
 ```bash
-# 编译测试程序
-fpc -Fusrc test_libgit2_complete.lpr
-fpc -Fusrc test_git_real.lpr
-fpc -Fusrc test_fpc_source.lpr
-
-# 运行测试
-.\test_libgit2_complete.exe
-.\test_git_real.exe
-.\test_fpc_source.exe
+# Lazarus/FPC 测试工程
+lazbuild --build-all --no-write-project tests/fpdev.libgit2.base/test_libgit2_complete.lpi
+lazbuild --build-all --no-write-project tests/fpdev.git2.adapter/test_git_real.lpi
+lazbuild -B tests/fpdev.core.misc/test_dyn_loader.lpi
 ```
 
 ## 📊 性能特性

@@ -1430,3 +1430,41 @@
 - 结论更新：
   - `fpdev.md` 这个顶层命令参考已回到当前 CLI 注册真相
   - docs-contract cleanup 继续把“未被保护的顶层 markdown”纳入自动化约束
+
+## Execution Update (2026-04-02, libgit2 docs missing-artifact drift)
+- 新发现的 repo-local seam：
+  - `docs/LIBGIT2_INTEGRATION.md` / `docs/LIBGIT2_INTEGRATION.en.md` 仍公开引用不存在的 `scripts/build_libgit2_simple.bat`、`scripts/build_libgit2_linux.sh`、`scripts/get_git2_dll.bat`
+  - `docs/LIBGIT2_DYNAMIC.md` 与 `docs/M1_GIT_HARDENING.md` 仍把当前仓库说成含有 `src/libgit2.dynamic.pas`、`src/libgit2.network.pas`、`src/test_dyn_loader.lpr`、`scripts/test_dynamic_loader.bat`
+  - 但当前实际 smoke test 位于 `tests/fpdev.core.misc/test_dyn_loader.lpr`
+- 当前 repo truth：
+  - `src/libgit2.pas`：当前统一的 libgit2 C 绑定入口，Windows 默认库名是 `git2.dll`
+  - `src/git2.modern.pas`：当前 modern wrapper 直接走 `git2.api` / `git2.impl`，没有 `uses libgit2.dynamic`
+  - `tests/fpdev.core.misc/test_dyn_loader.lpr`：当前存在的最小动态库发现 smoke 用例
+  - `find src tests scripts ...`：仓库内不存在 `libgit2.dynamic.pas`、`libgit2.network.pas`、`src/test_dyn_loader.lpr`、`test_dynamic_loader.bat`、`build_libgit2_simple.bat`、`build_libgit2_linux.sh`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增 official-doc 契约直接暴露出：
+    - libgit2 integration docs 缺少 `src/libgit2.pas` 与当前测试路径
+    - 仍保留 helper build scripts 与扁平 `tests/test_libgit2_complete.lpr`
+    - dynamic/hardening docs 缺少 `tests/fpdev.core.misc/test_dyn_loader.lpr`
+    - 仍保留缺失的 loader/network/test-script 路径
+- 已实施的最小修复：
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 libgit2 integration docs 工件契约
+    - 新增 libgit2 dynamic docs 缺失工件拒绝契约
+  - `docs/LIBGIT2_INTEGRATION.md` / `docs/LIBGIT2_INTEGRATION.en.md`：
+    - 文件结构改成当前真实源文件与测试目录
+    - 构建说明改成“在 `3rd/libgit2/` 下手动 CMake 构建”
+    - 测试说明改成当前 `.lpi` / `.lpr` 路径
+  - `docs/LIBGIT2_DYNAMIC.md`：
+    - 改成当前 `src/libgit2.pas` 统一绑定模型
+    - 冒烟路径改成 `tests/fpdev.core.misc/test_dyn_loader.lpi/.lpr`
+  - `docs/M1_GIT_HARDENING.md`：
+    - 保留工件列表切到 `src/libgit2.pas`、`src/fpdev.git2.pas`、`src/git2.modern.pas`
+    - 删除缺失 loader/network/test-script 路径
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`32` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`107` tests OK，`1` skipped
+- 结论更新：
+  - libgit2 专题文档现在回到当前存在的绑定文件和测试工件
+  - docs-contract cleanup 已从通用用户文档扩展到专题技术文档

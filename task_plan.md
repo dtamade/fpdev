@@ -984,3 +984,28 @@ Phase 4 complete
 4. 结论：
    - `fpdev.md` 现在不再传播旧的 root CLI 心智模型
    - contributor contract 已继续向顶层 public command reference 收口
+
+## Close-out Update (2026-04-02, libgit2 docs missing-artifact drift)
+1. 新发现的 official-doc seam：
+   - `docs/LIBGIT2_INTEGRATION.md` / `docs/LIBGIT2_INTEGRATION.en.md` 仍指向不存在的 `scripts/build_libgit2_simple.bat`、`scripts/build_libgit2_linux.sh`、`scripts/get_git2_dll.bat`
+   - `docs/LIBGIT2_DYNAMIC.md` 与 `docs/M1_GIT_HARDENING.md` 仍指向不存在的 `src/libgit2.dynamic.pas`、`src/libgit2.network.pas`、`src/test_dyn_loader.lpr`、`scripts/test_dynamic_loader.bat`
+   - 这些文档也没有对齐当前实际存在的 smoke test 路径 `tests/fpdev.core.misc/test_dyn_loader.lpr`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py`：
+     - 新增 `test_libgit2_integration_docs_reference_existing_repo_artifacts`
+     - 新增 `test_libgit2_dynamic_docs_do_not_point_to_missing_loader_units_or_scripts`
+   - `docs/LIBGIT2_INTEGRATION.md` / `docs/LIBGIT2_INTEGRATION.en.md`：
+     - 文件结构与测试路径切到 `src/libgit2.pas`、`tests/fpdev.libgit2.base/test_libgit2_complete.lpr`、`tests/fpdev.git2.adapter/test_git_real.lpr`、`tests/fpdev.core.misc/test_dyn_loader.lpr`
+     - Windows/Linux 构建说明改成“在 `3rd/libgit2/` 下手动 CMake 构建”，删除失效 helper 脚本引用
+   - `docs/LIBGIT2_DYNAMIC.md`：
+     - 改成当前统一绑定 `src/libgit2.pas` + 上层封装的说明
+     - 快速冒烟改成 `tests/fpdev.core.misc/test_dyn_loader.lpi/.lpr`
+   - `docs/M1_GIT_HARDENING.md`：
+     - 将保留工件说明改成 `src/libgit2.pas`、`src/fpdev.git2.pas`、`src/git2.modern.pas`
+     - 删除失效 loader/network/test script 路径
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `32` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`107` tests OK，`1` skipped
+4. 结论：
+   - libgit2 live docs 现在不再把已经消失的 helper script / loader unit 当成当前仓库事实
+   - official-doc contract 已继续向专题技术文档扩展

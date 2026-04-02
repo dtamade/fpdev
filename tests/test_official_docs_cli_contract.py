@@ -209,6 +209,33 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertIn('bash scripts/run_all_tests.sh', text)
         self.assertNotIn(r'scripts\run_all_tests.bat', text)
 
+    def test_libgit2_integration_docs_reference_existing_repo_artifacts(self):
+        zh_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('src/libgit2.pas', text)
+            self.assertIn('tests/fpdev.libgit2.base/test_libgit2_complete.lpr', text)
+            self.assertIn('tests/fpdev.core.misc/test_dyn_loader.lpr', text)
+            self.assertNotIn('scripts/build_libgit2_simple.bat', text)
+            self.assertNotIn('scripts/build_libgit2_linux.sh', text)
+            self.assertNotIn('scripts/get_git2_dll.bat', text)
+            self.assertNotIn('tests/test_libgit2_complete.lpr', text)
+
+    def test_libgit2_dynamic_docs_do_not_point_to_missing_loader_units_or_scripts(self):
+        dynamic_text = (REPO_ROOT / 'docs' / 'LIBGIT2_DYNAMIC.md').read_text(encoding='utf-8')
+        hardening_text = (REPO_ROOT / 'docs' / 'M1_GIT_HARDENING.md').read_text(encoding='utf-8')
+
+        for text in (dynamic_text, hardening_text):
+            self.assertIn('src/libgit2.pas', text)
+            self.assertIn('tests/fpdev.core.misc/test_dyn_loader.lpr', text)
+            self.assertNotIn('src/libgit2.dynamic.pas', text)
+            self.assertNotIn('src/libgit2.network.pas', text)
+            self.assertNotIn('src/test_dyn_loader.lpr', text)
+            self.assertNotIn('scripts/test_dynamic_loader.bat', text)
+
+        self.assertNotIn('scripts/build_libgit2_windows.bat', dynamic_text)
+
     def test_quickstart_docs_use_supported_config_and_parallelism_guidance(self):
         zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')

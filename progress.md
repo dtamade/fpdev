@@ -2008,3 +2008,43 @@
 | What's the goal? | Prevent top-level command references from reintroducing removed root commands or stale verb names after the live docs have already been corrected |
 | What have I learned? | Top-level short reference docs drift differently from long guides: they need heading-level assertions, and those assertions must be precise enough to avoid matching valid nested headings |
 | What have I done? | Added `fpdev.md` contract coverage, rewrote the file to current namespaced commands, handled one false-positive in the contract, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-02 (libgit2 docs missing-artifact drift)
+
+### Close-out Execution Follow-up 49
+- **Status:** complete
+- Actions taken:
+  - Continued from the next highest-value top-level doc seam and bounded it to the libgit2 technical docs that still referenced missing helper scripts, loader units, and an old smoke-test path
+  - Re-verified the current source of truth locally: the active binding is `src/libgit2.pas`, the modern wrapper no longer switches through `libgit2.dynamic`, and the current smoke test is `tests/fpdev.core.misc/test_dyn_loader.lpr`
+  - Extended `tests/test_official_docs_cli_contract.py` with focused libgit2 assertions covering both the integration docs and the dynamic/hardening docs
+  - Updated the affected libgit2 docs to current repo artifacts and re-ran the focused official-doc suite plus the broad docs/release/CI regression bundle
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/LIBGIT2_INTEGRATION.md`
+  - `docs/LIBGIT2_INTEGRATION.en.md`
+  - `docs/LIBGIT2_DYNAMIC.md`
+  - `docs/M1_GIT_HARDENING.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for libgit2 missing-artifact drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because libgit2 docs still referenced removed helper scripts / loader units and omitted current `src/libgit2.pas` plus `tests/fpdev.core.misc/test_dyn_loader.lpr` | Observed |
+| Focused official-doc verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `32` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `107` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | libgit2 technical docs still described missing helper scripts/loader units rather than the current unified binding and smoke-test locations | 1 | Added focused official-doc contract coverage and rewrote the affected docs around `src/libgit2.pas`, current test directories, and manual `3rd/libgit2` CMake guidance |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The libgit2 technical docs are now under official-doc contract coverage and aligned to current repo artifacts |
+| Where am I going? | Commit and push this libgit2 docs cleanup checkpoint, then continue to the next uncovered doc surface |
+| What's the goal? | Keep technical reference docs from teaching removed helper scripts or nonexistent source files after the implementation has been consolidated |
+| What have I learned? | Technical subsystem docs drift toward missing file paths as the implementation consolidates; path-existence contracts catch that class of drift well |
+| What have I done? | Added libgit2 official-doc assertions, updated four libgit2 docs to current artifacts, and re-verified the full docs/release/CI bundle |

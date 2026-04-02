@@ -2,19 +2,13 @@
 
 ## 目标
 - 提升可用性：支持多种 DLL 命名（git2.dll, libgit2-1.dll, libgit2.dll）
-- 降低部署成本：Windows 默认在运行时延迟加载（LIBGIT2_DYNAMIC），无须固定名称/路径
-- 可回退：-dNO_LIBGIT2_DYNAMIC 一键回到 external 方式
+- 降低部署成本：Windows 运行时只需要让 `git2.dll` 可被发现，无须把 DLL 固定到仓库内某个脚本流程
+- 保持当前仓库真相：围绕统一的 `src/libgit2.pas` 绑定与现有 smoke test 记录使用方式
 
 ## 架构与开关
-- 配置包含文件：src/fpdev.config.inc（Windows 默认启用 LIBGIT2_DYNAMIC）
-- modern 封装：src/git2.modern.pas 按宏切换 uses libgit2.dynamic 或 libgit2
-- 动态加载器：src/libgit2.dynamic.pas，探测顺序：
-  1) git2.dll
-  2) libgit2-1.dll
-  3) libgit2.dll
-
-回退开关（编译时）：
-- 禁用动态加载：添加 -dNO_LIBGIT2_DYNAMIC
+- 当前运行时绑定：`src/libgit2.pas` 直接声明平台库名；Windows 默认是 `git2.dll`
+- 上层封装：`src/fpdev.git2.pas` 与 `src/git2.modern.pas`
+- 兼容目标：部署时仍可按常见 Windows 命名准备 DLL（`git2.dll`、`libgit2-1.dll`、`libgit2.dll`），但当前仓库中维护的绑定入口是 `src/libgit2.pas`
 
 ## 部署与运行
 - 将 DLL 放置于以下任一位置：
@@ -28,17 +22,17 @@
 
 ## 快速冒烟
 - 构建并运行：
-  - 脚本：scripts/test_dynamic_loader.bat
+  - 工程：`tests/fpdev.core.misc/test_dyn_loader.lpi`
+  - 源码：`tests/fpdev.core.misc/test_dyn_loader.lpr`
   - 行为：
     1) 编译最小程序
-    2) 运行一次（若缺少 DLL，给出友好提示；放置 DLL 后再运行可成功）
+    2) 调用 `TGitManager.Initialize`
+    3) 若缺少 DLL，输出友好异常；放置 DLL 后再次运行即可验证初始化路径
 
 ## 常见问题
 1) 提示无法加载 DLL
    - 将 git2.dll 或 libgit2-1.dll 或 libgit2.dll 放在 exe 目录
    - 检查依赖（zlib、VC 运行时等）
 2) 版本不兼容
-   - 升级/重建 libgit2（scripts/build_libgit2_windows.bat / mingw 版本）
+   - 在 `3rd/libgit2/` 下手动重建 libgit2
    - 确保 64/32 位与编译目标一致
-
-
