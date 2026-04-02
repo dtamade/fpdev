@@ -1622,3 +1622,42 @@
 | What's the goal? | Keep even secondary workaround docs from sending users into usage errors when they are looking for escape hatches around missing features |
 | What have I learned? | Lower-traffic docs like limitations/workaround pages can still contain high-impact stale flags because users often copy them only when already blocked |
 | What have I done? | Added known-limitations Lazarus-flag contract coverage and replaced `--fpc-version` with `--fpc=` in `docs/KNOWN_LIMITATIONS.md` |
+
+## Session: 2026-04-02 (fpdev-toml workflow-command drift)
+
+### Close-out Execution Follow-up 40
+- **Status:** complete
+- Actions taken:
+  - Continued scanning uncovered public spec docs after the known-limitations cleanup and found that `docs/FPDEV_TOML_SPEC.md` plus `docs/FPDEV_TOML_SPEC.en.md` still advertised unimplemented workflow commands (`fpdev init`, `fpdev auto-switch`, `fpdev init -`, `fpdev system config validate`)
+  - Re-verified the current source of truth in `src/fpdev.cmd.fpc.autoinstall.pas`, `src/fpdev.help.details.fpc.pas`, `src/fpdev.help.catalog.pas`, `tests/test_command_registry.lpr`, and `tests/test_fpc_commands.lpr`: the supported project-config workflow is `fpdev fpc auto-install` plus explicit `fpdev fpc use <version>` / `fpdev fpc current`
+  - Added a failing official-docs contract proving the TOML spec docs must stop advertising those unimplemented workflow commands and must describe the explicit activation path
+  - Updated both TOML spec docs so the workflow now uses manual `.fpdev.toml` creation, `fpdev fpc auto-install`, explicit `fpdev fpc use 3.2.2`, and `fpdev fpc current`
+  - Re-ran the focused official-docs suite and the broader close-out regression bundle to confirm the TOML spec cleanup did not regress the previously-restaged release/doc contracts
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/FPDEV_TOML_SPEC.md`
+  - `docs/FPDEV_TOML_SPEC.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for fpdev-toml workflow-command drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the TOML spec docs still advertised `fpdev init --fpc=3.2.2`, `fpdev auto-switch`, `fpdev init -`, `fpdev system config validate`, and lacked explicit `fpdev fpc use 3.2.2` workflow guidance | Observed |
+| Focused official-docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `27` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `84` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/FPDEV_TOML_SPEC*.md` still presented future `.fpdev.toml` workflow commands as if they were public CLI surface | 1 | Added a TOML-spec workflow contract and rewrote both docs around the currently supported manual-create + auto-install + explicit-use flow |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The public `.fpdev.toml` spec docs now align with the shipped project-config workflow instead of a future command model |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep spec documents from acting like roadmap drafts when users are likely to copy their command examples verbatim |
+| What have I learned? | Configuration-spec docs are high-risk drift surfaces because they look authoritative and easily preserve future-command examples long after the runtime surface settles |
+| What have I done? | Added TOML-spec workflow contract coverage and rewrote both spec docs around `fpdev fpc auto-install`, explicit `fpdev fpc use`, and `fpdev fpc current` |

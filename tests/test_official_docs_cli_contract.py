@@ -255,6 +255,20 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertIn('XDG_DATA_HOME', text)
             self.assertIn('%APPDATA%\\fpdev\\config.json', text)
 
+    def test_fpdev_toml_spec_docs_do_not_advertise_unimplemented_workflow_commands(self):
+        zh_text = (REPO_ROOT / 'docs' / 'FPDEV_TOML_SPEC.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'FPDEV_TOML_SPEC.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('fpdev fpc auto-install', text)
+            self.assertIn('fpdev fpc use 3.2.2', text)
+            self.assertIn('fpdev fpc current', text)
+            self.assertNotIn('fpdev init --fpc=3.2.2', text)
+            self.assertNotIn('fpdev auto-switch', text)
+            self.assertNotIn('fpdev init -', text)
+            self.assertNotIn('fpdev system config validate', text)
+            self.assertNotIn('# Output: FPC 3.2.2 (from .fpdev.toml)', text)
+
     def test_fpc_management_docs_use_data_root_toolchain_layout(self):
         zh_text = (REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.en.md').read_text(encoding='utf-8')

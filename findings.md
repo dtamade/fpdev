@@ -1094,3 +1094,40 @@
 - 结论更新：
   - `KNOWN_LIMITATIONS.md` 现在也不会再把用户引向不存在的 `--fpc-version` 参数
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, fpdev-toml workflow-command drift)
+- 在 `KNOWN_LIMITATIONS` 之后继续检查尚未纳入契约的公开 spec 文档时，又发现 `.fpdev.toml` 规范页还把未来特性写成了当前可复制的工作流：
+  - `docs/FPDEV_TOML_SPEC.md` / `docs/FPDEV_TOML_SPEC.en.md` 仍包含 `fpdev init --fpc=3.2.2`
+  - 同页 `Related Commands` 仍列出 `fpdev auto-switch`、`fpdev init -`、`fpdev system config validate`
+  - 工作流末尾还把 `fpdev fpc current` 描述成“from .fpdev.toml”，暗示 auto-install 后会自动激活
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.fpc.autoinstall.pas`、`src/fpdev.help.details.fpc.pas`、`src/fpdev.help.catalog.pas`：真实公开的项目配置工作流命令是 `fpdev fpc auto-install`
+  - `tests/test_command_registry.lpr` / `tests/test_fpc_commands.lpr`：确认 `fpc auto-install` 已注册并有帮助输出
+  - `src` / `tests` 中没有公开的 `fpdev init`、`fpdev auto-switch`、`fpdev system config validate`
+  - 当前显式激活路径仍是 `fpdev fpc use <version>`，查询当前激活版本用 `fpdev fpc current`
+- 这个问题的影响：
+  - `.fpdev.toml` spec 是公开可复制的配置规范；如果它继续展示未实现命令，用户会在最基础的 project-config 流程里直接撞 usage error
+  - 更隐蔽的问题是它会把“auto-install == auto-activate”的错误心智重新带回仓库和用户文档
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_fpdev_toml_spec_docs_do_not_advertise_unimplemented_workflow_commands` 直接暴露出：
+    - 文档缺少 `fpdev fpc use 3.2.2`
+    - 文档仍包含 `fpdev init --fpc=3.2.2`
+    - 文档仍包含 `fpdev auto-switch`
+    - 文档仍包含 `fpdev init -`
+    - 文档仍包含 `fpdev system config validate`
+    - 文档仍包含 `# Output: FPC 3.2.2 (from .fpdev.toml)`
+- 已实施的最小修复：
+  - `docs/FPDEV_TOML_SPEC.md` / `docs/FPDEV_TOML_SPEC.en.md`：
+    - Overview 改成“reproducible installs and explicit version selection”
+    - Create step 改成只保留手工创建 `.fpdev.toml`，并明确 `fpdev init` 尚未公开
+    - workflow 第 3 步改成显式 `fpdev fpc use 3.2.2`
+    - workflow 第 4 步保留 `fpdev fpc current`，但去掉“from .fpdev.toml” 的错误说明
+    - `Related Commands` 改成只列 `fpdev fpc auto-install`、`fpdev fpc use <version>`、`fpdev fpc current`
+  - `tests/test_official_docs_cli_contract.py`：补齐 `.fpdev.toml` workflow-command 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `27` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`84` tests OK，`1` skipped
+- 结论更新：
+  - `.fpdev.toml` spec 现在不再把尚未实现的 workflow CLI 当成当前命令面的一部分
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

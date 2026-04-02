@@ -780,3 +780,26 @@ Phase 4 complete
 4. 结论：
    - `KNOWN_LIMITATIONS.md` 现在也不会再把用户引向不存在的 `--fpc-version` 参数
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, fpdev-toml workflow-command drift)
+1. 新发现的 repo-local live-spec seam：
+   - `docs/FPDEV_TOML_SPEC.md` / `docs/FPDEV_TOML_SPEC.en.md` 仍把未来能力写成可复制的工作流命令：
+     - `fpdev init --fpc=3.2.2`
+     - `fpdev auto-switch`
+     - `fpdev init -`
+     - `fpdev system config validate`
+   - 同一工作流还把 `fpdev fpc current` 解释成“直接从 `.fpdev.toml` 生效”，这与当前显式 `use` 激活模型不一致
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_fpdev_toml_spec_docs_do_not_advertise_unimplemented_workflow_commands`
+   - `docs/FPDEV_TOML_SPEC.md` / `docs/FPDEV_TOML_SPEC.en.md`：
+     - 改成手工创建 `.fpdev.toml`
+     - 保留真实支持的 `fpdev fpc auto-install`
+     - 增加显式激活步骤 `fpdev fpc use 3.2.2`
+     - 将验证步骤改成 `fpdev fpc current`
+     - `Related Commands` 只保留当前公开支持的命令
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `27` tests OK
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`84` tests OK，`1` skipped
+4. 结论：
+   - `.fpdev.toml` spec 不再把尚未实现的 future CLI 当成当前工作流示例
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

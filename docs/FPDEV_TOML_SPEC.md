@@ -2,7 +2,7 @@
 
 ## Overview
 
-`.fpdev.toml` is a project-level configuration file that defines the FreePascal toolchain, components, and build settings for a project. It enables automatic version switching and reproducible builds across different environments.
+`.fpdev.toml` is a project-level configuration file that defines the FreePascal toolchain, components, and build settings for a project. It supports reproducible installs and explicit version selection across different environments.
 
 ## File Location
 
@@ -175,10 +175,9 @@ version = "3.2.2"
    ```bash
    # Manual creation
    echo '[toolchain]\nversion = "3.2.2"' > .fpdev.toml
-   
-   # Or use fpdev init (future feature)
-   fpdev init --fpc=3.2.2
    ```
+
+   当前没有公开的 `fpdev init` 命令；请直接创建 `.fpdev.toml`。
 
 2. **Auto-install toolchain**:
    ```bash
@@ -186,16 +185,15 @@ version = "3.2.2"
    # Reads .fpdev.toml and installs FPC 3.2.2 with specified components
    ```
 
-3. **Auto-switch on directory change**:
+3. **Activate the installed version explicitly**:
    ```bash
-   cd myproject
-   # Shell hook detects .fpdev.toml and switches to FPC 3.2.2
+   fpdev fpc use 3.2.2
    ```
 
 4. **Verify configuration**:
    ```bash
    fpdev fpc current
-   # Output: FPC 3.2.2 (from .fpdev.toml)
+   # Output: FPC 3.2.2
    ```
 
 ## Validation Rules
@@ -269,12 +267,11 @@ FPC_CONFIG = "/custom/fpc.cfg"
 ## Related Commands
 
 - `fpdev fpc auto-install` - Install toolchain from `.fpdev.toml`
-- `fpdev auto-switch` - Switch version based on `.fpdev.toml`
-- `fpdev init -` - Generate shell hook for auto-switching
-- `fpdev system config validate` - Validate `.fpdev.toml` syntax and values (future)
+- `fpdev fpc use <version>` - Activate an installed FPC version explicitly
+- `fpdev fpc current` - Show the currently active FPC version
 
 ---
 
 **Version**: 1.0
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-04-02
 **Status**: Draft Specification
