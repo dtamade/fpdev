@@ -1290,3 +1290,73 @@
 - 结论更新：
   - `WARP.md` 此前是 contributor-doc coverage 的漏网面，现在已被纳入契约
   - contributor-facing 文档漂移继续被压缩到自动化可证明范围内
+
+## Execution Update (2026-04-02, archive final-summary command drift)
+- 新发现的 repo-local seam：
+  - `docs/archive/FINAL_REPORT.md` 与 `docs/archive/FPDEV_FINAL_INTEGRATION.md` 仍公开写已移除的 root `fpdev help/version`
+  - `FINAL_REPORT.md` 还列出不存在的 `scripts/run_all_tests.bat`
+  - `FPDEV_FINAL_INTEGRATION.md` 还保留 `upgrade`、`FPDev主程序 (fpdev.lpr)`、`fpdev.cmd.help`、`fpdev.cmd.version`
+- 当前 repo truth：
+  - 根命令面是 `fpc lazarus cross package project system`
+  - 维护命令入口是 `fpdev system help` / `fpdev system version`
+  - 顶层 Pascal full-suite runner 只有 `scripts/run_all_tests.sh`
+  - 现行 CLI 入口/装配模型是 `src/fpdev.lpr` + `fpdev.cli.runner` + `fpdev.cli.bootstrap` + `fpdev.command.imports`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_archive_docs_contract` 失败
+  - 新增 archive 契约直接暴露出：
+    - archive final-summary docs 缺少 `fpdev system help` / `fpdev system version`
+    - 仍包含 `fpdev help` / `fpdev version`
+    - `FINAL_REPORT.md` 仍包含 `scripts/run_all_tests.bat`
+    - `FPDEV_FINAL_INTEGRATION.md` 仍包含 `upgrade` 与旧的 help/version 命令模块架构
+- 已实施的最小修复：
+  - `tests/test_archive_docs_contract.py`：
+    - `test_archive_final_summaries_use_current_help_and_version_commands`
+    - `test_archive_final_report_uses_supported_full_suite_runner`
+    - `test_archive_final_report_uses_current_toolchain_command_names`
+    - `test_archive_final_integration_describes_current_cli_bootstrap_architecture`
+    - `test_archive_final_integration_uses_current_update_commands`
+  - `docs/archive/FINAL_REPORT.md`：
+    - `fpc default` → `fpc use`
+    - `lazarus launch/default` → `lazarus run/use`
+    - `fpdev help/version` → `fpdev system help/version`
+    - `scripts/run_all_tests.bat` 删除，保留 `scripts/run_all_tests.sh`
+  - `docs/archive/FPDEV_FINAL_INTEGRATION.md`：
+    - `upgrade` → `update`
+    - root `help/version` → `system help/version`
+    - 架构段改成当前 bootstrap/imports 模型
+- 当前最新本地证据：
+  - `ls scripts/run_all_tests.*`：仅有 `scripts/run_all_tests.sh`
+  - `./bin/fpdev`：根命令面仅有 `fpc lazarus cross package project system`
+  - `python3 -m unittest -v tests.test_archive_docs_contract`：`5` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`100` tests OK，`1` skipped
+- 结论更新：
+  - archive 下最显眼的 final-summary docs 现在也不会再继续传播已移除的命令面
+  - docs-contract cleanup 已从 live docs 扩展到 archive summary docs
+
+## Execution Update (2026-04-02, contributor-contract tightening)
+- 新发现的 repo-local seam：
+  - `AGENTS.md` 仍保留 `cd tests/fpdev.build.manager && ./run_tests.sh`
+  - `WARP.md` 仍藏有 `Usage: fpdev help` 与树状示例中的 `run_tests.bat`
+- 当前 repo truth：
+  - contributor-facing 标准入口已经统一到 `scripts/run_all_tests.sh` 和 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+  - 维护命令入口是 `fpdev system help`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract` 失败
+  - 扩展后的 contributor contract 直接暴露出：
+    - `AGENTS.md` 仍包含旧的 BuildManager 子目录 runner
+    - `WARP.md` 仍包含 `Usage: fpdev help`
+    - `WARP.md` 仍包含 `run_tests.bat`
+- 已实施的最小修复：
+  - `tests/test_contributor_docs_contract.py`：
+    - repo-standard test-command 检查扩展到 `AGENTS.md`
+    - `WARP.md` 新增对 `Usage: fpdev help` 与 `run_tests.bat` 的拒绝
+  - `AGENTS.md`：旧 runner 改成 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+  - `WARP.md`：
+    - `Usage: fpdev help` → `Usage: fpdev system help`
+    - 仓库树中的 `run_tests.bat` → `run_tests.sh`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract`：`6` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`100` tests OK，`1` skipped
+- 结论更新：
+  - contributor-doc contract 不再只覆盖显式命令块，而是开始兜住嵌入式旧字符串和树状示例
+  - AGENTS / WARP 这两个 contributor surface 的剩余显眼漏口已被收口

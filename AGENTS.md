@@ -39,7 +39,7 @@ fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr   # 备选：直接用 fpc 编译
 - 常用跑法：
   ```bash
   scripts/run_all_tests.sh
-  cd tests/fpdev.build.manager && ./run_tests.sh
+  bash scripts/run_single_test.sh tests/test_config_management.lpr
   ```
 
 ## 提交与 PR 规范

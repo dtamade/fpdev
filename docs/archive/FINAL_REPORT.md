@@ -140,12 +140,12 @@ FPDev 架构
 # FPC管理
 fpdev fpc install 3.2.2 --from-source
 fpdev fpc list --all
-fpdev fpc default 3.2.2
+fpdev fpc use 3.2.2
 
 # Lazarus管理
 fpdev lazarus install 3.0 --from-source
-fpdev lazarus launch
-fpdev lazarus default 3.0
+fpdev lazarus run
+fpdev lazarus use 3.0
 
 # 交叉编译
 fpdev cross install win64
@@ -158,8 +158,8 @@ fpdev package list --all
 fpdev package repo add custom https://example.com/repo
 
 # 通用命令
-fpdev help
-fpdev version
+fpdev system help
+fpdev system version
 ```
 
 ## 🧪 测试质量保证
@@ -194,8 +194,7 @@ fpdev version
 
 ### 测试脚本
 
-- ✅ **scripts/run_all_tests.bat** - Windows测试脚本
-- ✅ **scripts/run_all_tests.sh** - Linux/macOS测试脚本
+- ✅ **scripts/run_all_tests.sh** - 当前维护的顶层Pascal回归脚本
 
 ## 🎯 项目成就
 

@@ -1855,3 +1855,80 @@
 | What's the goal? | Keep contributor-facing documentation aligned with the registry-backed CLI surface and repo-standard validation entrypoints |
 | What have I learned? | Smaller contributor-doc drift keeps reappearing on surfaces that were not yet under contract, so the highest leverage move is to expand the contract net rather than rely on manual spot checks |
 | What have I done? | Added WARP contributor contracts, updated the document, and verified the broader docs/release/CI contract bundle stays green |
+
+## Session: 2026-04-02 (archive final-summary command drift)
+
+### Close-out Execution Follow-up 45
+- **Status:** complete
+- Actions taken:
+  - Continued the docs-contract cleanup into `docs/archive/` and bounded the next seam to two high-visibility final-summary docs: `FINAL_REPORT.md` and `FPDEV_FINAL_INTEGRATION.md`
+  - Verified locally that the current root command surface is `fpc/lazarus/cross/package/project/system`, that `fpdev system help` / `fpdev system version` are the maintained maintenance entrypoints, and that `scripts/run_all_tests.sh` is the only top-level Pascal full-suite runner
+  - Added a new archive-doc contract suite proving those two archive summaries must stop advertising removed root commands, nonexistent runners, old `upgrade/default/launch` command names, and the pre-bootstrap help/version architecture model
+  - Updated both archive docs to the current help/version command names, current toolchain command names, and current CLI bootstrap/imports architecture
+  - Re-ran the focused archive-doc suite and then a broader docs/release/CI regression bundle to green
+- Files created/modified:
+  - `tests/test_archive_docs_contract.py`
+  - `docs/archive/FINAL_REPORT.md`
+  - `docs/archive/FPDEV_FINAL_INTEGRATION.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for archive final-summary command drift | `python3 -m unittest -v tests.test_archive_docs_contract` | fail before fix | failed because the archive final summaries still used root `fpdev help/version`, stale `default/launch/upgrade` command names, nonexistent `scripts/run_all_tests.bat`, and pre-bootstrap architecture references | Observed |
+| Focused archive-doc verification | `python3 -m unittest -v tests.test_archive_docs_contract` | pass | `5` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `100` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/archive/FINAL_REPORT.md` and `docs/archive/FPDEV_FINAL_INTEGRATION.md` still exposed removed root commands, stale toolchain verbs, nonexistent runner names, and old help/version architecture references | 1 | Added archive-doc contract coverage and rewrote the two archive summaries around the current command surface, runner set, and bootstrap/imports architecture |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The archive final-summary command seam is closed and under automated coverage |
+| Where am I going? | Commit and push this archive-doc cleanup checkpoint |
+| What's the goal? | Keep even archived summary docs from leaking removed commands and nonexistent runners back into copy-paste workflows |
+| What have I learned? | Archive docs still need selective contract coverage when they remain prominent and example-heavy; “archived” alone is not enough to prevent drift from misleading users |
+| What have I done? | Added archive-doc contracts, updated the two high-visibility archive summaries, and re-verified the broader docs/release/CI regression bundle |
+
+## Session: 2026-04-02 (contributor-contract tightening)
+
+### Close-out Execution Follow-up 46
+- **Status:** complete
+- Actions taken:
+  - Folded in a follow-up contributor-doc seam uncovered by parallel exploration: `AGENTS.md` still exposed a BuildManager subdir runner, while `WARP.md` still contained a hidden `Usage: fpdev help` string and a `run_tests.bat` tree leaf
+  - Tightened `tests/test_contributor_docs_contract.py` so repo-standard test-command expectations now apply to `AGENTS.md` as well, and so WARP’s embedded legacy tokens are rejected instead of only a few exact tree lines
+  - Updated `AGENTS.md` to use the focused standard runner and updated the remaining WARP hidden tokens to `fpdev system help` / `run_tests.sh`
+  - Re-ran the focused contributor-doc suite and the full docs/release/CI contract bundle to confirm the tighter contract remains green
+- Files created/modified:
+  - `AGENTS.md`
+  - `WARP.md`
+  - `tests/test_contributor_docs_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for contributor-contract tightening seam | `python3 -m unittest -v tests.test_contributor_docs_contract` | fail before fix | failed because `AGENTS.md` still used the BuildManager subdir runner and `WARP.md` still contained `Usage: fpdev help` plus `run_tests.bat` | Observed |
+| Focused contributor-doc verification | `python3 -m unittest -v tests.test_contributor_docs_contract` | pass | `6` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `100` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The contributor-doc contract still missed hidden legacy examples in `AGENTS.md` and `WARP.md`, even after the earlier WARP workflow cleanup | 1 | Expanded the contributor contract to cover AGENTS and embedded WARP tokens, then updated both docs to the current standard runner/help strings |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The contributor-doc contract is tighter and both AGENTS/WARP are back under it |
+| Where am I going? | Commit and push this combined archive + contributor-doc cleanup checkpoint |
+| What's the goal? | Stop contributor-facing docs from leaking old subdir runners or hidden root-help examples back into the repo workflow |
+| What have I learned? | Exact-token bans are useful for a first pass, but scattered legacy strings need broader contributor contracts or they survive in code snippets and tree diagrams |
+| What have I done? | Tightened the contributor-doc contract, updated AGENTS/WARP, and re-verified the full docs/release/CI bundle |

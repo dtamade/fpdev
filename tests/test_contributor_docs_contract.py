@@ -38,19 +38,24 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertNotIn('%APPDATA%\\.fpdev\\config.json', warp_text)
 
     def test_warp_doc_uses_repository_standard_test_commands(self):
-        text = WARP_MD.read_text(encoding='utf-8')
+        for path in [AGENTS_MD, WARP_MD]:
+            text = path.read_text(encoding='utf-8')
 
-        self.assertIn('bash scripts/run_all_tests.sh', text)
-        self.assertIn('bash scripts/run_single_test.sh tests/test_config_management.lpr', text)
-        self.assertNotIn(r'tests\fpdev.build.manager\run_tests.bat', text)
-        self.assertNotIn('bash tests/fpdev.build.manager/run_tests.sh', text)
-        self.assertNotIn('| **集成测试** | `tests/` | `run_tests.bat` | > 70% |', text)
+            self.assertIn('scripts/run_all_tests.sh', text)
+            self.assertNotIn(r'tests\fpdev.build.manager\run_tests.bat', text)
+            self.assertNotIn('bash tests/fpdev.build.manager/run_tests.sh', text)
+            self.assertNotIn('cd tests/fpdev.build.manager && ./run_tests.sh', text)
+
+        warp_text = WARP_MD.read_text(encoding='utf-8')
+        self.assertIn('bash scripts/run_single_test.sh tests/test_config_management.lpr', warp_text)
+        self.assertNotIn('| **集成测试** | `tests/` | `run_tests.bat` | > 70% |', warp_text)
 
     def test_warp_doc_matches_current_cli_surface(self):
         text = WARP_MD.read_text(encoding='utf-8')
 
         self.assertIn('fpdev system help', text)
         self.assertIn('fpdev system version', text)
+        self.assertNotIn('Usage: fpdev help', text)
 
         banned_tokens = [
             '├── help       (显示帮助)',
@@ -72,6 +77,7 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertIn('fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr', text)
         self.assertNotIn('fpc fpdev.lpr', text)
         self.assertNotIn('fpc -Mobjfpc -Scghi -O3 -Xs -XX fpdev.lpr', text)
+        self.assertNotIn('run_tests.bat', text)
 
 
 if __name__ == '__main__':

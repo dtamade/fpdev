@@ -26,7 +26,7 @@ fpdev fpc                    # 显示帮助
 fpdev fpc install <version>  # 安装指定版本的FPC
 fpdev fpc list               # 列出已安装的FPC版本
 fpdev fpc use <version>      # 切换当前使用的FPC版本
-fpdev fpc upgrade <version>  # 从源码更新构建FPC
+fpdev fpc update <version>   # 更新FPC索引或已安装版本的源码
 
 # 实际示例
 fpdev fpc install 3.2.2     # 安装FPC 3.2.2
@@ -53,7 +53,7 @@ fpdev lazarus                      # 显示帮助
 fpdev lazarus install <version>    # 安装指定版本的Lazarus
 fpdev lazarus list                 # 列出已安装的Lazarus版本
 fpdev lazarus use <version>        # 切换当前使用的Lazarus版本
-fpdev lazarus upgrade <version>    # 从仓库代码更新指定版本的Lazarus
+fpdev lazarus update <version>     # 更新指定版本的Lazarus源码
 fpdev lazarus run [version]        # 运行Lazarus
 
 # 实际示例
@@ -74,31 +74,34 @@ fpdev lazarus run                  # 运行当前版本Lazarus
 
 **保留的原有功能**:
 ```bash
-fpdev help                    # 显示帮助信息
-fpdev version                 # 显示版本信息和变量
-fpdev package                 # 组件包管理
-fpdev cross                   # 交叉编译环境
-fpdev project                 # 项目管理
+fpdev system help             # 显示帮助信息
+fpdev system version          # 显示版本信息和运行模式
+fpdev package help            # 查看包管理命令
+fpdev cross help              # 查看交叉编译命令
+fpdev project help            # 查看项目管理命令
 ```
 
 ## 🏗️ 技术架构
 
 ### 模块化设计
 ```
-FPDev主程序 (fpdev.lpr)
-├── 核心命令模块
-│   ├── fpdev.cmd.help        # 帮助系统
-│   ├── fpdev.cmd.version     # 版本信息
-│   ├── fpdev.cmd.fpc         # FPC版本管理 ✨
-│   ├── fpdev.cmd.lazarus     # Lazarus版本管理 ✨
-│   ├── fpdev.cmd.package     # 包管理
-│   ├── fpdev.cmd.cross       # 交叉编译
-│   └── fpdev.cmd.project     # 项目管理
+CLI入口 (src/fpdev.lpr)
+├── fpdev.cli.runner          # 启动与参数分发编排
+├── fpdev.cli.bootstrap       # 默认上下文、root help、registry bootstrap
+│   ├── fpdev.command.imports # 聚合命令单元并触发注册
+│   └── fpdev.help.rootview   # 根帮助输出
+├── 命名空间根命令
+│   ├── fpdev.cmd.fpc.root
+│   ├── fpdev.cmd.lazarus.root
+│   ├── fpdev.cmd.package.root
+│   ├── fpdev.cmd.cross.root
+│   ├── fpdev.cmd.project.root
+│   └── fpdev.cmd.system.root
 └── 底层支持模块
-    ├── fpdev.fpc.source      # FPC源码管理 (内部)
-    ├── fpdev.lazarus.source  # Lazarus源码管理 (内部)
     ├── fpdev.config          # 配置管理
-    └── fpdev.utils           # 工具函数
+    ├── fpdev.utils           # 工具函数
+    ├── fpdev.fpc.source      # FPC源码管理 (内部)
+    └── fpdev.lazarus.source  # Lazarus源码管理 (内部)
 ```
 
 ### 设计原则
@@ -143,14 +146,14 @@ $ fpc -Fusrc src\fpdev.lpr
 ```bash
 $ fpdev fpc
 ✅ 帮助信息显示正确
-✅ 支持 install/list/use/upgrade 子命令
+✅ 支持 install/list/use/update 子命令
 ```
 
 **2. Lazarus命令测试**:
 ```bash
 $ fpdev lazarus
 ✅ 帮助信息显示正确
-✅ 支持 install/list/use/upgrade/run 子命令
+✅ 支持 install/list/use/update/run 子命令
 ```
 
 **3. 版本列表测试**:
@@ -193,8 +196,8 @@ fpdev lazarus use 2.2.6
 fpdev lazarus run
 
 # 更新到最新版本
-fpdev fpc upgrade 3.2.2
-fpdev lazarus upgrade 3.0
+fpdev fpc update 3.2.2
+fpdev lazarus update 3.0
 ```
 
 ### 团队协作场景

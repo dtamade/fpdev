@@ -778,11 +778,11 @@ uses
 
 ```pascal
 // 错误 - 会在 Windows 上导致 Disk Full
-WriteLn('用法: fpdev help');
+WriteLn('用法: fpdev system help');
 WriteLn('错误: 未知命令');
 
 // 正确 - 使用英文
-WriteLn('Usage: fpdev help');
+WriteLn('Usage: fpdev system help');
 WriteLn('Error: Unknown command');
 ```
 
@@ -992,7 +992,7 @@ fpdev/
 │       ├── test_build_manager.lpr
 │       ├── test_build_manager_strict_pass.lpr
 │       ├── test_build_manager_strict_fail.lpr
-│       └── run_tests.bat
+│       └── run_tests.sh
 ├── plays/                    # 示例和演示
 │   └── fpdev.build.manager.demo/
 │       ├── demo.lpr

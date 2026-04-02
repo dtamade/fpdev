@@ -894,3 +894,46 @@ Phase 4 complete
 4. 结论：
    - `WARP.md` 现在已经纳入 contributor-doc contract net，不再继续漂在自动化验证之外
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, archive final-summary command drift)
+1. 新发现的 archive-doc seam：
+   - `docs/archive/FINAL_REPORT.md` 与 `docs/archive/FPDEV_FINAL_INTEGRATION.md` 仍公开写已移除的 root `fpdev help/version`
+   - `FINAL_REPORT.md` 还列出了不存在的 `scripts/run_all_tests.bat`
+   - `FPDEV_FINAL_INTEGRATION.md` 还保留 `upgrade`、旧架构图，以及 `fpdev.cmd.help/version` 这套已收敛掉的命令模型
+2. 已完成的最小修复：
+   - 新增 `tests/test_archive_docs_contract.py`，将 archive final-summary command surface 纳入契约
+   - `docs/archive/FINAL_REPORT.md`：
+     - 命令示例改成 `fpdev system help` / `fpdev system version`
+     - `fpc default` → `fpc use`
+     - `lazarus launch/default` → `lazarus run/use`
+     - 测试脚本说明改成仅保留当前维护的 `scripts/run_all_tests.sh`
+   - `docs/archive/FPDEV_FINAL_INTEGRATION.md`：
+     - `upgrade` → `update`
+     - root `help/version` → `system help/version`
+     - 架构图改成 `src/fpdev.lpr` + `fpdev.cli.bootstrap` + `fpdev.command.imports` 的现行 bootstrap 模型
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_archive_docs_contract`：先 RED，修复后 `5` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`100` tests OK，`1` skipped
+4. 结论：
+   - archive 里的“final summary”文档现在不再把已经移除的命令和不存在的 runner 当成可复制工作流
+   - 这类历史总结文档也开始被纳入自动化契约，而不再依赖人工兜底
+
+## Close-out Update (2026-04-02, contributor-contract tightening)
+1. 在 archive seam 完成后，又发现 contributor-doc contract 仍有两个漏口：
+   - `AGENTS.md` 还保留 `cd tests/fpdev.build.manager && ./run_tests.sh`
+   - `WARP.md` 还藏有 `Usage: fpdev help` 与树状示例里的 `run_tests.bat`
+2. 已完成的最小修复：
+   - `tests/test_contributor_docs_contract.py`：
+     - 将 repo-standard test-command 断言扩展到 `AGENTS.md`
+     - 新增对 `Usage: fpdev help` 与泛化 `run_tests.bat` 漏网 token 的拒绝
+   - `AGENTS.md`：
+     - 将旧的子目录 runner 示例改成 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+   - `WARP.md`：
+     - 英文输出示例改成 `Usage: fpdev system help`
+     - 仓库树中的 `run_tests.bat` 改成 `run_tests.sh`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后 `6` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`100` tests OK，`1` skipped
+4. 结论：
+   - contributor-doc contract 现在不仅覆盖显式工作流段落，也开始覆盖嵌入式旧示例和文档树漏网 token
+   - docs-contract cleanup 的漏网面继续缩小
