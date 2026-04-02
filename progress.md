@@ -652,3 +652,40 @@
 | What's the goal? | Eliminate remaining contradictions inside the canonical release handoff doc |
 | What have I learned? | Asset inventory tables can drift even after procedure and exit-checklist sections are fixed, so they need explicit contract coverage too |
 | What have I done? | Added regression coverage and aligned the planned-assets table with the already-required `RELEASE_EVIDENCE.md` publish flow |
+
+## Session: 2026-04-02 (changelog release baseline artifacts)
+
+### Close-out Execution Follow-up 15
+- **Status:** complete
+- Actions taken:
+  - Audited `CHANGELOG.md` after the other release-facing docs were synchronized and found that the `2.1.0 / Release Baseline` section still omitted the standardized owner recorder flow and the remaining publish artifacts
+  - Added a failing docs contract proving the changelog baseline must explicitly mention `SHA256SUMS.txt` and `RELEASE_EVIDENCE.md`
+  - Updated `CHANGELOG.md` so the `Release Baseline` now references the standardized owner recorder commands plus the checksum/evidence generation flow
+  - Re-ran the focused docs contract and the expanded release-contract suite to confirm the changelog no longer lags behind the canonical release-closeout narrative
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `CHANGELOG.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for changelog close-out drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `CHANGELOG.md` omitted `SHA256SUMS.txt` and `RELEASE_EVIDENCE.md` from the `2.1.0 / Release Baseline` | Observed |
+| Focused release docs verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `57` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `CHANGELOG.md` still lagged behind the canonical release-closeout narrative by omitting the standardized owner recorder flow and the remaining publish artifacts | 1 | Added a docs contract and updated the `2.1.0 / Release Baseline` bullets to mention the recorder/checksum/evidence flow |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The changelog now reflects the same recorder/checksum/evidence close-out story as the rest of the release-facing docs |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external asset generation and owner sign-off |
+| What's the goal? | Keep every public release document aligned on the same remaining publish-time proof |
+| What have I learned? | Even when acceptance docs and release notes are fixed, a high-visibility summary surface like the changelog can still lag behind and reopen narrative drift |
+| What have I done? | Added regression coverage and synchronized the changelog release baseline with the current standardized release-closeout artifacts |

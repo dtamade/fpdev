@@ -12,6 +12,8 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 ### Release Baseline
 - Added a bounded Linux release acceptance entrypoint: `bash scripts/release_acceptance_linux.sh`
 - Added explicit Windows/macOS owner checkpoints in `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+- Standardized owner smoke capture around `scripts/record_owner_smoke.ps1` and `scripts/record_owner_smoke.sh`
+- Standardized publish-time release artifacts around `scripts/generate_release_checksums.py`, `scripts/generate_release_evidence.py`, `SHA256SUMS.txt`, and `RELEASE_EVIDENCE.md`
 - Synchronized release documentation, roadmap status, and installation URLs to `v2.1.0`
 - Current discoverable test inventory: 273 `test_*.lpr` programs (same inventory rules as CI)
 

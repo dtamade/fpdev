@@ -7,6 +7,7 @@ OWNER_CHECKPOINTS = REPO_ROOT / 'docs' / 'plans' / '2026-03-25-v2.1.0-release-ow
 MVP_ACCEPTANCE = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
 MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
 RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES.md'
+CHANGELOG = REPO_ROOT / 'CHANGELOG.md'
 LATEST_BASELINE_SUMMARY = 'logs/release_acceptance/20260402_104133/summary.txt'
 LATEST_INSTALL_SUMMARY = 'logs/release_acceptance/20260402_111602/summary.txt'
 STALE_BASELINE_SUMMARY = 'logs/release_acceptance/20260325_204342/summary.txt'
@@ -20,6 +21,7 @@ class ReleaseDocsContractTests(unittest.TestCase):
         cls.mvp_text = MVP_ACCEPTANCE.read_text(encoding='utf-8')
         cls.mvp_en_text = MVP_ACCEPTANCE_EN.read_text(encoding='utf-8')
         cls.release_notes_text = RELEASE_NOTES.read_text(encoding='utf-8')
+        cls.changelog_text = CHANGELOG.read_text(encoding='utf-8')
 
     def test_owner_checkpoint_doc_uses_shared_smoke_scripts(self):
         self.assertIn('scripts/cli_smoke.ps1', self.text)
@@ -85,6 +87,10 @@ class ReleaseDocsContractTests(unittest.TestCase):
         for text in (self.text, self.mvp_text, self.mvp_en_text):
             self.assertNotIn(STALE_BASELINE_SUMMARY, text)
             self.assertNotIn(STALE_INSTALL_SUMMARY, text)
+
+    def test_changelog_release_baseline_tracks_release_publish_artifacts(self):
+        self.assertIn('SHA256SUMS.txt', self.changelog_text)
+        self.assertIn('RELEASE_EVIDENCE.md', self.changelog_text)
 
 
 if __name__ == '__main__':

@@ -348,3 +348,25 @@
 - 结论更新：
   - canonical owner-checkpoint 文档现在在资产清单、执行步骤、退出条件三层都完整纳入 `RELEASE_EVIDENCE.md`
   - repo-local release-closeout 文档更加闭合且一致
+
+## Execution Update (2026-04-02, changelog release baseline artifacts)
+- 在 owner-checkpoint / release-notes / README / ROADMAP 都对齐后，继续检查最后一个公开发布入口时，发现 `CHANGELOG.md` 还有一层残余漂移：
+  - `2.1.0 / Release Baseline` 仍只提 Linux acceptance、owner checkpoints、版本同步和 test inventory
+  - 没有提到标准 owner recorder 流程
+  - 也没有提到 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
+- 这个问题的影响：
+  - changelog 会让读者误以为 release baseline 已经完整收口
+  - 但实际 canonical release-closeout 叙事仍明确依赖 checksum / evidence publish artifacts
+  - 因此 changelog 成为最后一个仍低估剩余 publish-time proof 的公共发布文档
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_changelog_release_baseline_tracks_release_publish_artifacts` 直接指出 `CHANGELOG.md` 缺少 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
+- 已实施的最小修复：
+  - `CHANGELOG.md`：`2.1.0 / Release Baseline` 补入标准 owner recorder 与 release checksum/evidence 工具链
+  - `tests/test_release_docs_contract.py`：补齐对应 changelog close-out 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`57` tests OK，`1` skipped
+- 结论更新：
+  - changelog 现在也与当前 canonical release-closeout 叙事一致，不再遗漏标准 publish artifacts
+  - repo-local 可证明的收口 seam 再次缩小，剩余工作继续主要落在外部 owner 执行与真实跨平台发布资产
