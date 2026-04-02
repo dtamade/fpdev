@@ -748,3 +748,21 @@ Phase 4 complete
 4. 结论：
    - 历史 release note 现在也不会再把公开复制路径引回已移除的 `fpdev version`
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, legacy release-layout drift)
+1. 新发现的 repo-local release-doc seam：
+   - `RELEASE_NOTES_v1.1.md` 的 Linux/macOS 升级说明仍要求 `sudo mv fpdev /usr/local/bin/`
+   - 但当前公开安装模型要求保留 `fpdev` 与同级 `data/` 的 portable release 布局
+2. 已完成的最小修复：
+   - `tests/test_release_docs_contract.py` 新增 `test_legacy_release_notes_preserve_portable_release_layout`
+   - `RELEASE_NOTES_v1.1.md`：
+     - 升级说明标题从“replace your existing FPDev binary”改成替换整个 extracted release directory
+     - Windows 验证命令改成 `C:\\fpdev\\fpdev.exe system version`
+     - Linux/macOS 改成解压到 `~/.local/opt/fpdev-v1.1.0` 后运行 `./fpdev system version`
+     - 删除 `sudo mv fpdev /usr/local/bin/`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_docs_contract`：先 RED，修复后通过
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`82` tests OK，`1` skipped
+4. 结论：
+   - 历史 release note 现在也不会再把用户引向拆散 portable release 的单二进制安装方式
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

@@ -249,7 +249,7 @@ Cleaned 5.2 MB of build artifacts
 
 ### From v1.0.0 to v1.1.0
 
-This is a **minor version upgrade** with full backward compatibility. Simply replace your existing FPDev binary:
+This is a **minor version upgrade** with full backward compatibility. Replace the extracted FPDev release directory as a whole so `fpdev` stays next to its bundled `data/` directory:
 
 **Windows:**
 ```powershell
@@ -258,19 +258,20 @@ Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v1.1.0/
 Expand-Archive -Path "fpdev-v1.1.0.zip" -DestinationPath "C:\fpdev"
 
 # Verify version
-fpdev system version
+C:\fpdev\fpdev.exe system version
 # Output: FPDev v1.1.0
 ```
 
 **Linux/macOS:**
 ```bash
-# Download and install
+# Download and extract
 wget https://github.com/fpdev/fpdev/releases/download/v1.1.0/fpdev-linux-x64.tar.gz
-tar -xzf fpdev-linux-x64.tar.gz
-sudo mv fpdev /usr/local/bin/
+mkdir -p ~/.local/opt/fpdev-v1.1.0
+tar -xzf fpdev-linux-x64.tar.gz -C ~/.local/opt/fpdev-v1.1.0
+cd ~/.local/opt/fpdev-v1.1.0
 
 # Verify version
-fpdev system version
+./fpdev system version
 # Output: FPDev v1.1.0
 ```
 

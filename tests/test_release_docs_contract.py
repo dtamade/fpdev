@@ -74,6 +74,13 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('fpdev system version', self.legacy_release_notes_text)
         self.assertNotIn('fpdev version', self.legacy_release_notes_text)
 
+    def test_legacy_release_notes_preserve_portable_release_layout(self):
+        self.assertIn('fpdev.exe system version', self.legacy_release_notes_text)
+        self.assertIn('./fpdev system version', self.legacy_release_notes_text)
+        self.assertIn('data/', self.legacy_release_notes_text)
+        self.assertNotIn('sudo mv fpdev /usr/local/bin/', self.legacy_release_notes_text)
+        self.assertNotIn('Simply replace your existing FPDev binary', self.legacy_release_notes_text)
+
     def test_owner_checkpoint_exit_criteria_include_release_evidence(self):
         self.assertIn('RELEASE_EVIDENCE.md', self.text)
         self.assertIn('`RELEASE_EVIDENCE.md` is published with the release.', self.text)

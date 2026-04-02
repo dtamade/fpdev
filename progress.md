@@ -1546,3 +1546,41 @@
 | What's the goal? | Keep public upgrade instructions from reintroducing removed top-level commands, even in historical release-note files |
 | What have I learned? | Historical release notes can quietly preserve old copy-paste commands long after the main docs are corrected, so they also need contract coverage when they remain top-level docs |
 | What have I done? | Added legacy release-note version-command contract coverage and replaced `fpdev version` with `fpdev system version` in `RELEASE_NOTES_v1.1.md` |
+
+## Session: 2026-04-02 (legacy release-layout drift)
+
+### Close-out Execution Follow-up 38
+- **Status:** complete
+- Actions taken:
+  - Re-read the same `RELEASE_NOTES_v1.1.md` upgrade section after fixing the version command and found that the Linux/macOS steps still split out a single `fpdev` binary with `sudo mv`, contradicting the current portable release layout guidance
+  - Cross-checked the source of truth in `docs/INSTALLATION.md` and `docs/INSTALLATION.en.md`, which now require keeping `fpdev` beside the bundled `data/` directory
+  - Added a failing release-doc contract proving the legacy release notes must preserve the portable release layout and use explicit executable paths
+  - Updated `RELEASE_NOTES_v1.1.md` so the upgrade instructions now replace the extracted release directory as a whole, use explicit executable paths on Windows and Linux/macOS, and no longer suggest moving a detached binary into `/usr/local/bin`
+  - Re-ran the focused release-doc suite and the broader close-out regression bundle to confirm the legacy release note now matches the current portable-release story
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `RELEASE_NOTES_v1.1.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for legacy release-layout drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `RELEASE_NOTES_v1.1.md` still lacked explicit executable paths, did not mention the bundled `data/` layout, and still contained `sudo mv fpdev /usr/local/bin/` | Observed |
+| Focused release-doc verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | `15` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `82` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `RELEASE_NOTES_v1.1.md` still advertised the old detached-binary install pattern via `sudo mv fpdev /usr/local/bin/` | 1 | Added a release-layout contract and rewrote the legacy upgrade instructions around preserving the extracted release directory plus explicit executable paths |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Historical top-level release notes now align with both the current version command and the current portable release layout |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep public upgrade instructions from silently reintroducing obsolete asset-layout assumptions after the main install docs have been repaired |
+| What have I learned? | Historical release docs can preserve not just old commands but also old installation topology, so release-layout contracts need to cover both when those files remain public |
+| What have I done? | Added legacy release-layout contract coverage and rewrote the v1.1 upgrade instructions around preserving the extracted release directory |

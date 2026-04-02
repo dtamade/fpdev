@@ -1036,3 +1036,36 @@
 - 结论更新：
   - 历史 release note 现在也不会再把公开升级说明引回已移除的 `fpdev version`
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, legacy release-layout drift)
+- 在修完 `RELEASE_NOTES_v1.1.md` 的 version command 后，继续看同一段升级说明时，又发现另一条 release-layout drift：
+  - Linux/macOS 步骤仍要求 `sudo mv fpdev /usr/local/bin/`
+  - 但当前公开安装文档已经明确：release 资产必须保留 `fpdev` 与同级 `data/` 目录的相对布局
+- 当前公开/runtime 真相：
+  - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：明确要求 keep release layout intact
+  - 同文档的 Linux/macOS 安装示例也改成把 tarball 解压到专用目录，而不是拆出单个二进制
+- 这个问题的影响：
+  - 历史 release note 仍会把用户引回“把二进制单独移走”的旧安装心智模型
+  - 这不仅会拆散 portable release 的 `data/` 布局，也会继续假设 PATH/全局安装，而不是显式的 release directory
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_legacy_release_notes_preserve_portable_release_layout` 直接暴露出：
+    - 文档没有 `fpdev.exe system version`
+    - 没有 `./fpdev system version`
+    - 没有 `data/`
+    - 仍包含 `sudo mv fpdev /usr/local/bin/`
+    - 仍写着 `Simply replace your existing FPDev binary`
+- 已实施的最小修复：
+  - `RELEASE_NOTES_v1.1.md`：
+    - 将升级说明改成替换整个 extracted release directory
+    - Windows 改成显式运行 `C:\\fpdev\\fpdev.exe system version`
+    - Linux/macOS 改成解压到 `~/.local/opt/fpdev-v1.1.0` 后执行 `./fpdev system version`
+    - 去掉 `sudo mv fpdev /usr/local/bin/`
+    - 明确提到保持 bundled `data/` 目录与可执行文件同级
+  - `tests/test_release_docs_contract.py`：补齐 legacy release-layout 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`82` tests OK，`1` skipped
+- 结论更新：
+  - 历史 release note 现在也不会再把用户引向拆散 portable release 的旧安装方式
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
