@@ -74,7 +74,6 @@ begin
   try
     if LMgr.ConfigureIDE(Ctx.Out, Ctx.Err, LVer) then
       Exit(EXIT_OK);
-    Ctx.Err.WriteLn(_(CMD_LAZARUS_CONFIG_FAILED));
     Result := EXIT_ERROR;
   finally
     LMgr.Free;

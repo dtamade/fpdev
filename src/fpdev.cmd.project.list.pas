@@ -63,19 +63,37 @@ var
   LJson: TJSONObject;
   LArr: TJSONArray;
   I: Integer;
+  LUnknownOption: string;
 begin
   Result := 0;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_DESC));
     Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams, ['--json'], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LJsonOutput := HasFlag(AParams, 'json');

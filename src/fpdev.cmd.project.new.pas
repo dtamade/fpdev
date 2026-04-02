@@ -35,6 +35,7 @@ function TProjectNewCommand.Execute(const AParams: array of string; const Ctx: I
 var
   LTemplate, LName, LTargetDir: string;
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -51,17 +52,29 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 2 then
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_NEW_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) < 2 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['template, name']));
     Ctx.Err.WriteLn(_(HELP_PROJECT_NEW_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
 
-  LTemplate := AParams[0];
-  LName := AParams[1];
-  if Length(AParams) > 2 then
-    LTargetDir := AParams[2] + PathDelim + LName
+  if CountPositionalArgs(AParams) > 3 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_NEW_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LTemplate := GetPositionalArg(AParams, 0);
+  LName := GetPositionalArg(AParams, 1);
+  if CountPositionalArgs(AParams) > 2 then
+    LTargetDir := GetPositionalArg(AParams, 2) + PathDelim + LName
   else
     LTargetDir := '.' + PathDelim + LName;
 

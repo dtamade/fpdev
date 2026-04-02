@@ -20,9 +20,11 @@ program test_cli_fpc_lifecycle;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, Process,
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
   fpdev.exitcodes,
+  fpdev.i18n, fpdev.i18n.strings,
   fpdev.cmd.fpc,                   // Register 'fpc' root command
   fpdev.cmd.fpc.update,
   fpdev.cmd.fpc.test,
@@ -32,6 +34,105 @@ uses
 
 var
   GTempDir: string;
+
+function SetInstallRoot(const Ctx: IContext; const AInstallRoot: string): Boolean;
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := AInstallRoot;
+  Result := Ctx.Config.GetSettingsManager.SetSettings(Settings);
+end;
+
+function RunCommandInDir(const AExecutable: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  Proc: TProcess;
+  I: Integer;
+begin
+  Proc := TProcess.Create(nil);
+  try
+    Proc.Executable := AExecutable;
+    Proc.CurrentDirectory := AWorkDir;
+    Proc.Options := [poWaitOnExit];
+    for I := Low(AArgs) to High(AArgs) do
+      Proc.Parameters.Add(AArgs[I]);
+    try
+      Proc.Execute;
+      Result := Proc.ExitStatus = 0;
+    except
+      Result := False;
+    end;
+  finally
+    Proc.Free;
+  end;
+end;
+
+procedure WriteTextFile(const APath, AContent: string);
+var
+  SL: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  SL := TStringList.Create;
+  try
+    SL.Text := AContent;
+    SL.SaveToFile(APath);
+  finally
+    SL.Free;
+  end;
+end;
+
+function ConfigureGitUser(const ARepoDir: string): Boolean;
+begin
+  Result :=
+    RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], ARepoDir) and
+    RunCommandInDir('git', ['config', 'user.email', 'fpdev-test@example.invalid'], ARepoDir);
+end;
+
+function CommitAll(const ARepoDir, AMessage: string): Boolean;
+begin
+  Result :=
+    RunCommandInDir('git', ['add', '-A'], ARepoDir) and
+    RunCommandInDir('git', ['commit', '-m', AMessage], ARepoDir);
+end;
+
+function SetupTrackedFPCSourceRepo(const AInstallRoot, AVersion: string;
+  out ASourceDir, ASeedDir: string): Boolean;
+var
+  FixtureRoot: string;
+  RemoteBareDir: string;
+begin
+  Result := False;
+  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' +
+    PathDelim + 'fpc-' + AVersion;
+  FixtureRoot := AInstallRoot + PathDelim + '_git_fixture';
+  ASeedDir := FixtureRoot + PathDelim + 'seed';
+  RemoteBareDir := FixtureRoot + PathDelim + 'remote.git';
+
+  ForceDirectories(AInstallRoot);
+  if not RunCommandInDir('git', ['init', '--bare', '--initial-branch=main', RemoteBareDir], GTempDir) then
+    Exit;
+  if not RunCommandInDir('git', ['clone', RemoteBareDir, ASeedDir], GTempDir) then
+    Exit;
+  if not ConfigureGitUser(ASeedDir) then
+    Exit;
+
+  WriteTextFile(ASeedDir + PathDelim + 'README.txt', 'base' + LineEnding);
+  if not CommitAll(ASeedDir, 'initial commit') then
+    Exit;
+  if not RunCommandInDir('git', ['branch', '-M', 'main'], ASeedDir) then
+    Exit;
+  if not RunCommandInDir('git', ['push', '-u', 'origin', 'main'], ASeedDir) then
+    Exit;
+
+  ForceDirectories(ExtractFileDir(ASourceDir));
+  if not RunCommandInDir('git', ['clone', RemoteBareDir, ASourceDir], GTempDir) then
+    Exit;
+  if not ConfigureGitUser(ASourceDir) then
+    Exit;
+
+  Result := True;
+end;
 
 procedure WriteCachedFPCManifest(const ACacheDir: string);
 var
@@ -118,6 +219,7 @@ begin
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('update --help returns EXIT_OK', Ret = EXIT_OK);
     Check('update --help shows usage', StdOut.Contains('update'));
+    Check('update --help shows optional version', StdOut.Contains('[version]'));
   finally
     Cmd.Free;
   end;
@@ -136,6 +238,7 @@ begin
     Ret := Cmd.Execute(['-h'], Ctx);
     Check('update -h returns EXIT_OK', Ret = EXIT_OK);
     Check('update -h shows usage', StdOut.Contains('update'));
+    Check('update -h shows optional version', StdOut.Contains('[version]'));
   finally
     Cmd.Free;
   end;
@@ -159,6 +262,349 @@ begin
     // No args = update index only
     Check('update no args produces output', Length(AllOutput) > 0);
     Check('update no args returns valid exit code', Ret >= 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateMissingSourceDoesNotAppendGenericFailure;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_missing_installroot';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  ForceDirectories(InstallRoot);
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update missing source setup install root', False);
+    Exit;
+  end;
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update missing source returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update missing source emits concrete error',
+      StdErr.Contains(_Fmt(CMD_FPC_SOURCE_DIR_NOT_FOUND, [SourceDir])));
+    Check('update missing source does not append generic failed',
+      not StdErr.Contains(_Fmt(CMD_FPC_UPDATE_FAILED, ['3.2.2'])));
+    Check('update missing source keeps version banner',
+      StdOut.Contains(_Fmt(CMD_FPC_UPDATE_VERSION, ['3.2.2'])));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateLocalOnlyDoesNotAppendGenericSuccess;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_local_only_installroot';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  ForceDirectories(SourceDir);
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update local-only setup install root', False);
+    Exit;
+  end;
+
+  if not RunCommandInDir('git', ['init'], SourceDir) then
+  begin
+    Check('update local-only setup git init', False);
+    Exit;
+  end;
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update local-only returns EXIT_OK', Ret = EXIT_OK);
+    Check('update local-only emits local-only status',
+      StdOut.Contains(_(MSG_FPC_SOURCE_LOCAL_ONLY) + ' ' + SourceDir));
+    Check('update local-only does not append generic success',
+      not StdOut.Contains(_(CMD_FPC_UPDATE_DONE)));
+    Check('update local-only keeps stderr empty',
+      Trim(StdErr.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDirtyWorktreeShowsNormalizedPullFailure;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_dirty_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update dirty setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedFPCSourceRepo(InstallRoot, '3.2.2', SourceDir, SeedDir) then
+  begin
+    Check('update dirty setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'README.txt', 'remote-change' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update dirty setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update dirty setup remote push', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'README.txt', 'local-uncommitted' + LineEnding);
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update dirty returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update dirty keeps version banner',
+      StdOut.Contains(_Fmt(CMD_FPC_UPDATE_VERSION, ['3.2.2'])));
+    Check('update dirty emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIRTY_WORKTREE)])));
+    Check('update dirty does not emit success',
+      not StdOut.Contains(_(CMD_FPC_UPDATE_DONE)));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDetachedHeadShowsNormalizedPullFailure;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_detached_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update detached setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedFPCSourceRepo(InstallRoot, '3.2.2', SourceDir, SeedDir) then
+  begin
+    Check('update detached setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'README.txt', 'remote-change' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update detached setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update detached setup remote push', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['checkout', '--detach', 'HEAD'], SourceDir) then
+  begin
+    Check('update detached setup checkout detach', False);
+    Exit;
+  end;
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update detached returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update detached keeps version banner',
+      StdOut.Contains(_Fmt(CMD_FPC_UPDATE_VERSION, ['3.2.2'])));
+    Check('update detached emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DETACHED_HEAD)])));
+    Check('update detached does not emit success',
+      not StdOut.Contains(_(CMD_FPC_UPDATE_DONE)));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDivergedConflictShowsNormalizedPullFailure;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_diverged_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update diverged setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedFPCSourceRepo(InstallRoot, '3.2.2', SourceDir, SeedDir) then
+  begin
+    Check('update diverged setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'README.txt', 'local-commit' + LineEnding);
+  if not CommitAll(SourceDir, 'local change') then
+  begin
+    Check('update diverged setup local commit', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'README.txt', 'remote-commit' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update diverged setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update diverged setup remote push', False);
+    Exit;
+  end;
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update diverged returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update diverged keeps version banner',
+      StdOut.Contains(_Fmt(CMD_FPC_UPDATE_VERSION, ['3.2.2'])));
+    Check('update diverged emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])));
+    Check('update diverged does not emit success',
+      not StdOut.Contains(_(CMD_FPC_UPDATE_DONE)));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateNonConflictingDivergedHistoryFailsFastForwardOnly;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_ffonly_diverged_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update ff-only diverged setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedFPCSourceRepo(InstallRoot, '3.2.2', SourceDir, SeedDir) then
+  begin
+    Check('update ff-only diverged setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'local.txt', 'local-commit' + LineEnding);
+  if not CommitAll(SourceDir, 'local change') then
+  begin
+    Check('update ff-only diverged setup local commit', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'remote.txt', 'remote-commit' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update ff-only diverged setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update ff-only diverged setup remote push', False);
+    Exit;
+  end;
+
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+    Check('update ff-only diverged returns EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update ff-only diverged keeps version banner',
+      StdOut.Contains(_Fmt(CMD_FPC_UPDATE_VERSION, ['3.2.2'])));
+    Check('update ff-only diverged emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_FPC_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])));
+    Check('update ff-only diverged does not emit success',
+      not StdOut.Contains(_(CMD_FPC_UPDATE_DONE)));
+    Check('update ff-only diverged keeps local-only file',
+      FileExists(SourceDir + PathDelim + 'local.txt'));
+    Check('update ff-only diverged does not materialize remote file',
+      not FileExists(SourceDir + PathDelim + 'remote.txt'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateUnexpectedArgReturnsUsageError;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('update unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('update unexpected arg shows usage', StdErr.Contains('[version]'));
+    Check('update unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateUnknownOptionReturnsUsageError;
+var
+  Cmd: TFPCUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('update unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('update unknown option shows usage', StdErr.Contains('[version]'));
+    Check('update unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -259,6 +705,25 @@ begin
   end;
 end;
 
+procedure TestTestHelpUnexpectedArgReturnsUsageError;
+var
+  Cmd: TFPCCTestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('test help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('test help unexpected arg shows usage', StdErr.Contains('[version]'));
+    Check('test help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 7: fpc test - No Args (System FPC Fallback) ===== }
 
 procedure TestTestMissingVersion;
@@ -277,6 +742,44 @@ begin
     // No args, no default toolchain -> should fall back to system FPC in PATH
     Check('test no args returns EXIT_OK', Ret = EXIT_OK);
     Check('test no args uses system fallback', Pos('Testing system FPC', AllOutput) > 0);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestTestUnexpectedArgReturnsUsageError;
+var
+  Cmd: TFPCCTestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('test unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('test unexpected arg shows usage', StdErr.Contains('[version]'));
+    Check('test unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestTestUnknownOptionReturnsUsageError;
+var
+  Cmd: TFPCCTestCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCCTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('test unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('test unknown option shows usage', StdErr.Contains('[version]'));
+    Check('test unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally
     Cmd.Free;
   end;
@@ -538,6 +1041,14 @@ begin
     WriteLn('');
     WriteLn('--- fpc update: Execution ---');
     TestUpdateNoArgs;
+    TestUpdateMissingSourceDoesNotAppendGenericFailure;
+    TestUpdateLocalOnlyDoesNotAppendGenericSuccess;
+    TestUpdateDirtyWorktreeShowsNormalizedPullFailure;
+    TestUpdateDetachedHeadShowsNormalizedPullFailure;
+    TestUpdateDivergedConflictShowsNormalizedPullFailure;
+    TestUpdateNonConflictingDivergedHistoryFailsFastForwardOnly;
+    TestUpdateUnexpectedArgReturnsUsageError;
+    TestUpdateUnknownOptionReturnsUsageError;
 
     // Group 4: fpc update registration
     WriteLn('');
@@ -556,11 +1067,14 @@ begin
     WriteLn('--- fpc test: Help Output ---');
     TestTestHelpFlag;
     TestTestHelpShortFlag;
+    TestTestHelpUnexpectedArgReturnsUsageError;
 
     // Group 7: fpc test missing version
     WriteLn('');
     WriteLn('--- fpc test: Argument Validation ---');
     TestTestMissingVersion;
+    TestTestUnexpectedArgReturnsUsageError;
+    TestTestUnknownOptionReturnsUsageError;
 
     // Group 8: fpc test with version
     WriteLn('');

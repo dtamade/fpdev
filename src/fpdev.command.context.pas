@@ -16,11 +16,18 @@ type
     FOut: IOutput;
     FErr: IOutput;
     FLogger: ILogger;
+    procedure InitializeStreamsAndLogger(const AOut, AErr: IOutput; const ALogger: ILogger);
   public
     constructor Create(
       const AConfigPath: string = '';
       const AOut: IOutput = nil;
       const AErr: IOutput = nil
+    );
+    constructor CreateWithConfig(
+      const AConfig: IConfigManager;
+      const AOut: IOutput = nil;
+      const AErr: IOutput = nil;
+      const ALogger: ILogger = nil
     );
     destructor Destroy; override;
     function Config: IConfigManager;
@@ -34,6 +41,25 @@ implementation
 
 { TDefaultCommandContext }
 
+procedure TDefaultCommandContext.InitializeStreamsAndLogger(
+  const AOut: IOutput;
+  const AErr: IOutput;
+  const ALogger: ILogger
+);
+begin
+  FOut := AOut;
+  if FOut = nil then
+    FOut := TConsoleOutput.Create(False) as IOutput;
+
+  FErr := AErr;
+  if FErr = nil then
+    FErr := TConsoleOutput.Create(True) as IOutput;
+
+  FLogger := ALogger;
+  if FLogger = nil then
+    FLogger := TConsoleLogger.Create(FErr) as ILogger;
+end;
+
 constructor TDefaultCommandContext.Create(
   const AConfigPath: string;
   const AOut: IOutput;
@@ -43,16 +69,24 @@ begin
   inherited Create;
   FConfig := TConfigManager.Create(AConfigPath) as IConfigManager;
   FConfig.LoadConfig;
+  InitializeStreamsAndLogger(AOut, AErr, nil);
+end;
 
-  FOut := AOut;
-  if FOut = nil then
-    FOut := TConsoleOutput.Create(False) as IOutput;
-
-  FErr := AErr;
-  if FErr = nil then
-    FErr := TConsoleOutput.Create(True) as IOutput;
-
-  FLogger := TConsoleLogger.Create(FErr) as ILogger;
+constructor TDefaultCommandContext.CreateWithConfig(
+  const AConfig: IConfigManager;
+  const AOut: IOutput;
+  const AErr: IOutput;
+  const ALogger: ILogger
+);
+begin
+  inherited Create;
+  FConfig := AConfig;
+  if FConfig = nil then
+  begin
+    FConfig := TConfigManager.Create('') as IConfigManager;
+    FConfig.LoadConfig;
+  end;
+  InitializeStreamsAndLogger(AOut, AErr, ALogger);
 end;
 
 destructor TDefaultCommandContext.Destroy;

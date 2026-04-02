@@ -58,6 +58,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_ALL));
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_LIST_OPT_HELP));
   end
   else if LSubcmd = 'search' then
@@ -68,6 +69,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_EXAMPLE));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_HELP));
   end
   else if LSubcmd = 'info' then

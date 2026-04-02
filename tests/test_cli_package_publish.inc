@@ -202,6 +202,86 @@ begin
   end;
 end;
 
+procedure TestPublishUsesFPDEVDataRootArchiveRoot;
+var
+  InstallCmd: TPackageInstallLocalCommand;
+  PublishCmd: TPackagePublishCmd;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  LocalPath: string;
+  ProbeRoot: string;
+  SavedDataRoot: string;
+  Settings: TFPDevSettings;
+  SL: TStringList;
+  ExpectedArchivePath: string;
+begin
+  ProbeRoot := CreateUniqueTempDir('fpdev_pkg_publish_data_root_probe');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  try
+    SetPortableMode(False);
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := '';
+    Ctx.Config.GetSettingsManager.SetSettings(Settings);
+
+    LocalPath := GTempDir + PathDelim + 'local_publish_data_root_probe';
+    ForceDirectories(LocalPath);
+
+    SL := TStringList.Create;
+    try
+      SL.Text := 'unit publish_data_root_demo;' + LineEnding +
+        'interface' + LineEnding +
+        'implementation' + LineEnding +
+        'end.';
+      SL.SaveToFile(LocalPath + PathDelim + 'publish_data_root_demo.pas');
+
+      SL.Text := '{' + LineEnding +
+        '  "name": "pkg_publish_data_root_probe",' + LineEnding +
+        '  "version": "1.0.8"' + LineEnding +
+        '}';
+      SL.SaveToFile(LocalPath + PathDelim + 'package.json');
+    finally
+      SL.Free;
+    end;
+
+    InstallCmd := TPackageInstallLocalCommand.Create;
+    try
+      Ret := InstallCmd.Execute([LocalPath], Ctx);
+      Check('publish data-root install-local EXIT_OK', Ret = EXIT_OK);
+    finally
+      InstallCmd.Free;
+    end;
+
+    StdOut.Clear;
+    StdErr.Clear;
+
+    PublishCmd := TPackagePublishCmd.Create;
+    try
+      Ret := PublishCmd.Execute(['pkg_publish_data_root_probe'], Ctx);
+      Check('publish data-root archive EXIT_OK', Ret = EXIT_OK);
+
+      ExpectedArchivePath := IncludeTrailingPathDelimiter(ProbeRoot) + 'publish' +
+        PathDelim + 'pkg_publish_data_root_probe-1.0.8.tar.gz';
+      Check('publish data-root archive exists under FPDEV_DATA_ROOT',
+        FileExists(ExpectedArchivePath));
+      Check('publish data-root archive path reported to stdout',
+        Pos(ExpectedArchivePath, StdOut.GetBuffer) > 0);
+
+      Settings := Ctx.Config.GetSettingsManager.GetSettings;
+      Check('publish data-root writes resolved install root back to config',
+        ExpandFileName(Settings.InstallRoot) = ExpandFileName(ProbeRoot));
+    finally
+      PublishCmd.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
 procedure TestPublishRejectsInvalidMetadataSourcePath;
 var
   InstallCmd: TPackageInstallLocalCommand;

@@ -41,6 +41,7 @@ function TProjectTemplateInstallCommand.Execute(const AParams: array of string; 
 var
   LPath: string;
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -57,10 +58,22 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev project template install <path>');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) < 1 then
     Exit(MissingArgError(Ctx, 'path', 'Usage: fpdev project template install <path>'));
 
-  LPath := AParams[0];
+  if CountPositionalArgs(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev project template install <path>');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LPath := GetPositionalArg(AParams, 0);
   LMgr := TProjectManager.Create(Ctx.Config);
   try
     if LMgr.InstallTemplate(Ctx.Out, Ctx.Err, LPath) then

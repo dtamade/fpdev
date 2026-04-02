@@ -74,7 +74,9 @@ implementation
 
 uses
   fpdev.config.project,
-  fpdev.doctor.view;
+  fpdev.doctor.view,
+  fpdev.paths,
+  fpdev.utils;
 
 procedure ExecuteDoctorFPCChecksCore(
   const ACtx: IContext;
@@ -166,11 +168,7 @@ var
 begin
   WriteDoctorSectionCore(ACtx.Out, 'Configuration', not AJsonMode);
 
-  {$IFDEF MSWINDOWS}
-  ConfigPath := GetEnvironmentVariable('APPDATA') + PathDelim + '.fpdev' + PathDelim + 'config.json';
-  {$ELSE}
-  ConfigPath := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev' + PathDelim + 'config.json';
-  {$ENDIF}
+  ConfigPath := GetConfigPath;
 
   if FileExists(ConfigPath) then
     APass('Global config: ' + ConfigPath)
@@ -203,13 +201,13 @@ var
 begin
   WriteDoctorSectionCore(ACtx.Out, 'Environment Variables', not AJsonMode);
 
-  PathValue := GetEnvironmentVariable('PATH');
+  PathValue := get_env('PATH');
   if PathValue <> '' then
     APass('PATH is set (' + IntToStr(Length(PathValue)) + ' chars)')
   else
     AFail('PATH is empty', 'Check your shell configuration');
 
-  FPCDir := GetEnvironmentVariable('FPCDIR');
+  FPCDir := get_env('FPCDIR');
   if FPCDir <> '' then
   begin
     if DirectoryExists(FPCDir) then
@@ -220,7 +218,7 @@ begin
   else
     AInfo('FPCDIR not set (this is OK)');
 
-  if GetEnvironmentVariable('PP') <> '' then
+  if get_env('PP') <> '' then
     AWarn('PP environment variable is set', 'This may conflict with fpdev. Consider unsetting it.');
 end;
 
@@ -315,7 +313,7 @@ begin
 
   InstallRoot := ACtx.Config.GetSettingsManager.GetSettings.InstallRoot;
   if InstallRoot = '' then
-    InstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
+    InstallRoot := GetDataRoot;
 
   if DirectoryExists(InstallRoot) then
     APass('Install directory exists: ' + InstallRoot)

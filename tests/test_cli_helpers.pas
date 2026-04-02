@@ -19,7 +19,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.output.intf, fpdev.command.intf, fpdev.config.interfaces,
-  fpdev.config.managers, fpdev.logger.intf;
+  fpdev.config.managers, fpdev.logger.intf, fpdev.command.context,
+  fpdev.logger.console;
 
 type
   { TStringOutput - Captures output to a string buffer for testing }
@@ -55,6 +56,7 @@ type
     FOut: IOutput;
     FErr: IOutput;
     FConfig: IConfigManager;
+    FLogger: ILogger;
   public
     constructor Create(AOut, AErr: IOutput; AConfig: IConfigManager);
     function Out: IOutput;
@@ -109,7 +111,7 @@ begin
   Config := TConfigManager.Create(AConfigDir + PathDelim + 'config.json');
   Config.CreateDefaultConfig;
   Config.LoadConfig;
-  Result := TTestContext.Create(AStdOut, AStdErr, Config);
+  Result := TDefaultCommandContext.CreateWithConfig(Config, AStdOut, AStdErr);
 end;
 
 function PrintTestSummary: Integer;
@@ -247,6 +249,8 @@ begin
   FOut := AOut;
   FErr := AErr;
   FConfig := AConfig;
+  if FErr <> nil then
+    FLogger := TConsoleLogger.Create(FErr) as ILogger;
 end;
 
 function TTestContext.Out: IOutput;
@@ -266,7 +270,7 @@ end;
 
 function TTestContext.Logger: ILogger;
 begin
-  Result := nil;
+  Result := FLogger;
 end;
 
 procedure TTestContext.SaveIfModified;

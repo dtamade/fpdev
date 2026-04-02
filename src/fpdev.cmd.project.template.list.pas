@@ -40,6 +40,7 @@ end;
 function TProjectTemplateListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -51,6 +52,12 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('  --help, -h    Show this help message');
     Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams, [], UnknownOption) or (CountPositionalArgs(AParams) > 0) then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev project template list');
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LMgr := TProjectManager.Create(Ctx.Config);

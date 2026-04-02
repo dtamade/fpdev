@@ -48,6 +48,9 @@ function ShellHookCommandFactory: ICommand;
 
 implementation
 
+uses
+  fpdev.command.utils;
+
 const
   HELP_SHELL_HOOK = 'Usage: fpdev system env hook <shell>' + LineEnding +
                     '' + LineEnding +
@@ -109,7 +112,8 @@ const
     '      if [[ -n "$version" && "$version" != "$_FPDEV_CURRENT_VERSION" ]]; then' + LineEnding +
     '        export _FPDEV_CURRENT_VERSION="$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
-    '        local fpdev_root="${FPDEV_DATA_ROOT:-$HOME/.fpdev}"' + LineEnding +
+    '        local fpdev_root' + LineEnding +
+    '        fpdev_root=$(fpdev system env data-root 2>/dev/null)' + LineEnding +
     '        local activate_script="$fpdev_root/env/activate-$version.sh"' + LineEnding +
     '        if [[ -f "$activate_script" ]]; then' + LineEnding +
     '          source "$activate_script"' + LineEnding +
@@ -172,10 +176,7 @@ const
     '      if test -n "$version" -a "$version" != "$_FPDEV_CURRENT_VERSION"' + LineEnding +
     '        set -gx _FPDEV_CURRENT_VERSION "$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
-    '        set -l fpdev_root "$HOME/.fpdev"' + LineEnding +
-    '        if set -q FPDEV_DATA_ROOT' + LineEnding +
-    '          set fpdev_root "$FPDEV_DATA_ROOT"' + LineEnding +
-    '        end' + LineEnding +
+    '        set -l fpdev_root (fpdev system env data-root 2>/dev/null)' + LineEnding +
     '        set -l activate_script "$fpdev_root/env/activate-$version.fish"' + LineEnding +
     '        if test -f "$activate_script"' + LineEnding +
     '          source "$activate_script"' + LineEnding +
@@ -234,17 +235,29 @@ function TShellHookCommand.Execute(const AParams: array of string; const Ctx: IC
 var
   LShell: string;
   I: Integer;
+  LUnknownOption: string;
 begin
-  Result := 0;
+  Result := EXIT_OK;
 
   // Check help flag
   for I := 0 to High(AParams) do
   begin
     if (AParams[I] = '-h') or (AParams[I] = '--help') then
     begin
+      if Length(AParams) > 1 then
+      begin
+        Ctx.Err.WriteLn(HELP_SHELL_HOOK);
+        Exit(EXIT_USAGE_ERROR);
+      end;
       Ctx.Out.WriteLn(HELP_SHELL_HOOK);
       Exit(EXIT_OK);
     end;
+  end;
+
+  if FindUnknownOption(AParams, ['--help', '-h'], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(HELP_SHELL_HOOK);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   // Shell parameter required
@@ -254,6 +267,12 @@ begin
     Ctx.Err.WriteLn('');
     Ctx.Err.WriteLn('Run "fpdev system env hook --help" for more information.');
     Exit(EXIT_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) <> 1 then
+  begin
+    Ctx.Err.WriteLn(HELP_SHELL_HOOK);
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LShell := LowerCase(AParams[0]);

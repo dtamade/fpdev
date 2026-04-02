@@ -51,21 +51,39 @@ var
   LArr: TJSONArray;
   LDefault: string;
   I: Integer;
+  LUnknownOption: string;
 begin
   Result := 0;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_LIST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_ALL));
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams, ['--all', '--remote', '--json'], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_LIST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LShowAll := HasFlag(AParams, 'all') or HasFlag(AParams, 'remote');
@@ -95,7 +113,16 @@ begin
         for I := 0 to High(LVersions) do
           LArr.Add(TJsonOutputHelper.VersionInfoToJson(LVersions[I]));
         LJson.Add('versions', LArr);
-        LJson.Add('default', LDefault);
+        if LDefault <> '' then
+        begin
+          LJson.Add('default', LDefault);
+          LJson.Add('has_default', True);
+        end
+        else
+        begin
+          LJson.Add('default', TJSONNull.Create);
+          LJson.Add('has_default', False);
+        end;
         LJson.Add('show_all', LShowAll);
         Ctx.Out.WriteLn(LJson.FormatJSON);
       finally

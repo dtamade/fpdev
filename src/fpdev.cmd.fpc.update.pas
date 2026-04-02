@@ -40,18 +40,36 @@ function TFPCUpdateCommand.Execute(const AParams: array of string; const Ctx: IC
 var
   LMgr: TFPCManager;
   LVer: string;
+  LUnknownOption: string;
 begin
   Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_UPDATE_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_UPDATE_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_UPDATE_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_UPDATE_OPT_HELP));
     Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams, [], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_UPDATE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if Length(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_UPDATE_USAGE));
+    Exit(EXIT_USAGE_ERROR);
   end;
 
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
@@ -61,13 +79,8 @@ begin
     begin
       LVer := AParams[0];
       Ctx.Out.WriteLn(_Fmt(CMD_FPC_UPDATE_VERSION, [LVer]));
-      if LMgr.UpdateSources(LVer) then
-        Ctx.Out.WriteLn(_(CMD_FPC_UPDATE_DONE))
-      else
-      begin
-        Ctx.Err.WriteLn(_Fmt(CMD_FPC_UPDATE_FAILED, [LVer]));
+      if not LMgr.UpdateSources(LVer) then
         Exit(EXIT_ERROR);
-      end;
     end
     else
     begin

@@ -37,7 +37,8 @@ implementation
 
 uses
   fpjson,
-  fpdev.config.project;
+  fpdev.config.project,
+  fpdev.command.utils;
 
 const
   HELP_RESOLVE_VERSION =
@@ -80,6 +81,7 @@ var
   LJsonOutput: Boolean;
   LJson: TJSONObject;
   I: Integer;
+  LUnknownOption: string;
 begin
   Result := EXIT_OK;
 
@@ -88,21 +90,29 @@ begin
   begin
     if (AParams[I] = '--help') or (AParams[I] = '-h') then
     begin
+      if Length(AParams) > 1 then
+      begin
+        Ctx.Err.WriteLn(HELP_RESOLVE_VERSION);
+        Exit(EXIT_USAGE_ERROR);
+      end;
       Ctx.Out.WriteLn(HELP_RESOLVE_VERSION);
       Exit(EXIT_OK);
     end;
   end;
 
-  // Check --json flag
-  LJsonOutput := False;
-  for I := 0 to High(AParams) do
+  if FindUnknownOption(AParams, ['--json', '-json'], LUnknownOption) then
   begin
-    if AParams[I] = '--json' then
-    begin
-      LJsonOutput := True;
-      Break;
-    end;
+    Ctx.Err.WriteLn(HELP_RESOLVE_VERSION);
+    Exit(EXIT_USAGE_ERROR);
   end;
+
+  if CountPositionalArgs(AParams) > 0 then
+  begin
+    Ctx.Err.WriteLn(HELP_RESOLVE_VERSION);
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LJsonOutput := HasFlag(AParams, 'json');
 
   // Get global defaults
   LGlobalFPC := '';
