@@ -576,3 +576,42 @@
 | What's the goal? | Eliminate contradictions between release steps and release exit criteria in the canonical handoff document |
 | What have I learned? | Even a single canonical doc can drift between its procedure section and its final exit checklist, so both levels need explicit contracts |
 | What have I done? | Added regression coverage and aligned the owner-checkpoint exit criteria with the already-required release-evidence publish step |
+
+## Session: 2026-04-02 (README/ROADMAP sign-off wording)
+
+### Close-out Execution Follow-up 13
+- **Status:** complete
+- Actions taken:
+  - Audited the public project-status wording after aligning the canonical release docs and found that README / README.en / ROADMAP still described release sign-off as only pending Windows/macOS owner evidence
+  - Added failing wording contracts proving those public status lines must now also mention `SHA256SUMS.txt` and `RELEASE_EVIDENCE.md`
+  - Updated README, README.en, and ROADMAP so release sign-off now explicitly includes the remaining publish artifacts in addition to owner evidence
+  - Re-ran the focused wording suite and the expanded release-contract suite to confirm the public status narrative is synchronized again
+- Files created/modified:
+  - `tests/test_release_status_wording.py`
+  - `README.md`
+  - `README.en.md`
+  - `docs/ROADMAP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for README/ROADMAP sign-off drift | `python3 -m unittest -v tests.test_release_status_wording` | fail before fix | failed because README / ROADMAP omitted `SHA256SUMS.txt` and `RELEASE_EVIDENCE.md` from release sign-off wording | Observed |
+| Focused release-status wording verification | `python3 -m unittest -v tests.test_release_status_wording` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `55` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | README / ROADMAP still understated release sign-off as only pending owner evidence after publish artifacts became part of the canonical remaining proof | 1 | Tightened wording contracts and updated README, README.en, and ROADMAP to include `SHA256SUMS.txt` and `RELEASE_EVIDENCE.md` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Public status surfaces now agree that release sign-off still needs both owner evidence and the remaining publish artifacts |
+| Where am I going? | Keep looking only for remaining in-repo close-out drift; otherwise the next work is outside the repo on real assets and sign-off |
+| What's the goal? | Keep high-level public status wording aligned with the canonical release-closeout proof requirements |
+| What have I learned? | Summary/status lines drift more easily than procedural docs, so they need explicit contract coverage too |
+| What have I done? | Added wording regressions and synchronized README, README.en, and ROADMAP with the current remaining publish-time proof |

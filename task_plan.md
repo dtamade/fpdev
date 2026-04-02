@@ -278,3 +278,19 @@ Phase 4 complete
 4. 结论：
    - canonical owner-checkpoint 文档现在在 Publish Sequence 与 Exit Criteria 两层都把 `RELEASE_EVIDENCE.md` 视为必需发布产物
    - repo-local close-out 叙事进一步收敛到单一一致流程
+
+## Close-out Update (2026-04-02, README/ROADMAP sign-off wording)
+1. 新发现的 repo-local 公开叙事 seam：
+   - `README.md` / `README.en.md` / `docs/ROADMAP.md` 仍把 release sign-off 描述成仅差 Windows/macOS owner evidence
+   - 但 canonical release docs 现在已经明确剩余 publish-time proof 还包括 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
+2. 已完成的最小修复：
+   - `tests/test_release_status_wording.py` 收紧为要求 README / ROADMAP 显式纳入 `SHA256SUMS.txt + RELEASE_EVIDENCE.md`
+   - `README.md` / `README.en.md` / `docs/ROADMAP.md` 的 sign-off wording 同步改成：
+     - pending Windows/macOS owner evidence + `SHA256SUMS.txt` + `RELEASE_EVIDENCE.md`
+   - `docs/ROADMAP.md` 的 baseline 行也同步改为 “owner evidence and publish artifacts still required”
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_status_wording`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`55` tests OK，`1` skipped
+4. 结论：
+   - README / README.en / ROADMAP 现在不再低估剩余 publish-time proof
+   - repo-local release-closeout 公开叙事进一步与 canonical release docs 对齐

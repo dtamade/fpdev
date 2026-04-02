@@ -25,10 +25,10 @@
 - ✅ **Project Templates**: 7 builtin templates are available
 
 ### Production Readiness
-- Release baseline: Linux automated lane passed; owner evidence still required for Windows/macOS
+- Release baseline: Linux automated lane passed; Windows/macOS owner evidence and publish artifacts still required
 - Platform Support: Windows, Linux, macOS
 - Test Coverage: 273 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
-- Release sign-off: pending Windows/macOS owner evidence
+- Release sign-off: pending Windows/macOS owner evidence + SHA256SUMS.txt + RELEASE_EVIDENCE.md
 - Feature checklist: closed for v2.1.0 scope
 - Status source of truth: release evidence artifacts + owner checkpoint ledger
 

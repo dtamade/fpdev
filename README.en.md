@@ -38,7 +38,7 @@
 [INFO] Discoverable test programs: 273 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs
 [INFO] Platform targets: Windows, Linux, macOS
-[INFO] Release sign-off: pending Windows/macOS owner evidence
+[INFO] Release sign-off: pending Windows/macOS owner evidence + SHA256SUMS.txt + RELEASE_EVIDENCE.md
 ```
 
 ---
