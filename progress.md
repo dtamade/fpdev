@@ -539,3 +539,40 @@
 | What's the goal? | Keep every release-facing instruction source pointing to the same owner-run workflow |
 | What have I learned? | Even after high-level narrative sync, step-by-step release notes can still drift back to manual instructions and reopen process forks |
 | What have I done? | Added regression coverage and rewrote the release-notes owner actions to use the standard recorder/checksum/evidence commands |
+
+## Session: 2026-04-02 (owner-checkpoint exit criteria)
+
+### Close-out Execution Follow-up 12
+- **Status:** complete
+- Actions taken:
+  - Audited the canonical owner-checkpoint plan after aligning release notes and found that its Publish Sequence already required `RELEASE_EVIDENCE.md`, but its Release Exit Criteria still omitted it
+  - Added a failing contract proving the exit criteria must explicitly include `RELEASE_EVIDENCE.md`
+  - Updated `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` so the canonical release exit criteria now require `RELEASE_EVIDENCE.md` to be published with the release
+  - Re-ran the focused docs contract and the expanded release-contract suite to confirm the canonical doc is internally consistent again
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for owner-checkpoint exit criteria drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `Release Exit Criteria` omitted `RELEASE_EVIDENCE.md` | Observed |
+| Focused release docs verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `55` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Canonical owner-checkpoint doc required `RELEASE_EVIDENCE.md` in Publish Sequence but omitted it from Release Exit Criteria | 1 | Added a docs contract and updated the exit criteria to require `RELEASE_EVIDENCE.md` publication |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Canonical owner-checkpoint guidance is now internally consistent about `RELEASE_EVIDENCE.md` being a required publish artifact |
+| Where am I going? | Keep checking only for remaining in-repo close-out drift; otherwise the next meaningful steps are external asset generation and owner sign-off |
+| What's the goal? | Eliminate contradictions between release steps and release exit criteria in the canonical handoff document |
+| What have I learned? | Even a single canonical doc can drift between its procedure section and its final exit checklist, so both levels need explicit contracts |
+| What have I done? | Added regression coverage and aligned the owner-checkpoint exit criteria with the already-required release-evidence publish step |

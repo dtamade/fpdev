@@ -293,3 +293,21 @@
 - 结论更新：
   - release notes 现在不再重新发明 owner smoke 流程，而是复用仓库内标准 recorder / evidence 工具链
   - repo-local release-closeout 流程进一步收敛到单一路径
+
+## Execution Update (2026-04-02, owner-checkpoint exit criteria)
+- 继续检查 canonical owner-checkpoint 文档时，又发现最后一层细小但真实的收口漂移：
+  - Publish Sequence 已明确要求上传 `RELEASE_EVIDENCE.md`
+  - 但同一文档的 `Release Exit Criteria` 仍只写了 `SHA256SUMS.txt` 与 owner sign-off
+  - 这意味着同一份 canonical 文档内部，步骤层与退出条件层对 `RELEASE_EVIDENCE.md` 的重要性判断不一致
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_owner_checkpoint_exit_criteria_include_release_evidence` 直接指出 Exit Criteria 缺少 `RELEASE_EVIDENCE.md`
+- 已实施的最小修复：
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`：在 Release Exit Criteria 中补入 ``RELEASE_EVIDENCE.md`` 发布要求
+  - `tests/test_release_docs_contract.py`：补齐对应契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`55` tests OK，`1` skipped
+- 结论更新：
+  - canonical owner-checkpoint 文档现在在步骤与退出条件两个层面都一致要求 `RELEASE_EVIDENCE.md`
+  - repo-local release-closeout 流程进一步趋于闭合

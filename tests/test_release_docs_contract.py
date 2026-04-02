@@ -63,6 +63,10 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertNotIn('fpc --help', self.release_notes_text)
         self.assertNotIn('fpc list --all', self.release_notes_text)
 
+    def test_owner_checkpoint_exit_criteria_include_release_evidence(self):
+        self.assertIn('RELEASE_EVIDENCE.md', self.text)
+        self.assertIn('`RELEASE_EVIDENCE.md` is published with the release.', self.text)
+
     def test_owner_checkpoint_doc_stops_inlining_smoke_commands(self):
         self.assertNotIn('.\\fpdev.exe system version', self.text)
         self.assertNotIn('./fpdev system version', self.text)
