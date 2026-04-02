@@ -214,6 +214,17 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('fpdev fpc install 3.2.2 --from-source --verbose', zh_text)
         self.assertNotIn('fpdev fpc install 3.2.2 --from-source --verbose', en_text)
 
+    def test_quickstart_docs_do_not_recommend_source_install_as_default(self):
+        zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')
+
+        self.assertIn('fpdev fpc install 3.2.2', zh_text)
+        self.assertIn('fpdev fpc install 3.2.2', en_text)
+        self.assertIn('--from-source', zh_text)
+        self.assertIn('--from-source', en_text)
+        self.assertNotIn('# 安装推荐版本 FPC 3.2.2\nfpdev fpc install 3.2.2 --from-source', zh_text)
+        self.assertNotIn('# Install recommended version FPC 3.2.2\nfpdev fpc install 3.2.2 --from-source', en_text)
+
     def test_fpdevrc_docs_describe_active_global_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.en.md').read_text(encoding='utf-8')

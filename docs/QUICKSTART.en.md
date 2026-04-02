@@ -29,7 +29,10 @@ fpdev lazarus list --all
 ### Install FPC (FreePascal Compiler)
 
 ```bash
-# Install recommended version FPC 3.2.2
+# Install recommended version FPC 3.2.2 (binary-first)
+fpdev fpc install 3.2.2
+
+# Use source builds when needed
 fpdev fpc install 3.2.2 --from-source
 
 # Set as default version
@@ -39,7 +42,7 @@ fpdev fpc use 3.2.2
 fpdev fpc current
 ```
 
-**Note**: Building from source may take 10-30 minutes, please be patient.
+**Note**: Binary installation is usually faster; building from source may take 10-30 minutes, so use it only when needed.
 
 ### Install Lazarus IDE (Optional)
 

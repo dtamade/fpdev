@@ -29,7 +29,10 @@ fpdev lazarus list --all
 ### 安装 FPC (FreePascal 编译器)
 
 ```bash
-# 安装推荐版本 FPC 3.2.2
+# 安装推荐版本 FPC 3.2.2（二进制优先）
+fpdev fpc install 3.2.2
+
+# 需要源码构建时
 fpdev fpc install 3.2.2 --from-source
 
 # 设置为默认版本
@@ -39,7 +42,7 @@ fpdev fpc use 3.2.2
 fpdev fpc current
 ```
 
-**注意**: 从源码编译可能需要 10-30 分钟，请耐心等待。
+**注意**: 二进制安装通常更快；从源码编译可能需要 10-30 分钟，请耐心等待。
 
 ### 安装 Lazarus IDE (可选)
 

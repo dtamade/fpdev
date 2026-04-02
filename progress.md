@@ -1277,3 +1277,42 @@
 | What's the goal? | Keep the user-entry quickstart docs aligned with the real install command surface so copy-paste guidance does not fail immediately |
 | What have I learned? | Small troubleshooting snippets in onboarding docs can be just as dangerous as larger architecture drift because users copy them verbatim |
 | What have I done? | Added quickstart install-verbose contract coverage and replaced the unsupported flag guidance with a supported diagnostic path |
+
+## Session: 2026-04-02 (quickstart binary-first install drift)
+
+### Close-out Execution Follow-up 31
+- **Status:** complete
+- Actions taken:
+  - Re-read the quickstart install section after removing the unsupported verbose flag and found a larger onboarding drift: the guide still made `--from-source` the default recommended FPC install path
+  - Cross-checked the already-aligned user guidance in `docs/FAQ.md` and `docs/FPC_MANAGEMENT.md`, which both describe FPC installation as binary-first with source builds only when needed
+  - Added a failing official-docs contract proving the quickstart guides must not recommend source installs as the default path
+  - Updated both quickstart guides so the first-run FPC install path is now `fpdev fpc install 3.2.2`, while `--from-source` remains as an explicit alternative for source builds
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the onboarding docs now match the binary-first installation story used elsewhere in the live docs
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/QUICKSTART.md`
+  - `docs/QUICKSTART.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart binary-first install drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because both quickstart guides still paired “recommended version” with `fpdev fpc install 3.2.2 --from-source` | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `73` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The quickstart guides still recommended source builds as the default FPC install path, conflicting with the already-aligned binary-first docs | 1 | Added a quickstart binary-first contract and rewrote the install step to lead with the binary path while keeping source builds as an opt-in fallback |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The quickstart guides now match the binary-first install strategy as well as the active data-root path story and supported flag surface |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the first-run onboarding flow aligned with the same installation strategy already enforced in the rest of the live docs |
+| What have I learned? | Onboarding docs can preserve a “works eventually” path that is still the wrong default, even after deeper command references are corrected |
+| What have I done? | Added quickstart binary-first contract coverage and rewrote the FPC install step around the default binary path plus explicit source fallback |

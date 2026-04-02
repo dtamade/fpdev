@@ -836,3 +836,29 @@
 - 结论更新：
   - Quickstart 文档现在也与当前 install help surface 保持一致，不再建议不存在的 `--verbose` flag
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, quickstart binary-first install drift)
+- 在移除 Quickstart 中不存在的 `--verbose` flag 后，继续回看同一段 onboarding flow 时，又发现一个更上层的策略漂移：
+  - `docs/QUICKSTART.md` 与 `docs/QUICKSTART.en.md` 仍把 `fpdev fpc install 3.2.2 --from-source` 写成“安装推荐版本 FPC 3.2.2”的默认命令
+  - 但当前 live docs 的主叙事已经统一为 binary-first：
+    - `docs/FAQ.md` / `docs/FAQ.en.md`：默认先用二进制安装，源码安装按需使用
+    - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md`：安装管理示例明确先给 `fpdev fpc install 3.2.2`
+- 这个问题的影响：
+  - Quickstart 是首次上手路径，把源码构建写成默认入口会把用户带到更慢、更脆弱、对环境要求更高的路径
+  - 即使 deeper docs 已纠正，onboarding 入口仍会把实际默认策略重新写偏
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_quickstart_docs_do_not_recommend_source_install_as_default` 直接暴露出：
+    - 中英文 quickstart 都仍把 “recommended version” 直接配成 `fpdev fpc install 3.2.2 --from-source`
+- 已实施的最小修复：
+  - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+    - 默认安装命令改为 `fpdev fpc install 3.2.2`
+    - 追加 `--from-source` 作为 “需要源码构建时” 的备选命令
+    - 备注改成 binary-first 通常更快、source build 按需使用
+  - `tests/test_official_docs_cli_contract.py`：补齐 quickstart binary-first 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`73` tests OK，`1` skipped
+- 结论更新：
+  - Quickstart 文档现在也与 binary-first 的当前安装策略保持一致，不再把源码构建写成首次上手默认路径
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

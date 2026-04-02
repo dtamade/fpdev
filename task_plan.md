@@ -629,3 +629,20 @@ Phase 4 complete
 4. 结论：
    - Quickstart 文档现在不再建议不存在的 `--verbose` flag，用户照着入门文档执行也不会被带到 usage error
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, quickstart binary-first install drift)
+1. 新发现的 repo-local live-onboarding seam：
+   - `docs/QUICKSTART.md` 与 `docs/QUICKSTART.en.md` 仍把 `fpdev fpc install 3.2.2 --from-source` 写成“推荐版本 FPC”的默认安装命令
+   - 但已对齐的 FAQ / FPC 管理文档都明确：FPC 默认应先走二进制安装，源码构建只作为需要时的备选路径
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_quickstart_docs_do_not_recommend_source_install_as_default`
+   - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 改为：
+     - 默认命令使用 `fpdev fpc install 3.2.2`
+     - 保留 `--from-source` 作为“需要源码构建时”的显式备选
+     - 备注改成“binary-first 更快，source build 按需使用”
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`73` tests OK，`1` skipped
+4. 结论：
+   - Quickstart 文档现在也与 binary-first 的当前安装策略保持一致，不再把更慢、更脆弱的源码构建写成首次上手默认路径
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
