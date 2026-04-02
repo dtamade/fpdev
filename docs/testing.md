@@ -15,9 +15,10 @@ tests/
 ├── test_build_manager.lpr          # Build manager tests
 ├── fpdev.build.manager/            # BuildManager test suite
 │   ├── run_tests.bat               # Windows test runner
+│   ├── run_tests.sh                # Linux/macOS test runner
 │   └── *.lpr                       # Individual test programs
 └── fpdev.git2/                     # Git2 test suite
-    ├── buildOrTest.fpcunit.bat     # Windows test runner
+    ├── buildOrTest.fpcunit.bat     # Legacy Windows-local fpcunit runner
     └── *.lpr                       # Individual test programs
 ```
 
@@ -26,25 +27,21 @@ tests/
 ### Build and Run Single Test
 
 ```bash
-# Windows
-lazbuild -B tests\test_config_management.lpi
-.\bin\test_config_management.exe
-
-# Linux/macOS
-lazbuild -B tests/test_config_management.lpi
-./bin/test_config_management
+# Focus one top-level Pascal test
+bash scripts/run_single_test.sh tests/test_config_management.lpr
 ```
 
 ### Run Test Suite
 
 ```bash
-# BuildManager test suite
-cd tests\fpdev.build.manager
-run_tests.bat
+# BuildManager test suite (Windows)
+tests\fpdev.build.manager\run_tests.bat
 
-# Git2 test suite
-cd tests\fpdev.git2
-buildOrTest.fpcunit.bat
+# BuildManager test suite (Linux/macOS)
+bash tests/fpdev.build.manager/run_tests.sh
+
+# Git2 fpcunit suite (legacy Windows-local runner)
+tests\fpdev.git2\buildOrTest.fpcunit.bat
 ```
 
 ### Run All Tests

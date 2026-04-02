@@ -2085,3 +2085,40 @@
 | What's the goal? | Prevent engineering-guideline docs from standardizing obsolete local layouts that the maintained test projects no longer use |
 | What have I learned? | “规范” 文档 drift 的破坏性更强，因为它会把少数遗留模式重新合法化； targeted contract checks are worth adding as soon as such a doc is found |
 | What have I done? | Added one focused official-doc assertion, rewrote `docs/测试基建规范.md` to current runner/output truth, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-02 (testing-doc suite-runner drift)
+
+### Close-out Execution Follow-up 51
+- **Status:** complete
+- Actions taken:
+  - Moved to the next nearby official-doc seam in `docs/testing.md`, which still showed old `cd ... && runner` style suite examples
+  - Re-verified the current runner truth from `scripts/run_single_test.sh`, `tests/fpdev.build.manager/run_tests.bat`, `tests/fpdev.build.manager/run_tests.sh`, and `tests/fpdev.git2/buildOrTest.fpcunit.bat`
+  - Added one focused official-doc contract for current suite-runner command forms
+  - Updated the testing guide to use explicit runner paths plus the standard focused runner, then re-ran focused and broad regression coverage
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/testing.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for testing-guide runner drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/testing.md` still used `cd tests\\...` suite examples and omitted the standard focused runner | Observed |
+| Focused official-doc verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `34` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `109` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The testing guide still used old `cd`-into-subdir suite commands and did not show the standard focused runner | 1 | Added a focused official-doc contract and rewrote the runner examples to explicit current command paths |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The testing guide is now under official-doc contract for suite-runner examples |
+| Where am I going? | Commit and push this testing-guide cleanup checkpoint, then continue to the next uncovered public doc seam |
+| What's the goal? | Keep the testing guide aligned with the maintained runner entrypoints so copy-paste instructions stay valid |
+| What have I learned? | Even when a document already references the right scripts, the invocation style can still drift; explicit command-path assertions are useful for that class of issue |
+| What have I done? | Added a new testing-guide runner assertion, updated `docs/testing.md`, and re-verified the full docs/release/CI bundle |

@@ -1028,3 +1028,22 @@ Phase 4 complete
 4. 结论：
    - 测试基建规范现在回到“当前仓库支持的几种 runner / 输出模式”，不再把遗留模板误写成统一规范
    - official-doc contract 继续向工程实践文档收口
+
+## Close-out Update (2026-04-02, testing-doc suite-runner drift)
+1. 新发现的 official-doc seam：
+   - `docs/testing.md` 仍用 `cd tests\\fpdev.build.manager` / `run_tests.bat` 和 `cd tests\\fpdev.git2` / `buildOrTest.fpcunit.bat` 这类旧式子目录进入方式示例
+   - 同时缺少当前标准的聚焦 runner `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py`：
+     - 新增 `test_testing_doc_uses_current_suite_runner_commands`
+   - `docs/testing.md`：
+     - 单测入口改成 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+     - BuildManager suite 改成显式路径 `tests\\fpdev.build.manager\\run_tests.bat` / `bash tests/fpdev.build.manager/run_tests.sh`
+     - Git2 suite 改成显式路径 `tests\\fpdev.git2\\buildOrTest.fpcunit.bat`
+     - 测试结构树补入 `run_tests.sh`，并把 Git2 runner 标记为 legacy Windows-local
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `34` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`109` tests OK，`1` skipped
+4. 结论：
+   - `docs/testing.md` 现在使用当前维护中的 suite runner 调用方式
+   - official-doc contract 已覆盖 testing guide 中的 runner 示例漂移

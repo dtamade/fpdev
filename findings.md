@@ -1502,3 +1502,33 @@
 - 结论更新：
   - test-infra 文档已回到当前仓库的 runner / output 真相
   - docs-contract cleanup 继续把“工程规范类文档”纳入自动化验证
+
+## Execution Update (2026-04-02, testing-doc suite-runner drift)
+- 新发现的 repo-local seam：
+  - `docs/testing.md` 仍用 `cd tests\\fpdev.build.manager` / `run_tests.bat` 和 `cd tests\\fpdev.git2` / `buildOrTest.fpcunit.bat` 的旧式示例
+  - 该文档也没有把当前标准的顶层聚焦 runner `bash scripts/run_single_test.sh tests/test_config_management.lpr` 纳入示例
+- 当前 repo truth：
+  - `scripts/run_all_tests.sh`：当前顶层 Pascal 回归基线
+  - `scripts/run_single_test.sh`：当前顶层聚焦 runner
+  - `tests/fpdev.build.manager/run_tests.bat` / `tests/fpdev.build.manager/run_tests.sh`：当前 build-manager suite 的显式项目级 runner
+  - `tests/fpdev.git2/buildOrTest.fpcunit.bat`：当前仍存在的 Git2 Windows-local runner，应以显式路径调用
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增 official-doc 契约直接暴露出：
+    - 文档缺少 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+    - 缺少 `bash tests/fpdev.build.manager/run_tests.sh`
+    - 仍保留 `cd tests\\fpdev.build.manager` 与 `cd tests\\fpdev.git2`
+- 已实施的最小修复：
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 testing guide suite-runner 契约
+  - `docs/testing.md`：
+    - 单测入口改成 `bash scripts/run_single_test.sh tests/test_config_management.lpr`
+    - BuildManager suite 改成显式路径调用
+    - Git2 suite 改成显式路径调用，并标记为 legacy Windows-local
+    - 结构树补入 `run_tests.sh`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`34` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`109` tests OK，`1` skipped
+- 结论更新：
+  - `docs/testing.md` 已回到当前 suite runner 真相
+  - docs-contract cleanup 继续从“命令面漂移”推进到“调用方式漂移”

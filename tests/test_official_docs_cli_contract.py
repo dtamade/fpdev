@@ -209,6 +209,16 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertIn('bash scripts/run_all_tests.sh', text)
         self.assertNotIn(r'scripts\run_all_tests.bat', text)
 
+    def test_testing_doc_uses_current_suite_runner_commands(self):
+        text = (REPO_ROOT / 'docs' / 'testing.md').read_text(encoding='utf-8')
+
+        self.assertIn('bash scripts/run_single_test.sh tests/test_config_management.lpr', text)
+        self.assertIn(r'tests\fpdev.build.manager\run_tests.bat', text)
+        self.assertIn('bash tests/fpdev.build.manager/run_tests.sh', text)
+        self.assertIn(r'tests\fpdev.git2\buildOrTest.fpcunit.bat', text)
+        self.assertNotIn(r'cd tests\fpdev.build.manager', text)
+        self.assertNotIn(r'cd tests\fpdev.git2', text)
+
     def test_test_infra_doc_describes_current_runner_and_output_patterns(self):
         text = (REPO_ROOT / 'docs' / '测试基建规范.md').read_text(encoding='utf-8')
 
