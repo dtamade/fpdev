@@ -945,3 +945,34 @@
 - 结论更新：
   - `MANIFEST-MIGRATION.md` 现在也与当前 install/build 帮助面保持一致，不再宣传不存在的 `install --dry-run`
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, roadmap scope-flag drift)
+- 在修完 `MANIFEST-MIGRATION` 后，继续扫描 live roadmap/status 文档时，又发现一个更上层的状态叙事 drift：
+  - `docs/ROADMAP.md` 仍保留 `2.1 Scoped Installation ✅ COMPLETE`
+  - 同一段仍写着 `Implement --scope (project/user/system)`
+  - 但前面已经对齐过的 live docs 哲学层与安装模型都已经切换到显式 `FPDEV_DATA_ROOT` / `--prefix`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.fpc.install.pas` / `src/fpdev.help.details.fpc.pas` / `src/fpdev.i18n.strings.pas`：install CLI 公开的入口仍是 `--prefix`、`--from-source`、`--from-binary`、`--from=`、`--jobs=`、`--offline`、`--no-cache`
+  - 当前并没有向用户暴露 `install --scope`
+  - `src/fpdev.fpc.activation.pas` / `src/fpdev.fpc.activator.pas` 仍保留 project/user activation artifact 语义，因此应该保留 “activation 有 scope” 的叙事，而不是继续把安装入口写成 `--scope`
+- 这个问题的影响：
+  - 当前 live roadmap 会把“安装路径模型”重新引回已经移除的 `install --scope`
+  - 即使前面更细的路径文档已修正，status/roadmap 继续宣称 `Scoped Installation complete` 仍会削弱公开叙事的一致性
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_roadmap_does_not_advertise_removed_install_scope_flag` 直接暴露出：
+    - roadmap 还没有改成 `project-local isolation via FPDEV_DATA_ROOT or --prefix`
+    - roadmap 仍包含 `2.1 Scoped Installation` 与 `Implement --scope (project/user/system)`
+- 已实施的最小修复：
+  - `docs/ROADMAP.md`：
+    - `2.1 Scoped Installation` 改成 `2.1 Custom Install Roots & Activation`
+    - `Implement --scope (project/user/system)` 改成 `Support project-local isolation via FPDEV_DATA_ROOT or --prefix`
+    - `Implement scope-aware activation` 改成 `Implement scope-aware activation artifacts`
+    - Phase 2 progress summary 同步改成 `Custom Install Roots & Activation`
+  - `tests/test_official_docs_cli_contract.py`：补齐 roadmap scope-flag 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`77` tests OK，`1` skipped
+- 结论更新：
+  - `ROADMAP.md` 现在不再把安装入口写成 `install --scope`，同时保留当前仍真实存在的 activation scope 叙事
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

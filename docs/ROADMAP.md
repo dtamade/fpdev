@@ -281,11 +281,11 @@ Following the TODO-FPC-v1.md philosophy:
 **Impact**: HIGH - Advanced toolchain management
 **Status**: ✅ ALL 4 SUB-PHASES COMPLETE
 
-#### 2.1 Scoped Installation ✅ COMPLETE
+#### 2.1 Custom Install Roots & Activation ✅ COMPLETE
 - [x] Implement `--prefix` option
-- [x] Implement `--scope` (project/user/system)
+- [x] Support project-local isolation via `FPDEV_DATA_ROOT` or `--prefix`
 - [x] Create metadata format (`.fpdev-meta.json`)
-- [x] Implement scope-aware activation
+- [x] Implement scope-aware activation artifacts
 - **Tests**: 6/6 passing (test_fpc_scoped_install.lpr)
 - **Commits**: d4e0370 (test), d6da057 (feat)
 - **Priority**: 🟡 HIGH
@@ -673,7 +673,7 @@ Use this checklist to track implementation progress:
 - [x] Ready for v1.1 release
 
 ### Phase 2 Progress: [██████████] 100% (ALL 4 SUB-PHASES COMPLETE)
-- [x] 2.1 Scoped Installation (✅ 6/6 tests passing)
+- [x] 2.1 Custom Install Roots & Activation (✅ 6/6 tests passing)
 - [x] 2.2 Installation Modes (✅ 8/11 tests passing, 3 network-dependent)
 - [x] 2.3 Verification Framework (✅ smoke test implemented)
 - [x] 2.4 Activation System (✅ 6/6 tests passing)

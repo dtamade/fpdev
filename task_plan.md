@@ -692,3 +692,21 @@ Phase 4 complete
 4. 结论：
    - `MANIFEST-MIGRATION.md` 现在也与当前 install/build help surface 保持一致，不再鼓励用户复制不存在的 `install --dry-run`
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, roadmap scope-flag drift)
+1. 新发现的 repo-local live-status seam：
+   - `docs/ROADMAP.md` 仍保留 `2.1 Scoped Installation` 与 `Implement --scope (project/user/system)`
+   - 但当前公开 install 模型已经统一为显式 `FPDEV_DATA_ROOT` / `--prefix`，不再对外宣传 `install --scope`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_roadmap_does_not_advertise_removed_install_scope_flag`
+   - `docs/ROADMAP.md`：
+     - `2.1 Scoped Installation` 改成 `2.1 Custom Install Roots & Activation`
+     - `Implement --scope (project/user/system)` 改成 `Support project-local isolation via FPDEV_DATA_ROOT or --prefix`
+     - `Implement scope-aware activation` 改成 `Implement scope-aware activation artifacts`
+     - Phase 2 progress summary 同步改名
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`77` tests OK，`1` skipped
+4. 结论：
+   - `ROADMAP.md` 现在不再把安装入口描述成 `install --scope`，同时保留仍真实存在的 activation scope 叙事
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

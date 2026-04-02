@@ -1431,3 +1431,41 @@
 | What's the goal? | Keep even historical migration docs aligned with the real command surface so maintainers are not sent into usage errors by copy-paste examples |
 | What have I learned? | Historical maintenance docs can preserve removed CLI flags long after the primary onboarding docs are repaired, so they need the same contract treatment |
 | What have I done? | Added manifest-migration dry-run contract coverage and replaced the stale install dry-run examples with supported verification commands |
+
+## Session: 2026-04-02 (roadmap scope-flag drift)
+
+### Close-out Execution Follow-up 35
+- **Status:** complete
+- Actions taken:
+  - Re-scanned the live roadmap after the manifest migration cleanup and found that `docs/ROADMAP.md` still described Phase 2.1 as `Scoped Installation` and still claimed `Implement --scope (project/user/system)`
+  - Re-verified the current public install surface in `src/fpdev.cmd.fpc.install.pas`, `src/fpdev.help.details.fpc.pas`, and `src/fpdev.i18n.strings.pas`: the shipped install model still exposes `--prefix` and explicit data-root control, but not `install --scope`
+  - Cross-checked `src/fpdev.fpc.activation.pas` and `src/fpdev.fpc.activator.pas` so the fix would preserve the still-live project/user activation artifact story instead of flattening everything into a single scope-less description
+  - Added a failing official-docs contract proving the roadmap must not advertise the removed install scope flag
+  - Updated `docs/ROADMAP.md` so Phase 2.1 now describes custom install roots plus activation artifacts, and re-ran the focused and expanded release-contract suites to green
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/ROADMAP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for roadmap scope-flag drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/ROADMAP.md` still contained `2.1 Scoped Installation` / `Implement --scope (project/user/system)` and had not been rewritten around `FPDEV_DATA_ROOT` or `--prefix` | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `25` tests OK | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `77` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/ROADMAP.md` still advertised the removed `install --scope` path even after the live install model had been aligned elsewhere | 1 | Added a roadmap scope-flag contract and rewrote Phase 2.1 around `FPDEV_DATA_ROOT`, `--prefix`, and scope-aware activation artifacts |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The live roadmap now aligns with the shipped install surface as well as the still-real activation-scope artifacts |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the status/roadmap layer from reintroducing removed install switches after the lower-level docs have already been repaired |
+| What have I learned? | Roadmap summaries can preserve outdated “completed feature” labels that no longer match the current public CLI contract, even when the detailed docs are fixed |
+| What have I done? | Added roadmap scope-flag contract coverage and rewrote Phase 2.1 around custom install roots plus activation artifacts |

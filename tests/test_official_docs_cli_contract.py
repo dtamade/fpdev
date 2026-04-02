@@ -341,6 +341,14 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertIn('explicit `use`', text)
         self.assertNotIn('`--activate`', text)
 
+    def test_roadmap_does_not_advertise_removed_install_scope_flag(self):
+        text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
+
+        self.assertIn('project-local isolation via `FPDEV_DATA_ROOT` or `--prefix`', text)
+        self.assertIn('scope-aware activation artifacts', text)
+        self.assertNotIn('2.1 Scoped Installation', text)
+        self.assertNotIn('Implement `--scope` (project/user/system)', text)
+
     def test_todo_fpc_v1_uses_active_data_root_install_model(self):
         text = (REPO_ROOT / 'docs' / 'TODO-FPC-v1.md').read_text(encoding='utf-8')
 
