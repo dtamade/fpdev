@@ -1469,3 +1469,42 @@
 | What's the goal? | Keep the status/roadmap layer from reintroducing removed install switches after the lower-level docs have already been repaired |
 | What have I learned? | Roadmap summaries can preserve outdated “completed feature” labels that no longer match the current public CLI contract, even when the detailed docs are fixed |
 | What have I done? | Added roadmap scope-flag contract coverage and rewrote Phase 2.1 around custom install roots plus activation artifacts |
+
+## Session: 2026-04-02 (contributor docs data-root drift)
+
+### Close-out Execution Follow-up 36
+- **Status:** complete
+- Actions taken:
+  - Re-scanned contributor-facing repository docs after the roadmap cleanup and found that `AGENTS.md` and `WARP.md` still hard-coded the old Windows `.fpdev` path and missed the active data-root model
+  - Re-verified the source of truth in `src/fpdev.paths.pas`: the current runtime resolves state via `FPDEV_DATA_ROOT`, portable `data/`, Windows `%APPDATA%\\fpdev`, and XDG/fallback semantics
+  - Added a failing contributor-doc contract proving the repo guidance must describe the active data-root paths instead of the stale Windows `.fpdev` layout
+  - Updated `AGENTS.md` and `WARP.md` so both now describe portable, override, Windows, and XDG/fallback path semantics consistently
+  - Re-ran the focused contributor-doc suite and a broader close-out regression bundle to confirm the new contributor contract did not regress the release/doc contract surfaces
+- Files created/modified:
+  - `tests/test_contributor_docs_contract.py`
+  - `AGENTS.md`
+  - `WARP.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for contributor-doc data-root drift | `python3 -m unittest -v tests.test_contributor_docs_contract` | fail before fix | failed because `AGENTS.md` lacked `FPDEV_DATA_ROOT` / XDG guidance and still advertised `%APPDATA%\\.fpdev\\`; `WARP.md` still hard-coded `%APPDATA%\\.fpdev\\config.json` | Observed |
+| Focused contributor-doc verification | `python3 -m unittest -v tests.test_contributor_docs_contract` | pass | `3` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `80` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `AGENTS.md` and `WARP.md` still taught contributor-facing path semantics using the stale Windows `.fpdev` layout | 1 | Added a contributor-doc data-root contract and rewrote both docs around the active data-root model from `src/fpdev.paths.pas` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Contributor-facing repository docs now align with the same active data-root semantics used by the runtime and user-facing docs |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep repository guidance from reintroducing stale path assumptions that would contaminate future code, tests, or docs |
+| What have I learned? | Contributor docs can lag behind user docs and quietly re-seed obsolete path conventions back into the codebase if they are not contract-checked |
+| What have I done? | Added contributor-doc data-root contract coverage and rewrote `AGENTS.md` plus `WARP.md` around the active data-root model |

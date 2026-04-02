@@ -68,7 +68,11 @@ fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr   # 备选：直接用 fpc 编译
 
 ## 配置与本地状态
 
-- FPDev 的用户状态目录：Linux/macOS 为 `~/.fpdev/`，Windows 为 `%APPDATA%\\.fpdev\\`；测试不要依赖真实用户配置。
+- FPDev 的活动数据根可由 `FPDEV_DATA_ROOT` 显式覆盖；portable release 默认使用 `<install-dir>/data/`。
+- 非 portable 模式下：
+  - Windows 默认使用 `%APPDATA%\\fpdev\\`
+  - Linux/macOS 优先使用 `$XDG_DATA_HOME/fpdev/`，未设置时回退到 `~/.fpdev/`
+- 测试不要依赖真实用户配置或真实用户数据根。
 
 ## 安全与配置提示
 

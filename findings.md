@@ -976,3 +976,35 @@
 - 结论更新：
   - `ROADMAP.md` 现在不再把安装入口写成 `install --scope`，同时保留当前仍真实存在的 activation scope 叙事
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, contributor docs data-root drift)
+- 在 live roadmap/status 文档继续收口后，继续检查面向贡献者的仓库内指导文档时，又发现 contributor-doc 层仍保留旧路径模型：
+  - `AGENTS.md` 仍写着 Linux/macOS `~/.fpdev/`、Windows `%APPDATA%\\.fpdev\\`
+  - `WARP.md` 仍把 `config.json` 路径固定成 `~/.fpdev/config.json` / `%APPDATA%\\.fpdev\\config.json`
+- 当前 runtime 真相：
+  - `src/fpdev.paths.pas`：活动数据根优先级为 `FPDEV_DATA_ROOT` → portable `data/` → Windows `%APPDATA%\\fpdev` → Linux/macOS `$XDG_DATA_HOME/fpdev`，最后才 fallback `~/.fpdev`
+  - 同一单元的 `GetConfigPath` 由当前活动数据根派生 `config.json`
+- 这个问题的影响：
+  - 新贡献者会在仓库级指导文档里重新学到已经过时的 Windows `.fpdev` 路径
+  - 当他们编写脚本、测试夹具或文档时，很容易再次把旧 home-path 硬编码回仓库
+- RED 证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract` 失败
+  - 新增契约 `test_contributor_docs_describe_active_data_root_paths` 直接暴露出：
+    - `AGENTS.md` 没有 `FPDEV_DATA_ROOT`
+    - `AGENTS.md` 仍缺失 `$XDG_DATA_HOME/fpdev`
+    - `AGENTS.md` 仍保留 `%APPDATA%\\.fpdev\\`
+    - `WARP.md` 仍保留 `%APPDATA%\\.fpdev\\config.json`
+- 已实施的最小修复：
+  - `AGENTS.md`：
+    - 状态目录说明改成 active data-root 模型
+    - 补入 `FPDEV_DATA_ROOT`、portable `<install-dir>/data/`、Windows `%APPDATA%\\fpdev\\`、XDG/fallback 说明
+  - `WARP.md`：
+    - ConfigManager 持久化说明改成当前活动 `config.json`
+    - 补入 `data/config.json`、`$FPDEV_DATA_ROOT/config.json`、`$XDG_DATA_HOME/fpdev/config.json`、`%APPDATA%\\fpdev\\config.json`
+  - `tests/test_contributor_docs_contract.py`：补齐 contributor-doc data-root 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`80` tests OK，`1` skipped
+- 结论更新：
+  - contributor docs 现在也与 active data-root 语义保持一致，不再把 Windows 数据根写回旧的 `.fpdev`
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

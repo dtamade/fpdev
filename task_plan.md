@@ -710,3 +710,25 @@ Phase 4 complete
 4. 结论：
    - `ROADMAP.md` 现在不再把安装入口描述成 `install --scope`，同时保留仍真实存在的 activation scope 叙事
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, contributor docs data-root drift)
+1. 新发现的 repo-local contributor-doc seam：
+   - `AGENTS.md` 仍把用户状态目录写成 Linux/macOS `~/.fpdev/`、Windows `%APPDATA%\\.fpdev\\`
+   - `WARP.md` 仍把配置文件固定写成 `~/.fpdev/config.json` / `%APPDATA%\\.fpdev\\config.json`
+   - 但当前 runtime 已统一为 active data-root 语义：portable `data/`、显式 `FPDEV_DATA_ROOT`、Windows `%APPDATA%\\fpdev\\`、XDG `$XDG_DATA_HOME/fpdev`
+2. 已完成的最小修复：
+   - `tests/test_contributor_docs_contract.py` 新增 `test_contributor_docs_describe_active_data_root_paths`
+   - `AGENTS.md`：
+     - 补入 `FPDEV_DATA_ROOT`
+     - 补入 portable `<install-dir>/data/`
+     - 改正 Windows 到 `%APPDATA%\\fpdev\\`
+     - 改成 Linux/macOS 优先 `$XDG_DATA_HOME/fpdev/`，fallback `~/.fpdev/`
+   - `WARP.md`：
+     - 将 `config.json` 路径改为活动数据根语义
+     - 补入 `data/config.json`、`$FPDEV_DATA_ROOT/config.json`、`$XDG_DATA_HOME/fpdev/config.json`、`%APPDATA%\\fpdev\\config.json`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_contributor_docs_contract`：先 RED，修复后通过
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`80` tests OK，`1` skipped
+4. 结论：
+   - contributor docs 现在也与当前 active data-root 语义保持一致，不再把 Windows 目录写回旧的 `.fpdev`
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

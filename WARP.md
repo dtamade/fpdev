@@ -626,7 +626,11 @@ cfg_relative_list=etc/fpc.cfg,lib/fpc/fpc.cfg
 
 - **工具链管理**: 添加、删除、切换 FPC/Lazarus 版本
 - **交叉编译目标**: 管理 `target-cpu` 和 `target-os` 组合
-- **持久化**: JSON 格式存储到 `~/.fpdev/config.json`(Windows: `%APPDATA%\.fpdev\config.json`)
+- **持久化**: JSON 格式存储到当前活动数据根的 `config.json`
+  - portable release 默认：`data/config.json`
+  - 显式覆盖：`$FPDEV_DATA_ROOT/config.json`
+  - Linux/macOS 非 portable：`$XDG_DATA_HOME/fpdev/config.json`，未设置时回退到 `~/.fpdev/config.json`
+  - Windows 非 portable：`%APPDATA%\\fpdev\\config.json`
 
 **配置文件结构**:
 
