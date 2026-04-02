@@ -660,3 +660,17 @@ Phase 4 complete
 4. 结论：
    - 中文 Quickstart 现在不再把已存在的 package commands 错标为“功能开发中”，中英文入门文档的状态叙事重新一致
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, quickstart backup-path drift)
+1. 新发现的 repo-local live-onboarding seam：
+   - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 的 tips 仍建议备份 `.fpdev` 目录
+   - 但当前公开路径模型已经统一为活动数据根：portable release 默认 `data/`，也可由 `FPDEV_DATA_ROOT` 覆盖
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_quickstart_docs_describe_backup_via_active_data_root`
+   - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 将备份建议改成“备份当前活动数据根”，并明确举例 `data/` 与 `FPDEV_DATA_ROOT`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`75` tests OK，`1` skipped
+4. 结论：
+   - Quickstart 文档现在也与活动数据根备份模型保持一致，不再把 `.fpdev` 当成默认状态目录
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

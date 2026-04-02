@@ -236,6 +236,15 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('功能开发中', zh_text)
         self.assertNotIn('under development', en_text)
 
+    def test_quickstart_docs_describe_backup_via_active_data_root(self):
+        zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')
+
+        self.assertIn('FPDEV_DATA_ROOT', zh_text)
+        self.assertIn('FPDEV_DATA_ROOT', en_text)
+        self.assertNotIn('备份 `.fpdev` 目录', zh_text)
+        self.assertNotIn('backup `.fpdev` directory', en_text)
+
     def test_fpdevrc_docs_describe_active_global_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.en.md').read_text(encoding='utf-8')

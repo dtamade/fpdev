@@ -888,3 +888,26 @@
 - 结论更新：
   - 中文 Quickstart 现在也与实际 package-command surface 保持一致，不再把已实现命令错标为“功能开发中”
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, quickstart backup-path drift)
+- 在 Quickstart 的 package-status 已对齐后，继续检查 tips 区时，又发现一个更隐蔽但仍会反复灌输旧路径模型的 drift：
+  - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 都仍建议备份 `.fpdev` 目录
+  - 但同一份 quickstart 之前已经明确：配置来自当前活动数据根，portable release 默认用 `data/`，显式覆盖用 `FPDEV_DATA_ROOT`
+- 这个问题的影响：
+  - 用户会被同一份 quickstart 前半段和末尾 tips 拉向两个不同的状态目录心智模型
+  - 这类小提示尤其容易在日常运维习惯里长期残留
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_quickstart_docs_describe_backup_via_active_data_root` 直接暴露出：
+    - 中英文 quickstart 仍包含对 `.fpdev` 目录备份的建议
+- 已实施的最小修复：
+  - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+    - 将备份建议改成“备份当前活动数据根”
+    - 明确举例 portable release 的 `data/` 与 `FPDEV_DATA_ROOT` 指向的目录
+  - `tests/test_official_docs_cli_contract.py`：补齐 quickstart backup-path 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`75` tests OK，`1` skipped
+- 结论更新：
+  - Quickstart 文档现在也与活动数据根备份模型保持一致，不再把 `.fpdev` 当成默认状态目录
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

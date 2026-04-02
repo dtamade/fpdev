@@ -1354,3 +1354,42 @@
 | What's the goal? | Keep the first-run onboarding docs free of stale status labels that contradict the shipped CLI surface |
 | What have I learned? | Even after command examples are correct, stale “status” labels can still distort user expectations about what exists today |
 | What have I done? | Added quickstart package-status contract coverage and removed the stale “功能开发中” labels from the Chinese quickstart |
+
+## Session: 2026-04-02 (quickstart backup-path drift)
+
+### Close-out Execution Follow-up 33
+- **Status:** complete
+- Actions taken:
+  - Re-scanned the quickstart tips after the package-status cleanup and found that both the Chinese and English guides still told users to back up a `.fpdev` directory
+  - Cross-checked the already-aligned path guidance in the same quickstart docs: configuration and mutable state are now described in terms of the active data root, with portable releases using `data/` and explicit overrides using `FPDEV_DATA_ROOT`
+  - Added a failing official-docs contract proving the quickstart backup guidance must describe the active data root instead of a legacy `.fpdev` directory
+  - Updated both quickstart guides so the backup tip now points to the active data root, explicitly naming the portable `data/` directory and `FPDEV_DATA_ROOT`
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the onboarding docs no longer reintroduce the legacy `.fpdev` backup path
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/QUICKSTART.md`
+  - `docs/QUICKSTART.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart backup-path drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because both quickstart guides still recommended backing up `.fpdev` instead of the active data root | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `75` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The quickstart guides still described backups in terms of a legacy `.fpdev` directory instead of the active data-root model | 1 | Added a quickstart backup-path contract and rewrote the backup tip around `data/` and `FPDEV_DATA_ROOT` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The quickstart guides now align on supported flags, install strategy, package-command status, and active data-root backup guidance |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep even the small operational tips in onboarding docs aligned with the same active data-root model as the rest of the live docs |
+| What have I learned? | Legacy path assumptions can survive in “tips” sections long after the main install/config guidance is repaired |
+| What have I done? | Added quickstart backup-path contract coverage and rewrote the backup tip around the active data root |

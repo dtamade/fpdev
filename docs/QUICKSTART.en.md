@@ -309,7 +309,7 @@ Now that you've mastered the basics of FPDev, you can:
 1. **Use Tab completion**: Most shells support command completion
 2. **View help**: Add `--help` after any command for detailed help
 3. **Stay updated**: Use `fpdev system version` to check your local version, and review release notes regularly
-4. **Backup config**: Important projects should backup `.fpdev` directory
+4. **Backup config**: Important projects should back up the active data root, such as the portable release `data/` directory or the path pointed to by `FPDEV_DATA_ROOT`
 
 ---
 
