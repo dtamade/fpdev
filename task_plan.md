@@ -499,3 +499,22 @@ Phase 4 complete
 4. 结论：
    - REPO_SPECIFICATION 文档现在也与活动配置路径和镜像配置的真实落点保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是仓库规范文档中的固定 home-path 假设
+
+## Close-out Update (2026-04-02, config-architecture docs active-config drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 与 `src/fpdev.config.core.pas` 明确：`TConfigManager` 默认使用 `GetConfigPath`，而该路径来自当前活动数据根
+   - 但 `docs/config-architecture.md` 与 `docs/config-architecture.en.md` 的示例代码和配置文件格式说明仍把路径写死为：
+     - `~/.fpdev/config.json`
+     - `%APPDATA%\.fpdev\config.json`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_config_architecture_docs_describe_active_config_paths`
+   - `docs/config-architecture.md` / `docs/config-architecture.en.md` 改为：
+     - 推荐示例直接用 `TConfigManager.Create` / `TFPDevConfigManager.Create` 的默认路径解析
+     - 明确活动 `config.json` 来自 portable release 的 `data/config.json`，或 `FPDEV_DATA_ROOT` / `XDG_DATA_HOME` / `%APPDATA%\fpdev\config.json`
+     - 删除旧的 `%APPDATA%\.fpdev\config.json` 叙述
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`66` tests OK，`1` skipped
+4. 结论：
+   - config-architecture 文档现在也与 `TConfigManager` 的真实默认路径解析模型保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是架构文档里的硬编码 home-path 示例

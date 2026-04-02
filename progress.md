@@ -1006,3 +1006,42 @@
 | What's the goal? | Keep the repository-spec docs aligned with the same active config-path contract already enforced across the rest of the public docs |
 | What have I learned? | Small “user configuration” notes in spec docs can silently reintroduce hard-coded home-directory paths unless they get explicit contract coverage |
 | What have I done? | Added repo-spec contract coverage and rewrote both repository-spec docs around the active `config.json` path model |
+
+## Session: 2026-04-02 (config-architecture docs active-config drift)
+
+### Close-out Execution Follow-up 24
+- **Status:** complete
+- Actions taken:
+  - Audited the config-architecture docs after aligning the public config-path story and found that the architecture examples still hard-coded `~/.fpdev/config.json` and `%APPDATA%\.fpdev\config.json`
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where the active config path follows the active data root, and in `src/fpdev.config.core.pas`, where `TConfigManager.GetDefaultConfigPath` delegates to `GetConfigPath`
+  - Added a failing official-docs contract proving the config-architecture docs must describe the active config-path model instead of hard-coded home-directory paths
+  - Updated both config-architecture docs so they now show default-path construction through `TConfigManager.Create` / `TFPDevConfigManager.Create` and explain the active `config.json` path for portable, `FPDEV_DATA_ROOT`, XDG, and Windows APPDATA scenarios
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the architecture docs now match the runtime config-path model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/config-architecture.md`
+  - `docs/config-architecture.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for config-architecture active-config drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the config-architecture docs still hard-coded `~/.fpdev/config.json` and `%APPDATA%\.fpdev\config.json` instead of the active config-path model | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `66` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The config-architecture docs still taught hard-coded home-directory config paths instead of the runtime active-config model | 1 | Added a config-architecture contract and rewrote the examples plus config-path explanation around the active `config.json` semantics |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The config-architecture docs now match the active config-path semantics implemented by `TConfigManager` |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the architecture docs aligned with the same active config-path contract already enforced across the rest of the public docs |
+| What have I learned? | Even developer-facing architecture examples can preserve stale implementation habits unless they get their own regression coverage |
+| What have I done? | Added config-architecture contract coverage and rewrote both architecture docs around the active `config.json` path model |

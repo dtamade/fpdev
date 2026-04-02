@@ -258,6 +258,19 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertIn('XDG_DATA_HOME', text)
             self.assertIn('%APPDATA%\\fpdev\\config.json', text)
 
+    def test_config_architecture_docs_describe_active_config_paths(self):
+        zh_text = (REPO_ROOT / 'docs' / 'config-architecture.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'config-architecture.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('data/config.json', text)
+            self.assertIn('XDG_DATA_HOME', text)
+            self.assertIn('%APPDATA%\\fpdev\\config.json', text)
+            self.assertNotIn("TConfigManager.Create('~/.fpdev/config.json')", text)
+            self.assertNotIn("TFPDevConfigManager.Create('~/.fpdev/config.json')", text)
+            self.assertNotIn(r'%APPDATA%\.fpdev\config.json', text)
+
 
 if __name__ == '__main__':
     unittest.main()

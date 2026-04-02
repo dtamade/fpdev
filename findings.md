@@ -619,3 +619,36 @@
 - 结论更新：
   - REPO_SPECIFICATION 文档现在也与活动配置路径和镜像配置的真实落点保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, config-architecture docs active-config drift)
+- 在 REPO_SPECIFICATION 已与活动配置路径对齐后，继续检查配置架构文档时，又发现更底层的示例仍在灌输旧路径：
+  - `docs/config-architecture.md` 与 `docs/config-architecture.en.md` 的推荐示例仍写着 `TConfigManager.Create('~/.fpdev/config.json')`
+  - 向后兼容示例也仍写着 `TFPDevConfigManager.Create('~/.fpdev/config.json')`
+  - 配置文件格式说明还在写 `~/.fpdev/config.json`（Windows: `%APPDATA%\.fpdev\config.json`）
+  - 但运行时真相是：
+    - `src/fpdev.paths.pas`：活动配置路径来自当前数据根
+    - `src/fpdev.config.core.pas`：`TConfigManager.GetDefaultConfigPath` 直接走 `fpdev.paths.GetConfigPath`
+    - 因此新旧 API 的默认行为都不应该被架构文档描述成单一路径
+- 这个问题的影响：
+  - 架构文档会把开发者重新引回硬编码 home-path 的用法
+  - 即使公共使用文档已统一 active-config 模型，内部架构示例仍会重新制造错误实现范式
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_config_architecture_docs_describe_active_config_paths` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json`
+    - 没有 `XDG_DATA_HOME`
+    - 没有 `%APPDATA%\fpdev\config.json`
+    - 仍保留 `%APPDATA%\.fpdev\config.json`
+- 已实施的最小修复：
+  - `docs/config-architecture.md` / `docs/config-architecture.en.md`：
+    - 推荐示例改为使用 `TConfigManager.Create` 默认路径解析，而不是手写 `~/.fpdev/config.json`
+    - 兼容示例改为使用 `TFPDevConfigManager.Create` 默认路径解析
+    - 配置文件格式段改为说明活动 `config.json` 路径，并补入 portable `data/config.json`、`FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 与 `%APPDATA%\fpdev\config.json`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 config-architecture 文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`66` tests OK，`1` skipped
+- 结论更新：
+  - config-architecture 文档现在也与 `TConfigManager` 的真实默认路径解析语义保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

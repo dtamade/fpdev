@@ -158,8 +158,8 @@ var
   ToolchainMgr: IToolchainManager;
   ToolchainInfo: TToolchainInfo;
 begin
-  // 创建配置管理器
-  ConfigMgr := TConfigManager.Create('~/.fpdev/config.json');
+  // 创建配置管理器（默认使用当前活动数据根中的 config.json）
+  ConfigMgr := TConfigManager.Create;
   
   // 加载配置
   if not ConfigMgr.LoadConfig then
@@ -195,7 +195,8 @@ var
   ConfigMgr: TFPDevConfigManager;
   ToolchainInfo: TToolchainInfo;
 begin
-  ConfigMgr := TFPDevConfigManager.Create('~/.fpdev/config.json');
+  // 省略路径参数时，同样走当前活动数据根中的 config.json
+  ConfigMgr := TFPDevConfigManager.Create;
   try
     if not ConfigMgr.LoadConfig then
       ConfigMgr.CreateDefaultConfig;
@@ -255,7 +256,14 @@ end;
 
 ## 配置文件格式
 
-配置以 JSON 格式存储在 `~/.fpdev/config.json`（Windows: `%APPDATA%\.fpdev\config.json`）:
+配置以 JSON 格式存储在当前活动数据根中的 `config.json`。运行时路径解析规则如下：
+
+- **portable release 默认位置**：`<安装目录>/data/config.json`
+- **如果显式设置了 `FPDEV_DATA_ROOT`**：`$FPDEV_DATA_ROOT/config.json`
+- **Linux/macOS 非 portable 模式**：`$XDG_DATA_HOME/fpdev/config.json`；若未设置 `XDG_DATA_HOME`，则回退到 `~/.fpdev/config.json`
+- **Windows 非 portable 模式**：`%APPDATA%\fpdev\config.json`
+
+下面的 JSON 结构描述的是该活动 `config.json` 的内容：
 
 ```json
 {

@@ -158,8 +158,8 @@ var
   ToolchainMgr: IToolchainManager;
   ToolchainInfo: TToolchainInfo;
 begin
-  // Create configuration manager
-  ConfigMgr := TConfigManager.Create('~/.fpdev/config.json');
+  // Create configuration manager (defaults to config.json under the active data root)
+  ConfigMgr := TConfigManager.Create;
 
   // Load configuration
   if not ConfigMgr.LoadConfig then
@@ -195,7 +195,8 @@ var
   ConfigMgr: TFPDevConfigManager;
   ToolchainInfo: TToolchainInfo;
 begin
-  ConfigMgr := TFPDevConfigManager.Create('~/.fpdev/config.json');
+  // Omitting the path uses the active data root's config.json as well
+  ConfigMgr := TFPDevConfigManager.Create;
   try
     if not ConfigMgr.LoadConfig then
       ConfigMgr.CreateDefaultConfig;
@@ -255,7 +256,14 @@ end;
 
 ## Configuration File Format
 
-Configuration is stored in JSON format at `~/.fpdev/config.json` (Windows: `%APPDATA%\.fpdev\config.json`):
+Configuration is stored in the active data root's `config.json`. Runtime path resolution works as follows:
+
+- **Default portable release location**: `<install-dir>/data/config.json`
+- **If `FPDEV_DATA_ROOT` is set explicitly**: `$FPDEV_DATA_ROOT/config.json`
+- **Linux/macOS in non-portable mode**: `$XDG_DATA_HOME/fpdev/config.json`; if `XDG_DATA_HOME` is unset, fall back to `~/.fpdev/config.json`
+- **Windows in non-portable mode**: `%APPDATA%\fpdev\config.json`
+
+The JSON structure below describes the contents of that active `config.json`:
 
 ```json
 {
