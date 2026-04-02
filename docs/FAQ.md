@@ -210,13 +210,16 @@ fpdev fpc install 3.2.2 --from-source --prefix=/custom/path
 
 ### Q: 如何使用项目作用域安装？
 
-**A**: 在项目目录中运行安装命令：
+**A**: 在项目目录中显式设置项目本地的数据根，然后再运行安装命令：
 
 ```bash
 cd myproject
+export FPDEV_DATA_ROOT="$PWD/.fpdev-data"
 fpdev fpc install 3.2.2
-# 安装到 .fpdev/toolchains/
+# 安装到 <data-root>/toolchains/fpc/3.2.2
 ```
+
+这样可以把该项目的工具链、缓存和配置隔离在当前项目目录下，而不会依赖旧的项目目录默认约定。
 
 ### Q: 如何清理 FPC 源码构建产物？
 

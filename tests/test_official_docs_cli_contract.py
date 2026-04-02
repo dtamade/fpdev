@@ -115,6 +115,15 @@ class OfficialDocsCliContractTests(unittest.TestCase):
                     offenders.append((path.relative_to(REPO_ROOT), lineno, line.strip()))
         self.assertEqual([], offenders, f'Found stale source-first install guidance in FAQ docs: {offenders}')
 
+    def test_faq_docs_describe_project_local_isolation_via_active_data_root(self):
+        zh_text = (REPO_ROOT / 'docs' / 'FAQ.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'FAQ.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('<data-root>/toolchains/fpc/3.2.2', text)
+            self.assertNotIn('.fpdev/toolchains/', text)
+
     def test_fpc_management_docs_do_not_call_binary_install_planned(self):
         offenders = []
         for path in [

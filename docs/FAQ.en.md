@@ -210,13 +210,16 @@ fpdev fpc install 3.2.2 --from-source --prefix=/custom/path
 
 ### Q: How do I use project-scoped installation?
 
-**A**: Run the install command in the project directory:
+**A**: Set a project-local data root explicitly before running the install command:
 
 ```bash
 cd myproject
+export FPDEV_DATA_ROOT="$PWD/.fpdev-data"
 fpdev fpc install 3.2.2
-# Installs to .fpdev/toolchains/
+# Installs to <data-root>/toolchains/fpc/3.2.2
 ```
+
+This keeps the project's toolchains, cache, and config isolated under the current project instead of relying on the old project-directory convention.
 
 ### Q: How do I clean FPC source build artifacts?
 

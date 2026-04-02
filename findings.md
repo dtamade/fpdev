@@ -684,3 +684,31 @@
 - 结论更新：
   - `MANIFEST-USAGE` 文档现在也与 manifest 缓存和 toolchain 安装的活动路径模型保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, faq project-local install guidance drift)
+- 在 manifest 用户指南已与活动路径模型对齐后，继续扫描 FAQ 时，又发现高级用法仍保留了旧的“项目作用域安装”说法：
+  - `docs/FAQ.md` 与 `docs/FAQ.en.md` 仍写着在项目目录运行 `fpdev fpc install 3.2.2` 会安装到 `.fpdev/toolchains/`
+  - 但当前公开路径模型已经统一到活动数据根：
+    - 通过 `FPDEV_DATA_ROOT` 可以显式把数据根指向项目目录下的路径
+    - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md` 已明确 canonical 安装目录是 `<data-root>/toolchains/fpc/<version>`
+- 这个问题的影响：
+  - FAQ 会把用户重新引回一个文档层面才存在的隐式项目作用域路径
+  - 即使更权威的 installation / FPC management / manifest 文档已统一到活动数据根模型，FAQ 仍会重新制造错误期望
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_faq_docs_describe_project_local_isolation_via_active_data_root` 直接暴露出：
+    - FAQ 没有 `FPDEV_DATA_ROOT`
+    - 没有 `<data-root>/toolchains/fpc/3.2.2`
+    - 仍保留 `.fpdev/toolchains/`
+- 已实施的最小修复：
+  - `docs/FAQ.md` / `docs/FAQ.en.md`：
+    - 将项目作用域安装回答改为显式设置 `FPDEV_DATA_ROOT`
+    - 将安装落点改为 `<data-root>/toolchains/fpc/3.2.2`
+    - 移除旧的 `.fpdev/toolchains/` 字面叙述
+  - `tests/test_official_docs_cli_contract.py`：补齐 FAQ 路径语义契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`68` tests OK，`1` skipped
+- 结论更新：
+  - FAQ 文档现在也与活动数据根路径模型保持一致，不再宣传隐式 `.fpdev/toolchains/` 项目作用域安装
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

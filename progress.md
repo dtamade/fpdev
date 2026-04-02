@@ -1084,3 +1084,42 @@
 | What's the goal? | Keep the manifest user guide aligned with the same active path contract already enforced across the rest of the public docs |
 | What have I learned? | Topic-specific user guides can reintroduce stale path assumptions even after the broader install/config docs are repaired |
 | What have I done? | Added manifest-usage contract coverage and rewrote the guide around the active `<data-root>` cache/install model |
+
+## Session: 2026-04-02 (faq project-local install guidance drift)
+
+### Close-out Execution Follow-up 26
+- **Status:** complete
+- Actions taken:
+  - Audited `docs/FAQ.md` and `docs/FAQ.en.md` after aligning the broader path story and found that the “project-scoped installation” answer still pointed users to `.fpdev/toolchains/`
+  - Confirmed the public/runtime truth from the existing path-alignment work: project-local isolation is achieved by pointing `FPDEV_DATA_ROOT` at a project-local directory, while the canonical install layout remains `<data-root>/toolchains/fpc/<version>`
+  - Added a failing official-docs contract proving the FAQ must describe project-local isolation through the active data-root model instead of the legacy `.fpdev/toolchains/` convention
+  - Updated both FAQ docs so they now show explicit `FPDEV_DATA_ROOT` usage and the resulting `<data-root>/toolchains/fpc/3.2.2` install location
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the FAQ now matches the rest of the public install-path guidance
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/FAQ.md`
+  - `docs/FAQ.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for FAQ project-local install drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the FAQ still described project-scoped install output as `.fpdev/toolchains/` instead of the active data-root model | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `68` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The FAQ still taught implicit project-scoped installs under `.fpdev/toolchains/` instead of the active data-root isolation model | 1 | Added a FAQ contract and rewrote the answer around explicit `FPDEV_DATA_ROOT` usage plus the canonical `<data-root>/toolchains/fpc/3.2.2` layout |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The FAQ now matches the active data-root model for project-local install isolation |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep FAQ-level guidance consistent with the same install-path contract already enforced across the rest of the public docs |
+| What have I learned? | Short FAQ answers can preserve obsolete workflows long after the deeper technical docs are corrected |
+| What have I done? | Added FAQ contract coverage and rewrote the project-local install answer around explicit `FPDEV_DATA_ROOT` isolation |

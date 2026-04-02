@@ -539,3 +539,21 @@ Phase 4 complete
 4. 结论：
    - `MANIFEST-USAGE` 文档现在也与 manifest 缓存和 toolchain 安装的活动路径模型保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 manifest 使用文档里的旧 home-path 假设
+
+## Close-out Update (2026-04-02, faq project-local install guidance drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `docs/FAQ.md` 与 `docs/FAQ.en.md` 仍把“项目作用域安装”写成在项目目录执行安装后自动落到 `.fpdev/toolchains/`
+   - 但当前公开路径模型已经统一到活动数据根，由 `FPDEV_DATA_ROOT` 或运行时默认数据根决定
+   - `docs/FPC_MANAGEMENT.md` 也已明确 canonical 安装目录是 `<data-root>/toolchains/fpc/<version>`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_faq_docs_describe_project_local_isolation_via_active_data_root`
+   - `docs/FAQ.md` / `docs/FAQ.en.md` 改为：
+     - 用显式 `FPDEV_DATA_ROOT` 描述项目本地隔离安装
+     - 将安装落点明确写成 `<data-root>/toolchains/fpc/3.2.2`
+     - 删除旧的 `.fpdev/toolchains/` 叙述
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`68` tests OK，`1` skipped
+4. 结论：
+   - FAQ 文档现在也与活动数据根路径模型保持一致，不再宣传隐式的 `.fpdev/toolchains/` 项目作用域安装
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 FAQ 中的旧安装路径叙事
