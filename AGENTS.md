@@ -56,14 +56,15 @@ fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr   # 备选：直接用 fpc 编译
 
 ## 架构提示
 
-- FPDev 采用命令注册/分发模式：新命令通常在 `initialization` 中注册，并通过 `src/fpdev.lpr` 的 `uses` 引入以触发注册。
+- FPDev 采用命令注册/分发模式：新命令通常在 `initialization` 中注册，并通过 `src/fpdev.command.imports.<domain>.pas` 聚合到 CLI bootstrap 链路。
+- CLI 入口保持精简：`src/fpdev.lpr` 负责启动，`src/fpdev.cli.bootstrap.pas` + `src/fpdev.command.imports.pas` 负责装配默认命令面。
 - 新代码优先使用接口化实现（例如 Git 走 `git2.api.pas` + `git2.impl.pas`）而不是全局单例。
 
 ## 新增命令的最小步骤
 
 - 新建单元：`src/fpdev.cmd.<domain>.<action>.pas`
 - 在 `initialization` 中注册路径（示例：`fpc install` / `package publish`）
-- 在 `src/fpdev.lpr` 的 `uses` 中引入该单元，确保注册会发生
+- 在对应的 `src/fpdev.command.imports.<domain>.pas` 中引入该单元，确保 bootstrap 会触发注册
 
 ## 配置与本地状态
 

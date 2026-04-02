@@ -165,10 +165,10 @@ fpdev package repo list
 fpdev cross list --all
 
 # Install Windows 64-bit target (on Linux/macOS)
-fpdev cross install win64
+fpdev cross install x86_64-win64
 
 # Configure toolchain paths (requires manual toolchain installation)
-fpdev cross configure win64 \
+fpdev cross configure x86_64-win64 \
   --binutils=/usr/x86_64-w64-mingw32/bin \
   --libraries=/usr/x86_64-w64-mingw32/lib
 ```

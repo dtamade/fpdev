@@ -1,5 +1,8 @@
 # FPDev Development Roadmap & Acceptance Criteria
 
+> Historical document: this snapshot reflects the 2026-01-13 gap analysis and is no longer the current execution truth.
+> For current public status use `docs/ROADMAP.md`; for release close-out use `docs/MVP_ACCEPTANCE_CRITERIA.en.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`.
+
 ## Project Status Analysis
 
 ### Current State (2026-01-13)

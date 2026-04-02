@@ -60,7 +60,7 @@ Defines cross-compilation targets.
 
 ```toml
 [targets]
-cross = ["win64", "linux-arm", "darwin-x86_64"]
+cross = ["x86_64-win64", "arm-linux", "x86_64-darwin"]
 ```
 
 **Fields**:
@@ -69,9 +69,9 @@ cross = ["win64", "linux-arm", "darwin-x86_64"]
 **Available targets**: See `fpdev cross list --all` for full list.
 
 **Common targets**:
-- `win32`, `win64` - Windows 32/64-bit
-- `linux-x86_64`, `linux-arm`, `linux-aarch64` - Linux variants
-- `darwin-x86_64`, `darwin-aarch64` - macOS Intel/Apple Silicon
+- `i386-win32`, `x86_64-win64` - Windows 32/64-bit
+- `i386-linux`, `arm-linux`, `aarch64-linux`, `x86_64-linux` - Linux variants
+- `x86_64-darwin`, `aarch64-darwin` - macOS Intel/Apple Silicon
 
 ### [build] Section
 
@@ -142,7 +142,7 @@ fcl = true
 packages = ["synapse", "indy", "fcl-json"]
 
 [targets]
-cross = ["win64", "linux-arm"]
+cross = ["x86_64-win64", "arm-linux"]
 
 [build]
 mode = "release"
@@ -225,7 +225,7 @@ version = "3.2.2"
 
 8. **Cross targets**:
    - Must match available targets in manifest
-   - Format: `<os>-<arch>` or `<os><bits>` (e.g., "linux-arm", "win64")
+   - Format: `<cpu>-<os>` (e.g., "arm-linux", "x86_64-win64")
 
 ## Error Handling
 

@@ -53,7 +53,7 @@ channel = "stable"
 
 [cross]
 # Cross-compilation targets (optional)
-targets = ["aarch64-linux", "x86_64-windows"]
+targets = ["aarch64-linux", "x86_64-win64"]
 
 [settings]
 # Mirror source (optional)
