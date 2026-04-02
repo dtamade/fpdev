@@ -20,7 +20,7 @@ uses
   fpdev.utils.process;
 
 const
-  LEGACY_HTTP_GET_MAX_ATTEMPTS = 4;
+  LEGACY_HTTP_GET_MAX_ATTEMPTS = 5;
   LEGACY_HTTP_GET_RETRY_DELAY_MS = 250;
   LEGACY_HTTP_GET_DEFAULT_ERROR = 'HTTP download failed';
 

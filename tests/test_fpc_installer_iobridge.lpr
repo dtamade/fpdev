@@ -268,6 +268,42 @@ begin
   end;
 end;
 
+procedure TestLegacyHTTPDownloadBridgeRetryWhenServerStartupIsSlow;
+var
+  RootDir: string;
+  SourceFile: string;
+  TempFile: string;
+  Server: TLocalHTTPServer;
+  Bytes: Int64;
+  Err: string;
+begin
+  RootDir := CreateUniqueTempDir('test_iobridge_http_slow_retry_root');
+  TempFile := RootDir + PathDelim + 'downloaded.txt';
+  SourceFile := RootDir + PathDelim + 'payload.txt';
+  Server := TLocalHTTPServer.Create(RootDir);
+  try
+    CreateTextFile(SourceFile, 'hello slow bridge');
+    Check('slow delayed http server process starts', Server.StartDelayed(900),
+      'failed to launch slow delayed http server');
+    Err := '';
+    Bytes := 0;
+    Check('legacy http bridge tolerates slower server startup',
+      ExecuteFPCLegacyBinaryHTTPGetBridge(
+        'http://127.0.0.1:' + IntToStr(Server.Port) + '/payload.txt',
+        TempFile, Bytes, Err),
+      'err=' + Err);
+    Check('legacy http bridge slow retry writes temp file', FileExists(TempFile),
+      'missing temp file');
+    Check('legacy http bridge slow retry records bytes', Bytes > 0,
+      'bytes=' + IntToStr(Bytes));
+  finally
+    Server.Free;
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    CleanupTempDir(RootDir);
+  end;
+end;
+
 procedure TestLegacyHTTPDownloadBridgeFailure;
 var
   RootDir: string;
@@ -383,6 +419,7 @@ begin
   try
     TestLegacyHTTPDownloadBridgeSuccess;
     TestLegacyHTTPDownloadBridgeRetryWhenServerBecomesReady;
+    TestLegacyHTTPDownloadBridgeRetryWhenServerStartupIsSlow;
     TestLegacyHTTPDownloadBridgeFailure;
     TestZipExtractBridge;
     TestTarExtractBridge;

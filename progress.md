@@ -124,3 +124,41 @@
 | What's the goal? | Keep release/readiness claims aligned with fresh automated evidence |
 | What have I learned? | The remaining local defect was in the release gate itself, not in the runtime command surface |
 | What have I done? | Fixed the gate drift and proved the full Linux release acceptance lane green |
+
+
+## Session: 2026-04-02 (--with-install follow-up)
+
+### Close-out Execution Follow-up 2
+- **Status:** complete
+- Actions taken:
+  - Re-ran the optional network-gated Linux acceptance lane and captured a new RED in `test_fpc_installer_iobridge`
+  - Checked the test in isolation, then converted the timing-only symptom into a deterministic slow-start regression using `Server.StartDelayed(900)`
+  - Applied the minimal production fix by widening the legacy HTTP bridge retry budget from `4` to `5` attempts
+  - Re-ran focused verification and then the full `bash scripts/release_acceptance_linux.sh --with-install` lane to green
+- Files created/modified:
+  - `src/fpdev.fpc.installer.iobridge.pas`
+  - `tests/test_fpc_installer_iobridge.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Optional install lane RED | `bash scripts/release_acceptance_linux.sh --with-install` | pass | failed at Pascal regression `test_fpc_installer_iobridge` | FAIL |
+| Focused iobridge regression | `bash scripts/run_single_test.sh tests/test_fpc_installer_iobridge.lpr` | pass | pass | OK |
+| Linux release acceptance with install | `bash scripts/release_acceptance_linux.sh --with-install` | pass | pass (`270` Python tests OK, `273/273` Pascal tests pass, release build pass, CLI smoke pass, install lane pass) | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `scripts/release_acceptance_linux.sh --with-install` failed inside `test_fpc_installer_iobridge` under slower startup timing | 1 | Added a deterministic slow-start regression and widened the legacy HTTP bridge retry window from `4` to `5` attempts |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line remains complete after optional install-lane follow-up |
+| Where am I going? | Stop local implementation unless a new freshly-proven seam appears |
+| What's the goal? | Keep release/readiness claims aligned with current acceptance evidence, including the optional install lane when exercised |
+| What have I learned? | The remaining live defect in the optional lane was a retry-budget timing seam in production code, not an acceptance-script false positive |
+| What have I done? | Added a stable slow-start regression, fixed the production retry window, and proved `--with-install` green end-to-end |

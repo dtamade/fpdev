@@ -75,3 +75,30 @@
   - 当前“最大问题”仍然是状态叙事与可验证证据必须持续对齐
   - 但在本地可证明范围内，这条 close-out 线已无新的 live red seam
   - 剩余风险主要是 owner-run / publish-time 证明，不是当前本地代码回归
+
+
+## Execution Update (2026-04-02, --with-install follow-up)
+- 在可选 network-gated lane 中拿到了新的真实本地 RED：
+  - `bash scripts/release_acceptance_linux.sh --with-install`
+  - 失败点：Pascal regression 内的 `test_fpc_installer_iobridge`
+  - 失败日志目录：`logs/release_acceptance/20260402_105251`
+- 调查结论：
+  - `bash scripts/run_single_test.sh tests/test_fpc_installer_iobridge.lpr` 在隔离环境下可重复通过，说明原始现象带有时序性
+  - 生产桥接常量当时为 `LEGACY_HTTP_GET_MAX_ATTEMPTS = 4`、`LEGACY_HTTP_GET_RETRY_DELAY_MS = 250`
+  - 新增 `Server.StartDelayed(900)` 的慢启动回归后，可稳定证明 legacy HTTP download bridge 的重试窗口过短
+- 已实施的最小修复：
+  - `src/fpdev.fpc.installer.iobridge.pas`：将最大重试次数从 `4` 提升到 `5`
+  - `tests/test_fpc_installer_iobridge.lpr`：新增 `TestLegacyHTTPDownloadBridgeRetryWhenServerStartupIsSlow`
+- 当前最新本地证据：
+  - `bash scripts/run_single_test.sh tests/test_fpc_installer_iobridge.lpr`：通过
+  - `bash scripts/release_acceptance_linux.sh --with-install`：通过
+    - Python regression: `270` tests OK
+    - Pascal regression: `273/273` pass
+    - release build: pass
+    - isolated Linux CLI smoke: pass
+    - network-gated isolated install lane: pass
+    - 最新通过日志目录：`logs/release_acceptance/20260402_111602`
+- 结论更新：
+  - close-out 线再次回到“无新的 locally-provable live seam”状态
+  - 当前剩余风险主要是 owner-run / publish-time 证明，不是本地代码回归
+

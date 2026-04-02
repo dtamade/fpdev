@@ -69,3 +69,23 @@ Phase 4 complete
    - Windows/macOS owner checkpoints
    - `SHA256SUMS.txt`
    - 可选的 `--with-install` isolated install lane
+
+
+## Close-out Update (2026-04-02, --with-install lane)
+1. `bash scripts/release_acceptance_linux.sh --with-install` 暴露了一个新的本地可证明 seam：
+   - Pascal regression 在 `test_fpc_installer_iobridge` 处失败
+   - 失败日志目录：`logs/release_acceptance/20260402_105251`
+2. 该 seam 已从偶发症状转成稳定回归证明：
+   - 原始 isolated 测试重复通过，说明仅靠一次 broad failure 还不足以下结论
+   - 新增 `Server.StartDelayed(900)` 的慢启动用例后，可稳定证明 legacy HTTP bridge retry window 偏短
+3. 修复保持在生产接缝而不是 acceptance 脚本：
+   - `src/fpdev.fpc.installer.iobridge.pas` 将 `LEGACY_HTTP_GET_MAX_ATTEMPTS` 从 `4` 提升到 `5`
+   - `tests/test_fpc_installer_iobridge.lpr` 新增慢启动回归用例
+4. 最新验证证据：
+   - `bash scripts/run_single_test.sh tests/test_fpc_installer_iobridge.lpr`：通过
+   - `bash scripts/release_acceptance_linux.sh --with-install`：通过
+   - 最新通过日志目录：`logs/release_acceptance/20260402_111602`
+5. 当前剩余风险再次收敛为 owner / publish 事项：
+   - Windows/macOS owner checkpoints
+   - `SHA256SUMS.txt`
+
