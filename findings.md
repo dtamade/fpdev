@@ -1069,3 +1069,28 @@
 - 结论更新：
   - 历史 release note 现在也不会再把用户引向拆散 portable release 的旧安装方式
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, known-limitations lazarus-fpc-flag drift)
+- 在 release-note 的高频 copy-paste seams 收口后，继续低成本扫还未纳入契约的 live docs 时，又发现 `docs/KNOWN_LIMITATIONS.md` 里有一条会直接触发 usage error 的假 flag：
+  - Lazarus 源码安装替代方案仍写着 `fpdev lazarus install 3.0 --from-source --fpc-version 3.2.2`
+  - 但当前 `lazarus install` 支持的是 `--fpc=<version>`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.lazarus.install.pas`：只接受 `--from-source`、`--from=`、`--fpc=`、`--jobs=`、`--no-configure`
+  - 同一实现里对未知选项直接返回 usage error
+- 这个问题的影响：
+  - `KNOWN_LIMITATIONS.md` 本来是在给未实现能力提供“可执行的替代方案”，结果却把用户重新带到一个不存在的 flag
+  - 这类文档虽然不是 onboarding 首屏，但往往在用户遇到阻塞时才会被直接照抄执行，因此出错成本更高
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_known_limitations_doc_uses_supported_lazarus_install_fpc_flag` 直接暴露出：
+    - 文档没有 `--fpc=3.2.2`
+    - 文档仍包含 `--fpc-version 3.2.2`
+- 已实施的最小修复：
+  - `docs/KNOWN_LIMITATIONS.md`：将 Lazarus 替代方案中的 `--fpc-version 3.2.2` 改成 `--fpc=3.2.2`
+  - `tests/test_official_docs_cli_contract.py`：补齐 known-limitations lazarus-flag 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`83` tests OK，`1` skipped
+- 结论更新：
+  - `KNOWN_LIMITATIONS.md` 现在也不会再把用户引向不存在的 `--fpc-version` 参数
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

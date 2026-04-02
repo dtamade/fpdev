@@ -273,6 +273,12 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn(stale, zh_text)
             self.assertNotIn(stale, en_text)
 
+    def test_known_limitations_doc_uses_supported_lazarus_install_fpc_flag(self):
+        text = (REPO_ROOT / 'docs' / 'KNOWN_LIMITATIONS.md').read_text(encoding='utf-8')
+
+        self.assertIn('fpdev lazarus install 3.0 --from-source --fpc=3.2.2', text)
+        self.assertNotIn('fpdev lazarus install 3.0 --from-source --fpc-version 3.2.2', text)
+
     def test_toolchain_docs_describe_active_data_root_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'toolchain.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'toolchain.en.md').read_text(encoding='utf-8')

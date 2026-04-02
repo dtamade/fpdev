@@ -46,7 +46,7 @@
 fpdev lazarus install 3.0 --from-source
 
 # 指定 FPC 版本
-fpdev lazarus install 3.0 --from-source --fpc-version 3.2.2
+fpdev lazarus install 3.0 --from-source --fpc=3.2.2
 ```
 
 **优点**:

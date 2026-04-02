@@ -766,3 +766,17 @@ Phase 4 complete
 4. 结论：
    - 历史 release note 现在也不会再把用户引向拆散 portable release 的单二进制安装方式
    - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产
+
+## Close-out Update (2026-04-02, known-limitations lazarus-fpc-flag drift)
+1. 新发现的 repo-local live-doc seam：
+   - `docs/KNOWN_LIMITATIONS.md` 的 Lazarus 源码安装替代方案仍使用 `--fpc-version 3.2.2`
+   - 但当前 `lazarus install` 支持的是 `--fpc=<version>`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_known_limitations_doc_uses_supported_lazarus_install_fpc_flag`
+   - `docs/KNOWN_LIMITATIONS.md`：将 `--fpc-version 3.2.2` 改成 `--fpc=3.2.2`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后通过
+   - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`83` tests OK，`1` skipped
+4. 结论：
+   - `KNOWN_LIMITATIONS.md` 现在也不会再把用户引向不存在的 `--fpc-version` 参数
+   - repo-local 可证明的 seam 继续减少，剩余工作继续收敛到外部 owner 执行与真实发布资产

@@ -1584,3 +1584,41 @@
 | What's the goal? | Keep public upgrade instructions from silently reintroducing obsolete asset-layout assumptions after the main install docs have been repaired |
 | What have I learned? | Historical release docs can preserve not just old commands but also old installation topology, so release-layout contracts need to cover both when those files remain public |
 | What have I done? | Added legacy release-layout contract coverage and rewrote the v1.1 upgrade instructions around preserving the extracted release directory |
+
+## Session: 2026-04-02 (known-limitations lazarus-fpc-flag drift)
+
+### Close-out Execution Follow-up 39
+- **Status:** complete
+- Actions taken:
+  - Re-ran a low-cost scan across the remaining uncovered live docs and found that `docs/KNOWN_LIMITATIONS.md` still used the unsupported `--fpc-version` flag in its Lazarus source-install workaround
+  - Re-verified the current command surface in `src/fpdev.cmd.lazarus.install.pas`: the shipped install command accepts `--fpc=` and rejects unknown flags with a usage error
+  - Added a failing official-docs contract proving the known-limitations doc must use the supported Lazarus FPC selector flag
+  - Updated `docs/KNOWN_LIMITATIONS.md` so the workaround now uses `--fpc=3.2.2`
+  - Re-ran the focused official-docs suite and the broader close-out regression bundle to confirm this was an isolated live-doc seam
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/KNOWN_LIMITATIONS.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for known-limitations Lazarus flag drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/KNOWN_LIMITATIONS.md` still used `--fpc-version 3.2.2` instead of the supported `--fpc=3.2.2` | Observed |
+| Focused official-docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `26` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `83` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/KNOWN_LIMITATIONS.md` still advertised the removed `--fpc-version` flag in a user-facing workaround | 1 | Added a known-limitations doc contract and rewrote the workaround around the supported `--fpc=` flag |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The remaining live workaround docs now align with the shipped Lazarus install flag surface as well as the broader public docs and release notes |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep even secondary workaround docs from sending users into usage errors when they are looking for escape hatches around missing features |
+| What have I learned? | Lower-traffic docs like limitations/workaround pages can still contain high-impact stale flags because users often copy them only when already blocked |
+| What have I done? | Added known-limitations Lazarus-flag contract coverage and replaced `--fpc-version` with `--fpc=` in `docs/KNOWN_LIMITATIONS.md` |
