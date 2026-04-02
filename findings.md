@@ -175,3 +175,20 @@
 - 结论更新：
   - 当前本地 close-out 不仅脚本与文档对齐，连 release packaging/checksum helper 的 CI 托底也已补齐
   - 剩余阻塞继续集中在外部 publish prerequisites，而非仓库内 coverage drift
+
+## Execution Update (2026-04-02, CI release contract breadth)
+- 在补齐 package-release-assets / checksum tests 的 CI 覆盖后，又发现 release contract step 仍遗漏了 3 个与 release close-out 直接相关的测试：
+  - `tests.test_official_docs_cli_contract`
+  - `tests.test_update_test_stats`
+  - `tests.test_ci_workflow_contract`
+- 该缺口的影响：
+  - 官方文档 CLI 契约、inventory sync render 逻辑、以及 CI release-lane 结构本身没有在 CI 的 fail-fast release-contract step 中被提前托底
+- 已实施的最小修复：
+  - `.github/workflows/ci.yml`：将这 3 项加入 release contract unit tests
+  - `tests/test_ci_release_contracts.py`：新增这 3 项的强制契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_ci_release_contracts`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`48` tests OK
+- 结论更新：
+  - 当前 CI 的 release-contract step 已覆盖 release docs / scripts / packaging / checksums / evidence / official docs / sync logic / CI structure 的关键契约面
+  - 本地剩余阻塞更加明确地收敛到外部发布前提，而不是仓库内 release-test selection drift

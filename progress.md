@@ -311,3 +311,40 @@
 | What's the goal? | Keep release helper behavior covered not only by local tests but also by the CI release lane |
 | What have I learned? | Even when helper scripts and tests exist, CI can still lag behind unless the coverage set is contract-checked explicitly |
 | What have I done? | Added package-release-assets and checksum-generation tests to CI's release contract step and proved the updated suite green |
+
+## Session: 2026-04-02 (CI release contract breadth)
+
+### Close-out Execution Follow-up 6
+- **Status:** complete
+- Actions taken:
+  - Audited the release-contract unittest list again and proved it still omitted `tests.test_official_docs_cli_contract`, `tests.test_update_test_stats`, and `tests.test_ci_workflow_contract`
+  - Captured the gap as a RED by tightening `tests.test_ci_release_contracts`
+  - Updated `.github/workflows/ci.yml` so the release contract step now covers official-doc contracts, update-test-stats unit tests, and CI workflow contract tests
+  - Re-ran focused CI-contract verification and then the expanded release contract suite to green
+- Files created/modified:
+  - `.github/workflows/ci.yml`
+  - `tests/test_ci_release_contracts.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| CI release contract RED | `python3 -m unittest -v tests.test_ci_release_contracts` | pass | failed because CI still omitted official-doc/update-test-stats/ci-workflow tests | FAIL |
+| Focused CI release contract | `python3 -m unittest -v tests.test_ci_release_contracts` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `48` tests OK | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | CI release contract step still omitted official-doc CLI contracts, update-test-stats unit tests, and CI workflow contract tests | 1 | Added all three to `.github/workflows/ci.yml` and enforced them via `tests/test_ci_release_contracts.py` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line remains complete after widening CI release-contract coverage |
+| Where am I going? | Wait for real release assets or owner-run checkpoints before further release execution |
+| What's the goal? | Ensure the CI fail-fast release-contract layer covers every key repo-local release contract surface |
+| What have I learned? | Release helper coverage can drift in layers; after packaging/checksum coverage, the next missing layer was official docs + sync logic + CI structure contracts |
+| What have I done? | Added those missing tests to CI's release contract step and proved the expanded release contract suite green |

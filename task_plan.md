@@ -151,3 +151,23 @@ Phase 4 complete
    - Windows/macOS owner checkpoints
    - 真实跨平台发布资产
    - 资产到位后的正式 checksum / release evidence 生成
+
+## Close-out Update (2026-04-02, CI release contract breadth)
+1. 在补齐 packaging/checksum 覆盖后，又确认 CI 的 release contract unit tests 仍缺少 3 个直接相关的测试：
+   - `tests.test_official_docs_cli_contract`
+   - `tests.test_update_test_stats`
+   - `tests.test_ci_workflow_contract`
+2. 这些测试分别覆盖：
+   - 官方公开文档 CLI 契约
+   - release inventory sync / doc sync 逻辑
+   - CI workflow 本身的 release-lane 结构契约
+3. 已完成的最小修复：
+   - `.github/workflows/ci.yml` 将上述 3 项加入 release contract unit tests
+   - `tests/test_ci_release_contracts.py` 升级为强制 CI 必须包含它们
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_ci_release_contracts`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`48` tests OK
+5. 当前剩余工作继续是外部条件，而不是 repo-local release coverage 缺口：
+   - Windows/macOS owner checkpoints
+   - 真实发布资产
+   - 正式 checksum / release evidence 产物生成
