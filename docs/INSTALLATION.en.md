@@ -131,21 +131,13 @@ lazbuild -B --build-mode=Release fpdev.lpi
 ./bin/fpdev system version
 ```
 
-### Method 3: Package Manager Installation (Planned)
+### Method 3: Package Manager Channel Status
 
-```bash
-# Homebrew (macOS)
-brew install fpdev
+There are no published Homebrew, Chocolatey, Snap, or APT channels yet.
 
-# Chocolatey (Windows)
-choco install fpdev
-
-# Snap (Linux)
-sudo snap install fpdev
-
-# APT (Ubuntu/Debian)
-sudo apt install fpdev
-```
+Until those channels exist, use one of the supported paths above:
+- Method 1: GitHub Release pre-built binaries
+- Method 2: Build from source
 
 ## Configuration
 

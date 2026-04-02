@@ -370,3 +370,27 @@
 - 结论更新：
   - changelog 现在也与当前 canonical release-closeout 叙事一致，不再遗漏标准 publish artifacts
   - repo-local 可证明的收口 seam 再次缩小，剩余工作继续主要落在外部 owner 执行与真实跨平台发布资产
+
+## Execution Update (2026-04-02, installation docs package-manager drift)
+- 在 release-closeout 叙事基本收口后，继续检查公开下载/安装入口时，又发现一层官方文档漂移：
+  - `docs/INSTALLATION.md` 与 `docs/INSTALLATION.en.md` 仍保留 “Package Manager Installation (Planned)” / “包管理器安装 (计划中)” 章节
+  - 还直接列出 `brew install fpdev`、`choco install fpdev`、`snap install fpdev`、`apt install fpdev`
+  - 这些 package-manager 渠道当前并未发布，会把公开安装指南重新分叉成一个不可执行的假入口
+- 这个问题的影响：
+  - 用户可能优先跟随安装指南中的 package-manager 命令，却得到与当前发布状态不一致的体验
+  - 这与前面已经在官方文档中逐步清除“过时 roadmap / 假可用安装路径”的 close-out 目标相冲突
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_installation_docs_do_not_advertise_unpublished_package_manager_channels` 直接捕获安装指南中的 10 处未发布 package-manager 引导
+- 已实施的最小修复：
+  - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：移除未发布的 package-manager 命令块
+  - 改为显式说明这些渠道尚未发布，并引导用户使用已支持的两条路径：
+    - GitHub Release 预编译二进制
+    - 从源码构建
+  - `tests/test_official_docs_cli_contract.py`：补齐对应官方安装文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`58` tests OK，`1` skipped
+- 结论更新：
+  - 官方安装指南不再宣传未发布的 package-manager 渠道，公开安装入口与当前真实发布状态重新对齐
+  - repo-local 可证明的 seam 继续减少，剩余问题进一步收敛到外部资产生成与 owner 执行

@@ -689,3 +689,41 @@
 | What's the goal? | Keep every public release document aligned on the same remaining publish-time proof |
 | What have I learned? | Even when acceptance docs and release notes are fixed, a high-visibility summary surface like the changelog can still lag behind and reopen narrative drift |
 | What have I done? | Added regression coverage and synchronized the changelog release baseline with the current standardized release-closeout artifacts |
+
+## Session: 2026-04-02 (installation docs package-manager drift)
+
+### Close-out Execution Follow-up 16
+- **Status:** complete
+- Actions taken:
+  - Audited the public installation guides after the other release-facing docs were synchronized and found that both `docs/INSTALLATION*.md` files still advertised unpublished package-manager channels as a third installation method
+  - Added a failing official-docs contract proving the installation guides must not present Homebrew / Chocolatey / Snap / APT commands as runnable public install paths before those channels exist
+  - Updated both installation guides to remove the unpublished commands and replace them with an explicit status note that directs users back to the supported release-binary or source-build flows
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the public installation entrypoints now match the real published state
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/INSTALLATION.md`
+  - `docs/INSTALLATION.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for installation-docs package-manager drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/INSTALLATION*.md` still advertised unpublished package-manager channels and commands | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `58` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Official installation guides still presented unpublished package-manager channels as a public install method | 1 | Added an official-docs contract and replaced the fake package-manager method with an explicit status note that points users to the supported install paths |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The official installation guides now point only to currently supported install paths |
+| Where am I going? | Continue only if another repo-local close-out seam remains; otherwise the remaining work is external publish execution |
+| What's the goal? | Prevent public installation docs from advertising install channels that do not actually exist yet |
+| What have I learned? | Even after release-closeout docs are synchronized, high-traffic user guides can still carry old “planned” pathways that need explicit contract coverage |
+| What have I done? | Added regression coverage and removed unpublished package-manager commands from both installation guides |

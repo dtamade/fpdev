@@ -131,21 +131,13 @@ lazbuild -B --build-mode=Release fpdev.lpi
 ./bin/fpdev system version
 ```
 
-### 方法三：包管理器安装 (计划中)
+### 方法三：包管理器渠道状态
 
-```bash
-# Homebrew (macOS)
-brew install fpdev
+目前没有已发布的 Homebrew / Chocolatey / Snap / APT 渠道。
 
-# Chocolatey (Windows)
-choco install fpdev
-
-# Snap (Linux)
-sudo snap install fpdev
-
-# APT (Ubuntu/Debian)
-sudo apt install fpdev
-```
+在这些渠道正式发布之前，请使用：
+- 方法一：GitHub Release 预编译二进制文件
+- 方法二：从源码编译
 
 ## ⚙️ 配置
 

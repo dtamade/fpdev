@@ -129,6 +129,28 @@ class OfficialDocsCliContractTests(unittest.TestCase):
                     offenders.append((path.relative_to(REPO_ROOT), lineno, line.strip()))
         self.assertEqual([], offenders, f'Found stale binary-install roadmap language in FPC management docs: {offenders}')
 
+    def test_installation_docs_do_not_advertise_unpublished_package_manager_channels(self):
+        offenders = []
+        for path in [
+            REPO_ROOT / 'docs' / 'INSTALLATION.md',
+            REPO_ROOT / 'docs' / 'INSTALLATION.en.md',
+        ]:
+            for lineno, line in enumerate(
+                path.read_text(encoding='utf-8').splitlines(),
+                start=1,
+            ):
+                lowered = line.lower()
+                if (
+                    '包管理器安装 (计划中)' in line
+                    or 'package manager installation (planned)' in lowered
+                    or 'brew install fpdev' in lowered
+                    or 'choco install fpdev' in lowered
+                    or 'snap install fpdev' in lowered
+                    or 'apt install fpdev' in lowered
+                ):
+                    offenders.append((path.relative_to(REPO_ROOT), lineno, line.strip()))
+        self.assertEqual([], offenders, f'Found unpublished package-manager install guidance in installation docs: {offenders}')
+
 
 if __name__ == '__main__':
     unittest.main()
