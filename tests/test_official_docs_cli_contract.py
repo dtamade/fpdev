@@ -347,6 +347,16 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('./bin/fpdev lazarus install 3.8 --dry-run', text)
         self.assertNotIn('./bin/fpdev cross install aarch64-linux --dry-run', text)
 
+    def test_development_roadmap_uses_active_data_root_install_model(self):
+        zh_text = (REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('<data-root>/toolchains/fpc/3.2.2', text)
+            self.assertIn('toolchains/fpc/3.2.2/bin/fpc', text)
+            self.assertNotIn('~/.fpdev/fpc/3.2.2', text)
+
     def test_roadmap_success_metrics_use_active_install_path_model(self):
         text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
 

@@ -76,6 +76,8 @@ A user should be able to:
 3. Run `fpdev fpc use 3.2.2`
 4. Compile a Pascal program with the installed FPC
 
+The path examples below use `<data-root>` for the active FPDev data root. In the current runtime this comes from portable `data/`, an explicit `FPDEV_DATA_ROOT`, Windows `%APPDATA%\fpdev`, or Linux/macOS `$XDG_DATA_HOME/fpdev` with `~/.fpdev` as fallback.
+
 ### MVP Acceptance Criteria
 
 #### AC-1: Binary Installation (Primary Path)
@@ -85,8 +87,8 @@ fpdev fpc install 3.2.2
 
 # Expected behavior:
 # 1. Downloads FPC 3.2.2 binary from official mirror
-# 2. Extracts to ~/.fpdev/fpc/3.2.2/
-# 3. Registers in config.json
+# 2. Extracts to <data-root>/toolchains/fpc/3.2.2/
+# 3. Registers in the active data-root config.json
 # 4. Verifies installation with smoke test
 
 # Verification:
@@ -96,7 +98,7 @@ fpdev fpc list
 fpdev fpc current
 # Output: 3.2.2
 
-~/.fpdev/fpc/3.2.2/bin/fpc -v
+<data-root>/toolchains/fpc/3.2.2/bin/fpc -v
 # Output: Free Pascal Compiler version 3.2.2
 ```
 
@@ -109,11 +111,11 @@ fpdev fpc install 3.2.2 --from-source
 # 1. Ensures bootstrap compiler (downloads if needed)
 # 2. Clones FPC source from GitLab
 # 3. Builds FPC with make
-# 4. Installs to ~/.fpdev/fpc/3.2.2/
-# 5. Registers in config.json
+# 4. Installs to <data-root>/toolchains/fpc/3.2.2/
+# 5. Registers in the active data-root config.json
 
 # Verification:
-ls ~/.fpdev/fpc/3.2.2/bin/fpc
+ls <data-root>/toolchains/fpc/3.2.2/bin/fpc
 # File exists
 
 fpdev fpc doctor
@@ -128,7 +130,7 @@ fpdev fpc use 3.2.2
 fpdev fpc current
 # Output: 3.2.2
 
-# PATH should include ~/.fpdev/fpc/3.2.2/bin
+# PATH should include <data-root>/toolchains/fpc/3.2.2/bin
 ```
 
 #### AC-4: Error Handling
@@ -251,11 +253,12 @@ tests/
 set -e
 
 # Clean state
-rm -rf ~/.fpdev/fpc/3.2.2
+export FPDEV_DATA_ROOT=/tmp/fpdev-mvp-test
+rm -rf "$FPDEV_DATA_ROOT"
 
 # Test binary install
 ./bin/fpdev fpc install 3.2.2
-test -f ~/.fpdev/fpc/3.2.2/bin/fpc
+test -f "$FPDEV_DATA_ROOT/toolchains/fpc/3.2.2/bin/fpc"
 
 # Test version listing
 ./bin/fpdev fpc list | grep "3.2.2"
@@ -266,7 +269,7 @@ test -f ~/.fpdev/fpc/3.2.2/bin/fpc
 
 # Test compilation
 echo "program test; begin writeln('Hello'); end." > /tmp/test.pas
-~/.fpdev/fpc/3.2.2/bin/fpc /tmp/test.pas
+"$FPDEV_DATA_ROOT/toolchains/fpc/3.2.2/bin/fpc" /tmp/test.pas
 /tmp/test | grep "Hello"
 
 echo "MVP tests passed!"

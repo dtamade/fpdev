@@ -1131,3 +1131,35 @@
 - 结论更新：
   - `.fpdev.toml` spec 现在不再把尚未实现的 workflow CLI 当成当前命令面的一部分
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, historical development-roadmap install-path drift)
+- 在 `.fpdev.toml` spec 收口后继续扫描非归档但仍公开的历史文档时，又发现 `docs/DEVELOPMENT_ROADMAP.md` / `docs/DEVELOPMENT_ROADMAP.en.md` 虽然已经声明“historical document”，却仍包含完整可复制的安装与集成测试命令：
+  - AC 示例仍把安装目录写成 `~/.fpdev/fpc/3.2.2/`
+  - 验证命令仍写 `~/.fpdev/fpc/3.2.2/bin/fpc -v`
+  - integration-test 脚本仍 `rm -rf ~/.fpdev/fpc/3.2.2` 并用 `test -f ~/.fpdev/fpc/3.2.2/bin/fpc`
+- 当前 runtime/doc 真相：
+  - 当前公开路径模型已经统一到 active data-root：portable `data/`、显式 `FPDEV_DATA_ROOT`、Windows `%APPDATA%\\fpdev`、Linux/macOS `$XDG_DATA_HOME/fpdev` with `~/.fpdev` fallback
+  - `docs/ROADMAP.md`、`docs/FPC_MANAGEMENT*.md`、`docs/MANIFEST-USAGE.md`、`docs/FAQ*.md` 等 live docs 已经改成 `<data-root>/toolchains/fpc/<version>`
+- 这个问题的影响：
+  - 虽然 `DEVELOPMENT_ROADMAP` 被标为历史快照，但它仍在 `docs/` 根目录且内含完整 shell 示例
+  - 如果继续保留 `~/.fpdev/fpc/...` 的硬编码路径，它会把旧安装布局重新带回搜索结果、引用链和用户的 copy-paste 流程
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_development_roadmap_uses_active_data_root_install_model` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `<data-root>/toolchains/fpc/3.2.2`
+    - 没有 `toolchains/fpc/3.2.2/bin/fpc`
+    - 仍包含 `~/.fpdev/fpc/3.2.2`
+- 已实施的最小修复：
+  - `docs/DEVELOPMENT_ROADMAP.md` / `docs/DEVELOPMENT_ROADMAP.en.md`：
+    - 在 MVP Scope 下补入 `<data-root>` / `FPDEV_DATA_ROOT` 说明
+    - AC-1 / AC-2 / AC-3 的路径示例统一改成 `<data-root>/toolchains/fpc/3.2.2`
+    - 集成测试脚本改成显式设置 `FPDEV_DATA_ROOT=/tmp/fpdev-mvp-test`
+    - `test -f` 与 `fpc` 调用都改成 `"$FPDEV_DATA_ROOT/toolchains/fpc/3.2.2/bin/fpc"`
+  - `tests/test_official_docs_cli_contract.py`：补齐 historical development-roadmap install-path 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `28` tests OK
+  - `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`85` tests OK，`1` skipped
+- 结论更新：
+  - historical development roadmap 现在也不会再把旧的 `~/.fpdev/fpc/...` 安装布局继续作为可复制示例传播
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

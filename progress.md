@@ -1661,3 +1661,42 @@
 | What's the goal? | Keep spec documents from acting like roadmap drafts when users are likely to copy their command examples verbatim |
 | What have I learned? | Configuration-spec docs are high-risk drift surfaces because they look authoritative and easily preserve future-command examples long after the runtime surface settles |
 | What have I done? | Added TOML-spec workflow contract coverage and rewrote both spec docs around `fpdev fpc auto-install`, explicit `fpdev fpc use`, and `fpdev fpc current` |
+
+## Session: 2026-04-02 (historical development-roadmap install-path drift)
+
+### Close-out Execution Follow-up 41
+- **Status:** complete
+- Actions taken:
+  - Continued scanning non-archived public docs after the TOML-spec cleanup and found that `docs/DEVELOPMENT_ROADMAP.md` plus `docs/DEVELOPMENT_ROADMAP.en.md` still embedded copy-paste install and integration-test commands hard-coded to `~/.fpdev/fpc/3.2.2`
+  - Re-verified the current source of truth in the already-restaged live docs: the active install model is `FPDEV_DATA_ROOT` / runtime-resolved `<data-root>/toolchains/fpc/<version>`, not a fixed home-directory path
+  - Added a failing official-docs contract proving the historical development roadmap must use the active data-root install model if it continues to expose runnable command examples
+  - Updated both historical roadmap docs so their acceptance-criteria paths now use `<data-root>/toolchains/fpc/3.2.2`, and their integration-test example explicitly sets `FPDEV_DATA_ROOT=/tmp/fpdev-mvp-test`
+  - Re-ran the focused official-docs suite and the broader close-out regression bundle to confirm the historical-roadmap cleanup did not regress the current release/doc contract lane
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/DEVELOPMENT_ROADMAP.md`
+  - `docs/DEVELOPMENT_ROADMAP.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for historical development-roadmap install-path drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the historical development roadmap docs still hard-coded `~/.fpdev/fpc/3.2.2`, lacked `FPDEV_DATA_ROOT`, and lacked `<data-root>/toolchains/fpc/3.2.2` guidance | Observed |
+| Focused official-docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `28` tests OK | OK |
+| Contributor + close-out regression bundle | `python3 -m unittest -v tests.test_contributor_docs_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `85` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `docs/DEVELOPMENT_ROADMAP*.md` still exposed copy-paste install examples hard-coded to the legacy `~/.fpdev/fpc/...` layout | 1 | Added a historical-roadmap install-path contract and rewrote both docs around `<data-root>` plus an explicit `FPDEV_DATA_ROOT` integration-test example |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The non-archived historical development roadmap docs now align with the current active data-root install model whenever they show runnable path examples |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep even historical-but-public roadmap snapshots from reintroducing obsolete install layouts through copy-paste shell examples |
+| What have I learned? | Marking a doc as “historical” is not enough when it still exposes runnable commands; path-model drift still needs contract coverage if the file remains in the public docs tree |
+| What have I done? | Added historical-roadmap install-path contract coverage and rewrote both roadmap snapshots around `<data-root>` plus explicit `FPDEV_DATA_ROOT` usage |
