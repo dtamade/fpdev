@@ -188,3 +188,24 @@ Phase 4 complete
 4. 结论：
    - 当前 release contract / helper / doc / CI breadth 已覆盖到 shell 与 PowerShell 两条 owner-smoke 路径
    - 剩余工作继续集中在外部发布资产和 owner sign-off
+
+## Close-out Update (2026-04-02, Windows CI PowerShell owner-smoke execution)
+1. 新发现的剩余 repo-local gap：
+   - `tests.test_record_owner_smoke_ps1` 已被纳入 Ubuntu release-contract step，但本地/Ubuntu 环境没有 `pwsh`，该测试只会 skip
+   - 因此 CI 仍未真正执行 Windows PowerShell owner-smoke runtime path
+   - RED 由 `tests.test_ci_workflow_contract.test_ci_windows_job_runs_powershell_owner_smoke_unit_test` 明确暴露
+2. 已完成的最小修复：
+   - `.github/workflows/ci.yml` 在 `cross-platform-cli-smoke` 中新增 Windows-only 的 `Run PowerShell owner smoke unit test` 步骤
+   - `tests/test_record_owner_smoke_ps1.py` 改为按平台生成 fake executable：
+     - Windows：`fpdev.cmd`
+     - 其他平台：保留 shebang shell stub
+   - 同一测试按平台选择 transcript lane：
+     - Windows：`windows-x64`
+     - 其他平台：`macos-x64`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_ci_workflow_contract`：通过
+   - `python3 -m unittest -v tests.test_ci_workflow_contract tests.test_record_owner_smoke_ps1 tests.test_ci_release_contracts`：通过（本地 `pwsh` 不可用，因此 PowerShell runtime test 为 skip）
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`50` tests OK，`1` skipped
+4. 结论：
+   - 现在 CI 不仅声明 PowerShell owner-smoke contract，还会在 Windows runner 上真实执行对应单测
+   - 本地环境仍保持 skip-on-missing-pwsh 的兼容性

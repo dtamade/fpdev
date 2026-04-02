@@ -123,6 +123,11 @@ jobs:
         mkdir -p bin lib
         fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
+    - name: Run PowerShell owner smoke unit test
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: python -m unittest -v tests.test_record_owner_smoke_ps1
+
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
       shell: bash

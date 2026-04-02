@@ -385,3 +385,40 @@
 | What's the goal? | Keep release-closeout tooling covered symmetrically across shell and PowerShell paths |
 | What have I learned? | Helper coverage drift can also appear across platform variants; parity matters for owner-run release steps |
 | What have I done? | Added a real PowerShell owner-smoke runtime test (skip when pwsh is absent) and wired it into CI release-contract coverage |
+
+## Session: 2026-04-02 (Windows CI PowerShell owner-smoke execution)
+
+### Close-out Execution Follow-up 8
+- **Status:** complete
+- Actions taken:
+  - Reproduced the new RED in `tests.test_ci_workflow_contract` proving CI still lacked a Windows step that truly runs the PowerShell owner-smoke unit test
+  - Updated `tests.test_record_owner_smoke_ps1` to create a platform-appropriate fake executable (`fpdev.cmd` on Windows, shell stub elsewhere) and to assert the platform-appropriate transcript lane
+  - Added a Windows-only `Run PowerShell owner smoke unit test` step to `.github/workflows/ci.yml`
+  - Re-ran focused verification and the expanded release contract suite to confirm the new CI contract is green locally and still skip-compatible without `pwsh`
+- Files created/modified:
+  - `tests/test_record_owner_smoke_ps1.py`
+  - `.github/workflows/ci.yml`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for Windows owner-smoke CI step | `python3 -m unittest -v tests.test_ci_workflow_contract` | fail before fix | failed on missing `Run PowerShell owner smoke unit test` step | Observed |
+| Focused Windows owner-smoke CI verification | `python3 -m unittest -v tests.test_ci_workflow_contract tests.test_record_owner_smoke_ps1 tests.test_ci_release_contracts` | pass | pass (`1` test skipped because `pwsh` is unavailable locally) | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `50` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | CI still only skipped the PowerShell owner-smoke runtime test on Ubuntu, so Windows runtime execution was not truly covered | 1 | Added a Windows-only CI step plus platform-aware fake executable/lane handling in `tests.test_record_owner_smoke_ps1` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Repo-local release close-out coverage now reaches the Windows PowerShell owner-smoke execution path too |
+| Where am I going? | Wait for real release assets and owner-run checkpoints to finish the remaining external release work |
+| What's the goal? | Keep CI's release-closeout layer symmetric across Linux, shell, and Windows PowerShell owner-smoke paths |
+| What have I learned? | CI inclusion is not the same as runtime execution; platform-specific skip behavior can hide real gaps |
+| What have I done? | Added the missing Windows CI execution step and made the PowerShell owner-smoke test portable across Windows/POSIX environments |

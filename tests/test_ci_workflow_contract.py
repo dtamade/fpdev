@@ -35,6 +35,11 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('cli_smoke.ps1', self.text)
         self.assertIn('ExecutablePath', self.text)
 
+    def test_ci_windows_job_runs_powershell_owner_smoke_unit_test(self):
+        self.assertIn('Run PowerShell owner smoke unit test', self.text)
+        self.assertIn("if: runner.os == 'Windows'", self.text)
+        self.assertIn('tests.test_record_owner_smoke_ps1', self.text)
+
     def test_ci_has_macos_cli_smoke_job(self):
         self.assertIn('macos-', self.text)
         self.assertIn('brew install --cask fpc-laz', self.text)

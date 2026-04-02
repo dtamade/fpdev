@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import tempfile
@@ -10,6 +11,25 @@ SCRIPT = REPO_ROOT / 'scripts' / 'record_owner_smoke.ps1'
 
 
 class RecordOwnerSmokePs1Tests(unittest.TestCase):
+    def _build_fake_executable(self, root: Path) -> Path:
+        if os.name == 'nt':
+            fake_exe = root / 'fpdev.cmd'
+            fake_exe.write_text(
+                '@echo off\r\n'
+                'echo fake fpdev %*\r\n',
+                encoding='utf-8',
+            )
+            return fake_exe
+
+        fake_exe = root / 'fpdev'
+        fake_exe.write_text(
+            '#!/usr/bin/env bash\n'
+            'echo "fake fpdev $*"\n',
+            encoding='utf-8',
+        )
+        fake_exe.chmod(0o755)
+        return fake_exe
+
     def test_script_records_standardized_transcript_file(self):
         if shutil.which('pwsh') is None:
             self.skipTest('pwsh is not available in this environment')
@@ -17,13 +37,8 @@ class RecordOwnerSmokePs1Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='fpdev-owner-smoke-ps1-') as tmp:
             root = Path(tmp)
             output_dir = root / 'proof'
-            fake_exe = root / 'fpdev'
-            fake_exe.write_text(
-                '#!/usr/bin/env bash\n'
-                'echo "fake fpdev $*"\n',
-                encoding='utf-8',
-            )
-            fake_exe.chmod(0o755)
+            lane = 'windows-x64' if os.name == 'nt' else 'macos-x64'
+            fake_exe = self._build_fake_executable(root)
 
             completed = subprocess.run(
                 [
@@ -32,7 +47,7 @@ class RecordOwnerSmokePs1Tests(unittest.TestCase):
                     '-File',
                     str(SCRIPT),
                     '-Lane',
-                    'macos-x64',
+                    lane,
                     '-ExecutablePath',
                     str(fake_exe),
                     '-OutputDir',
@@ -44,7 +59,7 @@ class RecordOwnerSmokePs1Tests(unittest.TestCase):
                 capture_output=True,
             )
 
-            transcript = output_dir / 'macos-x64-owner-smoke.txt'
+            transcript = output_dir / f'{lane}-owner-smoke.txt'
             self.assertTrue(transcript.exists())
             text = transcript.read_text(encoding='utf-8')
             self.assertIn('[SMOKE] system version', text)
