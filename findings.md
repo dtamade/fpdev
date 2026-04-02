@@ -225,3 +225,28 @@
 - 结论更新：
   - 当前 CI 已明确具备 Windows runner 上真实执行 PowerShell owner-smoke 单测的入口
   - repo-local 剩余阻塞继续收敛到外部 owner checkpoint / release asset prerequisites
+
+## Execution Update (2026-04-02, optional install evidence handoff)
+- 在继续审计 release close-out helper 时，发现 `scripts/generate_release_evidence.py` 与发布文档对 install lane 的定位不一致：
+  - `scripts/release_acceptance_linux.sh --with-install` 明确是 network-gated 的附加 lane
+  - owner checkpoint 文档也把它描述成“需要时再运行”
+  - 但 `scripts/generate_release_evidence.py` 却把 `--install-summary` 做成了必填参数
+- 这会导致一个真实仓库内问题：
+  - 如果只完成 baseline lane、尚未执行 install lane，就无法先生成一份中间态的 `RELEASE_EVIDENCE.md` handoff
+  - 文档与工具行为在“install lane 是否可选”这一点上互相打架
+- RED 证据：
+  - `python3 -m unittest -v tests.test_generate_release_evidence` 失败
+  - 新增测试 `test_script_allows_missing_optional_install_summary` 因 CLI 缺少 `--install-summary` 而报错退出
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_owner_checkpoint_doc_marks_install_summary_as_optional_evidence_input` 证明 owner-checkpoint 文档尚未把该参数标成 optional
+- 已实施的最小修复：
+  - `scripts/generate_release_evidence.py`：`--install-summary` 改为 optional
+  - 未提供时，`Linux isolated install lane` 段落会输出 `not provided` 状态和补充提示
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`：改为 baseline summary 必填、install summary 按需追加
+  - `tests/test_generate_release_evidence.py` / `tests/test_release_docs_contract.py`：补齐相应 RED→GREEN 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_generate_release_evidence tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`52` tests OK，`1` skipped
+- 结论更新：
+  - release evidence helper 与 release close-out 文档现在对 install lane 的 optional 性达成一致
+  - repo-local 剩余阻塞继续集中在真实资产与 owner sign-off，而不是 handoff 工具约束过严

@@ -90,6 +90,51 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
             self.assertIn('missing', text)
             self.assertIn('SHA256SUMS.txt', completed.stdout)
 
+    def test_script_allows_missing_optional_install_summary(self):
+        with tempfile.TemporaryDirectory(prefix='fpdev-release-evidence-optional-install-') as tmp:
+            root = Path(tmp)
+            logs_root = root / 'logs' / 'release_acceptance'
+            baseline_dir = logs_root / '20260325_204342'
+            baseline_dir.mkdir(parents=True)
+            self.write_summary(baseline_dir / 'summary.txt', 0, ['toolchain_check: pass'])
+
+            asset_dir = root / 'dist'
+            asset_dir.mkdir()
+            (asset_dir / 'SHA256SUMS.txt').write_text(
+                'abc  fpdev-linux-x64.tar.gz\n',
+                encoding='utf-8',
+            )
+            owner_proof_dir = root / 'owner-proof'
+            owner_proof_dir.mkdir()
+
+            output = root / 'RELEASE_EVIDENCE.md'
+            completed = subprocess.run(
+                [
+                    'python3',
+                    str(SCRIPT),
+                    '--baseline-summary',
+                    str(baseline_dir / 'summary.txt'),
+                    '--asset-dir',
+                    str(asset_dir),
+                    '--owner-proof-dir',
+                    str(owner_proof_dir),
+                    '--output',
+                    str(output),
+                ],
+                cwd=REPO_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+
+            text = output.read_text(encoding='utf-8')
+            self.assertIn('Linux automated acceptance', text)
+            self.assertIn('Linux isolated install lane', text)
+            self.assertIn('- status: not provided', text)
+            self.assertIn('- summary: not provided', text)
+            self.assertIn('Pass --install-summary if the network-gated lane was executed.', text)
+            self.assertIn('SHA256SUMS.txt', completed.stdout)
+
     def test_script_requires_existing_summary_inputs(self):
         with tempfile.TemporaryDirectory(prefix='fpdev-release-evidence-missing-') as tmp:
             root = Path(tmp)

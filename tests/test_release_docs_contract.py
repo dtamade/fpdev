@@ -38,6 +38,11 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('macos-x64-owner-smoke.txt', self.text)
         self.assertIn('macos-arm64-owner-smoke.txt', self.text)
 
+    def test_owner_checkpoint_doc_marks_install_summary_as_optional_evidence_input(self):
+        self.assertIn('--baseline-summary logs/release_acceptance/<baseline-run>/summary.txt', self.text)
+        self.assertIn('If the network-gated install lane was executed', self.text)
+        self.assertIn('--install-summary logs/release_acceptance/<install-run>/summary.txt', self.text)
+
     def test_owner_checkpoint_doc_stops_inlining_smoke_commands(self):
         self.assertNotIn('.\\fpdev.exe system version', self.text)
         self.assertNotIn('./fpdev system version', self.text)

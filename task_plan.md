@@ -209,3 +209,22 @@ Phase 4 complete
 4. 结论：
    - 现在 CI 不仅声明 PowerShell owner-smoke contract，还会在 Windows runner 上真实执行对应单测
    - 本地环境仍保持 skip-on-missing-pwsh 的兼容性
+
+## Close-out Update (2026-04-02, optional install evidence handoff)
+1. 新发现的 release close-out seam：
+   - `scripts/generate_release_evidence.py` 强制要求 `--install-summary`
+   - 但 `scripts/release_acceptance_linux.sh --with-install` 与 owner-checkpoint 文档都把该 lane 定位为 network-gated / optional
+   - 这导致“未执行 install lane 时无法生成 RELEASE_EVIDENCE.md”的仓库内不一致
+2. 已完成的最小修复：
+   - `scripts/generate_release_evidence.py` 允许省略 `--install-summary`
+   - 当未提供 install summary 时，生成的 `Linux isolated install lane` 段落会明确标记 `not provided`，并提示可在执行 network-gated lane 后追加 `--install-summary`
+   - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` 同步改为：baseline summary 必填，install summary 按需追加
+   - 新增/收紧测试覆盖：
+     - `tests.test_generate_release_evidence.test_script_allows_missing_optional_install_summary`
+     - `tests.test_release_docs_contract.test_owner_checkpoint_doc_marks_install_summary_as_optional_evidence_input`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_generate_release_evidence tests.test_release_docs_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`52` tests OK，`1` skipped
+4. 结论：
+   - release evidence handoff 现在与 “install lane 可选” 的 close-out 叙事保持一致
+   - 剩余工作继续收敛到外部 owner checkpoint / release asset prerequisites

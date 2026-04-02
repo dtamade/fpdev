@@ -422,3 +422,44 @@
 | What's the goal? | Keep CI's release-closeout layer symmetric across Linux, shell, and Windows PowerShell owner-smoke paths |
 | What have I learned? | CI inclusion is not the same as runtime execution; platform-specific skip behavior can hide real gaps |
 | What have I done? | Added the missing Windows CI execution step and made the PowerShell owner-smoke test portable across Windows/POSIX environments |
+
+## Session: 2026-04-02 (optional install evidence handoff)
+
+### Close-out Execution Follow-up 9
+- **Status:** complete
+- Actions taken:
+  - Audited the release-evidence handoff path and found a mismatch: docs described the `--with-install` lane as optional/network-gated, but `scripts/generate_release_evidence.py` still required `--install-summary`
+  - Added a failing test proving the script should still generate `RELEASE_EVIDENCE.md` when only the baseline summary is available
+  - Relaxed `scripts/generate_release_evidence.py` so `--install-summary` is optional and missing install evidence is rendered explicitly as `not provided`
+  - Tightened `tests.test_release_docs_contract` and updated the owner-checkpoint doc so the publish instructions now match the script behavior
+  - Re-ran focused verification and the expanded release contract suite to confirm the handoff path stays green
+- Files created/modified:
+  - `scripts/generate_release_evidence.py`
+  - `tests/test_generate_release_evidence.py`
+  - `tests/test_release_docs_contract.py`
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for optional install evidence | `python3 -m unittest -v tests.test_generate_release_evidence` | fail before fix | failed because omitting `--install-summary` exited with status `2` | Observed |
+| RED proof for owner-checkpoint doc sync | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because the doc did not mark install summary as optional evidence input | Observed |
+| Focused release-evidence + docs verification | `python3 -m unittest -v tests.test_generate_release_evidence tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `52` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `generate_release_evidence.py` required `--install-summary` even though the install lane is documented as optional/network-gated | 1 | Made install evidence optional, rendered absence explicitly, and synchronized the owner-checkpoint doc contract |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Repo-local release close-out tooling now supports evidence handoff even before the optional install lane has been run |
+| Where am I going? | Continue only if another repo-local close-out inconsistency remains; otherwise the next real work is external asset and owner-proof execution |
+| What's the goal? | Keep release helper behavior aligned with the documented close-out workflow so publish handoff stays usable at every stage |
+| What have I learned? | Optional lanes need optional evidence inputs too; otherwise the toolchain silently hard-codes a stricter process than the docs describe |
+| What have I done? | Added regression coverage, relaxed the evidence generator, and synchronized the owner-checkpoint instructions |

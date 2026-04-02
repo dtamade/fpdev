@@ -49,7 +49,19 @@ def collect_owner_evidence(owner_proof_dir: Path) -> list[tuple[str, str, str]]:
     return rows
 
 
-def render_lane(title: str, summary_path: Path, summary: dict[str, str]) -> list[str]:
+def render_lane(title: str, summary_path: Path | None, summary: dict[str, str] | None) -> list[str]:
+    if summary_path is None or summary is None:
+        return [
+            f'### {title}',
+            '',
+            '- status: not provided',
+            '- summary: not provided',
+            '- timestamp: not provided',
+            '- run_dir: not provided',
+            '- note: Pass --install-summary if the network-gated lane was executed.',
+            '',
+        ]
+
     return [
         f'### {title}',
         '',
@@ -64,8 +76,8 @@ def render_lane(title: str, summary_path: Path, summary: dict[str, str]) -> list
 def render_markdown(
     baseline_path: Path,
     baseline_summary: dict[str, str],
-    install_path: Path,
-    install_summary: dict[str, str],
+    install_path: Path | None,
+    install_summary: dict[str, str] | None,
     asset_dir: Path,
     checksum_lines: list[str],
     owner_proof_dir: Path,
@@ -127,7 +139,10 @@ def main() -> int:
         description='Generate a markdown release evidence summary from acceptance logs and packaged assets.'
     )
     parser.add_argument('--baseline-summary', required=True, help='Path to the Linux baseline summary.txt')
-    parser.add_argument('--install-summary', required=True, help='Path to the Linux isolated install summary.txt')
+    parser.add_argument(
+        '--install-summary',
+        help='Path to the Linux isolated install summary.txt (optional when the network-gated lane was not run)',
+    )
     parser.add_argument('--asset-dir', required=True, help='Directory containing packaged release assets')
     parser.add_argument(
         '--owner-proof-dir',
@@ -142,12 +157,14 @@ def main() -> int:
     args = parser.parse_args()
 
     baseline_path = Path(args.baseline_summary).resolve()
-    install_path = Path(args.install_summary).resolve()
+    install_path = Path(args.install_summary).resolve() if args.install_summary else None
     asset_dir = Path(args.asset_dir).resolve()
     owner_proof_dir = Path(args.owner_proof_dir).resolve()
     output_path = Path(args.output).resolve()
 
     for summary_path in (baseline_path, install_path):
+        if summary_path is None:
+            continue
         if not summary_path.is_file():
             print(f'Summary file does not exist: {summary_path}', file=sys.stderr)
             return 2
@@ -157,7 +174,7 @@ def main() -> int:
         return 2
 
     baseline_summary = parse_summary(baseline_path)
-    install_summary = parse_summary(install_path)
+    install_summary = parse_summary(install_path) if install_path else None
     checksum_lines = read_checksum_lines(asset_dir)
     owner_evidence_rows = collect_owner_evidence(owner_proof_dir)
     markdown = render_markdown(
