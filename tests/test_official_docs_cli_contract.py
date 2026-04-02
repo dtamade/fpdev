@@ -151,6 +151,18 @@ class OfficialDocsCliContractTests(unittest.TestCase):
                     offenders.append((path.relative_to(REPO_ROOT), lineno, line.strip()))
         self.assertEqual([], offenders, f'Found unpublished package-manager install guidance in installation docs: {offenders}')
 
+    def test_installation_docs_preserve_release_asset_layout(self):
+        zh_text = (REPO_ROOT / 'docs' / 'INSTALLATION.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'INSTALLATION.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('data/', text)
+            self.assertNotIn('sudo mv fpdev /usr/local/bin/', text)
+            self.assertNotIn('mv fpdev ~/.local/bin/', text)
+
+        self.assertNotIn(r'C:\fpdev\bin', zh_text)
+        self.assertNotIn(r'C:\fpdev\bin', en_text)
+
 
 if __name__ == '__main__':
     unittest.main()

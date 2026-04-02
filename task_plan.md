@@ -345,3 +345,26 @@ Phase 4 complete
 4. 结论：
    - 官方安装指南现在不再把未发布的 package-manager 渠道伪装成可执行安装路径
    - repo-local 剩余工作继续集中在真实发布资产与 owner sign-off，而不是公开安装入口漂移
+
+## Close-out Update (2026-04-02, installation docs release-layout drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `scripts/package_release_assets.py` 与 `tests/test_package_release_assets.py` 明确约束发布资产的内容是：
+     - 根目录 `fpdev` / `fpdev.exe`
+     - 同级 `data/`
+   - `src/fpdev.paths.pas` 也明确：当可执行文件同级存在 `data/` 时会进入 portable mode
+   - 但 `docs/INSTALLATION*.md` 仍在教用户：
+     - Windows 把不存在的 `C:\\fpdev\\bin` 加到 PATH
+     - Linux/macOS 只移动 `fpdev` 到 `/usr/local/bin` 或 `~/.local/bin`
+   - 这会破坏发布资产的真实布局，导致公开安装指南与打包/运行时模型不一致
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_installation_docs_preserve_release_asset_layout`
+   - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md` 改为：
+     - 明确要求保持 `fpdev` / `fpdev.exe` 与同级 `data/` 一起解压
+     - Windows 将 `C:\\fpdev` 本身加入 PATH
+     - Linux/macOS 将完整解压目录加入 PATH，而不是只搬运单个二进制
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`59` tests OK，`1` skipped
+4. 结论：
+   - 官方安装指南现在与发布资产的真实布局、portable mode 触发条件和打包契约保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是安装布局误导

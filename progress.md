@@ -727,3 +727,42 @@
 | What's the goal? | Prevent public installation docs from advertising install channels that do not actually exist yet |
 | What have I learned? | Even after release-closeout docs are synchronized, high-traffic user guides can still carry old “planned” pathways that need explicit contract coverage |
 | What have I done? | Added regression coverage and removed unpublished package-manager commands from both installation guides |
+
+## Session: 2026-04-02 (installation docs release-layout drift)
+
+### Close-out Execution Follow-up 17
+- **Status:** complete
+- Actions taken:
+  - Compared the public installation guides against the real release packaging contract and found that the guides still broke the packaged layout by pointing Windows users to a nonexistent `bin/` directory and Unix users to workflows that move only the binary away from the bundled `data/` directory
+  - Confirmed the runtime consequence by checking `src/fpdev.paths.pas`, which treats a sibling `data/` directory as the portable-mode data root
+  - Added a failing official-docs contract proving the installation guides must preserve the packaged release layout
+  - Updated both installation guides so they now keep `fpdev` / `fpdev.exe` alongside `data/`, add the extracted directory itself to PATH, and no longer instruct users to move only the executable
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the public install instructions now match the real packaged layout
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/INSTALLATION.md`
+  - `docs/INSTALLATION.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for installation-docs release-layout drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the installation guides omitted `data/`, still referenced `C:\\fpdev\\bin`, and still moved only `fpdev` into PATH directories | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `59` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Official installation guides no longer matched the packaged release layout and would separate the executable from the bundled `data/` directory | 1 | Added an official-docs contract and rewrote the install instructions to preserve the extracted release layout and add that directory itself to PATH |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The public installation guides now match the real release-asset layout and portable-mode expectations |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep public install instructions aligned with the actual packaged release structure |
+| What have I learned? | Packaging and runtime-path semantics can drift away from high-level install docs unless the docs are explicitly constrained by tests |
+| What have I done? | Added layout-focused official-docs coverage and rewrote the install steps so users keep the release bundle intact |

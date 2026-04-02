@@ -52,21 +52,24 @@ brew install git wget
 
 ### Method 1: Pre-built Binaries (Recommended)
 
+> Keep the release layout intact: `fpdev` / `fpdev.exe` must stay next to the bundled `data/` directory so the portable release can run correctly.
+
 #### Windows
 1. Download the latest release:
    ```powershell
    # Using PowerShell
-   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
-   Expand-Archive -Path "fpdev.zip" -DestinationPath "C:\fpdev"
+   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev-windows-x64.zip"
+   New-Item -ItemType Directory -Force -Path "C:\fpdev" | Out-Null
+   Expand-Archive -Path "fpdev-windows-x64.zip" -DestinationPath "C:\fpdev" -Force
    ```
 
 2. Add to PATH:
    ```powershell
    # Temporary (current session)
-   $env:PATH += ";C:\fpdev\bin"
+   $env:PATH += ";C:\fpdev"
 
    # Permanent (requires administrator privileges)
-   [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\fpdev\bin", "Machine")
+   [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\fpdev", "Machine")
    ```
 
 3. Verify installation:
@@ -80,16 +83,12 @@ brew install git wget
    # Download
    wget https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-linux-x64.tar.gz
 
-   # Extract
-   tar -xzf fpdev-linux-x64.tar.gz
+   # Keep fpdev and data/ together
+   mkdir -p ~/.local/opt/fpdev
+   tar -xzf fpdev-linux-x64.tar.gz -C ~/.local/opt/fpdev
 
-   # Install to system directory
-   sudo mv fpdev /usr/local/bin/
-
-   # Or install to user directory
-   mkdir -p ~/.local/bin
-   mv fpdev ~/.local/bin/
-   export PATH="$HOME/.local/bin:$PATH"
+   # Add the extracted directory to PATH
+   export PATH="$HOME/.local/opt/fpdev:$PATH"
    ```
 
 2. Verify installation:
@@ -101,16 +100,19 @@ brew install git wget
 1. Download and install:
    ```bash
    # Download
-   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-x64.tar.gz
+   curl -L -o fpdev-macos-<arch>.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-<arch>.tar.gz
 
-   # Extract
-   tar -xzf fpdev-macos.tar.gz
+   # Keep fpdev and data/ together
+   mkdir -p "$HOME/Applications/fpdev"
+   tar -xzf fpdev-macos-<arch>.tar.gz -C "$HOME/Applications/fpdev"
 
-   # Install
-   sudo mv fpdev /usr/local/bin/
+   # Add the extracted directory to PATH
+   export PATH="$HOME/Applications/fpdev:$PATH"
    ```
 
-2. On first run, you may need to allow execution in "System Preferences > Security & Privacy"
+2. Replace `<arch>` with `x64` or `arm64`
+
+3. On first run, you may need to allow execution in "System Preferences > Security & Privacy"
 
 ### Method 2: Build from Source
 

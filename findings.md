@@ -394,3 +394,33 @@
 - 结论更新：
   - 官方安装指南不再宣传未发布的 package-manager 渠道，公开安装入口与当前真实发布状态重新对齐
   - repo-local 可证明的 seam 继续减少，剩余问题进一步收敛到外部资产生成与 owner 执行
+
+## Execution Update (2026-04-02, installation docs release-layout drift)
+- 在清掉 package-manager 假入口后，继续核对安装指南和真实发布资产布局时，又发现一层更实的公开文档漂移：
+  - `scripts/package_release_assets.py` 与 `tests/test_package_release_assets.py` 明确：release asset 根目录只有 `fpdev` / `fpdev.exe` 和同级 `data/`
+  - `src/fpdev.paths.pas` 也明确：若程序目录下存在 `data/`，则运行时进入 portable mode，并把该 `data/` 当作数据根
+  - 但 `docs/INSTALLATION*.md` 仍在教用户：
+    - Windows 将 `C:\\fpdev\\bin` 加入 PATH（发布资产里根本没有 `bin/`）
+    - Linux/macOS 只把单个 `fpdev` 搬到 `/usr/local/bin` 或 `~/.local/bin`
+- 这个问题的影响：
+  - Windows 指南指向了不存在的路径
+  - Linux/macOS 指南会把可执行文件与它期望的同级 `data/` 目录拆散
+  - 结果是公开安装文档与真实打包布局、portable mode 触发条件、运行时数据根模型互相打架
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_installation_docs_preserve_release_asset_layout` 直接暴露出：
+    - 文档未提 `data/`
+    - 仍保留 `C:\\fpdev\\bin`
+    - 仍保留 `sudo mv fpdev /usr/local/bin/` / `mv fpdev ~/.local/bin/`
+- 已实施的最小修复：
+  - `docs/INSTALLATION.md` / `docs/INSTALLATION.en.md`：补入显式说明，要求保持 `fpdev` / `fpdev.exe` 与同级 `data/` 目录一起部署
+  - Windows：改为把 `C:\\fpdev` 本身加入 PATH
+  - Linux：改为把完整解压目录（含 `data/`）加入 PATH
+  - macOS：改为把完整解压目录（含 `data/`）加入 PATH，并同时支持 `x64` / `arm64` 资产名
+  - `tests/test_official_docs_cli_contract.py`：补齐对应布局契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`59` tests OK，`1` skipped
+- 结论更新：
+  - 官方安装指南现在与真实 release asset layout、portable mode 路径语义和打包契约保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更明确地落在外部发布资产和 owner 执行上

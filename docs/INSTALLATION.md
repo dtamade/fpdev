@@ -52,21 +52,24 @@ brew install git wget
 
 ### 方法一：预编译二进制文件 (推荐)
 
+> 保持发布资产的解压布局不变：`fpdev` / `fpdev.exe` 必须与同级 `data/` 目录放在一起，才能按 portable release 方式运行。
+
 #### Windows
 1. 下载最新版本:
    ```powershell
    # 使用 PowerShell
-   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
-   Expand-Archive -Path "fpdev.zip" -DestinationPath "C:\fpdev"
+   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev-windows-x64.zip"
+   New-Item -ItemType Directory -Force -Path "C:\fpdev" | Out-Null
+   Expand-Archive -Path "fpdev-windows-x64.zip" -DestinationPath "C:\fpdev" -Force
    ```
 
 2. 添加到 PATH:
    ```powershell
    # 临时添加 (当前会话)
-   $env:PATH += ";C:\fpdev\bin"
+   $env:PATH += ";C:\fpdev"
    
    # 永久添加 (需要管理员权限)
-   [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\fpdev\bin", "Machine")
+   [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\fpdev", "Machine")
    ```
 
 3. 验证安装:
@@ -80,16 +83,12 @@ brew install git wget
    # 下载
    wget https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-linux-x64.tar.gz
    
-   # 解压
-   tar -xzf fpdev-linux-x64.tar.gz
-   
-   # 安装到系统目录
-   sudo mv fpdev /usr/local/bin/
-   
-   # 或者安装到用户目录
-   mkdir -p ~/.local/bin
-   mv fpdev ~/.local/bin/
-   export PATH="$HOME/.local/bin:$PATH"
+   # 保留 fpdev 与 data/ 的相对布局
+   mkdir -p ~/.local/opt/fpdev
+   tar -xzf fpdev-linux-x64.tar.gz -C ~/.local/opt/fpdev
+
+   # 将解压目录加入 PATH
+   export PATH="$HOME/.local/opt/fpdev:$PATH"
    ```
 
 2. 验证安装:
@@ -101,16 +100,19 @@ brew install git wget
 1. 下载并安装:
    ```bash
    # 下载
-   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-x64.tar.gz
+   curl -L -o fpdev-macos-<arch>.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-<arch>.tar.gz
    
-   # 解压
-   tar -xzf fpdev-macos.tar.gz
-   
-   # 安装
-   sudo mv fpdev /usr/local/bin/
+   # 保留 fpdev 与 data/ 的相对布局
+   mkdir -p "$HOME/Applications/fpdev"
+   tar -xzf fpdev-macos-<arch>.tar.gz -C "$HOME/Applications/fpdev"
+
+   # 将解压目录加入 PATH
+   export PATH="$HOME/Applications/fpdev:$PATH"
    ```
 
-2. 首次运行可能需要在"系统偏好设置 > 安全性与隐私"中允许
+2. 将 `<arch>` 替换为 `x64` 或 `arm64`
+
+3. 首次运行可能需要在"系统偏好设置 > 安全性与隐私"中允许
 
 ### 方法二：从源码编译
 
