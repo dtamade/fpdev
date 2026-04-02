@@ -230,6 +230,18 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('UnitOutputDirectory=lib/$(TargetCPU)-$(TargetOS)', text)
         self.assertNotIn('产物输出当前保留在各测试子目录的 bin/ 与 lib/ 下', text)
 
+    def test_build_manager_doc_does_not_claim_missing_demo_workflow_files(self):
+        zh_text = (REPO_ROOT / 'docs' / 'build-manager.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'build-manager.en.md').read_text(encoding='utf-8')
+
+        self.assertIn('plays/fpdev.build.manager.demo/buildOrTest.bat', zh_text)
+        self.assertIn('plays/fpdev.build.manager.demo/build-manager.strict.ini', zh_text)
+        self.assertIn('plays/fpdev.build.manager.demo', zh_text)
+
+        for text in (zh_text, en_text):
+            self.assertNotIn('.github/workflows/build-manager-demo.yml', text)
+            self.assertNotIn('.github/workflows/build-manager-demo-linux.yml', text)
+
     def test_libgit2_integration_docs_reference_existing_repo_artifacts(self):
         zh_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.en.md').read_text(encoding='utf-8')

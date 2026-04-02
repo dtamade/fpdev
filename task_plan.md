@@ -1047,3 +1047,21 @@ Phase 4 complete
 4. 结论：
    - `docs/testing.md` 现在使用当前维护中的 suite runner 调用方式
    - official-doc contract 已覆盖 testing guide 中的 runner 示例漂移
+
+## Close-out Update (2026-04-03, build-manager doc workflow-artifact drift)
+1. 新发现的 official-doc seam：
+   - `docs/build-manager.md` 在 CI 示例段把 `.github/workflows/build-manager-demo.yml` 与 `.github/workflows/build-manager-demo-linux.yml` 写成仓库中的示例文件
+   - 但当前仓库 `.github/workflows/` 下只有 `ci.yml`，BuildManager demo 实际存在的工件是 `plays/fpdev.build.manager.demo/buildOrTest.bat`、`plays/fpdev.build.manager.demo/buildOrTest.sh`、`plays/fpdev.build.manager.demo/build-manager.strict.ini`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py`：
+     - 新增 `test_build_manager_doc_does_not_claim_missing_demo_workflow_files`
+   - `docs/build-manager.md`：
+     - 将 workflow “文件：...” 描述改为“文档内联 YAML 示例”
+     - 明确当前已检入的 demo 工件路径
+     - 补充可参考 `.github/workflows/ci.yml` 的 artifact 上传方式，而不是虚构专用 workflow 文件
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `35` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`110` tests OK，`1` skipped
+4. 结论：
+   - `docs/build-manager.md` 不再把未检入的 workflow 文件写成仓库事实
+   - official-doc contract 继续把“技术专题文档中的路径存在性”自动化约束住

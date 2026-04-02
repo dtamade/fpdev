@@ -1532,3 +1532,32 @@
 - 结论更新：
   - `docs/testing.md` 已回到当前 suite runner 真相
   - docs-contract cleanup 继续从“命令面漂移”推进到“调用方式漂移”
+
+## Execution Update (2026-04-03, build-manager doc workflow-artifact drift)
+- 新发现的 repo-local seam：
+  - `docs/build-manager.md` 在 CI/GitHub Actions 段明确宣称存在 `.github/workflows/build-manager-demo.yml` 与 `.github/workflows/build-manager-demo-linux.yml`
+  - 但当前 `.github/workflows/` 目录只有 `ci.yml`
+  - BuildManager demo 当前真正存在的仓库工件只有 `plays/fpdev.build.manager.demo/buildOrTest.bat`、`plays/fpdev.build.manager.demo/buildOrTest.sh`、`plays/fpdev.build.manager.demo/build-manager.strict.ini`
+- 当前 repo truth：
+  - `.github/workflows/ci.yml`：仓库当前唯一已检入 workflow
+  - `plays/fpdev.build.manager.demo/buildOrTest.bat`：Windows demo runner
+  - `plays/fpdev.build.manager.demo/buildOrTest.sh`：POSIX demo runner
+  - `plays/fpdev.build.manager.demo/build-manager.strict.ini`：严格模式模板
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增 official-doc 契约直接暴露出：
+    - 文档仍包含 `.github/workflows/build-manager-demo.yml`
+    - 文档仍包含 `.github/workflows/build-manager-demo-linux.yml`
+- 已实施的最小修复：
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 build-manager workflow-artifact 存在性契约
+  - `docs/build-manager.md`：
+    - 将虚构的 “文件：...” 行改成“以下 YAML 为文档内联示例”
+    - 明确当前仓库已检入的 demo 脚本与 strict 配置路径
+    - 改为指向真实存在的 `.github/workflows/ci.yml` 作为 artifact 上传写法参考
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`35` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`110` tests OK，`1` skipped
+- 结论更新：
+  - build-manager 专题文档已不再把不存在的 workflow 文件包装成 repo 事实
+  - docs-contract cleanup 继续向“路径存在性”这类高误导性文档漂移收口

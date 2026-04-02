@@ -2122,3 +2122,40 @@
 | What's the goal? | Keep the testing guide aligned with the maintained runner entrypoints so copy-paste instructions stay valid |
 | What have I learned? | Even when a document already references the right scripts, the invocation style can still drift; explicit command-path assertions are useful for that class of issue |
 | What have I done? | Added a new testing-guide runner assertion, updated `docs/testing.md`, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-03 (build-manager doc workflow-artifact drift)
+
+### Close-out Execution Follow-up 52
+- **Status:** complete
+- Actions taken:
+  - Continued to the next nearby official-doc seam in `docs/build-manager.md`, where the CI section still presented two nonexistent `build-manager-demo*.yml` workflow files as if they were checked into the repo
+  - Re-verified the current source of truth from `.github/workflows/ci.yml` and the existing demo artifacts under `plays/fpdev.build.manager.demo/`
+  - Added one focused official-doc contract for stale workflow-file claims in the build-manager doc
+  - Reworded the CI section to mark the YAML as inline documentation examples and point readers to the actual demo scripts/config plus the real `ci.yml` reference pattern
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/build-manager.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for build-manager workflow drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `docs/build-manager.md` still advertised `.github/workflows/build-manager-demo.yml` and `.github/workflows/build-manager-demo-linux.yml` as if those files existed | Observed |
+| Focused official-doc verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `35` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `110` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-03 | The build-manager doc still named two nonexistent workflow files, which could send contributors searching for repo artifacts that are not checked in | 1 | Added a focused official-doc contract and rewrote the section to distinguish inline YAML examples from actual checked-in demo artifacts |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The build-manager technical doc is now under official-doc contract for workflow-file path claims |
+| Where am I going? | Commit and push this checkpoint, then continue to the next uncovered doc seam with the updated 110-test baseline |
+| What's the goal? | Keep technical docs from turning inline examples into fake repository file contracts |
+| What have I learned? | Path-existence drift is especially dangerous in CI examples because it looks authoritative and is easy to cargo-cult into automation |
+| What have I done? | Added one build-manager path-existence assertion, rewrote the CI section wording, and re-verified the full docs/release/CI bundle |

@@ -113,10 +113,12 @@
 
 ## CI/GitHub Actions 示例（自托管 Windows 运行器）
 - 场景：Windows 自托管 Runner（已安装 FPC/Lazarus），直接调用 demo 并收集日志产物
-- 文件：.github/workflows/build-manager-demo.yml（示例）
+- 说明：以下 YAML 为文档内联示例；仓库当前未单独检入 BuildManager 专用 workflow 文件
+- 当前可直接复用的 demo 工件：`plays/fpdev.build.manager.demo/buildOrTest.bat`、`plays/fpdev.build.manager.demo/buildOrTest.sh`、`plays/fpdev.build.manager.demo/build-manager.strict.ini`
+- 若需落地为仓库 workflow，可参考现有 `.github/workflows/ci.yml` 的 artifact 上传方式并调用上述 demo 工件
 
 - 场景：Linux 自托管 Runner（已安装 FPC），调用 shell 脚本并收集日志产物
-- 文件：.github/workflows/build-manager-demo-linux.yml（示例）
+- 说明：Linux/macOS 示例同样仅以内联 YAML 展示，不对应仓库中的已检入 workflow 文件
 
 ```yaml
 name: BuildManager Demo (Self-hosted Windows)
