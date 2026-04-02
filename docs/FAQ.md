@@ -223,13 +223,13 @@ fpdev fpc install 3.2.2
 
 ### Q: 如何清理 FPC 源码构建产物？
 
-**A**: 
+**A**: 当前 CLI 还没有单独的 `fpdev fpc clean` 子命令。
+
+如果需要回收源码构建产物，请直接清理 `<data-root>/sources/fpc/fpc-3.2.2` 下的本地构建目录；之后若需要重建，再重新运行：
 
 ```bash
-fpdev fpc clean 3.2.2
+fpdev fpc install 3.2.2 --from-source
 ```
-
-这会删除编译产物，但保留源码仓库。
 
 ### Q: 如何更新 FPC 源码？
 

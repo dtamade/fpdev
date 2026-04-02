@@ -1622,3 +1622,34 @@
 - 结论更新：
   - architecture review 文档现在至少不会把不存在的文件/类型误报成当前代码现实
   - docs-contract cleanup 继续向“设计/评审类开发文档”推进
+
+## Execution Update (2026-04-03, official FPC source-maintenance doc drift)
+- 新发现的 repo-local seam：
+  - `docs/FAQ.md` / `docs/FAQ.en.md` / `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md` 仍把 `fpdev fpc clean` 写成当前可执行命令
+  - 但当前 live CLI 只暴露 `fpdev fpc update` 作为 FPC 源码维护入口
+- 当前 repo truth：
+  - `src/fpdev.command.imports.fpc.pas`：聚合了 `fpdev.cmd.fpc.update`，没有 `fpdev.cmd.fpc.clean`
+  - `src/fpdev.help.catalog.pas`、`src/fpdev.help.details.fpc.pas`、`src/fpdev.i18n.strings.pas`：FPC 帮助面包含 `update`，不包含 `clean`
+  - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev`：FPC 顶层 completion 只有 `update`；`clean` 只出现在 `fpdev fpc cache clean`
+- RED / correction evidence：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 首次失败
+  - 失败不是 repo truth 被推翻，而是新契约过宽，把文档里“该命令不存在”的解释性文字也误判成违规
+  - 随后将契约收紧为：
+    - 禁止 `fpdev fpc clean 3.2.2`
+    - 禁止 `` `fpdev fpc clean <version>` ``
+    - 要求文档显式说明该子命令当前不存在
+- 已实施的最小修复：
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 FPC source-maintenance 文档契约
+  - `docs/FAQ.md` / `docs/FAQ.en.md`：
+    - 删除假的 `fpdev fpc clean 3.2.2` 示例
+    - 改成手工清理 `<data-root>/sources/fpc/fpc-3.2.2` 本地构建目录 + 需要时重新 `--from-source` 构建的说明
+  - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md`：
+    - 源码维护段只保留 `fpdev fpc update 3.2.2`
+    - 增补“当前 CLI does not expose a dedicated `fpdev fpc clean` subcommand”的说明
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`36` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`113` tests OK，`1` skipped
+- 结论更新：
+  - 官方 FPC 文档不再把未注册的 `fpc clean` 工作流写成当前能力
+  - 契约层也吸取了这次经验：禁止“可执行示例/工作流 claim”，但允许“该命令不存在”的解释性说明

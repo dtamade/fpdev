@@ -138,6 +138,21 @@ class OfficialDocsCliContractTests(unittest.TestCase):
                     offenders.append((path.relative_to(REPO_ROOT), lineno, line.strip()))
         self.assertEqual([], offenders, f'Found stale binary-install roadmap language in FPC management docs: {offenders}')
 
+    def test_fpc_source_maintenance_docs_do_not_advertise_missing_clean_command(self):
+        docs = {
+            REPO_ROOT / 'docs' / 'FAQ.md': '当前 CLI 还没有单独的 `fpdev fpc clean` 子命令。',
+            REPO_ROOT / 'docs' / 'FAQ.en.md': 'does not expose a dedicated `fpdev fpc clean` subcommand.',
+            REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.md': '当前 CLI 还没有单独的 `fpdev fpc clean` 子命令',
+            REPO_ROOT / 'docs' / 'FPC_MANAGEMENT.en.md': 'does not expose a dedicated `fpdev fpc clean` subcommand',
+        }
+
+        for path, expected_notice in docs.items():
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('fpdev fpc update 3.2.2', text)
+            self.assertIn(expected_notice, text)
+            self.assertNotIn('fpdev fpc clean 3.2.2', text, f'Found unsupported `fpdev fpc clean` example in {path.relative_to(REPO_ROOT)}')
+            self.assertNotIn('`fpdev fpc clean <version>`', text, f'Found unsupported `fpdev fpc clean` workflow guidance in {path.relative_to(REPO_ROOT)}')
+
     def test_installation_docs_do_not_advertise_unpublished_package_manager_channels(self):
         offenders = []
         for path in [

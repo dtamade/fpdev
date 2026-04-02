@@ -223,13 +223,13 @@ This keeps the project's toolchains, cache, and config isolated under the curren
 
 ### Q: How do I clean FPC source build artifacts?
 
-**A**:
+**A**: The current CLI does not expose a dedicated `fpdev fpc clean` subcommand.
+
+If you need to reclaim space, clean local build artifacts directly under `<data-root>/sources/fpc/fpc-3.2.2`; when you need the build again, rerun:
 
 ```bash
-fpdev fpc clean 3.2.2
+fpdev fpc install 3.2.2 --from-source
 ```
-
-This removes compiled artifacts but keeps the source repository.
 
 ### Q: How do I update FPC source code?
 

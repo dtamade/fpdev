@@ -1101,3 +1101,28 @@ Phase 4 complete
 4. 结论：
    - `docs/ARCHITECTURE_REVIEW.md` 不再把已经消失或从未存在的命名当成当前代码事实
    - developer-doc contract 已开始覆盖“设计评审文档中的真实符号/路径存在性”
+
+## Close-out Update (2026-04-03, official FPC source-maintenance doc drift)
+1. 新发现的 official-doc seam：
+   - `docs/FAQ.md` / `docs/FAQ.en.md` / `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md` 仍把 `fpdev fpc clean` 当成可执行工作流
+   - 但 live CLI surface 只暴露 `fpdev fpc update`，没有 `fpc clean` 子命令
+2. 当前 repo truth：
+   - `src/fpdev.command.imports.fpc.pas` 聚合了 `fpdev.cmd.fpc.update`，没有 `fpdev.cmd.fpc.clean`
+   - `src/fpdev.help.catalog.pas`、`src/fpdev.help.details.fpc.pas`、`src/fpdev.i18n.strings.pas` 的 FPC 子命令帮助面包含 `update`，不包含 `clean`
+   - `scripts/completions/fpdev.bash` 与 `scripts/completions/_fpdev` 也都只把 `clean` 暴露在 `fpdev fpc cache clean`，而不是 `fpdev fpc clean`
+3. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py`：
+     - 新增 FPC source-maintenance 契约，要求官方文档不得把 `fpdev fpc clean` 写成可执行示例或 `<version>` 工作流
+     - 同时要求相关文档明确说明该子命令当前并不存在
+   - `docs/FAQ.md` / `docs/FAQ.en.md`：
+     - 将“如何清理 FPC 源码构建产物”改成当前真实说明
+     - 去掉假的 CLI 示例，改成手工清理 `<data-root>/sources/fpc/...` 的说明与重建提示
+   - `docs/FPC_MANAGEMENT.md` / `docs/FPC_MANAGEMENT.en.md`：
+     - 源码维护段只保留真实存在的 `fpdev fpc update`
+     - 增补“当前无 dedicated `fpdev fpc clean` subcommand”的说明
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：一次过宽契约修正后，最终 `36` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`113` tests OK，`1` skipped
+5. 结论：
+   - 官方文档的 FPC 源码维护说明已经重新对齐 live CLI surface
+   - docs-contract cleanup 继续把“历史实现计划残留到公开文档”的 seam 自动化收口

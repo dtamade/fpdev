@@ -83,14 +83,11 @@ fpdev fpc test 3.2.2
 ```bash
 # 更新源码
 fpdev fpc update 3.2.2
-
-# 清理源码构建产物
-fpdev fpc clean 3.2.2
 ```
 
 - `fpdev fpc update <version>` 会使用 FPDev 的 Git 运行时更新源码仓库。
 - 如果源码目录是本地仓库且没有配置 remote，命令会报告 local-only，并保持成功退出。
-- `fpdev fpc clean <version>` 只清理构建产物，保留源码仓库本身。
+- 当前 CLI 还没有单独的 `fpdev fpc clean` 子命令；如果需要回收源码树里的构建产物，请直接清理 `<data-root>/sources/fpc/fpc-<version>` 下的本地构建目录。
 
 ## 安装流程
 

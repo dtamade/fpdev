@@ -2233,3 +2233,43 @@
 | What's the goal? | Keep design-review documentation grounded in the actual code that exists today, not in old or hypothetical symbol names |
 | What have I learned? | Architecture review docs can drift just as badly as user docs; once they cite nonexistent symbols as “current,” they actively damage code navigation and design discussions |
 | What have I done? | Added one architecture-review symbol-existence assertion, corrected the stale naming examples, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-03 (official FPC source-maintenance doc drift)
+
+### Close-out Execution Follow-up 55
+- **Status:** complete
+- Actions taken:
+  - Continued into the next public-doc seam and verified that the live FPC CLI surface exposes `update` but not `clean`, using `src/fpdev.command.imports.fpc.pas`, FPC help surfaces, and both shell completion scripts
+  - Added a focused official-doc contract for FPC source-maintenance guidance in FAQ/FPC management docs
+  - Updated the affected docs to stop advertising `fpdev fpc clean` as a runnable command and replaced that guidance with an explicit “no dedicated subcommand” note plus manual cleanup/rebuild wording
+  - Narrowed the new contract after the first focused run showed it was also matching explanatory “this command does not exist” prose
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/FAQ.md`
+  - `docs/FAQ.en.md`
+  - `docs/FPC_MANAGEMENT.md`
+  - `docs/FPC_MANAGEMENT.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Focused official-doc verification (attempt 1) | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass after initial edit | failed because the first contract version also matched explanatory “`fpdev fpc clean` does not exist” prose | FAIL |
+| Focused official-doc verification (final) | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `36` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `113` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-03 | The first `fpc clean` docs contract over-banned any mention of the string and therefore also rejected the new explanatory “no such subcommand” prose | 1 | Tightened the assertion to reject runnable examples/workflow claims only, while requiring an explicit unsupported-command notice |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The official FPC source-maintenance docs are now under contract for the missing `fpc clean` command seam |
+| Where am I going? | Commit and push this checkpoint, then continue to the next uncovered public-doc seam beyond FPC source-maintenance |
+| What's the goal? | Keep public CLI docs aligned with the live registered command surface so users never get copy-paste instructions for commands that do not exist |
+| What have I learned? | For negative capability docs, the contract has to distinguish between “advertising a command” and “explicitly stating that the command is unsupported” |
+| What have I done? | Verified the live FPC command surface, added a new official-doc contract, corrected FAQ/FPC management guidance, and re-verified the 113-test docs/release/CI bundle |

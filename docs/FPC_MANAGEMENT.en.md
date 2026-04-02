@@ -83,14 +83,11 @@ fpdev fpc test 3.2.2
 ```bash
 # Update source code
 fpdev fpc update 3.2.2
-
-# Clean source build artifacts
-fpdev fpc clean 3.2.2
 ```
 
 - `fpdev fpc update <version>` updates the source repository through FPDev's Git runtime.
 - If the source directory is a local-only repository with no remote configured, the command reports that state and still exits successfully.
-- `fpdev fpc clean <version>` removes build artifacts but keeps the source repository itself.
+- The current CLI does not expose a dedicated `fpdev fpc clean` subcommand; if you need to reclaim space, clean local build artifacts directly under `<data-root>/sources/fpc/fpc-<version>`.
 
 ## Installation Workflow
 
