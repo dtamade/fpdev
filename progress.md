@@ -2196,3 +2196,40 @@
 | What's the goal? | Keep contributor-facing build examples aligned with the repository’s standard clean rebuild workflow |
 | What have I learned? | Partial doc cleanup is not enough; once a document contains both old and new command forms, contributors will copy the shortest one unless the contract forbids it |
 | What have I done? | Added one WARP clean-build assertion, rewrote the remaining plain `lazbuild` examples, and re-verified the full docs/release/CI bundle |
+
+## Session: 2026-04-03 (architecture-review nonexistent-symbol drift)
+
+### Close-out Execution Follow-up 54
+- **Status:** complete
+- Actions taken:
+  - Continued into the developer-doc layer and isolated an uncovered seam in `docs/ARCHITECTURE_REVIEW.md`, which still described several nonexistent files and interface names as if they were current codebase facts
+  - Re-verified the current source of truth from `src/fpdev.command.intf.pas`, `src/fpdev.command.context.pas`, `src/fpdev.config.interfaces.pas`, `src/fpdev.config.core.pas`, and the live Git stack files
+  - Added one focused developer-doc contract for nonexistent-symbol drift in the architecture review doc
+  - Rewrote the affected sections to use the real `IContext` / `ICommand` / `IConfigManager` / `TConfigManager` / `git2.api + git2.impl + libgit2` naming surface
+- Files created/modified:
+  - `tests/test_developer_docs_cli_contract.py`
+  - `docs/ARCHITECTURE_REVIEW.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for architecture-review symbol drift | `python3 -m unittest -v tests.test_developer_docs_cli_contract` | fail before fix | failed because `docs/ARCHITECTURE_REVIEW.md` still named nonexistent files/types such as `fpdev.cmd.fpc.root2.pas`, `IFpdevCommand`, and `ICommandContext` as current codebase reality | Observed |
+| Focused developer-doc verification | `python3 -m unittest -v tests.test_developer_docs_cli_contract` | pass | `3` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `112` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-03 | `docs/ARCHITECTURE_REVIEW.md` still treated removed or nonexistent file/type names as current architecture facts, weakening trust in the developer-facing review document | 1 | Added a focused developer-doc assertion and rewrote the affected naming examples to the live command/config/git surfaces |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | `docs/ARCHITECTURE_REVIEW.md` is now under developer-doc contract for current symbol/path existence |
+| Where am I going? | Commit and push this developer-doc checkpoint, then continue to the next uncovered seam with the updated 112-test baseline |
+| What's the goal? | Keep design-review documentation grounded in the actual code that exists today, not in old or hypothetical symbol names |
+| What have I learned? | Architecture review docs can drift just as badly as user docs; once they cite nonexistent symbols as “current,” they actively damage code navigation and design discussions |
+| What have I done? | Added one architecture-review symbol-existence assertion, corrected the stale naming examples, and re-verified the full docs/release/CI bundle |

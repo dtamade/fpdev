@@ -1083,3 +1083,21 @@ Phase 4 complete
 4. 结论：
    - `WARP.md` 现在不再把裸 `lazbuild` 示例包装成仓库标准构建命令
    - contributor-doc contract 已继续向“构建命令一致性”收口
+
+## Close-out Update (2026-04-03, architecture-review nonexistent-symbol drift)
+1. 新发现的 developer-doc seam：
+   - `docs/ARCHITECTURE_REVIEW.md` 把 `fpdev.cmd.fpc.root2.pas`、`IFpdevCommand`、`ICommandContext`、`fpdev.command.interface.pas`、`fpdev.git.adapter.pas`、`fpdev.git.bindings.pas` 这类仓库中不存在的文件/类型当成“当前现状”或示例命名
+   - 但当前仓库真实命名已经收敛到 `ICommand` / `IContext` / `IConfigManager` / `TConfigManager`，命令接口文件是 `src/fpdev.command.intf.pas`，Git 分层则是 `src/fpdev.git2.pas`、`src/git2.api.pas`、`src/git2.impl.pas`、`src/libgit2.pas`
+2. 已完成的最小修复：
+   - `tests/test_developer_docs_cli_contract.py`：
+     - 新增 `test_architecture_review_doc_does_not_claim_nonexistent_symbols_as_current`
+   - `docs/ARCHITECTURE_REVIEW.md`：
+     - 删除不存在的文件/类型名
+     - 将上下文接口示例统一为真实存在的 `IContext`
+     - 将命令/配置/Git 模块示例统一到当前实际命名
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_developer_docs_cli_contract`：先 RED，修复后 `3` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`112` tests OK，`1` skipped
+4. 结论：
+   - `docs/ARCHITECTURE_REVIEW.md` 不再把已经消失或从未存在的命名当成当前代码事实
+   - developer-doc contract 已开始覆盖“设计评审文档中的真实符号/路径存在性”

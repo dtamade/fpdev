@@ -4,6 +4,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_DOC = REPO_ROOT / 'CLAUDE.md'
+ARCHITECTURE_REVIEW_DOC = REPO_ROOT / 'docs' / 'ARCHITECTURE_REVIEW.md'
 
 
 class DeveloperDocsCliContractTests(unittest.TestCase):
@@ -39,6 +40,18 @@ class DeveloperDocsCliContractTests(unittest.TestCase):
         self.assertIn('bash scripts/run_all_tests.sh', text)
         self.assertIn('bash scripts/run_single_test.sh tests/test_config_management.lpr', text)
         self.assertNotIn('python3 -m pytest tests -q', text)
+
+    def test_architecture_review_doc_does_not_claim_nonexistent_symbols_as_current(self):
+        text = ARCHITECTURE_REVIEW_DOC.read_text(encoding='utf-8')
+
+        self.assertIn('fpdev.git2.pas vs git2.api.pas vs libgit2.pas', text)
+        self.assertIn('TFPDevConfigManager', text)
+        self.assertNotIn('fpdev.cmd.fpc.root2.pas', text)
+        self.assertNotIn('IFpdevCommand', text)
+        self.assertNotIn('ICommandContext', text)
+        self.assertNotIn('fpdev.command.interface.pas', text)
+        self.assertNotIn('fpdev.git.adapter.pas', text)
+        self.assertNotIn('fpdev.git.bindings.pas', text)
 
 
 if __name__ == '__main__':

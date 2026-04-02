@@ -22,11 +22,9 @@ FPDev has a solid foundation with good separation of concerns and command patter
 
 ```
 ❌ Current inconsistencies:
-- fpdev.cmd.fpc.root.pas
-- fpdev.cmd.fpc.root2.pas  (Why "root2"?)
 - fpdev.git2.pas vs git2.api.pas vs libgit2.pas
-- IFpdevCommand vs ICommandContext (Fpdev prefix inconsistency)
-- TFPDevConfigManager vs TFPDevConfig
+- fpdev.command.intf.pas (ICommand/IContext) vs command-specific root units
+- TFPDevConfigManager (compatibility wrapper) vs IConfigManager/TConfigManager
 ```
 
 **Impact**: 
@@ -39,22 +37,20 @@ FPDev has a solid foundation with good separation of concerns and command patter
 ```pascal
 // Standardize on consistent patterns:
 
-// 1. Interface naming: Always use I prefix, consistent case
-ICommand      // NOT IFpdevCommand
-IContext      // NOT ICommandContext
+// 1. Interface naming: keep current live interface names
+ICommand
+IContext
 
-// 2. Class naming: Use T prefix + descriptive name
-TConfigManager    // NOT TFPDevConfigManager
+// 2. Class naming: use the current interface/core split in new code
+IConfigManager
+TConfigManager    // keep TFPDevConfigManager only as a compatibility wrapper
 TCommandRegistry  // OK
 
-// 3. Module naming: Consistent hierarchy
-fpdev.command.interface.pas   // NOT fpdev.command.intf.pas
-fpdev.git.adapter.pas          // NOT fpdev.git2.pas
-fpdev.git.bindings.pas         // NOT libgit2.pas
-
-// 4. Remove duplicate roots
-// Delete: fpdev.cmd.fpc.root2.pas
-// Consolidate into: fpdev.cmd.fpc.root.pas
+// 3. Module naming: document the current layered relationship explicitly
+fpdev.command.intf.pas        // command interfaces
+git2.api.pas + git2.impl.pas  // interface-first Git adapter layer
+fpdev.git2.pas                // OO compatibility wrapper
+libgit2.pas                   // C bindings
 ```
 
 ---
@@ -165,54 +161,50 @@ end;
 
 ---
 
-### 1.3 Weak Interface Design: ICommandContext
+### 1.3 Context Interface Evolution: IContext
 
-**Problem**: Interface too minimal, forces tight coupling
+**Problem**: The current context interface is already interface-based, but still centralizes several responsibilities and leaves future extension points implicit.
 
 ```pascal
-// Current: Only 2 methods!
-ICommandContext = interface
-  function Config: TFPDevConfigManager;  // ❌ Returns concrete class!
+// Current: Small but real interface-based context
+IContext = interface
+  function Config: IConfigManager;
+  function Out: IOutput;
+  function Err: IOutput;
+  function Logger: ILogger;
   procedure SaveIfModified;
 end;
 ```
 
 **Issues**:
-1. Returns concrete class instead of interface (breaks DIP)
-2. No access to other context like output, logging, environment
-3. Hard to mock for testing
-4. Commands are tightly coupled to TFPDevConfigManager
+1. Environment / working-directory concerns still need ad-hoc plumbing
+2. Service discovery is not modeled explicitly
+3. Cross-cutting context concerns can still accumulate here over time
+4. Legacy code paths still route through `TFPDevConfigManager` in some places
 
 **Proposed Solution**: Rich, interface-based context
 
 ```pascal
-ICommandContext = interface
+IContext = interface
   ['{...}']
   
-  // Configuration (interface, not concrete class)
+  // Current live surface
   function Config: IConfigManager;
+  function Out: IOutput;
+  function Err: IOutput;
+  function Logger: ILogger;
   
-  // Output & Logging
-  function Output: IOutputWriter;  // For user messages
-  function Logger: ILogger;        // For debugging
-  
-  // Environment
-  function Environment: IEnvironment;  // Env vars, paths, etc.
-  
-  // Working directory
+  // Possible future extensions
   function WorkingDirectory: string;
   function SetWorkingDirectory(const APath: string): Boolean;
-  
-  // Services (dependency injection)
   function GetService(const AGuid: TGUID): IInterface;
   
-  // Lifecycle
   procedure SaveIfModified;
   function IsModified: Boolean;
 end;
 
 // Commands now depend on abstraction, not concretions
-procedure TRepoAddCommand.Execute(const AParams: array of string; const Ctx: ICommandContext);
+procedure TRepoAddCommand.Execute(const AParams: array of string; const Ctx: IContext);
 var
   RepoMgr: IRepositoryManager;
 begin
@@ -221,7 +213,7 @@ begin
   
   if RepoMgr.Add(AParams[0], AParams[1]) then
   begin
-    Ctx.Output.Success('Repository added: ' + AParams[0]);
+    Ctx.Out.WriteSuccess('Repository added: ' + AParams[0]);
     Ctx.SaveIfModified;
   end;
 end;
@@ -380,7 +372,7 @@ function GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
 function GetRepository(const AName: string): string;  // '' = not found?
 
 // Some use exceptions
-procedure Execute(const AParams: array of string; const Ctx: ICommandContext);
+procedure Execute(const AParams: array of string; const Ctx: IContext);
   // May raise exception?
 ```
 
@@ -430,18 +422,17 @@ end;
 
 ### 3.1 Missing Builder/Factory Patterns
 
-**Problem**: Complex object construction scattered
+**Problem**: Complex object construction is still easy to scatter outside dedicated helpers
 
 ```pascal
 // Current: Manual construction everywhere
 var
   Ctx: TDefaultCommandContext;
 begin
-  Ctx := TDefaultCommandContext.Create;
+  Ctx := TDefaultCommandContext.Create('');
   try
-    Ctx.Config := TFPDevConfigManager.Create('');
-    Ctx.Config.LoadConfig;
-    // ...
+    // Context owns an IConfigManager rooted at the active config path
+    Ctx.SaveIfModified;
   finally
     Ctx.Free;
   end;
@@ -455,16 +446,16 @@ end;
 TContextBuilder = class
 private
   FConfigPath: string;
-  FOutputWriter: IOutputWriter;
+  FOutputWriter: IOutput;
 public
   function WithConfigPath(const APath: string): TContextBuilder;
-  function WithOutput(const AOutput: IOutputWriter): TContextBuilder;
-  function Build: ICommandContext;
+  function WithOutput(const AOutput: IOutput): TContextBuilder;
+  function Build: IContext;
 end;
 
 // Usage
 var
-  Ctx: ICommandContext;
+  Ctx: IContext;
 begin
   Ctx := TContextBuilder.Create
     .WithConfigPath('test.json')
@@ -557,7 +548,7 @@ Good use of conditional compilation and path helpers.
 ### Phase 1: Foundation (1-2 weeks)
 1. ✅ Standardize naming conventions across all files
 2. ✅ Split TFPDevConfigManager into focused managers
-3. ✅ Enhance ICommandContext interface
+3. ✅ Enhance IContext interface
 
 ### Phase 2: Interfaces (1 week)
 4. ✅ Create interfaces for all core types
@@ -585,8 +576,12 @@ IConfigManager = interface
   // New interface
 end;
 
-TFPDevConfigManager = class(TInterfacedObject, IConfigManager)
-  // Implement interface while keeping old methods
+TConfigManager = class(TInterfacedObject, IConfigManager)
+  // Core implementation
+end;
+
+TFPDevConfigManager = class
+  // Compatibility wrapper around IConfigManager / TConfigManager
 end;
 ```
 
@@ -628,7 +623,7 @@ end;
 // ✅ AFTER: Interface-based, clear errors, better structure
 procedure AddRepo(const AName, AURL: string);
 var
-  Context: ICommandContext;
+  Context: IContext;
   RepoMgr: IRepositoryManager;
   Error: TOperationError;
 begin
@@ -643,10 +638,10 @@ begin
   if Error.IsSuccess then
   begin
     Context.SaveIfModified;
-    Context.Output.Success('Repository added: ' + AName);
+    Context.Out.WriteSuccess('Repository added: ' + AName);
   end
   else
-    Context.Output.Error('Failed to add repository', Error);
+    Context.Err.WriteError('Failed to add repository: ' + Error.Message);
 end;
 ```
 
@@ -679,7 +674,7 @@ Interfaces:       I<Name>           (ICommand, IContext, IConfig)
 Classes:          T<Name>           (TCommand, TContext, TConfig)
 Records:          T<Name>           (TToolchainInfo)
 Enums:            T<Name>           (TOperationResult)
-Module files:     <project>.<path>  (fpdev.command.interface.pas)
+Module files:     <project>.<path>  (fpdev.command.intf.pas)
 Constants:        UPPER_SNAKE_CASE  (DEFAULT_FPC_VERSION)
 Variables:        camelCase         (configPath, repoManager)
 Parameters:       A<Name>           (AName, APath, AConfig)

@@ -1590,3 +1590,35 @@
 - 结论更新：
   - `WARP.md` 已不再在 contributor-facing 示例里混用裸 `lazbuild`
   - docs-contract cleanup 继续把“文档已经部分修正但仍残留旧命令”这类漂移自动化收口
+
+## Execution Update (2026-04-03, architecture-review nonexistent-symbol drift)
+- 新发现的 repo-local seam：
+  - `docs/ARCHITECTURE_REVIEW.md` 仍把 `fpdev.cmd.fpc.root2.pas`、`IFpdevCommand`、`ICommandContext` 等不存在的文件/类型当成“当前不一致现状”
+  - 同一文档还把 `fpdev.command.interface.pas`、`fpdev.git.adapter.pas`、`fpdev.git.bindings.pas` 写成建议的命名基线，但这些路径在仓库里也不存在
+- 当前 repo truth：
+  - 命令接口位于 `src/fpdev.command.intf.pas`，当前接口名是 `ICommand` / `IContext`
+  - 当前上下文实现是 `src/fpdev.command.context.pas` 中的 `TDefaultCommandContext`
+  - 配置接口/实现位于 `src/fpdev.config.interfaces.pas` 与 `src/fpdev.config.core.pas`，新代码使用 `IConfigManager` / `TConfigManager`，`TFPDevConfigManager` 是兼容 wrapper
+  - Git 分层位于 `src/fpdev.git2.pas`、`src/git2.api.pas`、`src/git2.impl.pas`、`src/libgit2.pas`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_developer_docs_cli_contract` 失败
+  - 新增 developer-doc 契约直接暴露出：
+    - 文档仍包含 `fpdev.cmd.fpc.root2.pas`
+    - 仍包含 `IFpdevCommand`
+    - 仍包含 `ICommandContext`
+    - 仍包含 `fpdev.command.interface.pas`
+    - 仍包含 `fpdev.git.adapter.pas`
+    - 仍包含 `fpdev.git.bindings.pas`
+- 已实施的最小修复：
+  - `tests/test_developer_docs_cli_contract.py`：
+    - 新增 architecture-review 当前符号存在性契约
+  - `docs/ARCHITECTURE_REVIEW.md`：
+    - 将“当前不一致现状”改成当前真实存在的命名层次
+    - 将上下文接口示例统一到 `IContext`
+    - 将命令/配置/Git 命名示例统一到 `fpdev.command.intf.pas`、`IConfigManager` / `TConfigManager`、`git2.api + git2.impl + libgit2`
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_developer_docs_cli_contract`：`3` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`112` tests OK，`1` skipped
+- 结论更新：
+  - architecture review 文档现在至少不会把不存在的文件/类型误报成当前代码现实
+  - docs-contract cleanup 继续向“设计/评审类开发文档”推进
