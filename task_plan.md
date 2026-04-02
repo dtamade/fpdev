@@ -394,3 +394,27 @@ Phase 4 complete
 4. 结论：
    - 官方安装指南现在不再宣传未实现的 env toggles，也不再把 portable release 的配置/日志路径写错
    - repo-local 剩余工作进一步收敛到外部发布资产与 owner 执行，而不是安装文档和运行时路径语义失配
+
+## Close-out Update (2026-04-02, quickstart docs config/parallelism drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确：portable release 默认把 `<install-dir>/data` 当作数据根，配置路径是 `data/config.json`
+   - 同一单元也明确：受支持的数据根覆盖变量是 `FPDEV_DATA_ROOT`
+   - `src/data/config.json` 与 `tests/data/config.json` 也说明并行度来自 `settings.parallel_jobs`
+   - 但 `docs/QUICKSTART.md` 与 `docs/QUICKSTART.en.md` 仍在宣传：
+     - `~/.fpdev/config.json`
+     - `%USERPROFILE%\.fpdev\config.json`
+     - `FPDEV_PARALLEL_JOBS`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_quickstart_docs_use_supported_config_and_parallelism_guidance`
+   - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 改为：
+     - 明确 quick-start portable 场景默认配置路径是 `<install-dir>/data/config.json`
+     - 明确如需覆盖数据根，应使用 `FPDEV_DATA_ROOT`
+     - 将并行度说明改为编辑当前 `config.json` 中的 `settings.parallel_jobs`
+     - 删除不受支持的 `FPDEV_PARALLEL_JOBS` 与旧家目录配置路径叙述
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`61` tests OK，`1` skipped
+4. 结论：
+   - QUICKSTART 文档现在与运行时支持的 config/data-root 模型和并行度配置方式保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是入门文档语义漂移
+

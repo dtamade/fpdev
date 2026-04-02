@@ -240,21 +240,26 @@ my-project/
 
 ### 配置文件
 
-FPDev 会在以下位置创建配置文件：
-- **Windows**: `%USERPROFILE%\.fpdev\config.json`
-- **Linux/macOS**: `~/.fpdev/config.json`
+FPDev 会把配置文件保存在当前数据根中的 `config.json`：
+- **portable release 默认位置**: `<安装目录>/data/config.json`
+- **如果显式设置了 `FPDEV_DATA_ROOT`**: `$FPDEV_DATA_ROOT/config.json`
+
+也就是说，快速开始场景下通常直接编辑与 `fpdev` 可执行文件同级的 `data/config.json` 即可。
 
 ## 🔧 配置优化
 
 ### 性能优化
 
 ```bash
-# 设置并行编译任务数 (根据 CPU 核心数调整)
-export FPDEV_PARALLEL_JOBS=8
+# 如需把配置、缓存、日志放到其他位置，可覆盖数据根
+export FPDEV_DATA_ROOT=/fast/ssd/fpdev-data
+mkdir -p "$FPDEV_DATA_ROOT"
 
 # 启用源码缓存 (加速重复安装)
 fpdev system config set keep_sources true
 ```
+
+并行编译任务数请在当前生效的 `config.json` 中调整 `settings.parallel_jobs`，而不是依赖额外的环境变量。
 
 ### 网络优化
 

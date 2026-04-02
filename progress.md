@@ -805,3 +805,44 @@
 | What's the goal? | Keep public installation docs aligned with the runtime data-root semantics actually implemented in the code |
 | What have I learned? | Even after layout fixes, docs can still drift at the environment-variable and data-root level unless those semantics are explicitly locked by tests |
 | What have I done? | Added env/data-root coverage and rewrote the installation docs around the supported `FPDEV_DATA_ROOT` model |
+
+## Session: 2026-04-02 (quickstart docs config/parallelism drift)
+
+### Close-out Execution Follow-up 19
+- **Status:** complete
+- Actions taken:
+  - Audited the QUICKSTART guides after aligning the installation docs and found that the entry-point docs still taught the old home-directory config paths and the unsupported `FPDEV_PARALLEL_JOBS` environment variable
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where the portable default config lives at `data/config.json` and `FPDEV_DATA_ROOT` is the supported override
+  - Confirmed the parallelism model from the repository config samples, which store the value in `settings.parallel_jobs`
+  - Added a failing official-docs contract proving the QUICKSTART guides must mention `FPDEV_DATA_ROOT` and `data/config.json` while dropping the stale path strings and `FPDEV_PARALLEL_JOBS`
+  - Updated both QUICKSTART guides so they now describe the real portable config location, the supported data-root override, and the supported config-based parallelism workflow
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the quick-start docs now match the actual runtime/config contract
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/QUICKSTART.md`
+  - `docs/QUICKSTART.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart-docs config/parallelism drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the QUICKSTART guides omitted `FPDEV_DATA_ROOT`, omitted `data/config.json`, and still documented the old home-directory config paths plus `FPDEV_PARALLEL_JOBS` | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `61` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The QUICKSTART guides still documented the wrong portable config paths and the unsupported `FPDEV_PARALLEL_JOBS` override | 1 | Added a QUICKSTART-specific official-docs contract and rewrote the quick-start guidance around `data/config.json`, `FPDEV_DATA_ROOT`, and `settings.parallel_jobs` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The QUICKSTART guides now match the supported data-root and config semantics used by the runtime |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the high-traffic quick-start path aligned with the same runtime contract already enforced in the installation docs |
+| What have I learned? | Fixing installation docs is not enough if the quick-start guide still reintroduces stale config-path and env-var advice |
+| What have I done? | Added QUICKSTART contract coverage and rewrote both quick-start guides around the supported `FPDEV_DATA_ROOT` + `settings.parallel_jobs` model |
+

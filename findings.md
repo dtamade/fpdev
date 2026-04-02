@@ -460,3 +460,37 @@
 - 结论更新：
   - 官方安装指南现在与真实受支持的 env/data-root 模型一致，不再误导用户设置无效 env var
   - repo-local 可证明的 seam 进一步减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, quickstart docs config/parallelism drift)
+- 在安装文档已与运行时路径语义对齐后，继续检查高频入口文档时，又发现 QUICKSTART 仍残留一层用户最容易直接照做的漂移：
+  - `docs/QUICKSTART.md` 与 `docs/QUICKSTART.en.md` 仍把配置文件写成 `~/.fpdev/config.json` / `%USERPROFILE%\.fpdev\config.json`
+  - 还继续建议通过 `FPDEV_PARALLEL_JOBS` 调整并行编译任务数
+  - 但 `src/fpdev.paths.pas` 的真实运行时语义是：
+    - portable release 默认数据根在可执行文件同级 `data/`
+    - 配置文件路径是 `data/config.json`
+    - 唯一受支持的数据根覆盖变量是 `FPDEV_DATA_ROOT`
+  - 同时仓库中的配置样例已经把并行度固定在 `settings.parallel_jobs`
+- 这个问题的影响：
+  - 用户在最常看的 quick-start 文档里会重新学到已经在安装文档中清掉的旧路径模型
+  - 会被引导去设置源码并未消费的 `FPDEV_PARALLEL_JOBS`
+  - 结果是公开入门路径与真实 runtime/config contract 再次分叉
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_quickstart_docs_use_supported_config_and_parallelism_guidance` 直接暴露出：
+    - QUICKSTART 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `data/config.json`
+    - 仍保留旧 home-path 配置位置与 `FPDEV_PARALLEL_JOBS`
+- 已实施的最小修复：
+  - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+    - 配置文件段改为说明 quick-start portable 场景默认使用 `<install-dir>/data/config.json`
+    - 增加 `FPDEV_DATA_ROOT` 覆盖数据根示例
+    - 性能优化段改为提示通过当前 `config.json` 的 `settings.parallel_jobs` 调整并行度
+    - 删除不受支持的旧家目录配置路径与 `FPDEV_PARALLEL_JOBS` 示例
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 QUICKSTART 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`61` tests OK，`1` skipped
+- 结论更新：
+  - QUICKSTART 文档现在也与受支持的 data-root/config 语义和并行度配置方式保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+

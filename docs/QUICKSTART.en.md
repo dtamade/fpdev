@@ -240,21 +240,26 @@ my-project/
 
 ### Configuration Files
 
-FPDev creates configuration files in these locations:
-- **Windows**: `%USERPROFILE%\.fpdev\config.json`
-- **Linux/macOS**: `~/.fpdev/config.json`
+FPDev stores its configuration file as `config.json` under the active data root:
+- **Default portable release location**: `<install-dir>/data/config.json`
+- **If `FPDEV_DATA_ROOT` is set explicitly**: `$FPDEV_DATA_ROOT/config.json`
+
+In other words, for the quick-start portable setup you will usually edit `data/config.json` next to the `fpdev` executable.
 
 ## 🔧 Configuration Optimization
 
 ### Performance Optimization
 
 ```bash
-# Set parallel compilation jobs (adjust based on CPU cores)
-export FPDEV_PARALLEL_JOBS=8
+# Move config, cache, and logs onto faster storage if needed
+export FPDEV_DATA_ROOT=/fast/ssd/fpdev-data
+mkdir -p "$FPDEV_DATA_ROOT"
 
 # Enable source caching (speed up repeated installations)
 fpdev system config set keep_sources true
 ```
+
+To change the parallel build count, edit `settings.parallel_jobs` in the active `config.json` instead of relying on an extra environment variable.
 
 ### Network Optimization
 
