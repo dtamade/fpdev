@@ -89,3 +89,17 @@ Phase 4 complete
    - Windows/macOS owner checkpoints
    - `SHA256SUMS.txt`
 
+## Close-out Update (2026-04-02, release-notes inventory sync)
+1. 本地继续检查发布收口文档时，发现 `RELEASE_NOTES.md` 仍写着 `271 discoverable test_*.lpr programs`，与当前公共基线 `273` 不一致。
+2. 修复策略不是手工改单个文档，而是把 `RELEASE_NOTES.md` 纳入 `scripts/update_test_stats.py` 的同步范围，避免后续再次漂移。
+3. 扩大同步范围后又暴露了一个真实本地 seam：
+   - `python3 scripts/update_test_stats.py --check` 在 `RELEASE_NOTES.md` 已被标准化后仍报错
+   - 根因是 release-notes 的匹配模式只接受旧格式，不接受脚本自己写回的规范格式
+4. 已完成的修复与验证：
+   - `scripts/update_test_stats.py` 新增 `RELEASE_NOTES.md` 同步逻辑，并兼容旧/新两种 release-notes 行格式
+   - `tests/test_update_test_stats.py` 新增 release-notes 回归与幂等性覆盖
+   - `python3 scripts/update_test_stats.py --check`：通过
+   - `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract`：`27` tests OK
+5. 当前剩余发布事项仍主要是 owner / 资产侧动作：
+   - Windows/macOS owner checkpoints
+   - 在具备全部计划资产后二进制打包与 `SHA256SUMS.txt`

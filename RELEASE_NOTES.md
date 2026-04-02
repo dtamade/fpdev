@@ -33,7 +33,7 @@
 
 ```text
 Roadmap checklist: 121/121 complete
-Test inventory: 271 discoverable test_*.lpr programs
+Test inventory: 273 discoverable test_*.lpr programs (same inventory rules as CI)
 Primary release gate: Linux automated acceptance passed
 Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS
 ```

@@ -102,3 +102,23 @@
   - close-out 线再次回到“无新的 locally-provable live seam”状态
   - 当前剩余风险主要是 owner-run / publish-time 证明，不是本地代码回归
 
+## Execution Update (2026-04-02, release-notes inventory sync)
+- 继续检查发布 close-out 文档时，发现一个新的本地可证明 drift：
+  - `RELEASE_NOTES.md` 仍声明 `271 discoverable test_*.lpr programs`
+  - 当前 README / ROADMAP / testing 文档与 CI 规则已经统一到 `273`
+- 修复决策：
+  - 不做一次性手工改字，而是把 `RELEASE_NOTES.md` 纳入 `scripts/update_test_stats.py` 的同步目标
+  - 这样后续测试库存变化时，release notes 会和 README / ROADMAP 一样由同一脚本维护
+- 实施过程中拿到了额外的本地 RED：
+  - `python3 scripts/update_test_stats.py --check` 在 `RELEASE_NOTES.md` 已被脚本标准化后仍失败
+  - 根因是 `render_release_notes_md` 只匹配旧格式，不接受自己输出的新格式，属于幂等性缺口
+- 已实施的最小修复：
+  - `scripts/update_test_stats.py`：新增 `RELEASE_NOTES.md` target 与 `render_release_notes_md`，并让模式兼容 legacy/normalized 两种行格式
+  - `tests/test_update_test_stats.py`：新增 release notes 更新与幂等性回归测试
+  - `RELEASE_NOTES.md`：当前 test inventory 已同步为 `273 discoverable test_*.lpr programs (same inventory rules as CI)`
+- 当前最新本地证据：
+  - `python3 scripts/update_test_stats.py --check`：通过
+  - `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract`：`27` tests OK
+- 结论更新：
+  - 文档叙事与自动化证据对齐仍然是 close-out 期间最容易复发的本地 seam
+  - 但这次 drift 已重新纳入统一同步脚本，局部风险已收敛

@@ -142,6 +142,38 @@ class UpdateTestStatsTests(unittest.TestCase):
         )
         self.assertNotIn('`272`', updated)
 
+    def test_render_release_notes_updates_public_test_inventory_line(self):
+        sample = (
+            '## 当前发布基线\n\n'
+            '```text\n'
+            'Roadmap checklist: 121/121 complete\n'
+            'Test inventory: 271 discoverable test_*.lpr programs\n'
+            'Primary release gate: Linux automated acceptance passed\n'
+            '```\n'
+        )
+        updated = self.mod.render_release_notes_md(sample, 216)
+        self.assertIn(
+            'Test inventory: 216 discoverable test_*.lpr programs (same inventory rules as CI)',
+            updated,
+        )
+        self.assertNotIn('271 discoverable', updated)
+
+    def test_render_release_notes_accepts_already_normalized_line(self):
+        sample = (
+            '## 当前发布基线\n\n'
+            '```text\n'
+            'Roadmap checklist: 121/121 complete\n'
+            'Test inventory: 273 discoverable test_*.lpr programs (same inventory rules as CI)\n'
+            'Primary release gate: Linux automated acceptance passed\n'
+            '```\n'
+        )
+        updated = self.mod.render_release_notes_md(sample, 216)
+        self.assertIn(
+            'Test inventory: 216 discoverable test_*.lpr programs (same inventory rules as CI)',
+            updated,
+        )
+        self.assertNotIn('273 discoverable', updated)
+
 
 if __name__ == '__main__':
     unittest.main()

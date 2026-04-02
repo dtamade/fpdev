@@ -162,3 +162,43 @@
 | What's the goal? | Keep release/readiness claims aligned with current acceptance evidence, including the optional install lane when exercised |
 | What have I learned? | The remaining live defect in the optional lane was a retry-budget timing seam in production code, not an acceptance-script false positive |
 | What have I done? | Added a stable slow-start regression, fixed the production retry window, and proved `--with-install` green end-to-end |
+
+## Session: 2026-04-02 (release-notes inventory sync)
+
+### Close-out Execution Follow-up 3
+- **Status:** complete
+- Actions taken:
+  - Audited remaining release close-out docs and found `RELEASE_NOTES.md` still advertising `271` discoverable tests while the current public inventory is `273`
+  - Extended `scripts/update_test_stats.py` to synchronize `RELEASE_NOTES.md` instead of relying on a one-off manual edit
+  - Captured and fixed a second seam where `python3 scripts/update_test_stats.py --check` did not accept the normalized release-notes line written by the same script
+  - Re-ran focused script checks and release-doc contract coverage to green
+- Files created/modified:
+  - `RELEASE_NOTES.md`
+  - `scripts/update_test_stats.py`
+  - `tests/test_update_test_stats.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Release-notes sync seam | `python3 scripts/update_test_stats.py --check` | pass | failed because `RELEASE_NOTES.md` was out of sync | FAIL |
+| Release-notes idempotency seam | `python3 scripts/update_test_stats.py --check` | pass | failed because normalized `RELEASE_NOTES.md` line did not match the script pattern | FAIL |
+| Update-test-stats + release doc contracts | `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract` | pass | `27` tests OK | OK |
+| Inventory sync gate | `python3 scripts/update_test_stats.py --check` | pass | pass | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `RELEASE_NOTES.md` still advertised `271` discoverable tests | 1 | Extended `scripts/update_test_stats.py` so release notes are synchronized from the shared inventory source |
+| 2026-04-02 | `render_release_notes_md` rejected the already-normalized release-notes line format | 1 | Relaxed the pattern to accept both legacy and normalized formats, then added idempotency coverage |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line remains complete after release-notes sync follow-up |
+| Where am I going? | Stop local changes unless a newly-proven publish seam appears or release assets become available |
+| What's the goal? | Keep every public release-status document driven by the same provable inventory/evidence sources |
+| What have I learned? | Small release docs drift can recur unless every public surface is attached to the same sync mechanism, and sync scripts themselves need idempotency checks |
+| What have I done? | Brought `RELEASE_NOTES.md` under the shared inventory sync, fixed the script idempotency seam, and re-verified the release-doc contract suite |
