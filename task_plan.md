@@ -135,3 +135,19 @@ Phase 4 complete
    - Windows/macOS owner checkpoints
    - 真正的 Windows/macOS 发布资产
    - 资产齐备后的正式 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
+
+## Close-out Update (2026-04-02, CI release packaging coverage)
+1. 新发现的本地可证明 seam：CI 的 `Run release contract unit tests` 步骤没有覆盖
+   - `tests.test_package_release_assets`
+   - `tests.test_generate_release_checksums`
+2. 这会导致 release packaging / checksum 脚本虽然本地有测试，但 CI 不会在 release lane 中托底这些能力。
+3. 已完成的最小修复：
+   - `.github/workflows/ci.yml` 的 release-contract unittest 列表补入上述两项
+   - `tests/test_ci_release_contracts.py` 升级为要求 CI 必须包含这两项
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_ci_release_contracts`：通过
+   - `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording`：`25` tests OK
+5. 当前剩余工作仍然回到外部发布前提：
+   - Windows/macOS owner checkpoints
+   - 真实跨平台发布资产
+   - 资产到位后的正式 checksum / release evidence 生成

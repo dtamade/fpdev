@@ -274,3 +274,40 @@
 | What's the goal? | Keep the branch ready for publish without fabricating evidence that depends on missing cross-platform assets |
 | What have I learned? | The remaining release path is now blocked by external publish prerequisites, not by repo-local docs or helper-script drift |
 | What have I done? | Verified the remaining release packaging/evidence helper suite end-to-end and confirmed no new local seam remains |
+
+## Session: 2026-04-02 (CI release packaging coverage)
+
+### Close-out Execution Follow-up 5
+- **Status:** complete
+- Actions taken:
+  - Audited the CI release-contract step and proved it did not include `tests.test_package_release_assets` or `tests.test_generate_release_checksums`
+  - Captured the gap as a RED by tightening `tests.test_ci_release_contracts`
+  - Updated `.github/workflows/ci.yml` so the release contract unittest list now covers package-release-assets and checksum-generation tests
+  - Re-ran focused CI-contract verification and then the broader release helper suite to green
+- Files created/modified:
+  - `.github/workflows/ci.yml`
+  - `tests/test_ci_release_contracts.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| CI release contract RED | `python3 -m unittest -v tests.test_ci_release_contracts` | pass | failed because CI omitted package-release-assets/checksum tests | FAIL |
+| Focused CI release contract | `python3 -m unittest -v tests.test_ci_release_contracts` | pass | pass | OK |
+| Release helper + CI contract suite | `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording` | pass | `25` tests OK | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | CI release contract step omitted `tests.test_package_release_assets` and `tests.test_generate_release_checksums` | 1 | Added both tests to `.github/workflows/ci.yml` and enforced them via `tests/test_ci_release_contracts.py` |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line remains complete after fixing the CI release-packaging coverage gap |
+| Where am I going? | Wait for real cross-platform assets or owner-run checkpoints before further release execution |
+| What's the goal? | Keep release helper behavior covered not only by local tests but also by the CI release lane |
+| What have I learned? | Even when helper scripts and tests exist, CI can still lag behind unless the coverage set is contract-checked explicitly |
+| What have I done? | Added package-release-assets and checksum-generation tests to CI's release contract step and proved the updated suite green |

@@ -30,6 +30,8 @@ jobs:
         python3 -m unittest \
           tests.test_release_docs_contract \
           tests.test_release_scripts_contract \
+          tests.test_package_release_assets \
+          tests.test_generate_release_checksums \
           tests.test_generate_release_evidence \
           tests.test_record_owner_smoke_sh \
           tests.test_release_status_wording \

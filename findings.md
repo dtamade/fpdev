@@ -159,3 +159,19 @@
 - 结论更新：
   - 当前本地不仅文档叙事与 evidence pointer 已对齐，连 release packaging / checksum / evidence handoff 辅助脚本也都在回归覆盖内保持 green
   - 本地 close-out 线已没有新的可证明 live seam；剩余事项依赖真实跨平台资产和 owner-run sign-off
+
+## Execution Update (2026-04-02, CI release packaging coverage)
+- 继续做 release close-out 审计时，发现 CI 覆盖存在一个新的真实缺口：
+  - `.github/workflows/ci.yml` 的 release-contract unittest 步骤没有运行 `tests.test_package_release_assets`
+  - 也没有运行 `tests.test_generate_release_checksums`
+- 该缺口的影响：
+  - release asset packaging 与 checksum generation 虽然本地有测试和辅助脚本，但 CI release lane 不会自动托底这些能力
+- 已实施的最小修复：
+  - `.github/workflows/ci.yml`：将 `tests.test_package_release_assets` 与 `tests.test_generate_release_checksums` 加入 release contract unit tests
+  - `tests/test_ci_release_contracts.py`：新增这两项的强制契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_ci_release_contracts`：通过
+  - `python3 -m unittest -v tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_release_scripts_contract tests.test_release_docs_contract tests.test_ci_release_contracts tests.test_release_status_wording`：`25` tests OK
+- 结论更新：
+  - 当前本地 close-out 不仅脚本与文档对齐，连 release packaging/checksum helper 的 CI 托底也已补齐
+  - 剩余阻塞继续集中在外部 publish prerequisites，而非仓库内 coverage drift
