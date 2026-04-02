@@ -122,3 +122,24 @@
 - 结论更新：
   - 文档叙事与自动化证据对齐仍然是 close-out 期间最容易复发的本地 seam
   - 但这次 drift 已重新纳入统一同步脚本，局部风险已收敛
+
+## Execution Update (2026-04-02, evidence-path sync)
+- 继续做 release close-out 审计时，发现两个新的本地文档 drift：
+  - `CHANGELOG.md` 的 v2.1.0 release baseline 仍写 `271` discoverable tests
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md`、`docs/MVP_ACCEPTANCE_CRITERIA.en.md` 与 owner ledger 仍指向 `2026-03-25` 的旧 acceptance summary 路径
+- 修复策略：
+  - 将 `CHANGELOG.md` 纳入 `scripts/update_test_stats.py` 的共享 test-inventory 同步目标
+  - 将 release acceptance / owner ledger 文档中的 evidence path 更新为当前最新的 `2026-04-02` 本地通过日志：
+    - baseline: `logs/release_acceptance/20260402_104133/summary.txt`
+    - install: `logs/release_acceptance/20260402_111602/summary.txt`
+- 已实施的最小修复：
+  - `scripts/update_test_stats.py`：新增 `CHANGELOG.md` 同步逻辑
+  - `tests/test_update_test_stats.py`：新增 changelog 更新与幂等性回归
+  - `tests/test_release_docs_contract.py`：新增 release close-out docs 必须引用最新 2026-04-02 evidence、不得回退到 2026-03-25 evidence 的契约
+  - `CHANGELOG.md`、`docs/MVP_ACCEPTANCE_CRITERIA*.md`、`docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`：同步到当前基线
+- 当前最新本地证据：
+  - `python3 scripts/update_test_stats.py --check`：通过
+  - `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract tests.test_generate_release_checksums tests.test_generate_release_evidence`：`35` tests OK
+- 结论更新：
+  - 本地 close-out seam 仍然主要集中在“公开发布叙事是否持续指向当前真实证据”
+  - 这次已把 changelog inventory 与 acceptance evidence path 一并重新对齐，局部发布叙事更稳定

@@ -23,6 +23,7 @@ ROADMAP_MD = REPO_ROOT / 'docs' / 'ROADMAP.md'
 MVP_ACCEPTANCE_MD = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
 MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
 RELEASE_NOTES_MD = REPO_ROOT / 'RELEASE_NOTES.md'
+CHANGELOG_MD = REPO_ROOT / 'CHANGELOG.md'
 CI_YML = REPO_ROOT / '.github' / 'workflows' / 'ci.yml'
 RUN_ALL_TESTS = REPO_ROOT / 'scripts' / 'run_all_tests.sh'
 
@@ -162,6 +163,15 @@ def render_release_notes_md(text: str, count: int) -> str:
     )
 
 
+def render_changelog_md(text: str, count: int) -> str:
+    return replace_once(
+        text,
+        r'^- Current discoverable test inventory: \d+ `test_\*\.lpr` programs(?: \(same inventory rules as CI\))?$',
+        f'- Current discoverable test inventory: {count} `test_*.lpr` programs (same inventory rules as CI)',
+        CHANGELOG_MD,
+    )
+
+
 def render_ci_yml(text: str) -> str:
     pattern = (
         r'    - name: Verify test(?: count| inventory sync)\n'
@@ -207,6 +217,7 @@ def render_updates(count: int) -> dict[Path, str]:
         MVP_ACCEPTANCE_MD: render_mvp_acceptance_md(MVP_ACCEPTANCE_MD.read_text(), count),
         MVP_ACCEPTANCE_EN: render_mvp_acceptance_md(MVP_ACCEPTANCE_EN.read_text(), count),
         RELEASE_NOTES_MD: render_release_notes_md(RELEASE_NOTES_MD.read_text(), count),
+        CHANGELOG_MD: render_changelog_md(CHANGELOG_MD.read_text(), count),
         CI_YML: render_ci_yml(CI_YML.read_text()),
         RUN_ALL_TESTS: render_run_all_tests(RUN_ALL_TESTS.read_text()),
     }

@@ -13,7 +13,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - Added a bounded Linux release acceptance entrypoint: `bash scripts/release_acceptance_linux.sh`
 - Added explicit Windows/macOS owner checkpoints in `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 - Synchronized release documentation, roadmap status, and installation URLs to `v2.1.0`
-- Current discoverable test inventory: 271 `test_*.lpr` programs
+- Current discoverable test inventory: 273 `test_*.lpr` programs (same inventory rules as CI)
 
 ### Added
 - **Phase 6: Architecture Improvement & Feature Completion - COMPLETE (2026-02-11)**

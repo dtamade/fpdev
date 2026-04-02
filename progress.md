@@ -202,3 +202,48 @@
 | What's the goal? | Keep every public release-status document driven by the same provable inventory/evidence sources |
 | What have I learned? | Small release docs drift can recur unless every public surface is attached to the same sync mechanism, and sync scripts themselves need idempotency checks |
 | What have I done? | Brought `RELEASE_NOTES.md` under the shared inventory sync, fixed the script idempotency seam, and re-verified the release-doc contract suite |
+
+## Session: 2026-04-02 (evidence-path sync)
+
+### Close-out Execution Follow-up 4
+- **Status:** complete
+- Actions taken:
+  - Audited the remaining public release docs and found stale March 25 evidence pointers plus a stale `271` test-inventory line in `CHANGELOG.md`
+  - Extended `scripts/update_test_stats.py` so `CHANGELOG.md` now follows the same shared inventory source as README / ROADMAP / RELEASE_NOTES
+  - Updated `docs/MVP_ACCEPTANCE_CRITERIA.md`, `docs/MVP_ACCEPTANCE_CRITERIA.en.md`, and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` to the latest April 2 acceptance evidence
+  - Added contract coverage so release close-out docs must reference the latest April 2 evidence and reject the old March 25 paths
+  - Re-ran sync and release-doc contract verification to green
+- Files created/modified:
+  - `CHANGELOG.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+  - `scripts/update_test_stats.py`
+  - `tests/test_update_test_stats.py`
+  - `tests/test_release_docs_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Changelog inventory sync seam | `python3 scripts/update_test_stats.py --check` | pass | failed because `CHANGELOG.md` still advertised `271` discoverable tests | FAIL |
+| Release evidence doc seam | `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract` | pass | failed because release docs still referenced March 25 evidence instead of April 2 evidence | FAIL |
+| Inventory sync gate | `python3 scripts/update_test_stats.py --check` | pass | pass | OK |
+| Sync + release-doc suites | `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract tests.test_generate_release_checksums tests.test_generate_release_evidence` | pass | `35` tests OK | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `CHANGELOG.md` still advertised `271` discoverable tests | 1 | Extended `scripts/update_test_stats.py` so changelog release baseline uses the shared inventory source |
+| 2026-04-02 | Close-out docs still referenced stale `2026-03-25` acceptance summary paths | 1 | Updated acceptance/owner docs to `2026-04-02` evidence and added contract coverage that rejects the stale paths |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Local close-out line remains complete after evidence-path sync follow-up |
+| Where am I going? | Stop local edits unless new publish seams appear or the missing release assets become available |
+| What's the goal? | Keep every public release status document aligned with the latest locally proven acceptance evidence |
+| What have I learned? | Even after inventory counts are synchronized, evidence pointers can still drift unless they are reviewed and contract-checked explicitly |
+| What have I done? | Synced changelog inventory, updated public acceptance evidence pointers to April 2 logs, and added contracts preventing rollback to stale March 25 paths |

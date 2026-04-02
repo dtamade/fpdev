@@ -103,3 +103,22 @@ Phase 4 complete
 5. 当前剩余发布事项仍主要是 owner / 资产侧动作：
    - Windows/macOS owner checkpoints
    - 在具备全部计划资产后二进制打包与 `SHA256SUMS.txt`
+
+## Close-out Update (2026-04-02, evidence-path sync)
+1. 继续审计公开发布文档后，确认还剩两类本地可证明漂移：
+   - `CHANGELOG.md` 的 release baseline 仍写 `271` 个 discoverable tests
+   - `docs/MVP_ACCEPTANCE_CRITERIA*.md` 与 `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` 仍引用 `2026-03-25` 的旧 acceptance evidence path
+2. 这轮修复继续遵循“统一来源 + 最小修改”：
+   - `CHANGELOG.md` 纳入 `scripts/update_test_stats.py` 的同步范围，避免未来再次漂移
+   - release acceptance / owner ledger 文档直接更新到当前最新本地证据：
+     - baseline: `logs/release_acceptance/20260402_104133/summary.txt`
+     - install: `logs/release_acceptance/20260402_111602/summary.txt`
+3. 为避免 evidence path 回退，又新增了 release-doc 契约覆盖：
+   - 要求 close-out 文档引用 `2026-04-02` 的最新 evidence
+   - 明确拒绝旧的 `2026-03-25` evidence path
+4. 已完成验证：
+   - `python3 scripts/update_test_stats.py --check`：通过
+   - `python3 -m unittest -v tests.test_update_test_stats tests.test_release_docs_contract tests.test_official_docs_cli_contract tests.test_release_scripts_contract tests.test_generate_release_checksums tests.test_generate_release_evidence`：`35` tests OK
+5. 当前剩余本地不可闭合事项不变：
+   - Windows/macOS owner checkpoints
+   - 全部计划发布资产到位后的打包、`SHA256SUMS.txt`、正式 release evidence 生成

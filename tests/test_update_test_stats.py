@@ -174,6 +174,32 @@ class UpdateTestStatsTests(unittest.TestCase):
         )
         self.assertNotIn('273 discoverable', updated)
 
+    def test_render_changelog_updates_public_test_inventory_line(self):
+        sample = (
+            '## [2.1.0] - 2026-03-25\n'
+            '### Release Baseline\n'
+            '- Current discoverable test inventory: 271 `test_*.lpr` programs\n'
+        )
+        updated = self.mod.render_changelog_md(sample, 216)
+        self.assertIn(
+            '- Current discoverable test inventory: 216 `test_*.lpr` programs (same inventory rules as CI)',
+            updated,
+        )
+        self.assertNotIn('271 `test_*.lpr`', updated)
+
+    def test_render_changelog_accepts_already_normalized_line(self):
+        sample = (
+            '## [2.1.0] - 2026-03-25\n'
+            '### Release Baseline\n'
+            '- Current discoverable test inventory: 273 `test_*.lpr` programs (same inventory rules as CI)\n'
+        )
+        updated = self.mod.render_changelog_md(sample, 216)
+        self.assertIn(
+            '- Current discoverable test inventory: 216 `test_*.lpr` programs (same inventory rules as CI)',
+            updated,
+        )
+        self.assertNotIn('273 `test_*.lpr`', updated)
+
 
 if __name__ == '__main__':
     unittest.main()

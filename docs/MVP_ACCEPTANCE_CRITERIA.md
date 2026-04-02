@@ -22,8 +22,8 @@ This document replaces the earlier MVP-era checklist with a bounded release clos
 
 | Lane | Scope | Status | Evidence |
 |------|-------|--------|----------|
-| Linux automated baseline | toolchain, inventory sync, Python regression, full Pascal regression, Release build, CLI smoke | pass | `logs/release_acceptance/20260325_204342/summary.txt` |
-| Linux isolated binary install | `fpc install/use/current/verify` in an isolated data root | pass | `logs/release_acceptance/20260325_205542/summary.txt` |
+| Linux automated baseline | toolchain, inventory sync, Python regression, full Pascal regression, Release build, CLI smoke | pass | `logs/release_acceptance/20260402_104133/summary.txt` |
+| Linux isolated binary install | `fpc install/use/current/verify` in an isolated data root | pass | `logs/release_acceptance/20260402_111602/summary.txt` |
 | Windows x64 owner checkpoint | release asset extraction + CLI smoke | pending | owner checkpoint ledger |
 | macOS x64 owner checkpoint | release asset extraction + CLI smoke | pending | owner checkpoint ledger |
 | macOS arm64 owner checkpoint | release asset extraction + CLI smoke | pending | owner checkpoint ledger |
@@ -69,5 +69,5 @@ Release close-out is complete when:
 
 - The product roadmap itself is already functionally complete; the remaining work is release engineering and cross-platform sign-off.
 - The canonical owner-checkpoint document is `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`.
-- Linux baseline evidence: `logs/release_acceptance/20260325_204342/summary.txt`.
-- Linux isolated install evidence: `logs/release_acceptance/20260325_205542/summary.txt`.
+- Linux baseline evidence: `logs/release_acceptance/20260402_104133/summary.txt`.
+- Linux isolated install evidence: `logs/release_acceptance/20260402_111602/summary.txt`.
