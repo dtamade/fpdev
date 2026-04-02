@@ -31,6 +31,9 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('scripts/generate_release_checksums.py', self.text)
         self.assertIn('SHA256SUMS.txt', self.text)
 
+    def test_owner_checkpoint_doc_lists_release_evidence_as_planned_artifact(self):
+        self.assertIn('| `RELEASE_EVIDENCE.md` | Release evidence handoff |', self.text)
+
     def test_owner_checkpoint_doc_uses_release_packaging_script(self):
         self.assertIn('scripts/package_release_assets.py', self.text)
 

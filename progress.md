@@ -615,3 +615,40 @@
 | What's the goal? | Keep high-level public status wording aligned with the canonical release-closeout proof requirements |
 | What have I learned? | Summary/status lines drift more easily than procedural docs, so they need explicit contract coverage too |
 | What have I done? | Added wording regressions and synchronized README, README.en, and ROADMAP with the current remaining publish-time proof |
+
+## Session: 2026-04-02 (owner-checkpoint planned assets)
+
+### Close-out Execution Follow-up 14
+- **Status:** complete
+- Actions taken:
+  - Audited the canonical owner-checkpoint document again and found that `RELEASE_EVIDENCE.md` was already required in both Publish Sequence and Release Exit Criteria, but was still missing from the Planned Release Assets table
+  - Added a failing docs contract proving the planned-assets table must explicitly include `RELEASE_EVIDENCE.md`
+  - Updated the canonical owner-checkpoint asset table so it now lists `RELEASE_EVIDENCE.md` alongside the binaries and `SHA256SUMS.txt`
+  - Re-ran the focused docs contract and the expanded release-contract suite to confirm the canonical document is now consistent across inventory, procedure, and exit criteria
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for planned-assets drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `Planned Release Assets` omitted `RELEASE_EVIDENCE.md` | Observed |
+| Focused release docs verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `56` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | Canonical owner-checkpoint doc still omitted `RELEASE_EVIDENCE.md` from its planned-assets inventory even after requiring it later in the workflow | 1 | Added a docs contract and inserted `RELEASE_EVIDENCE.md` into the Planned Release Assets table |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Canonical owner-checkpoint documentation is now consistent across asset inventory, publish steps, and exit criteria |
+| Where am I going? | Continue only if another in-repo close-out seam exists; otherwise the meaningful remaining work is external release execution |
+| What's the goal? | Eliminate remaining contradictions inside the canonical release handoff doc |
+| What have I learned? | Asset inventory tables can drift even after procedure and exit-checklist sections are fixed, so they need explicit contract coverage too |
+| What have I done? | Added regression coverage and aligned the planned-assets table with the already-required `RELEASE_EVIDENCE.md` publish flow |

@@ -294,3 +294,17 @@ Phase 4 complete
 4. 结论：
    - README / README.en / ROADMAP 现在不再低估剩余 publish-time proof
    - repo-local release-closeout 公开叙事进一步与 canonical release docs 对齐
+
+## Close-out Update (2026-04-02, owner-checkpoint planned assets)
+1. 新发现的 canonical 文档 seam：
+   - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` 的 Publish Sequence 与 Exit Criteria 都已要求 `RELEASE_EVIDENCE.md`
+   - 但同一文档的 `Planned Release Assets` 表仍漏掉了 `RELEASE_EVIDENCE.md`
+2. 已完成的最小修复：
+   - `tests/test_release_docs_contract.py` 新增 `test_owner_checkpoint_doc_lists_release_evidence_as_planned_artifact`
+   - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md` 的 `Planned Release Assets` 表补入 `RELEASE_EVIDENCE.md`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`56` tests OK，`1` skipped
+4. 结论：
+   - canonical owner-checkpoint 文档现在在资产清单、步骤、退出条件三个层面都完整纳入 `RELEASE_EVIDENCE.md`
+   - repo-local close-out 文档进一步达到自洽

@@ -330,3 +330,21 @@
 - 结论更新：
   - README / README.en / ROADMAP 现在与 canonical release-closeout 文档对“还差什么”这一点保持一致
   - repo-local 对外状态叙事继续收敛，不再低估剩余 publish-time proof
+
+## Execution Update (2026-04-02, owner-checkpoint planned assets)
+- 继续收尾 canonical owner-checkpoint 文档时，又发现一层表格级别的内部漂移：
+  - Publish Sequence 已要求生成/上传 `RELEASE_EVIDENCE.md`
+  - Release Exit Criteria 也已要求发布 `RELEASE_EVIDENCE.md`
+  - 但 `Planned Release Assets` 表仍只列出 4 个平台资产 + `SHA256SUMS.txt`
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_owner_checkpoint_doc_lists_release_evidence_as_planned_artifact` 直接指出资产清单漏掉了 `RELEASE_EVIDENCE.md`
+- 已实施的最小修复：
+  - `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`：在 `Planned Release Assets` 表补入 `RELEASE_EVIDENCE.md`
+  - `tests/test_release_docs_contract.py`：补齐对应契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`56` tests OK，`1` skipped
+- 结论更新：
+  - canonical owner-checkpoint 文档现在在资产清单、执行步骤、退出条件三层都完整纳入 `RELEASE_EVIDENCE.md`
+  - repo-local release-closeout 文档更加闭合且一致
