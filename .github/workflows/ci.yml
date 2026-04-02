@@ -34,6 +34,7 @@ jobs:
           tests.test_generate_release_checksums \
           tests.test_generate_release_evidence \
           tests.test_record_owner_smoke_sh \
+          tests.test_record_owner_smoke_ps1 \
           tests.test_official_docs_cli_contract \
           tests.test_release_status_wording \
           tests.test_update_test_stats \

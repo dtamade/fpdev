@@ -15,6 +15,7 @@ class CIReleaseContractsTests(unittest.TestCase):
         self.assertIn('tests.test_generate_release_checksums', text)
         self.assertIn('tests.test_generate_release_evidence', text)
         self.assertIn('tests.test_record_owner_smoke_sh', text)
+        self.assertIn('tests.test_record_owner_smoke_ps1', text)
         self.assertIn('tests.test_official_docs_cli_contract', text)
         self.assertIn('tests.test_release_status_wording', text)
         self.assertIn('tests.test_update_test_stats', text)

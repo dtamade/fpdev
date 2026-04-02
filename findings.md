@@ -192,3 +192,19 @@
 - 结论更新：
   - 当前 CI 的 release-contract step 已覆盖 release docs / scripts / packaging / checksums / evidence / official docs / sync logic / CI structure 的关键契约面
   - 本地剩余阻塞更加明确地收敛到外部发布前提，而不是仓库内 release-test selection drift
+
+## Execution Update (2026-04-02, PowerShell owner-smoke runtime coverage)
+- 继续扩大 release close-out 覆盖时，发现 shell / PowerShell owner-smoke coverage 不对称：
+  - `tests.test_record_owner_smoke_sh` 已对 `scripts/record_owner_smoke.sh` 做真实执行验证
+  - `scripts/record_owner_smoke.ps1` 之前只有 `tests.test_release_scripts_contract` 的存在性契约
+- 已实施的最小修复：
+  - 新增 `tests/test_record_owner_smoke_ps1.py`
+  - 测试在 `pwsh` 可用时真实执行 `scripts/record_owner_smoke.ps1`，验证 transcript 文件名和核心 smoke 输出
+  - 若 `pwsh` 不可用则显式 skip，以保持本地环境兼容性
+  - `.github/workflows/ci.yml` 与 `tests/test_ci_release_contracts.py` 同步纳入该测试
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_record_owner_smoke_ps1 tests.test_ci_release_contracts`：通过（`pwsh` 不可用，本地为 skip）
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`49` tests OK，`1` skipped
+- 结论更新：
+  - 当前 release close-out 契约覆盖已经从“脚本存在”升级到“PowerShell owner-smoke 在支持环境中会被真实执行验证”
+  - 剩余阻塞继续是外部 publish prerequisites，不是 repo-local release tooling drift

@@ -171,3 +171,20 @@ Phase 4 complete
    - Windows/macOS owner checkpoints
    - 真实发布资产
    - 正式 checksum / release evidence 产物生成
+
+## Close-out Update (2026-04-02, PowerShell owner-smoke runtime coverage)
+1. 新发现的本地 release coverage gap：
+   - `record_owner_smoke.sh` 已有真实执行测试
+   - `record_owner_smoke.ps1` 之前只有存在性契约，没有对脚本本身做运行覆盖
+2. 已完成的最小修复：
+   - 新增 `tests/test_record_owner_smoke_ps1.py`
+   - 在有 `pwsh` 的环境中真实执行 `scripts/record_owner_smoke.ps1`
+   - 在没有 `pwsh` 的环境中显式 skip，避免本地环境差异阻塞
+   - `.github/workflows/ci.yml` 的 release contract unit tests 补入 `tests.test_record_owner_smoke_ps1`
+   - `tests/test_ci_release_contracts.py` 强制 CI 必须包含该测试
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_record_owner_smoke_ps1 tests.test_ci_release_contracts`：通过（本地 `pwsh` 不可用，因此 PowerShell 运行测试为 skip）
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`49` tests OK，`1` skipped
+4. 结论：
+   - 当前 release contract / helper / doc / CI breadth 已覆盖到 shell 与 PowerShell 两条 owner-smoke 路径
+   - 剩余工作继续集中在外部发布资产和 owner sign-off
