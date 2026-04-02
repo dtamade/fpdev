@@ -258,6 +258,17 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertIn('XDG_DATA_HOME', text)
             self.assertIn('%APPDATA%\\fpdev\\config.json', text)
 
+    def test_manifest_usage_doc_describes_active_manifest_cache_and_install_paths(self):
+        text = (REPO_ROOT / 'docs' / 'MANIFEST-USAGE.md').read_text(encoding='utf-8')
+
+        self.assertIn('FPDEV_DATA_ROOT', text)
+        self.assertIn('XDG_DATA_HOME', text)
+        self.assertIn('%APPDATA%\\fpdev\\', text)
+        self.assertIn('<data-root>/cache/manifests/fpc.json', text)
+        self.assertIn('<data-root>/toolchains/fpc/<version>', text)
+        self.assertNotIn('~/.fpdev/cache/manifests/fpc.json', text)
+        self.assertNotIn('~/.fpdev/toolchains/fpc/<version>', text)
+
     def test_config_architecture_docs_describe_active_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'config-architecture.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'config-architecture.en.md').read_text(encoding='utf-8')

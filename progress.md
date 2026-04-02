@@ -1045,3 +1045,42 @@
 | What's the goal? | Keep the architecture docs aligned with the same active config-path contract already enforced across the rest of the public docs |
 | What have I learned? | Even developer-facing architecture examples can preserve stale implementation habits unless they get their own regression coverage |
 | What have I done? | Added config-architecture contract coverage and rewrote both architecture docs around the active `config.json` path model |
+
+## Session: 2026-04-02 (manifest-usage active-cache-path drift)
+
+### Close-out Execution Follow-up 25
+- **Status:** complete
+- Actions taken:
+  - Audited `docs/MANIFEST-USAGE.md` after aligning the broader config-path story and found that it still hard-coded `~/.fpdev/cache/manifests/fpc.json` and `~/.fpdev/toolchains/fpc/<version>`
+  - Confirmed the runtime truth in `src/fpdev.manifest.cache.pas`, where the default manifest cache dir derives from `GetCacheDir + '/manifests'`, and in `src/fpdev.cmd.fpc.update_manifest.pas`, where the command resolves its cache dir from the active configuration
+  - Confirmed in `src/fpdev.paths.pas` that the canonical FPC install directory remains `toolchains/fpc/<version>` under the active root
+  - Added a failing official-docs contract proving the manifest usage guide must describe the active manifest-cache and install-path model instead of hard-coded home-directory paths
+  - Updated `docs/MANIFEST-USAGE.md` so it now explains the active data-root path selection and rewrites the cache/install examples around `<data-root>/cache/manifests/fpc.json` and `<data-root>/toolchains/fpc/<version>`
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the manifest guide now matches the runtime path model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/MANIFEST-USAGE.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for manifest-usage active-cache-path drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because `MANIFEST-USAGE.md` still hard-coded `~/.fpdev/cache/manifests/fpc.json` and `~/.fpdev/toolchains/fpc/<version>` instead of the active path model | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `67` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `MANIFEST-USAGE.md` still taught hard-coded manifest cache and install paths under `~/.fpdev/` instead of the active root model | 1 | Added a manifest-usage contract and rewrote the path guidance plus shell examples around `<data-root>` semantics |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The manifest usage guide now matches the active manifest-cache and toolchain-install path semantics used by the runtime |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the manifest user guide aligned with the same active path contract already enforced across the rest of the public docs |
+| What have I learned? | Topic-specific user guides can reintroduce stale path assumptions even after the broader install/config docs are repaired |
+| What have I done? | Added manifest-usage contract coverage and rewrote the guide around the active `<data-root>` cache/install model |

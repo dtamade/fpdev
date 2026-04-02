@@ -518,3 +518,24 @@ Phase 4 complete
 4. 结论：
    - config-architecture 文档现在也与 `TConfigManager` 的真实默认路径解析模型保持一致
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是架构文档里的硬编码 home-path 示例
+
+## Close-out Update (2026-04-02, manifest-usage active-cache-path drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.manifest.cache.pas` 明确：manifest 缓存目录默认来自 `GetCacheDir + '/manifests'`
+   - `src/fpdev.cmd.fpc.update_manifest.pas` 也通过当前配置解析 manifest cache dir，而不是固定写死到 `~/.fpdev/cache/manifests`
+   - `src/fpdev.paths.pas` 的 `BuildFPCInstallDirFromInstallRoot` 明确 FPC 安装落点是 `toolchains/fpc/<version>`
+   - 但 `docs/MANIFEST-USAGE.md` 仍把 manifest 缓存与安装目录写死为：
+     - `~/.fpdev/cache/manifests/fpc.json`
+     - `~/.fpdev/toolchains/fpc/<version>`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_manifest_usage_doc_describes_active_manifest_cache_and_install_paths`
+   - `docs/MANIFEST-USAGE.md` 改为：
+     - 明确 manifest 缓存和安装目录跟随当前活动数据根
+     - 补入 `FPDEV_DATA_ROOT`、`XDG_DATA_HOME`、`%APPDATA%\\fpdev\\`、`<data-root>/cache/manifests/fpc.json` 与 `<data-root>/toolchains/fpc/<version>`
+     - 删除旧的 `~/.fpdev/cache/manifests/fpc.json` 与 `~/.fpdev/toolchains/fpc/<version>` 叙述
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`67` tests OK，`1` skipped
+4. 结论：
+   - `MANIFEST-USAGE` 文档现在也与 manifest 缓存和 toolchain 安装的活动路径模型保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 manifest 使用文档里的旧 home-path 假设

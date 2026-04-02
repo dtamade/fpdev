@@ -47,6 +47,17 @@ Manifest 系统
     └── 提取并安装
 ```
 
+### 路径约定（活动数据根）
+
+Manifest 缓存和通过 manifest 安装的 FPC 都跟随当前活动数据根：
+
+- **portable release 默认位置**：`<安装目录>/data/`
+- **如果显式设置了 `FPDEV_DATA_ROOT`**：使用 `$FPDEV_DATA_ROOT`
+- **Linux/macOS 非 portable 模式**：使用 `$XDG_DATA_HOME/fpdev/`；若未设置 `XDG_DATA_HOME`，则回退到 `~/.fpdev/`
+- **Windows 非 portable 模式**：使用 `%APPDATA%\fpdev\`
+- **Manifest 缓存文件**：`<data-root>/cache/manifests/fpc.json`
+- **FPC 安装目录**：`<data-root>/toolchains/fpc/<version>`
+
 ---
 
 ## 快速开始
@@ -68,7 +79,7 @@ Manifest 系统会自动：
 2. 查找适合您平台的二进制包
 3. 从多个镜像中选择最快的下载
 4. 验证文件完整性
-5. 安装到 `~/.fpdev/toolchains/fpc/<version>`
+5. 安装到 `<data-root>/toolchains/fpc/<version>`
 
 ### 查看可用版本
 
@@ -86,14 +97,14 @@ fpdev fpc list
 
 ### 更新 Manifest
 
-Manifest 文件会自动缓存到 `~/.fpdev/cache/manifests/fpc.json`。如果需要手动更新：
+Manifest 文件会自动缓存到 `<data-root>/cache/manifests/fpc.json`。如果需要手动更新：
 
 ```bash
 # 强制更新 manifest
 fpdev fpc update-manifest --force
 
 # 查看 manifest 信息
-cat ~/.fpdev/cache/manifests/fpc.json | jq .
+cat <data-root>/cache/manifests/fpc.json | jq .
 ```
 
 ### 安装流程详解
@@ -247,7 +258,7 @@ fpdev fpc update-manifest --force
 **解决方案**:
 ```bash
 # 清除缓存并重新下载
-rm -rf ~/.fpdev/cache/manifests/fpc.json
+rm -rf <data-root>/cache/manifests/fpc.json
 fpdev fpc install 3.2.0
 
 # 如果问题持续，可能是镜像文件损坏
@@ -284,7 +295,7 @@ fpdev fpc install 3.2.0 --from-source
 fpdev fpc install 3.2.0 2>&1 | tee install.log
 
 # 检查 manifest 内容
-cat ~/.fpdev/cache/manifests/fpc.json | jq '.pkg["fpc-3.2.0"]'
+cat <data-root>/cache/manifests/fpc.json | jq '.pkg["fpc-3.2.0"]'
 ```
 
 ---
@@ -342,7 +353,7 @@ FPDev 使用以下平台标识：
 ### 缓存机制
 
 **Manifest 缓存**:
-- 位置: `~/.fpdev/cache/manifests/fpc.json`
+- 位置: `<data-root>/cache/manifests/fpc.json`
 - 更新策略: 首次使用时下载，之后使用缓存
 - 手动更新: `fpdev fpc update-manifest --force`
 

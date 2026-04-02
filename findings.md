@@ -652,3 +652,35 @@
 - 结论更新：
   - config-architecture 文档现在也与 `TConfigManager` 的真实默认路径解析语义保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, manifest-usage active-cache-path drift)
+- 在 config-architecture 文档已与活动配置路径对齐后，继续扫描 manifest 用户指南时，又发现缓存和安装目录示例仍停留在旧 home-path：
+  - `docs/MANIFEST-USAGE.md` 仍写着 manifest 缓存位于 `~/.fpdev/cache/manifests/fpc.json`
+  - 同一文档也仍把安装结果写成 `~/.fpdev/toolchains/fpc/<version>`
+  - 但运行时真相是：
+    - `src/fpdev.manifest.cache.pas`：`BuildManifestCacheDirFromInstallRoot('')` 默认走 `GetCacheDir + '/manifests'`
+    - `src/fpdev.cmd.fpc.update_manifest.pas`：`ResolveManifestCacheDir` 根据当前配置的 install root 解析 manifest cache dir
+    - `src/fpdev.paths.pas`：`BuildFPCInstallDirFromInstallRoot` 的 canonical 目录是 `toolchains/fpc/<version>`
+- 这个问题的影响：
+  - manifest 用户指南会把用户重新引回硬编码 `~/.fpdev` 的缓存和安装心智模型
+  - 即使 installation / quickstart / toolchain 等公开文档已经统一到活动数据根，manifest 指南仍会重新制造路径分叉
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_manifest_usage_doc_describes_active_manifest_cache_and_install_paths` 直接暴露出：
+    - 文档没有 `FPDEV_DATA_ROOT`
+    - 没有 `XDG_DATA_HOME`
+    - 没有 `%APPDATA%\\fpdev\\`
+    - 没有 `<data-root>/cache/manifests/fpc.json`
+    - 没有 `<data-root>/toolchains/fpc/<version>`
+    - 仍保留 `~/.fpdev/cache/manifests/fpc.json` 与 `~/.fpdev/toolchains/fpc/<version>`
+- 已实施的最小修复：
+  - `docs/MANIFEST-USAGE.md`：
+    - 新增“路径约定（活动数据根）”段，说明 portable、`FPDEV_DATA_ROOT`、`XDG_DATA_HOME` 与 Windows `%APPDATA%\\fpdev\\` 语义
+    - 将 manifest 缓存、安装目录、查看缓存、清理缓存等示例统一改成 `<data-root>/...`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 manifest-usage 文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`67` tests OK，`1` skipped
+- 结论更新：
+  - `MANIFEST-USAGE` 文档现在也与 manifest 缓存和 toolchain 安装的活动路径模型保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
