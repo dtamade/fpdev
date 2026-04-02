@@ -272,3 +272,24 @@
 - 结论更新：
   - 公开发布说明、acceptance checklist 与 owner-checkpoint handoff 现在都明确把 `RELEASE_EVIDENCE.md` 视为剩余 publish-time proof 的一部分
   - repo-local 剩余 seam 继续减少，更多转向真实发布资产与 owner 执行
+
+## Execution Update (2026-04-02, release-notes owner smoke flow)
+- 继续审计 release-closeout 公开叙事时，又发现 `RELEASE_NOTES.md` 还有一层流程漂移：
+  - 它已经承认剩余 publish-time proof 包括 owner checkpoints、`SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
+  - 但在“发布前仍需 owner 执行的动作”里，仍在手写 `system version/help`、`fpc --help`、`fpc list --all`
+  - 与 canonical owner-checkpoint 文档已经明确要求使用 `record_owner_smoke.ps1` / `record_owner_smoke.sh` 的 recorder 流程不一致
+- 这个问题的影响：
+  - release notes 仍可能把 owner 执行路径重新分叉回“手工逐条 smoke command”
+  - 这会削弱前面刚收敛好的 transcript / evidence 标准化流程
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+  - 新增契约 `test_release_notes_use_standard_owner_smoke_recorders` 指出 `RELEASE_NOTES.md` 缺少 `record_owner_smoke.ps1` / `record_owner_smoke.sh` / `generate_release_evidence.py`
+- 已实施的最小修复：
+  - `RELEASE_NOTES.md` 的 owner-run 动作改为直接引用标准 recorder 与 evidence 脚本
+  - `tests/test_release_docs_contract.py`：新增并收紧对应 release-notes 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`54` tests OK，`1` skipped
+- 结论更新：
+  - release notes 现在不再重新发明 owner smoke 流程，而是复用仓库内标准 recorder / evidence 工具链
+  - repo-local release-closeout 流程进一步收敛到单一路径

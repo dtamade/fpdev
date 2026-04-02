@@ -244,3 +244,23 @@ Phase 4 complete
 4. 结论：
    - 公开 release 叙事现在与 owner-checkpoint handoff 要求一致，不再遗漏 `RELEASE_EVIDENCE.md`
    - 仓库内剩余工作继续集中在真实资产、checksums 与 owner sign-off 的外部执行
+
+## Close-out Update (2026-04-02, release-notes owner smoke flow)
+1. 新发现的 repo-local 文档 seam：
+   - `RELEASE_NOTES.md` 已承认还需要 owner checkpoints / checksums / `RELEASE_EVIDENCE.md`
+   - 但在“发布前仍需 owner 执行的动作”里，仍然手写 `system version/help`、`fpc --help`、`fpc list --all`
+   - 这与 owner-checkpoint 文档已经标准化到 `record_owner_smoke.ps1` / `record_owner_smoke.sh` / `generate_release_evidence.py` 的流程不一致
+2. 已完成的最小修复：
+   - `tests/test_release_docs_contract.py` 新增 `test_release_notes_use_standard_owner_smoke_recorders`
+   - `RELEASE_NOTES.md` 改为直接引用：
+     - `scripts/record_owner_smoke.ps1`
+     - `scripts/record_owner_smoke.sh`
+     - `scripts/generate_release_checksums.py`
+     - `scripts/generate_release_evidence.py`
+   - 不再在 release notes 中手写 smoke commands 细节
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_docs_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`54` tests OK，`1` skipped
+4. 结论：
+   - release notes 的 owner-run 步骤现在与 canonical owner-checkpoint 流程一致
+   - 仓库内剩余工作继续更多转向真实资产与外部 sign-off，而不是文档流程漂移

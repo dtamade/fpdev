@@ -502,3 +502,40 @@
 | What's the goal? | Make the public release narrative match the actual close-out handoff so no publish artifact is silently omitted |
 | What have I learned? | Even after helper/tooling fixes, public release docs can lag behind and understate what publish-time evidence is still required |
 | What have I done? | Added a regression contract and synchronized acceptance docs plus release notes around `RELEASE_EVIDENCE.md` |
+
+## Session: 2026-04-02 (release-notes owner smoke flow)
+
+### Close-out Execution Follow-up 11
+- **Status:** complete
+- Actions taken:
+  - Audited `RELEASE_NOTES.md` after the release-evidence narrative fix and found that it still described owner actions as manual smoke commands instead of using the standardized recorder/evidence scripts
+  - Added a failing contract proving release notes must reference `record_owner_smoke.ps1`, `record_owner_smoke.sh`, and `generate_release_evidence.py`
+  - Updated `RELEASE_NOTES.md` so owner-run instructions now point directly to the canonical recorder/checksum/evidence commands rather than inlining raw smoke commands
+  - Re-ran the focused docs contract and the expanded release-contract suite to confirm release notes now align with the canonical owner-checkpoint flow
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `RELEASE_NOTES.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for release-notes owner flow drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because `RELEASE_NOTES.md` omitted recorder/evidence scripts and still inlined manual smoke commands | Observed |
+| Focused release docs verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `54` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | `RELEASE_NOTES.md` still described owner smoke as manual command lists instead of using the standardized recorder/evidence flow | 1 | Added a release-notes doc contract and rewrote the owner actions to reference the canonical recorder/checksum/evidence scripts |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Repo-local release notes now align with the canonical owner-checkpoint recorder/evidence flow |
+| Where am I going? | Continue only if another in-repo close-out seam remains; otherwise the meaningful remaining work is external publish execution |
+| What's the goal? | Keep every release-facing instruction source pointing to the same owner-run workflow |
+| What have I learned? | Even after high-level narrative sync, step-by-step release notes can still drift back to manual instructions and reopen process forks |
+| What have I done? | Added regression coverage and rewrote the release-notes owner actions to use the standard recorder/checksum/evidence commands |

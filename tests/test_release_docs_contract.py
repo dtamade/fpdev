@@ -55,6 +55,14 @@ class ReleaseDocsContractTests(unittest.TestCase):
             self.release_notes_text,
         )
 
+    def test_release_notes_use_standard_owner_smoke_recorders(self):
+        self.assertIn('record_owner_smoke.ps1', self.release_notes_text)
+        self.assertIn('record_owner_smoke.sh', self.release_notes_text)
+        self.assertIn('generate_release_evidence.py', self.release_notes_text)
+        self.assertNotIn('system version/help', self.release_notes_text)
+        self.assertNotIn('fpc --help', self.release_notes_text)
+        self.assertNotIn('fpc list --all', self.release_notes_text)
+
     def test_owner_checkpoint_doc_stops_inlining_smoke_commands(self):
         self.assertNotIn('.\\fpdev.exe system version', self.text)
         self.assertNotIn('./fpdev system version', self.text)

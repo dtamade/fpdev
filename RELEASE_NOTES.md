@@ -68,10 +68,11 @@ lazbuild -B --build-mode=Release fpdev.lpi
 
 ## 发布前仍需 owner 执行的动作
 
-1. 解压 Windows x64 资产并运行 `system version/help`、`fpc --help`、`fpc list --all`
-2. 解压 macOS x64 和 arm64 资产并运行同样的 smoke commands
-3. 生成并上传 `SHA256SUMS.txt` 与 `RELEASE_EVIDENCE.md`
-4. 在 owner checkpoint ledger 中填写 owner、日期和证据
+1. Windows x64 解压资产后，使用标准 recorder：`pwsh ./scripts/record_owner_smoke.ps1 -Lane windows-x64 -ExecutablePath .\\fpdev-windows-x64\\fpdev.exe -OutputDir .\\owner-proof`
+2. macOS x64 / arm64 解压资产后，使用标准 recorder：`bash ./scripts/record_owner_smoke.sh macos-<arch> ./fpdev-macos-<arch>/fpdev ./owner-proof`
+3. 生成并上传 `SHA256SUMS.txt`：`python3 scripts/generate_release_checksums.py <asset-dir> --require-planned-assets`
+4. 生成并上传 `RELEASE_EVIDENCE.md`：`python3 scripts/generate_release_evidence.py --baseline-summary logs/release_acceptance/<baseline-run>/summary.txt --asset-dir <asset-dir> --owner-proof-dir <owner-proof-dir> --output <asset-dir>/RELEASE_EVIDENCE.md`（若执行了 network-gated install lane，再追加 `--install-summary logs/release_acceptance/<install-run>/summary.txt`）
+5. 在 owner checkpoint ledger 中填写 owner、日期和证据
 
 ## 参考文档
 
