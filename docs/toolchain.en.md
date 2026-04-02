@@ -102,17 +102,17 @@ Notes:
 - Merge policy results into health check JSON (policy section)
 - On-demand fetch framework: manifest/mirror/fetcher design and implementation (GitHub/GitLab/Gitee mirrors)
 
-## Offline Mode and Local Sources (.fpdev Data Root)
+## Offline Mode and Local Sources (Active Data Root)
 
-- Data root: Defaults to `.fpdev/` under the repository root; can be overridden to any path via the `FPDEV_DATA_ROOT` environment variable.
-  - Cache: `.fpdev/cache/`
-  - Sandbox: `.fpdev/sandbox/`
-  - Logs: `.fpdev/logs/`
-  - Lock files: `.fpdev/locks/`
+- Data root: Chosen at runtime; portable releases default to `data/`, and you can override it with the `FPDEV_DATA_ROOT` environment variable.
+  - Cache: `<data-root>/cache/`
+  - Sandbox: `<data-root>/sandbox/`
+  - Logs: `<data-root>/logs/`
+  - Lock files: `<data-root>/locks/`
 
 - Local directory as source
   - `fpdev system toolchain ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
-  - Behavior: structure validation -> copy to `.fpdev/sandbox/sources/fpc-src/3.2.2/` -> write lock file
+  - Behavior: structure validation -> copy to `<data-root>/sandbox/sources/fpc-src/3.2.2/` -> write lock file
 
 - Local zip as source
   - `fpdev system toolchain ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
@@ -120,7 +120,7 @@ Notes:
 
 - Import offline bundle directory
   - `fpdev system toolchain import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
-  - Behavior: scans the directory for `*.zip + .sha256`, verifies checksums, then imports to `.fpdev/cache/toolchain/`
+  - Behavior: scans the directory for `*.zip + .sha256`, verifies checksums, then imports to `<data-root>/cache/toolchain/`
 
 Notes:
 - In strict mode (`--strict`), directories only undergo structure validation; zip files must provide sha256.

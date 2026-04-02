@@ -926,3 +926,43 @@
 | What's the goal? | Keep the FPC-focused docs aligned with the same data-root contract already enforced elsewhere in the public docs |
 | What have I learned? | Even after high-level docs are fixed, product-specific topic docs can preserve older directory structures unless they get their own contract coverage |
 | What have I done? | Added FPC-management contract coverage and rewrote both topic docs around the canonical `toolchains/fpc` plus `sources/fpc/fpc-...` layout |
+
+## Session: 2026-04-02 (toolchain docs active-data-root drift)
+
+### Close-out Execution Follow-up 22
+- **Status:** complete
+- Actions taken:
+  - Audited the toolchain topic docs after aligning the FPC docs and found that the offline-mode section still assumed a repo-root `.fpdev/` data root
+  - Confirmed the runtime truth in `src/fpdev.paths.pas`, where the data root comes from portable `data/`, `FPDEV_DATA_ROOT`, or the platform default directories instead of a repository-root convention
+  - Confirmed in `src/fpdev.source.pas` that `ensure-source` writes into `<data-root>/sandbox/sources/...` and `import-bundle` writes into `<data-root>/cache/toolchain/`
+  - Added a failing official-docs contract proving the toolchain docs must describe the active data-root-based cache/sandbox/log/lock paths
+  - Updated both toolchain docs so they now describe the active data root, the canonical `<data-root>/cache|sandbox|logs|locks` layout, and the real offline import targets
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the toolchain docs now match the runtime storage model
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/toolchain.md`
+  - `docs/toolchain.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for toolchain-docs active-data-root drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because the toolchain docs still used repo-root `.fpdev/` paths instead of `<data-root>/cache|sandbox|logs|locks` and their derived import locations | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `64` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The toolchain topic docs still assumed a repository-root `.fpdev/` data root and derived all offline paths from that outdated convention | 1 | Added a toolchain-docs contract and rewrote the offline-mode section around the active data-root model used by the runtime |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The toolchain docs now match the active data-root, sandbox, and cache semantics implemented by the runtime |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the offline-toolchain docs aligned with the same active data-root contract already enforced across the rest of the public docs |
+| What have I learned? | Topic-specific offline workflows can keep repo-local assumptions alive even after the broader install/config docs are fixed |
+| What have I done? | Added toolchain-docs contract coverage and rewrote both toolchain docs around the active `<data-root>` model |

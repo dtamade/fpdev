@@ -559,3 +559,36 @@
 - 结论更新：
   - FPC 管理文档现在也与 canonical toolchain/source layout 和 active config path 语义保持一致
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, toolchain docs active-data-root drift)
+- 在 FPC 管理文档已与真实 toolchain/source layout 对齐后，继续检查 toolchain 专题文档时，又发现离线模式章节仍保留 repo-root `.fpdev/` 假设：
+  - `docs/toolchain.md` 与 `docs/toolchain.en.md` 仍写着“默认使用仓库根下的 `.fpdev/`”
+  - cache / sandbox / logs / locks 目录都被写死成 `.fpdev/...`
+  - `ensure-source` 和 `import-bundle` 的行为说明也继续把目标路径写成 `.fpdev/sandbox/...` 与 `.fpdev/cache/toolchain/`
+  - 但运行时真相是：
+    - `src/fpdev.paths.pas`：数据根默认由 portable `data/` 或平台目录决定，`FPDEV_DATA_ROOT` 才是覆盖入口
+    - `src/fpdev.source.pas`：本地源码导入落到 `<data-root>/sandbox/sources/...`
+    - `src/fpdev.source.pas`：离线捆绑包导入落到 `<data-root>/cache/toolchain/`
+- 这个问题的影响：
+  - 用户会被专项文档重新引导到只在某些开发工作区里才像是真的 repo-root `.fpdev/`
+  - 离线 cache/sandbox 的路径心智模型会再次与安装文档、quick-start 和实际运行时分叉
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_toolchain_docs_describe_active_data_root_paths` 直接暴露出：
+    - 文档没有 `<data-root>/cache/`
+    - 没有 `<data-root>/sandbox/`
+    - 没有 `<data-root>/logs/`
+    - 没有 `<data-root>/locks/`
+    - 仍保留“仓库根下的 `.fpdev/`”以及 `.fpdev/cache/`、`.fpdev/sandbox/` 等旧路径
+- 已实施的最小修复：
+  - `docs/toolchain.md` / `docs/toolchain.en.md`：
+    - 离线模式段改为说明数据根由运行时决定，portable release 默认使用 `data/`
+    - cache / sandbox / logs / locks 统一改成 `<data-root>/...`
+    - `ensure-source` / `import-bundle` 的目标路径说明同步切换到 `<data-root>/sandbox/...` 与 `<data-root>/cache/toolchain/`
+  - `tests/test_official_docs_cli_contract.py`：补齐对应 toolchain 文档契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`64` tests OK，`1` skipped
+- 结论更新：
+  - toolchain 文档现在也与 active data-root、sandbox 和 cache 的运行时语义保持一致
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行

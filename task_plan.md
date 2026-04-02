@@ -462,3 +462,22 @@ Phase 4 complete
 4. 结论：
    - FPC 管理文档现在也与运行时真实的 toolchain/source layout 和 active config path 对齐
    - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是 FPC 文档路径漂移
+
+## Close-out Update (2026-04-02, toolchain docs active-data-root drift)
+1. 新发现的 repo-local 公开文档 seam：
+   - `src/fpdev.paths.pas` 明确：数据根默认来自 portable `data/` 或平台目录，不是仓库根下的 `.fpdev/`
+   - `src/fpdev.source.pas` 明确：`ensure-source` 会把源码复制到 `<data-root>/sandbox/sources/...`
+   - 同一单元也明确：`import-bundle` 会把校验通过的 zip 导入 `<data-root>/cache/toolchain/`
+   - 但 `docs/toolchain.md` 与 `docs/toolchain.en.md` 仍把离线模式默认数据根写成 repo-root `.fpdev/`，并连带把 cache/sandbox/logs/locks 示例都写死成 `.fpdev/...`
+2. 已完成的最小修复：
+   - `tests/test_official_docs_cli_contract.py` 新增 `test_toolchain_docs_describe_active_data_root_paths`
+   - `docs/toolchain.md` / `docs/toolchain.en.md` 改为：
+     - 明确数据根由运行时决定，portable release 默认使用 `data/`
+     - 用 `<data-root>/cache/`、`<data-root>/sandbox/`、`<data-root>/logs/`、`<data-root>/locks/` 描述真实目录
+     - 将 `ensure-source` / `import-bundle` 的行为说明改成 `<data-root>/sandbox/...` 与 `<data-root>/cache/toolchain/`
+3. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`64` tests OK，`1` skipped
+4. 结论：
+   - toolchain 文档现在也与 active data-root、sandbox 和 cache 的真实运行时模型保持一致
+   - repo-local 剩余工作继续收敛到外部 owner 执行与真实发布资产，而不是离线工具链文档的 repo-root 假设

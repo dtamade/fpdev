@@ -104,17 +104,17 @@
 
 
 
-## 离线模式与本地来源（.fpdev 数据根）
+## 离线模式与本地来源（活动数据根）
 
-- 数据根：默认使用仓库根下的 `.fpdev/`，可通过环境变量 `FPDEV_DATA_ROOT` 改为任意路径。
-  - 缓存：`.fpdev/cache/`
-  - 沙箱：`.fpdev/sandbox/`
-  - 日志：`.fpdev/logs/`
-  - 锁文件：`.fpdev/locks/`
+- 数据根：由运行时决定；portable release 默认使用 `data/`，也可通过环境变量 `FPDEV_DATA_ROOT` 改为任意路径。
+  - 缓存：`<data-root>/cache/`
+  - 沙箱：`<data-root>/sandbox/`
+  - 日志：`<data-root>/logs/`
+  - 锁文件：`<data-root>/locks/`
 
 - 本地目录作为源码来源
   - `fpdev system toolchain ensure-source fpc-src 3.2.2 --local D:\\kits\\fpc-3.2.2-src --strict`
-  - 行为：结构校验 → 复制到 `.fpdev/sandbox/sources/fpc-src/3.2.2/` → 写锁文件
+  - 行为：结构校验 → 复制到 `<data-root>/sandbox/sources/fpc-src/3.2.2/` → 写锁文件
 
 - 本地 zip 作为源码来源
   - `fpdev system toolchain ensure-source lazarus-src 3.4.0 --local D:\\kits\\lazarus-3.4.0.zip --sha256 <64hex> --strict`
@@ -122,7 +122,7 @@
 
 - 导入离线捆绑包目录
   - `fpdev system toolchain import-bundle D:\\kits\\fpdev-bundle-2025-08-18\\`
-  - 行为：扫描该目录 `*.zip + .sha256`，校验通过后导入 `.fpdev/cache/toolchain/`
+  - 行为：扫描该目录 `*.zip + .sha256`，校验通过后导入 `<data-root>/cache/toolchain/`
 
 说明：
 - 严格模式（--strict）下，目录仅做结构校验；zip 必须提供 sha256。

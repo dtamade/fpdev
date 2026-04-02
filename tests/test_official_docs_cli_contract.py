@@ -226,6 +226,28 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn(stale, zh_text)
             self.assertNotIn(stale, en_text)
 
+    def test_toolchain_docs_describe_active_data_root_paths(self):
+        zh_text = (REPO_ROOT / 'docs' / 'toolchain.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'toolchain.en.md').read_text(encoding='utf-8')
+
+        for text in (zh_text, en_text):
+            self.assertIn('FPDEV_DATA_ROOT', text)
+            self.assertIn('<data-root>/cache/', text)
+            self.assertIn('<data-root>/sandbox/', text)
+            self.assertIn('<data-root>/logs/', text)
+            self.assertIn('<data-root>/locks/', text)
+
+        for stale in [
+            '默认使用仓库根下的 `.fpdev/`',
+            'Defaults to `.fpdev/` under the repository root',
+            '.fpdev/cache/',
+            '.fpdev/sandbox/',
+            '.fpdev/logs/',
+            '.fpdev/locks/',
+        ]:
+            self.assertNotIn(stale, zh_text)
+            self.assertNotIn(stale, en_text)
+
 
 if __name__ == '__main__':
     unittest.main()
