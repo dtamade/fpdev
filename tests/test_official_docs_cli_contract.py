@@ -207,6 +207,13 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertNotIn(stale, zh_text)
             self.assertNotIn(stale, en_text)
 
+    def test_quickstart_docs_do_not_advertise_unsupported_install_verbose_flag(self):
+        zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
+        en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')
+
+        self.assertNotIn('fpdev fpc install 3.2.2 --from-source --verbose', zh_text)
+        self.assertNotIn('fpdev fpc install 3.2.2 --from-source --verbose', en_text)
+
     def test_fpdevrc_docs_describe_active_global_config_paths(self):
         zh_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'FPDEVRC_SPEC.en.md').read_text(encoding='utf-8')

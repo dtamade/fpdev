@@ -278,7 +278,7 @@ fpdev system config set mirror gitee
 A: 检查以下几点：
 1. 确保已安装必要的构建工具 (gcc, make 等)
 2. 检查网络连接
-3. 查看详细错误信息：`fpdev fpc install 3.2.2 --from-source --verbose`
+3. 重新运行 `fpdev fpc install 3.2.2 --from-source`，并检查当前数据根中的 `logs/` 目录
 
 ### Q: 如何切换 FPC 版本？
 A: 使用 `fpdev fpc use <version>` 命令

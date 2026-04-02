@@ -1238,3 +1238,42 @@
 | What's the goal? | Keep the roadmap/status document aligned with the real install/activation surface, not just the broader path model |
 | What have I learned? | Even after path semantics are fixed, small stale flag references in status docs can still mislead users toward removed CLI behavior |
 | What have I done? | Added roadmap activate-flag contract coverage and removed the stale `--activate` guidance from the live roadmap |
+
+## Session: 2026-04-02 (quickstart install-verbose drift)
+
+### Close-out Execution Follow-up 30
+- **Status:** complete
+- Actions taken:
+  - Scanned the remaining live user-facing docs after the roadmap fix and found that `docs/QUICKSTART.md` and `docs/QUICKSTART.en.md` still told users to run `fpdev fpc install 3.2.2 --from-source --verbose` for diagnostics
+  - Re-verified the command surface in `src/fpdev.cmd.fpc.install.pas`: unknown options are rejected, and the supported install options remain `--from-source`, `--from-binary`, `--from=`, `--jobs=`, `--prefix=`, `--offline`, and `--no-cache`
+  - Added a failing official-docs contract proving the quickstart guides must not advertise the unsupported install verbose flag
+  - Updated both quickstart guides so the troubleshooting answer now tells users to re-run the supported install command and inspect the active data root's `logs/` directory
+  - Re-ran the focused official-docs suite and the expanded release-contract suite to confirm the quickstart guides now match the shipped install CLI surface
+- Files created/modified:
+  - `tests/test_official_docs_cli_contract.py`
+  - `docs/QUICKSTART.md`
+  - `docs/QUICKSTART.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart install-verbose drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because both quickstart guides still recommended `fpdev fpc install 3.2.2 --from-source --verbose` even though `install` rejects unknown options | Observed |
+| Focused official docs verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | pass | OK |
+| Expanded release contract suite | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `72` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-02 | The quickstart guides still recommended an unsupported `install --verbose` flag that would send users straight to usage errors | 1 | Added a quickstart contract and rewrote the troubleshooting advice around the supported install command plus the active data-root logs directory |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The quickstart guides now match the shipped `fpdev fpc install` option surface as well as the active data-root diagnostics story |
+| Where am I going? | Continue only if another repo-local close-out seam appears; otherwise the remaining work is external release execution |
+| What's the goal? | Keep the user-entry quickstart docs aligned with the real install command surface so copy-paste guidance does not fail immediately |
+| What have I learned? | Small troubleshooting snippets in onboarding docs can be just as dangerous as larger architecture drift because users copy them verbatim |
+| What have I done? | Added quickstart install-verbose contract coverage and replaced the unsupported flag guidance with a supported diagnostic path |

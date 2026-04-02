@@ -809,3 +809,30 @@
 - 结论更新：
   - `ROADMAP.md` 现在也与当前 install/activation help surface 保持一致，不再宣传已移除的 `install --activate`
   - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
+
+## Execution Update (2026-04-02, quickstart install-verbose drift)
+- 在 `ROADMAP.md` 的 activation flag 漂移修正后，继续扫描入门文档时，又发现一个更直接影响 copy-paste 使用的 CLI drift：
+  - `docs/QUICKSTART.md` 与 `docs/QUICKSTART.en.md` 的“编译失败怎么办”答案仍建议运行 `fpdev fpc install 3.2.2 --from-source --verbose`
+  - 但当前 `fpdev fpc install` 本身并不支持 `--verbose`
+- 当前 runtime/help 真相：
+  - `src/fpdev.cmd.fpc.install.pas`：`FindUnknownOption` 只接受 `--from-source`、`--from-binary`、`--from=`、`--jobs=`、`--prefix=`、`--offline`、`--no-cache`
+  - 同文件的 `--help` 输出也只打印这些 install options
+  - 这意味着 Quickstart 中的 `--verbose` 不是“额外但无效”，而是用户照抄就会直接触发 usage error
+- 这个问题的影响：
+  - Quickstart 是最高频的入门 copy-paste 面，错误 flag 会把第一次排障路径直接导向失败
+  - 即使 deeper docs 已经对齐，onboarding 文档里的一个错旗标也会明显损害 CLI 可用性感知
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+  - 新增契约 `test_quickstart_docs_do_not_advertise_unsupported_install_verbose_flag` 直接暴露出：
+    - 中英文 quickstart 都仍包含 `fpdev fpc install 3.2.2 --from-source --verbose`
+- 已实施的最小修复：
+  - `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+    - 将故障排查建议改为重新运行 `fpdev fpc install 3.2.2 --from-source`
+    - 明确提示检查当前活动数据根中的 `logs/` 目录
+  - `tests/test_official_docs_cli_contract.py`：补齐 quickstart verbose-flag 契约
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：通过
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`72` tests OK，`1` skipped
+- 结论更新：
+  - Quickstart 文档现在也与当前 install help surface 保持一致，不再建议不存在的 `--verbose` flag
+  - repo-local 可证明的 seam 继续减少，剩余工作更集中在外部发布执行
