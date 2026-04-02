@@ -1,32 +1,36 @@
 # FPDev Development Roadmap
 
-**Version**: 1.0.0 → 2.0.0
-**Status**: Phase 7 In Progress (All Features Complete, Quality Improvements)
-**Last Updated**: 2026-03-15
+**Version**: 1.0.0 → 2.1.0
+**Status**: Feature Checklist Closed, Linux Release Evidence Recorded, Owner Sign-Off Pending
+**Last Updated**: 2026-03-25
 **Methodology**: Test-Driven Development (TDD)
+
+> Canonical status note: this is the current public roadmap/status document for FPDev.
+> Historical planning snapshots such as `docs/DEVELOPMENT_ROADMAP.md` are retained for reference only.
 
 ---
 
 ## Project Status Summary
 
-### Current State (v2.0.0-beta)
-- ✅ **Core Architecture**: Complete (Interface-driven, Command Pattern)
-- ✅ **Git Integration**: Complete (Three-layer libgit2 wrapper)
-- ✅ **Build System**: Complete (Sandbox-isolated builds)
-- ✅ **Configuration**: Complete (JSON-based config management)
-- ✅ **Test Coverage**: 256 discoverable tests, 256/256 passing in the latest local full run
-- ✅ **Documentation**: Complete (CLAUDE.md, WARP.md, README.md, 20 English translations)
-- ✅ **All Commands**: Implemented (fpc, lazarus, project, package, cross, repo, config, perf, env)
-- ✅ **Package Ecosystem**: Complete (create, test, validate, publish, search, install, dependencies)
-- ✅ **Cross-Compilation**: Complete (21 builtin targets, 8-step build engine, toolchain search)
-- ✅ **Project Templates**: Complete (7 builtin templates, install/remove/update)
+### Current State (v2.1.0)
+- ✅ **Core Architecture**: Interface-driven command pattern is active in the shipped CLI
+- ✅ **Git Integration**: libgit2-backed wrapper is active; migration cleanup is tracked separately
+- ✅ **Build System**: Linux release acceptance lane and CLI smoke evidence are available
+- ✅ **Configuration**: JSON-based config management is active in the current command surface
+- ✅ **Test Coverage**: 273 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- ✅ **Documentation**: User and developer docs are published; release evidence is maintained separately
+- ✅ **All Commands**: fpc, lazarus, project, package, cross, repo, config, perf, env are implemented
+- ✅ **Package Ecosystem**: create, test, validate, publish, search, install, dependencies are available
+- ✅ **Cross-Compilation**: builtin targets and toolchain search are available in the current CLI
+- ✅ **Project Templates**: 7 builtin templates are available
 
 ### Production Readiness
-- Code Quality: Production-ready (0 src warnings/hints, 0 errors)
+- Release baseline: Linux automated lane passed; owner evidence still required for Windows/macOS
 - Platform Support: Windows, Linux, macOS
-- Test Coverage: 256 discoverable tests, 256/256 passing in the latest local full run
-- Sample test execution: Latest full suite run passed (256/256)
-- No critical bugs identified
+- Test Coverage: 273 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- Release sign-off: pending Windows/macOS owner evidence
+- Feature checklist: closed for v2.1.0 scope
+- Status source of truth: release evidence artifacts + owner checkpoint ledger
 
 ---
 

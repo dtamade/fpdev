@@ -37,11 +37,18 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
-  fpdev.utils.process, fpdev.utils.git, fpdev.resource.repo, fpdev.constants,
+  fpdev.utils.process, fpdev.utils.git, fpdev.git.runtime, fpdev.resource.repo, fpdev.constants,
   fpdev.build.toolchain,
-  fpdev.fpc.types, fpdev.config, fpdev.exitcodes, fpdev.paths;
+  fpdev.fpc.types, fpdev.config, fpdev.paths;
 
 type
+  TFPCSourceBuildArgs = array of string;
+
+  TFPCSourceBuildPlan = record
+    MakeCommand: string;
+    Params: TFPCSourceBuildArgs;
+  end;
+
   { Bootstrap compiler requirements }
   TBootstrapRequirement = record
     TargetVersion: string;
@@ -62,6 +69,11 @@ type
 
     { Gets the installation path for a given FPC version. }
     function GetVersionInstallPath(const AVersion: string): string;
+    function GetCompilerVersion(const AExecutable: string): string;
+    function TryResolveInstalledBootstrapCompiler(
+      const ATargetVersion, ARequiredVersion: string;
+      out AResolvedVersion, AResolvedCompiler: string
+    ): Boolean;
 
   public
     constructor Create(AConfigManager: IConfigManager;
@@ -104,6 +116,18 @@ type
     property ResourceRepo: TResourceRepository read FResourceRepo;
   end;
 
+function FPCBuilderCanUseSystemCompilerAsBootstrapCore(
+  const ATargetVersion, ACurrentVersion, ARequiredVersion: string
+): Boolean;
+function CreateFPCSourceBuildPlanCore(
+  const AInstallDir, ABootstrapFPC: string;
+  const AParallelJobs: Integer;
+  const AMakeCommand: string;
+  const AIsWindows: Boolean
+): TFPCSourceBuildPlan;
+procedure FPCBuilderInvalidateCompilerMessageIncludesCore(const ASourceDir: string);
+procedure FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(const ASourceDir: string);
+
 const
   { Bootstrap compiler requirements for building from source }
   DEFAULT_BOOTSTRAP_VERSION = '3.2.2';
@@ -117,7 +141,7 @@ implementation
 
 uses
   fpdev.i18n, fpdev.i18n.strings, fpdev.output.console,
-  fpdev.version.registry;
+  fpdev.version.registry, fpdev.fpc.installversionflow, fpdev.resource.repo.bootstrap;
 
 { TFPCSourceBuilder }
 
@@ -142,13 +166,7 @@ begin
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ENDIF}
-  end;
+    FInstallRoot := GetDataRoot;
 end;
 
 destructor TFPCSourceBuilder.Destroy;
@@ -158,18 +176,217 @@ begin
   inherited Destroy;
 end;
 
+function LooksLikeSemVer(const AVersion: string): Boolean;
+var
+  DotCount: Integer;
+begin
+  DotCount := Length(AVersion) - Length(StringReplace(AVersion, '.', '', [rfReplaceAll]));
+  Result := DotCount >= 1;
+end;
+
+function ResolveFPCSourceBuildTargetVersion(const ASourceDir, AInstallDir: string): string;
+var
+  SourceLeaf: string;
+  InstallLeaf: string;
+begin
+  SourceLeaf := ExtractFileName(ExcludeTrailingPathDelimiter(Trim(ASourceDir)));
+  if Pos('fpc-', LowerCase(SourceLeaf)) = 1 then
+    Exit(Copy(SourceLeaf, 5, MaxInt));
+
+  InstallLeaf := ExtractFileName(ExcludeTrailingPathDelimiter(Trim(AInstallDir)));
+  if Pos('fpc-', LowerCase(InstallLeaf)) = 1 then
+    Exit(Copy(InstallLeaf, 5, MaxInt));
+
+  Result := InstallLeaf;
+end;
+
+function FPCBuilderCanUseSystemCompilerAsBootstrapCore(
+  const ATargetVersion, ACurrentVersion, ARequiredVersion: string
+): Boolean;
+begin
+  Result := False;
+
+  if Trim(ACurrentVersion) = '' then
+    Exit;
+
+  if LooksLikeSemVer(ATargetVersion) and SameMajorMinor(ACurrentVersion, ATargetVersion) then
+    Exit(True);
+
+  if (Trim(ARequiredVersion) <> '') and
+     SameMajorMinor(ACurrentVersion, ARequiredVersion) and
+     (CompareSemVer(ACurrentVersion, ARequiredVersion) >= 0) then
+    Exit(True);
+end;
+
+function CreateFPCSourceBuildPlanCore(
+  const AInstallDir, ABootstrapFPC: string;
+  const AParallelJobs: Integer;
+  const AMakeCommand: string;
+  const AIsWindows: Boolean
+): TFPCSourceBuildPlan;
+var
+  EffectiveJobs: Integer;
+  ParamIndex: Integer;
+begin
+  Result := Default(TFPCSourceBuildPlan);
+  if Trim(AMakeCommand) <> '' then
+    Result.MakeCommand := AMakeCommand
+  else
+    Result.MakeCommand := 'make';
+
+  EffectiveJobs := AParallelJobs;
+  if EffectiveJobs <= 0 then
+    EffectiveJobs := 1;
+
+  SetLength(Result.Params, 5);
+  if Trim(ABootstrapFPC) <> '' then
+    SetLength(Result.Params, Length(Result.Params) + 1);
+  if not AIsWindows then
+    SetLength(Result.Params, Length(Result.Params) + 1);
+
+  ParamIndex := 0;
+  Result.Params[ParamIndex] := 'all';
+  Inc(ParamIndex);
+  Result.Params[ParamIndex] := 'install';
+  Inc(ParamIndex);
+  Result.Params[ParamIndex] := 'PREFIX=' + AInstallDir;
+  Inc(ParamIndex);
+  if Trim(ABootstrapFPC) <> '' then
+  begin
+    Result.Params[ParamIndex] := 'PP=' + ABootstrapFPC;
+    Inc(ParamIndex);
+  end;
+  Result.Params[ParamIndex] := 'OVERRIDEVERSIONCHECK=1';
+  Inc(ParamIndex);
+  if not AIsWindows then
+  begin
+    Result.Params[ParamIndex] := 'GINSTALL=/usr/bin/install';
+    Inc(ParamIndex);
+  end;
+  Result.Params[ParamIndex] := '-j' + IntToStr(EffectiveJobs);
+end;
+
+procedure FPCBuilderInvalidateCompilerMessageIncludesCore(const ASourceDir: string);
+var
+  CompilerDir: string;
+  MsgDir: string;
+  MsgIdxPath: string;
+  MsgTxtPath: string;
+begin
+  CompilerDir := IncludeTrailingPathDelimiter(ASourceDir) + 'compiler';
+  MsgDir := CompilerDir + PathDelim + 'msg';
+  if not DirectoryExists(MsgDir) then
+    Exit;
+
+  MsgIdxPath := CompilerDir + PathDelim + 'msgidx.inc';
+  MsgTxtPath := CompilerDir + PathDelim + 'msgtxt.inc';
+
+  if FileExists(MsgIdxPath) then
+    DeleteFile(MsgIdxPath);
+  if FileExists(MsgTxtPath) then
+    DeleteFile(MsgTxtPath);
+end;
+
+procedure FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(const ASourceDir: string);
+var
+  FPMakePath: string;
+  JWTSourceDir: string;
+  JWTUnitPath: string;
+  BaseJWTUnitPath: string;
+  UnitsRoot: string;
+  FPMakeLines: TStringList;
+  Search: TSearchRec;
+  UnitsSearch: TSearchRec;
+  BaseIndex: Integer;
+  JwtIndex: Integer;
+  TargetIndex: Integer;
+  BaseLine: string;
+  JwtLine: string;
+  UnitsDir: string;
+begin
+  JWTSourceDir := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
+    'fcl-web' + PathDelim + 'src' + PathDelim + 'jwt';
+  if not DirectoryExists(JWTSourceDir) then
+    Exit;
+  JWTUnitPath := JWTSourceDir + PathDelim + 'fpjwt.pp';
+  BaseJWTUnitPath := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
+    'fcl-web' + PathDelim + 'src' + PathDelim + 'base' + PathDelim + 'fpjwt.pp';
+
+  FPMakePath := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
+    'fcl-web' + PathDelim + 'fpmake.pp';
+  if FileExists(FPMakePath) then
+  begin
+    FPMakeLines := TStringList.Create;
+    try
+      FPMakeLines.LoadFromFile(FPMakePath);
+      BaseIndex := FPMakeLines.IndexOf('    P.SourcePath.Add(''src/base'');');
+      JwtIndex := FPMakeLines.IndexOf('    P.SourcePath.Add(''src/jwt'');');
+      TargetIndex := FPMakeLines.IndexOf('    T:=P.Targets.AddUnit(''fpjwt.pp'');');
+      if (BaseIndex >= 0) and (JwtIndex < 0) then
+      begin
+        FPMakeLines.Insert(BaseIndex, '    P.SourcePath.Add(''src/jwt'');');
+        JwtIndex := BaseIndex;
+        Inc(BaseIndex);
+      end;
+      if (BaseIndex >= 0) and (JwtIndex >= 0) and (BaseIndex < JwtIndex) then
+      begin
+        BaseLine := FPMakeLines[BaseIndex];
+        JwtLine := FPMakeLines[JwtIndex];
+        FPMakeLines[BaseIndex] := JwtLine;
+        FPMakeLines[JwtIndex] := BaseLine;
+      end;
+      if TargetIndex >= 0 then
+        FPMakeLines[TargetIndex] := '    T:=P.Targets.AddUnit(''src/jwt/fpjwt.pp'');';
+      FPMakeLines.SaveToFile(FPMakePath);
+    finally
+      FPMakeLines.Free;
+    end;
+  end;
+
+  if FileExists(JWTUnitPath) and FileExists(BaseJWTUnitPath) then
+    CopyFileSafe(JWTUnitPath, BaseJWTUnitPath);
+
+  UnitsRoot := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
+    'fcl-web' + PathDelim + 'units';
+  if FindFirst(UnitsRoot + PathDelim + '*', faDirectory, Search) = 0 then
+  begin
+    repeat
+      if (Search.Name <> '.') and (Search.Name <> '..') and
+         ((Search.Attr and faDirectory) <> 0) then
+      begin
+        UnitsDir := UnitsRoot + PathDelim + Search.Name;
+        if FindFirst(UnitsDir + PathDelim + 'fpjwt.*', faAnyFile, UnitsSearch) = 0 then
+        begin
+          repeat
+            if (UnitsSearch.Name <> '.') and (UnitsSearch.Name <> '..') and
+               ((UnitsSearch.Attr and faDirectory) = 0) then
+              DeleteFile(UnitsDir + PathDelim + UnitsSearch.Name);
+          until FindNext(UnitsSearch) <> 0;
+          FindClose(UnitsSearch);
+        end;
+        if FileExists(UnitsDir + PathDelim + 'BuildUnit_fcl_web.pp') then
+          DeleteFile(UnitsDir + PathDelim + 'BuildUnit_fcl_web.pp');
+      end;
+    until FindNext(Search) <> 0;
+    FindClose(Search);
+  end;
+end;
+
 function TFPCSourceBuilder.GetVersionInstallPath(const AVersion: string): string;
 begin
   Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
 end;
 
-function TFPCSourceBuilder.GetCurrentFPCVersion: string;
+function TFPCSourceBuilder.GetCompilerVersion(const AExecutable: string): string;
 var
   LResult: fpdev.utils.process.TProcessResult;
 begin
   Result := '';
+  if Trim(AExecutable) = '' then
+    Exit;
+
   try
-    LResult := TProcessExecutor.Execute('fpc', ['-iV'], '');
+    LResult := TProcessExecutor.Execute(AExecutable, ['-iV'], '');
     if LResult.Success then
       Result := Trim(LResult.StdOut);
   except
@@ -177,16 +394,68 @@ begin
   end;
 end;
 
+function TFPCSourceBuilder.TryResolveInstalledBootstrapCompiler(
+  const ATargetVersion, ARequiredVersion: string;
+  out AResolvedVersion, AResolvedCompiler: string
+): Boolean;
+var
+  CandidateVersion: string;
+  CandidateCompiler: string;
+  ReportedVersion: string;
+begin
+  Result := False;
+  AResolvedVersion := '';
+  AResolvedCompiler := '';
+
+  if Trim(ATargetVersion) <> '' then
+  begin
+    CandidateVersion := ATargetVersion;
+    CandidateCompiler := BuildFPCInstalledExecutablePathCore(GetVersionInstallPath(CandidateVersion));
+    if FileExists(CandidateCompiler) then
+    begin
+      ReportedVersion := GetCompilerVersion(CandidateCompiler);
+      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion,
+        ReportedVersion, ARequiredVersion) then
+      begin
+        AResolvedVersion := ReportedVersion;
+        AResolvedCompiler := CandidateCompiler;
+        Exit(True);
+      end;
+    end;
+  end;
+
+  if (Trim(ARequiredVersion) <> '') and
+     (not SameText(ARequiredVersion, ATargetVersion)) then
+  begin
+    CandidateVersion := ARequiredVersion;
+    CandidateCompiler := BuildFPCInstalledExecutablePathCore(GetVersionInstallPath(CandidateVersion));
+    if FileExists(CandidateCompiler) then
+    begin
+      ReportedVersion := GetCompilerVersion(CandidateCompiler);
+      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion,
+        ReportedVersion, ARequiredVersion) then
+      begin
+        AResolvedVersion := ReportedVersion;
+        AResolvedCompiler := CandidateCompiler;
+        Exit(True);
+      end;
+    end;
+  end;
+end;
+
+function TFPCSourceBuilder.GetCurrentFPCVersion: string;
+begin
+  Result := GetCompilerVersion('fpc');
+end;
+
 function TFPCSourceBuilder.GetBootstrapCompilerPath(const AVersion: string): string;
 begin
+  Result := IncludeTrailingPathDelimiter(GetDataRoot) + 'bootstrap' +
+    PathDelim + 'fpc-' + AVersion + PathDelim + 'bin' + PathDelim;
   {$IFDEF MSWINDOWS}
-  Result := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +
-    FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' +
-    AVersion + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  Result := Result + 'fpc.exe';
   {$ELSE}
-  Result := IncludeTrailingPathDelimiter(GetUserDir) +
-    FPDEV_CONFIG_DIR + PathDelim + 'bootstrap' + PathDelim + 'fpc-' +
-    AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
+  Result := Result + 'fpc';
   {$ENDIF}
 end;
 
@@ -200,9 +469,22 @@ end;
 
 function TFPCSourceBuilder.GetRequiredBootstrapVersion(const ATargetVersion: string): string;
 var
+  DownloadedSourceDir: string;
+  MakefileRequiredVersion: string;
   i: Integer;
 begin
   Result := '';
+
+  DownloadedSourceDir := BuildFPCSourceInstallPathCore(FInstallRoot, ATargetVersion);
+  if DirectoryExists(DownloadedSourceDir) then
+  begin
+    MakefileRequiredVersion := ResourceRepoGetBootstrapVersionFromMakefile(DownloadedSourceDir);
+    if MakefileRequiredVersion <> '' then
+    begin
+      Result := MakefileRequiredVersion;
+      Exit;
+    end;
+  end;
 
   // First try to use resource repository
   if not Assigned(FResourceRepo) then
@@ -236,38 +518,9 @@ var
   BestVersion: string;
   CurrentVersion: string;
   BootstrapPath: string;
+  InstalledBootstrapVersion: string;
+  InstalledBootstrapExe: string;
   Platform: string;
-
-  // Compare version strings (e.g., "3.2.2" vs "3.0.4")
-  // Returns: -1 if V1 < V2, 0 if V1 = V2, 1 if V1 > V2
-  function CompareVersions(const V1, V2: string): Integer;
-  var
-    Parts1, Parts2: TStringArray;
-    I, N1, N2: Integer;
-  begin
-    Result := 0;
-    Parts1 := V1.Split(['.']);
-    Parts2 := V2.Split(['.']);
-
-    for I := 0 to 2 do
-    begin
-      if I < Length(Parts1) then
-        N1 := StrToIntDef(Parts1[I], 0)
-      else
-        N1 := 0;
-
-      if I < Length(Parts2) then
-        N2 := StrToIntDef(Parts2[I], 0)
-      else
-        N2 := 0;
-
-      if N1 < N2 then
-        Exit(-1)
-      else if N1 > N2 then
-        Exit(EXIT_ERROR);
-    end;
-  end;
-
 begin
   Result := False;
   Platform := GetCurrentPlatform;
@@ -288,19 +541,28 @@ begin
   begin
     FOut.WriteLn('Current system FPC version: ' + CurrentVersion);
 
-    // Accept if system FPC version >= required version
-    // Newer FPC versions can typically compile older versions
-    if CompareVersions(CurrentVersion, RequiredVersion) >= 0 then
+    if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion, CurrentVersion, RequiredVersion) then
     begin
-      FOut.WriteLn('OK: System FPC version ' + CurrentVersion + ' is sufficient (>= ' + RequiredVersion + ')');
+      FOut.WriteLn('OK: System FPC version ' + CurrentVersion + ' is bootstrap-compatible');
       Result := True;
       Exit;
     end
     else
-      FOut.WriteLn('System FPC version ' + CurrentVersion + ' is older than required ' + RequiredVersion);
+      FOut.WriteLn(
+        'System FPC version ' + CurrentVersion +
+        ' is not bootstrap-compatible with target ' + ATargetVersion
+      );
   end
   else
     FOut.WriteLn('No system FPC compiler found');
+
+  if TryResolveInstalledBootstrapCompiler(ATargetVersion, RequiredVersion,
+    InstalledBootstrapVersion, InstalledBootstrapExe) then
+  begin
+    FOut.WriteLn('OK: Installed bootstrap compiler available at: ' + InstalledBootstrapExe);
+    Result := True;
+    Exit;
+  end;
 
   // Check if we have the bootstrap compiler downloaded
   if IsBootstrapAvailable(RequiredVersion) then
@@ -385,7 +647,7 @@ end;
 
 function TFPCSourceBuilder.DownloadSource(const AVersion, ATargetDir: string): Boolean;
 var
-  Git: TGitOperations;
+  Git: IGitRuntime;
   GitTag: string;
 begin
   Result := False;
@@ -406,7 +668,7 @@ begin
     if not DirectoryExists(ExtractFileDir(ATargetDir)) then
       EnsureDir(ExtractFileDir(ATargetDir));
 
-    Git := TGitOperations.Create;
+    Git := TGitRuntime.Create;
     try
       if Git.Backend = gbNone then
       begin
@@ -431,7 +693,7 @@ begin
             Exit;
           end;
 
-          if not Git.Checkout(ATargetDir, GitTag, False) then
+          if not Git.Checkout(ATargetDir, GitTag, True) then
           begin
             FErr.WriteLn(_(MSG_ERROR) + ': Git checkout failed for tag: ' + GitTag);
             FErr.WriteLn('  ' + Git.LastError);
@@ -466,7 +728,7 @@ begin
       end;
 
     finally
-      Git.Free;
+      Git := nil;
     end;
 
   except
@@ -481,12 +743,15 @@ end;
 function TFPCSourceBuilder.BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
 var
   LResult: fpdev.utils.process.TProcessResult;
-  MakeCmd: string;
   Settings: TFPDevSettings;
   BootstrapFPC: string;
   CurrentFPC: string;
-  Params: array of string;
+  InstalledBootstrapVersion: string;
+  RequiredBootstrapVersion: string;
+  TargetVersion: string;
+  BuildPlan: TFPCSourceBuildPlan;
   ToolchainChecker: TBuildToolchainChecker;
+  ParamIndex: Integer;
 begin
   Result := False;
 
@@ -501,32 +766,41 @@ begin
     FOut.WriteLn('Source directory: ' + ASourceDir);
     FOut.WriteLn('Install directory: ' + AInstallDir);
 
+    // `msgtxt.inc` / `msgidx.inc` are generated files and can be stale in
+    // source checkouts; force make to regenerate them for the current tree.
+    FPCBuilderInvalidateCompilerMessageIncludesCore(ASourceDir);
+    // `fcl-web` in stable branches can pick up a stale/wrong `fpjwt.ppu`.
+    // Keep the JWT source path first and drop the cached unit before rebuilding.
+    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(ASourceDir);
+
     if not DirectoryExists(AInstallDir) then
       EnsureDir(AInstallDir);
 
     Settings := FConfigManager.GetSettingsManager.GetSettings;
+    TargetVersion := ResolveFPCSourceBuildTargetVersion(ASourceDir, AInstallDir);
 
-    // Detect bootstrap compiler
-    BootstrapFPC := GetVersionInstallPath(DEFAULT_BOOTSTRAP_VERSION) +
-      PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
-      DEFAULT_BOOTSTRAP_VERSION + PathDelim + 'ppcx64';
-    {$IFDEF CPU386}
-    BootstrapFPC := GetVersionInstallPath(DEFAULT_BOOTSTRAP_VERSION) +
-      PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
-      DEFAULT_BOOTSTRAP_VERSION + PathDelim + 'ppc386';
-    {$ENDIF}
-    if FileExists(BootstrapFPC) then
+    RequiredBootstrapVersion := GetRequiredBootstrapVersion(TargetVersion);
+    BootstrapFPC := '';
+    InstalledBootstrapVersion := '';
+    if TryResolveInstalledBootstrapCompiler(TargetVersion, RequiredBootstrapVersion,
+      InstalledBootstrapVersion, BootstrapFPC) then
     begin
-      FOut.WriteLn('Using installed FPC 3.2.2 as bootstrap compiler');
+      FOut.WriteLn('Using installed FPC ' + InstalledBootstrapVersion + ' as bootstrap compiler');
       FOut.WriteLn('Bootstrap compiler: ' + BootstrapFPC);
     end
     else
     begin
       CurrentFPC := GetCurrentFPCVersion;
-      if CurrentFPC <> '' then
+      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(TargetVersion, CurrentFPC, RequiredBootstrapVersion) then
       begin
         FOut.WriteLn('Using system FPC ' + CurrentFPC + ' as bootstrap compiler');
         BootstrapFPC := 'fpc';
+      end
+      else if CurrentFPC <> '' then
+      begin
+        FErr.WriteLn('Warning: System FPC ' + CurrentFPC + ' is not bootstrap-compatible with target ' + TargetVersion);
+        FErr.WriteLn('Build will likely fail without a compatible bootstrap compiler');
+        BootstrapFPC := '';
       end
       else
       begin
@@ -538,39 +812,23 @@ begin
 
     ToolchainChecker := TBuildToolchainChecker.Create(False);
     try
-      MakeCmd := ToolchainChecker.ResolveMakeCmd;
+      BuildPlan := CreateFPCSourceBuildPlanCore(
+        AInstallDir,
+        BootstrapFPC,
+        Settings.ParallelJobs,
+        ToolchainChecker.ResolveMakeCmd,
+        {$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}
+      );
     finally
       ToolchainChecker.Free;
     end;
 
-    // Build parameters - include OVERRIDEVERSIONCHECK=1 to allow newer bootstrap compilers
-    Params := nil;
-    if BootstrapFPC <> '' then
-    begin
-      SetLength(Params, 6);
-      Params[0] := 'all';
-      Params[1] := 'install';
-      Params[2] := 'PREFIX=' + AInstallDir;
-      Params[3] := 'PP=' + BootstrapFPC;
-      Params[4] := 'OVERRIDEVERSIONCHECK=1';
-      Params[5] := '-j' + IntToStr(Settings.ParallelJobs);
-    end
-    else
-    begin
-      SetLength(Params, 5);
-      Params[0] := 'all';
-      Params[1] := 'install';
-      Params[2] := 'PREFIX=' + AInstallDir;
-      Params[3] := 'OVERRIDEVERSIONCHECK=1';
-      Params[4] := '-j' + IntToStr(Settings.ParallelJobs);
-    end;
+    FOut.Write('Executing: ' + BuildPlan.MakeCommand);
+    for ParamIndex := 0 to High(BuildPlan.Params) do
+      FOut.Write(' ' + BuildPlan.Params[ParamIndex]);
+    FOut.WriteLn;
 
-    FOut.Write('Executing: ' + MakeCmd + ' all install PREFIX=' + AInstallDir);
-    if BootstrapFPC <> '' then
-      FOut.Write(' PP=' + BootstrapFPC);
-    FOut.WriteLn(' OVERRIDEVERSIONCHECK=1 -j' + IntToStr(Settings.ParallelJobs));
-
-    LResult := TProcessExecutor.RunDirect(MakeCmd, Params, ASourceDir);
+    LResult := TProcessExecutor.RunDirect(BuildPlan.MakeCommand, BuildPlan.Params, ASourceDir);
 
     Result := LResult.Success;
     if not Result then

@@ -5,8 +5,7 @@ unit fpdev.command.imports.project;
 interface
 
 uses
-  fpdev.cmd.project,
-  fpdev.cmd.project.root,
+    fpdev.cmd.project.root,
   fpdev.cmd.project.new,
   fpdev.cmd.project.list,
   fpdev.cmd.project.info,

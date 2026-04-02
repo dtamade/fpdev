@@ -78,7 +78,7 @@ begin
     Check('Ctx.Out is not nil', Ctx.Out <> nil);
     Check('Ctx.Err is not nil', Ctx.Err <> nil);
     Check('Ctx.Config is not nil', Ctx.Config <> nil);
-    Check('Ctx.Logger is nil', Ctx.Logger = nil);
+    Check('Ctx.Logger is not nil', Ctx.Logger <> nil);
 
     Ctx.Out.WriteLn('test output');
     Check('Ctx.Out captures text', StdOut.Contains('test output'));

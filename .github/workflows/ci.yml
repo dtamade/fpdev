@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  release-acceptance-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,27 +22,28 @@ jobs:
     - name: Show FPC version
       run: fpc -iV
 
-    - name: Build main project
-      run: lazbuild -B fpdev.lpi
+    - name: Run repository quality analyzer
+      run: python3 scripts/analyze_code_quality.py .
 
-    - name: Run tests
-      run: bash scripts/run_all_tests.sh
-
-    - name: Verify test inventory sync
+    - name: Run release contract unit tests
       run: |
-        python3 scripts/update_test_stats.py --check
-        TEST_COUNT=$(python3 scripts/update_test_stats.py --count)
-        echo "Discoverable test programs: ${TEST_COUNT}"
+        python3 -m unittest \
+          tests.test_release_docs_contract \
+          tests.test_release_scripts_contract \
+          tests.test_generate_release_evidence \
+          tests.test_record_owner_smoke_sh \
+          tests.test_release_status_wording \
+          tests.test_ci_release_contracts
 
-    - name: Run Python script unit tests
-      run: python3 -m unittest discover -s tests -p 'test_*.py'
+    - name: Run Linux release acceptance lane
+      run: bash scripts/release_acceptance_linux.sh
 
-    - name: Upload test logs on failure
-      if: failure()
+    - name: Upload release acceptance logs
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs
-        path: logs/
+        name: release-acceptance-logs
+        path: logs/release_acceptance/
         retention-days: 7
 
   compile-check:
@@ -77,3 +78,51 @@ jobs:
           exit 1
         fi
         echo "No source-code hints in src/."
+
+    - name: Upload compile log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: compile-check-log
+        path: build.log
+        retention-days: 7
+
+  cross-platform-cli-smoke:
+    name: Cross-platform CLI smoke
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            install_step: choco install freepascal --no-progress -y
+          - os: macos-13
+            install_step: brew install --cask fpc-laz
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install FPC toolchain
+      run: ${{ matrix.install_step }}
+
+    - name: Show FPC version
+      shell: bash
+      run: fpc -iV
+
+    - name: Build CLI smoke binary
+      shell: bash
+      run: |
+        rm -rf bin lib
+        mkdir -p bin lib
+        fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Run CLI smoke commands
+      if: runner.os != 'Windows'
+      shell: bash
+      run: bash scripts/cli_smoke.sh ./bin/fpdev
+
+    - name: Run CLI smoke commands on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe

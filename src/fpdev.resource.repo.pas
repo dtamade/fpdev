@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, fpjson, jsonparser, DateUtils, fpdev.utils.fs,
-  fpdev.utils.process, fpdev.utils.git,
+  fpdev.utils.process, fpdev.utils.git, fpdev.git.runtime,
   fpdev.output.intf,
   fpdev.resource.repo.bootstrapquery,
   fpdev.resource.repo.types;  // TMirrorInfo, TResourceRepoConfig, TPlatformInfo, etc.
@@ -34,7 +34,7 @@ type
     FManifestData: TJSONObject;
     FManifestLoaded: Boolean;         // Lazy loading flag
     FUserRegion: string;
-    FGitOps: TGitOperations;
+    FGitOps: IGitRuntime;
     FCachedBestMirror: string;      // Cached best mirror
     FMirrorCacheTime: TDateTime;    // Mirror cache time
     FMirrorLatencies: array of record
@@ -188,7 +188,7 @@ begin
   FLastUpdateCheck := 0;
   FManifestData := nil;
   FManifestLoaded := False;
-  FGitOps := TGitOperations.Create;
+  FGitOps := TGitRuntime.Create;
   FCachedBestMirror := '';
   FMirrorCacheTime := 0;
   SetLength(FMirrorLatencies, 0);
@@ -196,8 +196,7 @@ end;
 
 destructor TResourceRepository.Destroy;
 begin
-  if Assigned(FGitOps) then
-    FGitOps.Free;
+  FGitOps := nil;
   if Assigned(FManifestData) then
     FManifestData.Free;
   inherited Destroy;
@@ -249,7 +248,7 @@ begin
   end;
 
   Log('Updating resource repository...');
-  Result := FGitOps.Pull(FLocalPath);
+  Result := FGitOps.PullFastForwardOnly(FLocalPath);
 
   if Result then
     Log('Resource repository updated')

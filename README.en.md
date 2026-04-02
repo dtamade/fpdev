@@ -4,14 +4,14 @@
 
 **Modern FreePascal and Lazarus Development Environment Manager**
 
-[![Release](https://img.shields.io/badge/release-v2.0.6-blue.svg)](https://github.com/fpdev/fpdev/releases)
+[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-257%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-273%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
-[Quick Start](#-quick-start) • [Installation](docs/INSTALLATION.md) • [FAQ](FAQ.md) • [Documentation](docs/QUICKSTART.md)
+[Quick Start](#-quick-start) • [Installation](docs/INSTALLATION.en.md) • [FAQ](docs/FAQ.en.md) • [Documentation](docs/QUICKSTART.en.md)
 
 </div>
 
@@ -33,11 +33,12 @@
 ### 📊 Project Status
 
 ```
-✅ Feature Completeness: 100% (Phase 4 M12 Complete)
-✅ Discoverable test programs: 257 (same inventory rules as CI)
-✅ Documentation: 100% (Complete user and developer docs)
-✅ Cross-platform: Windows, Linux, macOS
-✅ Code Quality: Production Ready (0 Warning, 0 Error)
+[INFO] Feature checklist: closed for v2.1.0 scope
+[INFO] Linux release evidence: recorded
+[INFO] Discoverable test programs: 273 (same inventory rules as CI)
+[INFO] Documentation set: published user and developer docs
+[INFO] Platform targets: Windows, Linux, macOS
+[INFO] Release sign-off: pending Windows/macOS owner evidence
 ```
 
 ---
@@ -50,7 +51,7 @@
 # Build from source (recommended)
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B fpdev.lpi
+lazbuild -B --build-mode=Release fpdev.lpi
 ./bin/fpdev system version
 ```
 
@@ -110,7 +111,8 @@ fpdev lazarus configure 3.0               # Configure IDE
 
 ```bash
 fpdev cross list --all                # List supported platforms
-fpdev cross install win64             # Install cross-compilation target
+fpdev cross install x86_64-win64      # Install cross-compilation target
+fpdev cross configure x86_64-win64 --binutils=/path --libraries=/path
 fpdev cross list --json               # JSON output
 ```
 
@@ -178,7 +180,7 @@ FPDev follows **TDD (Test-Driven Development)** methodology:
 
 ```
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-✅ 257 discoverable test_*.lpr programs (same rules as CI)
+✅ 273 discoverable test_*.lpr programs (same rules as CI)
 <!-- TEST-INVENTORY-SUMMARY:END -->
 ✅ Zero compilation warnings
 ✅ GitHub Actions CI ready

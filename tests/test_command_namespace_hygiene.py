@@ -152,6 +152,7 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('function WriteFPCHelpDetailsCore', text)
         self.assertIn("Usage: fpdev fpc verify <version>", text)
         self.assertIn("Usage: fpdev fpc cache <subcommand>", text)
+        self.assertIn("Usage: fpdev fpc policy <subcommand>", text)
 
     def test_package_help_details_unit_owns_package_subcommand_help(self):
         helper_path = SRC / 'fpdev.help.details.package.pas'
@@ -168,6 +169,7 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('function WriteProjectHelpDetailsCore', text)
         self.assertIn('HELP_PROJECT_NEW_USAGE', text)
         self.assertIn('HELP_PROJECT_CLEAN_OPT_HELP', text)
+        self.assertIn("Usage: fpdev project template <subcommand>", text)
 
     def test_cross_help_details_unit_owns_cross_subcommand_help(self):
         helper_path = SRC / 'fpdev.help.details.cross.pas'
@@ -190,6 +192,7 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('WriteFPCHelpDetailsCore', text)
         self.assertNotIn("Usage: fpdev fpc verify <version>", text)
         self.assertNotIn("Usage: fpdev fpc cache <subcommand>", text)
+        self.assertNotIn("Usage: fpdev fpc policy <subcommand>", text)
 
     def test_cmd_package_help_has_no_inline_subcommand_details(self):
         text = (SRC / 'fpdev.cmd.package.help.pas').read_text(encoding='utf-8')
@@ -202,6 +205,7 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('WriteProjectHelpDetailsCore', text)
         self.assertNotIn('HELP_PROJECT_NEW_USAGE', text)
         self.assertNotIn('HELP_PROJECT_CLEAN_OPT_HELP', text)
+        self.assertNotIn("Usage: fpdev project template <subcommand>", text)
 
     def test_cmd_cross_help_has_no_inline_subcommand_details(self):
         text = (SRC / 'fpdev.cmd.cross.help.pas').read_text(encoding='utf-8')
@@ -540,6 +544,32 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         ]
         missing = [name for name in expected if not (SRC / name).exists()]
         self.assertEqual([], missing, f'Missing domain import aggregators: {missing}')
+
+    def test_project_command_import_aggregator_no_longer_depends_on_legacy_manager_shell(self):
+        text = (SRC / 'fpdev.command.imports.project.pas').read_text(encoding='utf-8')
+        self.assertNotIn('fpdev.cmd.project,', text)
+
+    def test_lazarus_command_import_aggregator_stays_root_and_action_only(self):
+        text = (SRC / 'fpdev.command.imports.lazarus.pas').read_text(encoding='utf-8')
+        self.assertNotIn('fpdev.cmd.lazarus,', text)
+
+    def test_project_manager_moves_to_core_module(self):
+        manager_path = SRC / 'fpdev.project.manager.pas'
+        self.assertTrue(manager_path.exists(), f'Missing {manager_path}')
+        shell_text = (SRC / 'fpdev.cmd.project.pas').read_text(encoding='utf-8')
+        manager_text = manager_path.read_text(encoding='utf-8')
+        self.assertIn('TProjectManager = fpdev.project.manager.TProjectManager;', shell_text)
+        self.assertIn('type', manager_text)
+        self.assertIn('TProjectManager = class', manager_text)
+
+    def test_lazarus_manager_moves_to_core_module(self):
+        manager_path = SRC / 'fpdev.lazarus.manager.pas'
+        self.assertTrue(manager_path.exists(), f'Missing {manager_path}')
+        shell_text = (SRC / 'fpdev.cmd.lazarus.pas').read_text(encoding='utf-8')
+        manager_text = manager_path.read_text(encoding='utf-8')
+        self.assertIn('TLazarusManager = fpdev.lazarus.manager.TLazarusManager;', shell_text)
+        self.assertIn('type', manager_text)
+        self.assertIn('TLazarusManager = class', manager_text)
 
     def test_command_imports_unit_only_references_domain_aggregators(self):
         text = (SRC / 'fpdev.command.imports.pas').read_text(encoding='utf-8')
