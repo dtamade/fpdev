@@ -105,6 +105,29 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('SHA256SUMS.txt', self.changelog_text)
         self.assertIn('RELEASE_EVIDENCE.md', self.changelog_text)
 
+    def test_changelog_project_management_block_matches_current_cli_signatures(self):
+        for expected in [
+            '`fpdev project new <template> <name> [dir]`: Create new project from a template',
+            '`fpdev project list [--json]`: List available project templates',
+            '`fpdev project info <template>`: Show template information',
+            '`fpdev project build [dir] [target]`: Build project',
+            '`fpdev project clean [dir]`: Clean project',
+            '`fpdev project test [dir]`: Test project',
+            '`fpdev project run [dir] [args...]`: Run project',
+        ]:
+            self.assertIn(expected, self.changelog_text)
+
+        for stale in [
+            '`fpdev project new <name> [--template]`: Create new project',
+            '`fpdev project list`: List projects',
+            '`fpdev project info <name>`: Show project info',
+            '`fpdev project build [name]`: Build project',
+            '`fpdev project clean [name]`: Clean project',
+            '`fpdev project test [name]`: Test project',
+            '`fpdev project run [name] [args]`: Run project',
+        ]:
+            self.assertNotIn(stale, self.changelog_text)
+
 
 if __name__ == '__main__':
     unittest.main()

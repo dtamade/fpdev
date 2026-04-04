@@ -1692,3 +1692,33 @@
 - 结论更新：
   - 当前模板面不再把没有专用 scaffold 的 `webapp` 伪装成现成功能
   - completion / docs / runtime 三层现在是一致的
+
+## Execution Update (2026-04-05, changelog project-command signature drift)
+- 新发现的 repo-local seam：
+  - `CHANGELOG.md` 的 `Project Management` 区块仍使用旧 project CLI 签名
+  - 典型漂移包括：
+    - `fpdev project new <name> [--template]`
+    - `fpdev project list`: `List projects`
+    - `fpdev project info <name>`: `Show project info`
+    - `build/clean/test/run` 的 `[name]` 参数模型
+- 当前 repo truth：
+  - `src/fpdev.i18n.strings.pas`：
+    - `project new` usage 是 `fpdev project new <template> <name> [dir]`
+    - `project list` usage 是 `fpdev project list [--json]`，描述为 `List available project templates.`
+    - `project info` usage 是 `fpdev project info <template>`，描述为 `Show template information.`
+    - `project build/run/test/clean` usage 分别是 `[dir] [target]` / `[dir] [args...]` / `[dir]` / `[dir]`
+  - `src/fpdev.cmd.project.list.pas` / `src/fpdev.cmd.project.info.pas` 的实现也明确面向模板而不是“项目实例”
+- RED 证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract` 失败
+    - 新增 changelog contract 直接抓到旧 `Project Management` inventory
+- 已实施的最小修复：
+  - `tests/test_release_docs_contract.py`：
+    - 新增 changelog project-command signature 契约
+  - `CHANGELOG.md`：
+    - 将 `Project Management` 区块整体对齐到当前 CLI 签名和模板语义
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_release_docs_contract`：`16` tests OK
+  - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`92` tests OK，`1` skipped
+- 结论更新：
+  - changelog release inventory 已重新对齐当前 project CLI surface
+  - `project` 语义现在在 help、runtime、quickstart、completion、changelog 五个面上保持一致

@@ -2321,3 +2321,39 @@
 | What's the goal? | Keep template discovery surfaces honest so every advertised starter maps to a current supported runtime path |
 | What have I learned? | Template drift is worse than a normal docs typo because it spans docs, completion, list/info discovery, and generation semantics; treating it as one surface is the right unit of repair |
 | What have I done? | Added three focused regression layers, withdrew `webapp` from the current available template surface, aligned completions and quickstarts, and re-verified the 115-test docs/release/CI bundle plus the focused Pascal CLI suite |
+
+## Session: 2026-04-05 (changelog project-command signature drift)
+
+### Close-out Execution Follow-up 57
+- **Status:** complete
+- Actions taken:
+  - Followed the next release-doc seam after the template cleanup and compared `CHANGELOG.md` project command inventory against the live help/runtime signatures
+  - Added a focused release-doc contract that requires the current template-oriented and directory-oriented project command signatures
+  - Updated the changelog `Project Management` block to match the real CLI surface instead of the older `<name> [--template]` / `List projects` wording
+- Files created/modified:
+  - `tests/test_release_docs_contract.py`
+  - `CHANGELOG.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for changelog project-command drift | `python3 -m unittest -v tests.test_release_docs_contract` | fail before fix | failed because the changelog still advertised old `project` command signatures and project-oriented wording | Observed |
+| Focused release-doc verification | `python3 -m unittest -v tests.test_release_docs_contract` | pass | `16` tests OK | OK |
+| Release/docs/CI regression bundle | `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts` | pass | `92` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | `CHANGELOG.md` kept the older project command inventory long after help/runtime had switched to template-oriented and directory-oriented signatures | 1 | Added a release-doc contract for the current signatures and updated the changelog block to the live CLI surface |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The changelog inventory no longer lags behind the live `project` command surface |
+| Where am I going? | Commit and push this checkpoint, then continue to the next public-contract seam outside the project command cluster |
+| What's the goal? | Keep release-facing documentation honest so historical release notes do not teach users outdated command signatures |
+| What have I learned? | Release docs can preserve stale CLI signatures even after help, runtime, completions, and quickstarts are corrected; changelog inventory needs its own contract |
+| What have I done? | Added one focused release-doc contract, corrected the changelog project command signatures, and re-verified the 92-test release/docs/CI bundle |

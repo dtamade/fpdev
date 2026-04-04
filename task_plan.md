@@ -1155,3 +1155,31 @@ Phase 4 complete
 5. 结论：
    - 当前 project template surface 已重新对齐到“有明确当前脚手架或显式保留的模板集合”
    - 后续若要恢复 `webapp`，应先补专用 generator，再重新开放 docs / list / completion
+
+## Close-out Update (2026-04-05, changelog project-command signature drift)
+1. 新发现的 release-doc seam：
+   - `CHANGELOG.md` 的 `Project Management` 区块仍写着旧签名：
+     - `fpdev project new <name> [--template]`
+     - `fpdev project list`
+     - `fpdev project info <name>`
+     - 以及 `build/clean/test/run` 的 `[name]` 形态
+   - 但当前 live help/runtime 已统一为模板导向和目录导向签名：
+     - `new <template> <name> [dir]`
+     - `list [--json]`
+     - `info <template>`
+     - `build [dir] [target]` / `clean [dir]` / `test [dir]` / `run [dir] [args...]`
+2. 决策：
+   - 不扩展代码行为
+   - 仅把 changelog inventory 修回当前真实 CLI surface，并用 release-doc contract 固化
+3. 已完成的最小修复：
+   - `tests/test_release_docs_contract.py`：
+     - 新增 changelog project-command signature 契约
+     - 同时要求当前签名存在、旧签名不存在
+   - `CHANGELOG.md`：
+     - 将 `Project Management` 区块对齐到当前 help/runtime 签名与模板语义
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_release_docs_contract`：先 RED，修复后 `16` tests OK
+   - `python3 -m unittest -v tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts`：`92` tests OK，`1` skipped
+5. 结论：
+   - release baseline 的 changelog inventory 不再把 project 命令签名回退到旧时代接口
+   - close-out contract 继续把“历史命令签名残留在公开发布叙事里”的 seam 自动化收口

@@ -419,13 +419,13 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - `fpdev package repo update`: Update repositories
 
 - **Project Management**
-  - `fpdev project new <name> [--template]`: Create new project
-  - `fpdev project list`: List projects
-  - `fpdev project info <name>`: Show project info
-  - `fpdev project build [name]`: Build project
-  - `fpdev project clean [name]`: Clean project
-  - `fpdev project test [name]`: Test project
-  - `fpdev project run [name] [args]`: Run project
+  - `fpdev project new <template> <name> [dir]`: Create new project from a template
+  - `fpdev project list [--json]`: List available project templates
+  - `fpdev project info <template>`: Show template information
+  - `fpdev project build [dir] [target]`: Build project
+  - `fpdev project clean [dir]`: Clean project
+  - `fpdev project test [dir]`: Test project
+  - `fpdev project run [dir] [args...]`: Run project
 
 - **Internationalization**
   - fpc.i18n.pas: Core i18n module
