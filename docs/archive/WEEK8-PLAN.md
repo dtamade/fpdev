@@ -11,7 +11,7 @@ Week 8 focuses on implementing the **Package Dependency Resolution System** (Pha
 ## Context
 
 ### Completed Work (Week 1-7)
-- ✅ Week 1-2: Core Workflow (project clean/run/test, fpc clean/update)
+- ✅ Week 1-2: Core Workflow (project clean/run/test, manual FPC source cleanup + fpc update)
 - ✅ Week 3-4: Manifest System (JSON-based package metadata)
 - ✅ Week 5: Bootstrap Compiler Management
 - ✅ Week 6: Multi-Mirror Fallback & Offline Mode

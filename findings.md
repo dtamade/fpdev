@@ -1825,3 +1825,38 @@
 - 结论更新：
   - tracked docs 已不再泄漏当前开发机的 workspace 布局或 home 目录路径
   - archive-doc portability seam 现在既有实际文档修复，也重新拿回了有效契约覆盖
+
+## Execution Update (2026-04-05, stale missing `fpdev fpc clean` leakage)
+- 新发现的 repo-local seam：
+  - `src/fpdev.errors.recovery.pas` 的构建/安装失败恢复建议仍直接推荐不存在的 `fpdev fpc clean`
+  - `CHANGELOG.md`、`docs/ROADMAP.md`、`docs/archive/COMPLETION_SUMMARY.md`、`docs/archive/WEEK8-PLAN.md` 和 `RELEASE_NOTES_v1.1.md` 继续把它写成 live workflow 或关联测试资产
+- 当前 repo truth：
+  - live runtime / docs truth 早已切到：
+    - 手工清理 `<data-root>/sources/fpc/fpc-<version>`
+    - 需要时重跑 `fpdev fpc install <version> --from-source`
+    - `fpdev fpc update <version>` 作为唯一受支持的 source-maintenance subcommand
+  - `tests/test_command_registry.lpr` / `tests/test_fpc_commands.lpr` 也说明当前是 `fpc cache clean`，不是 `fpc clean`
+- RED 证据：
+  - `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery` 先前失败，说明 recovery display 还在建议 `fpdev fpc clean`
+  - `python3 -B -m unittest -v tests.test_release_docs_contract tests.test_archive_docs_contract tests.test_official_docs_cli_contract` 先前失败，说明 changelog/archive/roadmap 的文本和新契约不一致
+  - 继续 repo-root 扫描又发现 `RELEASE_NOTES_v1.1.md` 仍公开宣传 `fpdev fpc clean <version>`、`test_fpc_clean.lpr` 和 `17` test inventory
+- 已实施的最小修复：
+  - `tests/test_errors_recovery.lpr`：
+    - 新增针对 build/install/default recovery 文本的负向断言，禁止 `fpdev fpc clean`
+  - `src/fpdev.errors.recovery.pas`：
+    - 将恢复建议统一改为 manual cleanup + `fpdev fpc install <version> --from-source`
+  - `tests/test_release_docs_contract.py`：
+    - 新增 legacy release notes 不得继续宣传 `fpdev fpc clean` 的契约
+  - `tests/test_archive_docs_contract.py` / `tests/test_official_docs_cli_contract.py`：
+    - 锁定 archive summary / week plan / roadmap 的新 wording
+  - `CHANGELOG.md` / `RELEASE_NOTES_v1.1.md` / `docs/ROADMAP.md` / `docs/archive/COMPLETION_SUMMARY.md` / `docs/archive/WEEK8-PLAN.md`：
+    - 改为当前 manual-cleanup workflow，并同步清掉旧的 command/test-count residue
+- 当前最新本地证据：
+  - `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery`：`41` passed
+  - `python3 -B -m unittest -v tests.test_release_docs_contract tests.test_archive_docs_contract tests.test_official_docs_cli_contract`：`67` tests OK
+  - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`125` tests OK，`1` skipped
+  - repo-wide `rg -n "fpdev fpc clean|test_fpc_clean\\.lpr|fpc clean/update" .`：
+    - 剩余命中仅在“说明命令不存在”的文档、负向契约测试、以及 planning/history 记录中
+- 结论更新：
+  - `fpdev fpc clean` 的用户可见泄漏面已被收敛
+  - 当前这条 seam 已从“runtime + docs 错误指令”收口到“只剩解释性和历史性残留”

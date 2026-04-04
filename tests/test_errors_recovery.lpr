@@ -3,7 +3,7 @@ program test_errors_recovery;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, fpdev.errors, fpdev.errors.recovery;
+  Classes, SysUtils, fpdev.errors, fpdev.errors.recovery, fpdev.utils;
 
 var
   TestsPassed: Integer = 0;
@@ -21,6 +21,28 @@ begin
     Inc(TestsFailed);
     WriteLn('[FAIL] ', AMessage);
   end;
+end;
+
+function CaptureErrorDisplay(AErr: TEnhancedError; AVerbose: Boolean = False): string;
+var
+  SavedOutput: Text;
+  TempPath: string;
+begin
+  TempPath := GetTempFileName(GetTempDir(False), 'fpe');
+  SavedOutput := Output;
+  Assign(Output, TempPath);
+  Rewrite(Output);
+  try
+    AErr.Verbose := AVerbose;
+    AErr.Display;
+    Flush(Output);
+  finally
+    Close(Output);
+    Output := SavedOutput;
+  end;
+
+  Result := ReadAllTextIfExists(TempPath);
+  DeleteFile(TempPath);
 end;
 
 procedure TestNetworkTimeoutError;
@@ -134,6 +156,7 @@ end;
 procedure TestBuildFailedError;
 var
   Err: TEnhancedError;
+  DisplayText: string;
 begin
   WriteLn('Testing CreateBuildFailedError...');
 
@@ -142,6 +165,14 @@ begin
     AssertTrue(Err.Code = ecBuildFailed, 'Error code should be ecBuildFailed');
     AssertTrue(Pos('compiler', Err.Message) > 0, 'Message should contain component name');
     AssertTrue(Pos('/var/log/build.log', Err.ToString) > 0, 'Context should contain log file');
+
+    DisplayText := CaptureErrorDisplay(Err, True);
+    AssertTrue(Pos('fpdev fpc clean', DisplayText) = 0,
+      'Build recovery should not suggest the missing `fpdev fpc clean` command');
+    AssertTrue(Pos('fpdev fpc install <version> --from-source', DisplayText) > 0,
+      'Build recovery should suggest retrying with `--from-source`');
+    AssertTrue(Pos('<data-root>/sources/fpc/fpc-<version>', DisplayText) > 0,
+      'Build recovery should describe manual cleanup under the active data root');
   finally
     Err.Free;
   end;
@@ -150,6 +181,7 @@ end;
 procedure TestInstallationFailedError;
 var
   Err: TEnhancedError;
+  DisplayText: string;
 begin
   WriteLn('Testing CreateInstallationFailedError...');
 
@@ -158,6 +190,14 @@ begin
     AssertTrue(Err.Code = ecInstallationFailed, 'Error code should be ecInstallationFailed');
     AssertTrue(Pos('FPC 3.2.2', Err.Message) > 0, 'Message should contain package name');
     AssertTrue(Pos('insufficient disk space', Err.Message) > 0, 'Message should contain reason');
+
+    DisplayText := CaptureErrorDisplay(Err, True);
+    AssertTrue(Pos('fpdev fpc clean', DisplayText) = 0,
+      'Installation recovery should not suggest the missing `fpdev fpc clean` command');
+    AssertTrue(Pos('fpdev fpc install <version> --from-source', DisplayText) > 0,
+      'Installation recovery should suggest retrying with `--from-source`');
+    AssertTrue(Pos('<data-root>/sources/fpc/fpc-<version>', DisplayText) > 0,
+      'Installation recovery should describe manual cleanup under the active data root');
   finally
     Err.Free;
   end;
@@ -200,6 +240,7 @@ procedure TestDefaultSuggestionsRegistered;
 var
   Registry: TErrorRegistry;
   Err: TEnhancedError;
+  DisplayText: string;
 begin
   WriteLn('Testing default suggestions are registered...');
 
@@ -223,6 +264,11 @@ begin
   Err := Registry.CreateError(ecBuildFailed, '');
   try
     AssertTrue(Err.Message <> '', 'Default message should be registered');
+    DisplayText := CaptureErrorDisplay(Err, True);
+    AssertTrue(Pos('fpdev fpc clean', DisplayText) = 0,
+      'Default build-failed recovery should not suggest the missing `fpdev fpc clean` command');
+    AssertTrue(Pos('fpdev fpc install <version> --from-source', DisplayText) > 0,
+      'Default build-failed recovery should point to a fresh source build');
   finally
     Err.Free;
   end;

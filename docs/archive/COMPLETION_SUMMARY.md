@@ -90,21 +90,12 @@ This document summarizes all completed features in the FPDev project as of Janua
 
 ### 1.2 FPC Source Management
 
-#### Feature: `fpdev fpc clean`
+#### Workflow: Manual FPC source cleanup
 **Status**: ✅ COMPLETE
-**Commits**: 848b2d1 (test), 8e245b1 (feat)
-**Tests**: 3/3 passing (test_fpc_clean.lpr)
-
-**Capabilities**:
-- Cleans FPC source build artifacts
-- Recursive cleanup through directories
-- Preserves source repository (.git)
-- Reports freed disk space
-
-**Test Coverage**:
-1. TestCleanRemovesBuildArtifacts - Artifact removal
-2. TestCleanPreservesSourceRepo - Repository preservation
-3. TestCleanRecursive - Recursive directory cleanup
+**Current workflow**:
+- manual cleanup under `<data-root>/sources/fpc/fpc-<version>`
+- Rebuild from source with `fpdev fpc install <version> --from-source` when a clean source rebuild is needed
+- Refresh an existing source tree with `fpdev fpc update`
 
 ---
 
@@ -131,8 +122,8 @@ This document summarizes all completed features in the FPDev project as of Janua
 | Metric | Value |
 |--------|-------|
 | Features Implemented | 5 |
-| Test Suites | 5 |
-| Total Tests | 17 |
+| Test Suites | 4 |
+| Total Tests | 14 |
 | Pass Rate | 100% |
 | Commits | 10 (5 red, 5 green) |
 | Lines Added | ~800 (implementation + tests) |
@@ -565,7 +556,7 @@ end;
 
 **Files Updated**:
 1. **README.md** (3 major updates)
-   - Added Phase 1 features (project clean/run/test, fpc clean/update)
+   - Added Phase 1 features (project clean/run/test, manual FPC source cleanup + fpc update)
    - Added Phase 2 features (scoped install, binary/source modes, activation)
    - Added Phase 4.2 features (bootstrap management)
    - Updated test badges (37+ → 44+ tests)
@@ -615,7 +606,7 @@ end;
 | Clean build artifacts | Manual file deletion | `fpdev project clean` |
 | Run executables | Direct invocation | `fpdev project run [args]` |
 | Run tests | Manual test discovery | `fpdev project test` |
-| FPC source cleanup | Manual cleanup | `fpdev fpc clean` |
+| FPC source cleanup | Manual cleanup | Manual cleanup under `<data-root>/sources/fpc/fpc-<version>` |
 | FPC source update | Manual git pull | `fpdev fpc update` |
 
 ### FPC Installation

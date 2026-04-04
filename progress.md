@@ -2517,3 +2517,47 @@
 | What's the goal? | Keep every tracked shared document safe to copy and execute without leaking developer-local topology or teaching stale path models |
 | What have I learned? | Interrupted sessions can drop tests as easily as they leave dirty docs; the only safe response is to re-read the exact on-disk state and re-establish coverage before trusting a green bundle |
 | What have I done? | Restored the missing archive hygiene contracts, sanitized the remaining tracked docs path examples, and re-verified the 121-test docs/release/CI bundle |
+
+## Session: 2026-04-05 (stale missing `fpdev fpc clean` leakage)
+
+### Close-out Execution Follow-up 62
+- **Status:** complete
+- Actions taken:
+  - Switched to a higher-severity seam after confirming that runtime recovery messages were still teaching users to run the missing `fpdev fpc clean` command
+  - Extended the contract layer across runtime recovery text, changelog, roadmap, archive docs, and the repo-root `RELEASE_NOTES_v1.1.md`
+  - Normalized every affected public surface to the same supported workflow: manual cleanup under `<data-root>/sources/fpc/fpc-<version>`, optional rebuild via `fpdev fpc install <version> --from-source`, and `fpdev fpc update <version>` as the supported source-maintenance command
+- Files created/modified:
+  - `src/fpdev.errors.recovery.pas`
+  - `CHANGELOG.md`
+  - `RELEASE_NOTES_v1.1.md`
+  - `docs/ROADMAP.md`
+  - `docs/archive/COMPLETION_SUMMARY.md`
+  - `docs/archive/WEEK8-PLAN.md`
+  - `tests/test_errors_recovery.lpr`
+  - `tests/test_release_docs_contract.py`
+  - `tests/test_archive_docs_contract.py`
+  - `tests/test_official_docs_cli_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Focused runtime recovery verification | `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery` | pass | `41` passed | OK |
+| Focused release/archive/official docs verification | `python3 -B -m unittest -v tests.test_release_docs_contract tests.test_archive_docs_contract tests.test_official_docs_cli_contract` | pass | `67` tests OK | OK |
+| Broad docs/release/CI contract bundle | `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `125` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | The first focused Python rerun still failed because the new contract text had only been applied partially and `RELEASE_NOTES_v1.1.md` was still advertising `fpdev fpc clean` plus stale test counts | 1 | Re-read the exact public docs, extended the seam to the repo-root legacy release notes, and synchronized the remaining wording/count residue before rerunning the focused and broad bundles |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The missing `fpdev fpc clean` command is no longer leaked through runtime recovery or public release/roadmap/archive docs |
+| Where am I going? | Commit and push this seam, then continue from the next highest-value repo-local drift instead of reopening the same command-survival issue |
+| What's the goal? | Keep every user-visible recovery and release narrative aligned with the actual registered CLI surface |
+| What have I learned? | Stale command drift is rarely isolated to one file; once a command becomes invalid, runtime hints, release notes, roadmap text, and inventory counts all need to be treated as one consistency seam |
+| What have I done? | Added regression coverage for runtime/docs leakage, normalized the remaining public surfaces, and re-verified the 125-test contract bundle plus the focused Pascal recovery suite |

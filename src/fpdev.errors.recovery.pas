@@ -261,9 +261,9 @@ begin
   );
 
   Result.AddSuggestion(
-    'Clean and retry',
-    'fpdev fpc clean' + LineEnding + 'fpdev fpc install <version>',
-    'Clean previous build artifacts and retry'
+    'Retry with a fresh source build',
+    'fpdev fpc install <version> --from-source',
+    'If a stale source tree is causing the failure, manually delete <data-root>/sources/fpc/fpc-<version> before retrying.'
   );
 end;
 
@@ -294,9 +294,9 @@ begin
   );
 
   Result.AddSuggestion(
-    'Clean and retry',
-    'fpdev fpc clean' + LineEnding + 'fpdev fpc install <version>',
-    'Clean previous installation and retry'
+    'Retry after removing stale source artifacts',
+    'fpdev fpc install <version> --from-source',
+    'If a stale source tree is causing the failure, manually delete <data-root>/sources/fpc/fpc-<version> before retrying.'
   );
 end;
 
@@ -387,9 +387,9 @@ begin
   Suggestions[0].Action := 'Check for missing dependencies';
   Suggestions[0].Command := 'fpdev system doctor';
   Suggestions[0].Description := 'Verify all build dependencies are installed';
-  Suggestions[1].Action := 'Clean and retry';
-  Suggestions[1].Command := 'fpdev fpc clean';
-  Suggestions[1].Description := 'Clean previous build artifacts and retry';
+  Suggestions[1].Action := 'Retry with a fresh source build';
+  Suggestions[1].Command := 'fpdev fpc install <version> --from-source';
+  Suggestions[1].Description := 'If a stale source tree is causing the failure, manually delete <data-root>/sources/fpc/fpc-<version> before retrying.';
   Registry.RegisterError(ecBuildFailed, 'Build failed', Suggestions);
 end;
 

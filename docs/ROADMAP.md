@@ -61,12 +61,12 @@ Following the TODO-FPC-v1.md philosophy:
   - **Implemented**: Phase 1.2 (commit 9844cf3)
   - **Tests**: 3/3 passing (test_fpc_update.lpr)
 
-- [x] **Source cleanup functionality** ✅ COMPLETE (`fpdev.cmd.fpc.pas:847`)
+- [x] **Manual FPC source cleanup workflow** ✅ COMPLETE
   - Impact: MEDIUM - Disk space management
-  - Complexity: LOW - Delete temp files and build artifacts
+  - Complexity: LOW - Manual cleanup under `<data-root>/sources/fpc/fpc-<version>` plus rerunning `fpdev fpc install <version> --from-source` when a clean rebuild is needed
   - Dependencies: None
-  - **Implemented**: Phase 1.2 (commit 8e245b1)
-  - **Tests**: 3/3 passing (test_fpc_clean.lpr)
+  - **Implemented**: Phase 1.2 documentation update
+  - **Supported command**: `fpdev fpc update <version>` remains the only dedicated FPC source-maintenance subcommand
 
 - [x] **Bootstrap compiler download** ✅ COMPLETE (`fpdev.fpc.source.pas:544`)
   - Impact: HIGH - Required for source builds
@@ -258,12 +258,10 @@ Following the TODO-FPC-v1.md philosophy:
   - **Priority**: 🟡 HIGH
 
 #### 1.2 FPC Source Management
-- [x] **Implement `fpdev fpc clean`** (TDD) ✅ COMPLETE
-  - ✅ Write tests for source cleanup
-  - ✅ Implement cleanup for temp files, build artifacts
-  - ✅ Preserve source repos by default
-  - **Tests**: 3/3 passing (test_fpc_clean.lpr)
-  - **Commit**: 848b2d1 (test), 8e245b1 (feat)
+- [x] **Document manual FPC source cleanup workflow** ✅ COMPLETE
+  - ✅ Document manual cleanup under `<data-root>/sources/fpc/fpc-<version>`
+  - ✅ Keep `fpdev fpc update` as the supported source-maintenance command
+  - ✅ Rebuild from source via `fpdev fpc install <version> --from-source` after manual cleanup when needed
   - **Priority**: 🟡 HIGH
 
 - [x] **Implement `fpdev fpc update`** (TDD) ✅ COMPLETE
@@ -635,16 +633,16 @@ end;
    - ✅ Refactor and commit
 
 ### Week 2 (COMPLETE)
-1. [x] ~~**Implement `fpdev fpc clean` (TDD)**~~ ✅ COMPLETE
-   - ✅ Write failing tests for FPC source cleanup
-   - ✅ Implement feature
-   - ✅ Clean up build artifacts and temporary files
+1. [x] **Document manual FPC source cleanup workflow** ✅ COMPLETE
+   - ✅ Document manual cleanup under `<data-root>/sources/fpc/fpc-<version>`
+   - ✅ Keep `fpdev fpc update` as the supported source-maintenance command
+   - ✅ Use `fpdev fpc install <version> --from-source` when a clean rebuild is needed
 2. [x] ~~**Implement `fpdev fpc update` (TDD)**~~ ✅ COMPLETE
    - ✅ Write tests for FPC source updates
    - ✅ Implement source update + rebuild orchestration
 3. [x] ~~**Update documentation**~~ ✅ COMPLETE
    - ✅ Updated README with newly implemented features
-   - ✅ Added detailed usage examples for fpdev fpc clean/update
+   - ✅ Added detailed usage examples for manual FPC source cleanup + `fpdev fpc update`
    - ✅ Added typical workflow section
 
 ### ✅ Recent Completions
@@ -666,10 +664,10 @@ Use this checklist to track implementation progress:
 - [x] Implement project clean (✅ TDD complete, 3 tests passing)
 - [x] Implement project run (✅ TDD complete, 4 tests passing)
 - [x] Implement project test (✅ TDD complete, 4 tests passing)
-- [x] Implement fpc clean (✅ TDD complete, 3 tests passing)
+- [x] Document manual FPC source cleanup workflow (✅ current flow under `<data-root>/sources/fpc/fpc-<version>`)
 - [x] Implement fpc update (✅ TDD complete, 3 tests passing)
 - [x] Update documentation (✅ README enhanced with detailed usage)
-- [x] Verify all tests pass (✅ 17 tests passing across Phase 1)
+- [x] Verify all tests pass (✅ 14 tests passing across the Phase 1 command set)
 - [x] Ready for v1.1 release
 
 ### Phase 2 Progress: [██████████] 100% (ALL 4 SUB-PHASES COMPLETE)

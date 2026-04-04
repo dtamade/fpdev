@@ -482,6 +482,15 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('2.1 Scoped Installation', text)
         self.assertNotIn('Implement `--scope` (project/user/system)', text)
 
+    def test_roadmap_does_not_advertise_missing_fpc_clean_command(self):
+        text = (REPO_ROOT / 'docs' / 'ROADMAP.md').read_text(encoding='utf-8')
+
+        self.assertIn('manual cleanup under `<data-root>/sources/fpc/fpc-<version>`', text)
+        self.assertIn('`fpdev fpc update`', text)
+        self.assertNotIn('Implement `fpdev fpc clean`', text)
+        self.assertNotIn('fpdev fpc clean/update', text)
+        self.assertNotIn('test_fpc_clean.lpr', text)
+
     def test_todo_fpc_v1_uses_active_data_root_install_model(self):
         text = (REPO_ROOT / 'docs' / 'TODO-FPC-v1.md').read_text(encoding='utf-8')
 

@@ -1279,3 +1279,33 @@ Phase 4 complete
 4. 结论：
    - tracked docs 不再传播当前开发机的 workspace 拓扑或旧 `.fpdev` 路径模型
    - archive/doc portability seam 现在有实际生效的契约托底，而不是只停留在中断会话的脏状态里
+
+## Close-out Update (2026-04-05, stale missing `fpdev fpc clean` leakage)
+1. 新发现的 repo-local seam：
+   - 运行时恢复建议仍在推荐不存在的 `fpdev fpc clean`
+   - `CHANGELOG.md`、`docs/ROADMAP.md`、`docs/archive/COMPLETION_SUMMARY.md`、`docs/archive/WEEK8-PLAN.md` 以及 repo-root `RELEASE_NOTES_v1.1.md` 仍把它当作当前可执行 workflow 或测试资产
+2. 决策：
+   - 不新增 `fpdev fpc clean` 命令
+   - 当前正确 workflow 统一为：
+     - 手工清理 `<data-root>/sources/fpc/fpc-<version>`
+     - 需要干净重建时重新执行 `fpdev fpc install <version> --from-source`
+     - `fpdev fpc update <version>` 继续作为唯一受支持的源码维护子命令
+3. 已完成的最小修复：
+   - `tests/test_errors_recovery.lpr`：
+     - 新增 recovery display 契约，禁止再建议 `fpdev fpc clean`
+   - `src/fpdev.errors.recovery.pas`：
+     - 将过期恢复建议改成手工 cleanup + `--from-source` rebuild wording
+   - `tests/test_release_docs_contract.py` / `tests/test_archive_docs_contract.py` / `tests/test_official_docs_cli_contract.py`：
+     - 新增 release/archive/roadmap 契约，覆盖 changelog、legacy release notes、archive summary、week plan、roadmap
+   - `CHANGELOG.md` / `RELEASE_NOTES_v1.1.md` / `docs/ROADMAP.md` / `docs/archive/COMPLETION_SUMMARY.md` / `docs/archive/WEEK8-PLAN.md`：
+     - 全部改为现行 manual-cleanup workflow，并同步去掉 `test_fpc_clean.lpr` / 17-test inventory 这类旧叙事残留
+4. 已完成验证：
+   - `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery`：`41` passed
+   - `python3 -B -m unittest -v tests.test_release_docs_contract tests.test_archive_docs_contract tests.test_official_docs_cli_contract`：`67` tests OK
+   - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`125` tests OK，`1` skipped
+5. 结论：
+   - runtime、roadmap、release docs、archive docs、legacy release notes 现在都不再把 `fpdev fpc clean` 作为当前支持命令
+   - repo-wide 尾扫剩余命中仅存在于：
+     - 明确说明“该命令不存在”的官方文档
+     - 防回归测试
+     - planning/findings/progress 历史记录

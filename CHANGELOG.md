@@ -481,15 +481,14 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - `fpdev project test`: Discover and run test executables (test*.exe pattern)
 
 - **FPC Source Management**
-  - `fpdev fpc clean <version>`: Clean FPC source build artifacts while preserving Git repository
+  - manual cleanup under `<data-root>/sources/fpc/fpc-<version>`: Current FPC source cleanup workflow for reclaiming source build artifacts
   - `fpdev fpc update <version>`: Update FPC sources via git pull with rebuild detection
 
 - **Test Coverage (TDD Methodology)**
-  - 17 comprehensive tests across 5 modules (100% pass rate)
+  - 14 comprehensive tests across 4 modules (100% pass rate)
   - test_project_clean.lpr (3 tests): Clean artifacts, error handling
   - test_project_run.lpr (4 tests): Run executable, argument passing, error cases
   - test_project_test.lpr (4 tests): Test discovery, execution, failure handling
-  - test_fpc_clean.lpr (3 tests): Recursive cleanup, repository preservation
   - test_fpc_update.lpr (3 tests): Git pull, rebuild detection, conflict handling
 
 ### Changed

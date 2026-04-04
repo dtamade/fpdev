@@ -13,7 +13,7 @@ FPDev v1.1.0 marks the completion of **Phase 1: Core Workflow Enhancements**, de
 
 ### ✨ What's New
 
-This release introduces **5 new commands** built entirely with **Test-Driven Development (TDD)** methodology:
+This release introduces **4 new commands plus 1 documented source-maintenance workflow** built with **Test-Driven Development (TDD)** methodology:
 
 #### 📦 Project Management Commands
 - **`fpdev project clean`** - Clean build artifacts
@@ -21,7 +21,7 @@ This release introduces **5 new commands** built entirely with **Test-Driven Dev
 - **`fpdev project test`** - Execute project test suites
 
 #### 🔧 FPC Source Management Commands
-- **`fpdev fpc clean <version>`** - Clean source build artifacts
+- **manual cleanup under `<data-root>/sources/fpc/fpc-<version>`** - Current workflow for reclaiming FPC source build artifacts
 - **`fpdev fpc update <version>`** - Update FPC sources from Git
 
 ---
@@ -99,25 +99,19 @@ Total: 17/17 tests passed (100%)
 
 ### 2. FPC Source Management
 
-#### `fpdev fpc clean <version>`
+#### Manual FPC source cleanup
 Clean build artifacts from FPC source directories to free disk space.
 
 **Features:**
-- Recursive cleanup of all build artifacts
-- Preserves Git repository and source files
-- Safe operation with dry-run preview
-- Disk space recovery reporting
+- manual cleanup under `<data-root>/sources/fpc/fpc-<version>`
+- Preserves the source checkout until you explicitly delete local build artifacts
+- Pairs with `fpdev fpc update <version>` for refreshing the source tree
+- Rebuilds from source via `fpdev fpc install <version> --from-source` when needed
 
 **Example:**
 ```bash
-$ fpdev fpc clean 3.2.2
-Cleaning FPC 3.2.2 build artifacts...
-Scanning: D:/fpdev/sources/fpc/fpc-3.2.2
-Removed: 1,234 object files (.o)
-Removed: 567 unit files (.ppu)
-Removed: 89 library files (.a, .so)
-Total freed: 456 MB
-Source repository preserved
+$ rm -rf <data-root>/sources/fpc/fpc-3.2.2
+$ fpdev fpc install 3.2.2 --from-source
 ```
 
 #### `fpdev fpc update <version>`
@@ -159,9 +153,8 @@ All features in this release were developed using **Test-Driven Development (TDD
 | test_project_clean.lpr | 3 | Clean artifacts, error handling | ✅ 100% |
 | test_project_run.lpr | 4 | Run executable, args, errors | ✅ 100% |
 | test_project_test.lpr | 4 | Test discovery, execution | ✅ 100% |
-| test_fpc_clean.lpr | 3 | Recursive cleanup, preservation | ✅ 100% |
 | test_fpc_update.lpr | 3 | Git pull, detection, conflicts | ✅ 100% |
-| **Total** | **17** | **All Phase 1 features** | **✅ 100%** |
+| **Total** | **14** | **All Phase 1 features** | **✅ 100%** |
 
 **TDD Workflow Applied:**
 1. 🔴 **Red**: Write failing test first
@@ -175,8 +168,8 @@ All features in this release were developed using **Test-Driven Development (TDD
 ### Enhanced README.md
 - Added "FPC 源码管理详解" section with detailed command explanations
 - Included real-world usage examples with sample outputs
-- Documented typical workflows (update → clean → rebuild)
-- Updated test coverage badges to reflect 17 passing tests
+- Documented typical workflows (update → manual cleanup → rebuild)
+- Updated test coverage badges to reflect 14 passing tests
 
 ### Updated ROADMAP.md
 - Phase 1 progress: 90% complete (9/10 tasks)
@@ -195,9 +188,8 @@ $ fpdev fpc update 3.2.2
 Updating FPC 3.2.2 sources...
 Update completed successfully
 
-# 2. Clean old build artifacts
-$ fpdev fpc clean 3.2.2
-Cleaned 456 MB of build artifacts
+# 2. Clean old build artifacts manually
+$ rm -rf <data-root>/sources/fpc/fpc-3.2.2
 
 # 3. Rebuild from updated sources
 $ fpdev fpc install 3.2.2 --from-source
@@ -226,9 +218,9 @@ Cleaned 5.2 MB of build artifacts
 - [x] Project clean command
 - [x] Project run command
 - [x] Project test command
-- [x] FPC clean command
+- [x] Manual FPC source cleanup workflow
 - [x] FPC update command
-- [x] Comprehensive test suite (17 tests)
+- [x] Comprehensive test suite (14 tests)
 - [x] Documentation updates
 - [x] CHANGELOG and release notes
 
@@ -237,8 +229,8 @@ Cleaned 5.2 MB of build artifacts
 - [ ] Tag v1.1.0 release
 
 ### 🎉 Achievement Metrics
-- **Features Delivered**: 5 new commands
-- **Test Coverage**: 17 tests, 100% pass rate
+- **Features Delivered**: 4 commands + 1 workflow improvement
+- **Test Coverage**: 14 tests, 100% pass rate
 - **Code Quality**: Production-ready
 - **Documentation**: Complete with examples
 - **Development Method**: 100% TDD

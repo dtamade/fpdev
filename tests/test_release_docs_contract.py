@@ -81,6 +81,12 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertNotIn('sudo mv fpdev /usr/local/bin/', self.legacy_release_notes_text)
         self.assertNotIn('Simply replace your existing FPDev binary', self.legacy_release_notes_text)
 
+    def test_legacy_release_notes_do_not_advertise_missing_fpc_clean_command(self):
+        self.assertIn('manual cleanup under `<data-root>/sources/fpc/fpc-<version>`', self.legacy_release_notes_text)
+        self.assertIn('`fpdev fpc update <version>`', self.legacy_release_notes_text)
+        self.assertNotIn('`fpdev fpc clean <version>`', self.legacy_release_notes_text)
+        self.assertNotIn('test_fpc_clean.lpr', self.legacy_release_notes_text)
+
     def test_owner_checkpoint_exit_criteria_include_release_evidence(self):
         self.assertIn('RELEASE_EVIDENCE.md', self.text)
         self.assertIn('`RELEASE_EVIDENCE.md` is published with the release.', self.text)
@@ -127,6 +133,12 @@ class ReleaseDocsContractTests(unittest.TestCase):
             '`fpdev project run [name] [args]`: Run project',
         ]:
             self.assertNotIn(stale, self.changelog_text)
+
+    def test_changelog_stops_advertising_missing_fpc_clean_command(self):
+        self.assertIn('manual cleanup under `<data-root>/sources/fpc/fpc-<version>`', self.changelog_text)
+        self.assertIn('`fpdev fpc update <version>`', self.changelog_text)
+        self.assertNotIn('`fpdev fpc clean <version>`', self.changelog_text)
+        self.assertNotIn('test_fpc_clean.lpr', self.changelog_text)
 
 
 if __name__ == '__main__':

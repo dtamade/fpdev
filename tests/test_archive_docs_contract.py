@@ -22,6 +22,7 @@ WEEK7_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-PLAN.md'
 WEEK7_PROGRESS = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-PROGRESS.md'
 WEEK7_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-SUMMARY.md'
 CODE_IMPROVEMENTS_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'CODE-IMPROVEMENTS-SUMMARY.md'
+WEEK8_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK8-PLAN.md'
 
 
 class ArchiveDocsContractTests(unittest.TestCase):
@@ -133,6 +134,17 @@ class ArchiveDocsContractTests(unittest.TestCase):
         week7_summary_text = WEEK7_SUMMARY.read_text(encoding='utf-8')
         self.assertIn('<data-root>/cache', week7_summary_text)
         self.assertNotIn('/home/dtamade/.config/fpdev/.fpdev/cache', week7_summary_text)
+
+    def test_archive_docs_do_not_advertise_missing_fpc_clean_command(self):
+        completion_text = COMPLETION_SUMMARY.read_text(encoding='utf-8')
+        self.assertIn('manual cleanup under `<data-root>/sources/fpc/fpc-<version>`', completion_text)
+        self.assertIn('`fpdev fpc update`', completion_text)
+        self.assertNotIn('#### Feature: `fpdev fpc clean`', completion_text)
+        self.assertNotIn('| FPC source cleanup | Manual cleanup | `fpdev fpc clean` |', completion_text)
+
+        week8_text = WEEK8_PLAN.read_text(encoding='utf-8')
+        self.assertIn('manual FPC source cleanup + fpc update', week8_text)
+        self.assertNotIn('fpc clean/update', week8_text)
 
 
 if __name__ == '__main__':
