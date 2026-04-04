@@ -2273,3 +2273,51 @@
 | What's the goal? | Keep public CLI docs aligned with the live registered command surface so users never get copy-paste instructions for commands that do not exist |
 | What have I learned? | For negative capability docs, the contract has to distinguish between “advertising a command” and “explicitly stating that the command is unsupported” |
 | What have I done? | Verified the live FPC command surface, added a new official-doc contract, corrected FAQ/FPC management guidance, and re-verified the 113-test docs/release/CI bundle |
+
+## Session: 2026-04-05 (project template webapp surface drift)
+
+### Close-out Execution Follow-up 56
+- **Status:** complete
+- Actions taken:
+  - Followed the next strongest seam from parallel-agent findings and mapped `webapp` across quickstart docs, built-in templates, generator branches, shell completions, and runtime CLI behavior
+  - Chose to withdraw `webapp` from the current available template surface instead of inventing an unreviewed scaffold
+  - Added focused regression coverage for quickstart docs, project-template completions, and `project new/list/info` runtime behavior
+  - Updated the manager availability filter, aligned completion suggestions, and replaced quickstart `webapp` examples with `library`
+- Files created/modified:
+  - `src/fpdev.project.manager.pas`
+  - `scripts/completions/fpdev.bash`
+  - `scripts/completions/_fpdev`
+  - `QUICKSTART.md`
+  - `docs/QUICKSTART.md`
+  - `docs/QUICKSTART.en.md`
+  - `tests/test_official_docs_cli_contract.py`
+  - `tests/test_cli_surface_consistency.py`
+  - `tests/test_cli_project.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for quickstart webapp drift | `python3 -m unittest -v tests.test_official_docs_cli_contract` | fail before fix | failed because quickstart docs still advertised `fpdev project new webapp` | Observed |
+| RED proof for project-template completion drift | `python3 -m unittest -v tests.test_cli_surface_consistency` | fail before fix | failed because `project new` completion suggestions drifted from the manager template surface (`daemon` stale, `game` missing, `webapp` still surfaced) | Observed |
+| RED proof for runtime template availability drift | `bash scripts/run_single_test.sh tests/test_cli_project.lpr` | fail before fix | failed because `project new/list/info` still treated `webapp` as available | Observed |
+| Focused official-doc verification | `python3 -m unittest -v tests.test_official_docs_cli_contract` | pass | `37` tests OK | OK |
+| Focused completion verification | `python3 -m unittest -v tests.test_cli_surface_consistency` | pass | `4` tests OK | OK |
+| Focused runtime CLI verification | `bash scripts/run_single_test.sh tests/test_cli_project.lpr` | pass | PASSED | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `115` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | The first zsh completion parser for `project_templates` assumed a multi-line array and failed against the current single-line array format | 1 | Relaxed the parser to accept any `array=(...)` layout before re-running the focused completion suite |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The `webapp` template seam is now closed across docs, completion, and runtime CLI availability |
+| Where am I going? | Commit and push this checkpoint, then continue to the next uncovered project-surface drift after template alignment |
+| What's the goal? | Keep template discovery surfaces honest so every advertised starter maps to a current supported runtime path |
+| What have I learned? | Template drift is worse than a normal docs typo because it spans docs, completion, list/info discovery, and generation semantics; treating it as one surface is the right unit of repair |
+| What have I done? | Added three focused regression layers, withdrew `webapp` from the current available template surface, aligned completions and quickstarts, and re-verified the 115-test docs/release/CI bundle plus the focused Pascal CLI suite |

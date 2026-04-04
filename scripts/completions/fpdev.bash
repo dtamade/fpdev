@@ -119,7 +119,7 @@ _fpdev_completions() {
                     case "${subcmd}" in
                         new)
                             # Template completion
-                            COMPREPLY=($(compgen -W "console gui library package service daemon" -- "${cur}"))
+                            COMPREPLY=($(compgen -W "console gui library package service game" -- "${cur}"))
                             ;;
                         template)
                             COMPREPLY=($(compgen -W "${project_template_commands}" -- "${cur}"))

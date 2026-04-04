@@ -90,6 +90,22 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestNewUnavailableTemplate;
+var Cmd: TProjectNewCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+    BaseDir, ProjectDir: string;
+begin
+  BaseDir := GTempDir + PathDelim + 'unsupported-template';
+  ProjectDir := BaseDir + PathDelim + 'demo';
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectNewCommand.Create;
+  try
+    Ret := Cmd.Execute(['webapp', 'demo', BaseDir], Ctx);
+    Check('new unavailable template EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('new unavailable template shows error', StdErr.Contains('Failed to create project'));
+    Check('new unavailable template does not create project dir', not DirectoryExists(ProjectDir));
+  finally Cmd.Free; end;
+end;
+
 { ===== build ===== }
 
 procedure TestBuildName;
@@ -390,6 +406,20 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestListOmitsUnavailableTemplate;
+var Cmd: TProjectListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectListCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('list omits unavailable template EXIT_OK', Ret = EXIT_OK);
+    Check('list omits unavailable template keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+    Check('list omits unavailable template from stdout', not StdOut.Contains('webapp'));
+    Check('list still shows library template', StdOut.Contains('library'));
+  finally Cmd.Free; end;
+end;
+
 { ===== info ===== }
 
 procedure TestInfoName;
@@ -445,6 +475,19 @@ begin
     Check('info unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
     Check('info unknown option shows usage', StdErr.Contains('Usage: fpdev project info <template>'));
     Check('info unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestInfoUnavailableTemplate;
+var Cmd: TProjectInfoCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectInfoCommand.Create;
+  try
+    Ret := Cmd.Execute(['webapp'], Ctx);
+    Check('info unavailable template EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('info unavailable template reports missing template', StdErr.Contains('Template not found: webapp'));
+    Check('info unavailable template keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally Cmd.Free; end;
 end;
 
@@ -531,6 +574,7 @@ begin
     TestNewMissingArgs;
     TestNewUnexpectedArg;
     TestNewUnknownOption;
+    TestNewUnavailableTemplate;
 
     WriteLn('');
     WriteLn('--- build ---');
@@ -572,6 +616,7 @@ begin
     TestListHelpRejectsExtraOption;
     TestListUnexpectedArg;
     TestListUnknownOption;
+    TestListOmitsUnavailableTemplate;
 
     WriteLn('');
     WriteLn('--- info ---');
@@ -580,6 +625,7 @@ begin
     TestInfoMissingTemplate;
     TestInfoUnexpectedArg;
     TestInfoUnknownOption;
+    TestInfoUnavailableTemplate;
 
     WriteLn('');
     WriteLn('--- help ---');

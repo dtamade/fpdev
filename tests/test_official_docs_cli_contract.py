@@ -329,6 +329,16 @@ class OfficialDocsCliContractTests(unittest.TestCase):
         self.assertNotIn('功能开发中', zh_text)
         self.assertNotIn('under development', en_text)
 
+    def test_quickstart_docs_do_not_advertise_unavailable_webapp_template(self):
+        for path in [
+            REPO_ROOT / 'QUICKSTART.md',
+            REPO_ROOT / 'docs' / 'QUICKSTART.md',
+            REPO_ROOT / 'docs' / 'QUICKSTART.en.md',
+        ]:
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('fpdev project new library', text)
+            self.assertNotIn('fpdev project new webapp', text, f'Found stale webapp template example in {path.relative_to(REPO_ROOT)}')
+
     def test_quickstart_docs_describe_backup_via_active_data_root(self):
         zh_text = (REPO_ROOT / 'docs' / 'QUICKSTART.md').read_text(encoding='utf-8')
         en_text = (REPO_ROOT / 'docs' / 'QUICKSTART.en.md').read_text(encoding='utf-8')

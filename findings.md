@@ -1653,3 +1653,42 @@
 - 结论更新：
   - 官方 FPC 文档不再把未注册的 `fpc clean` 工作流写成当前能力
   - 契约层也吸取了这次经验：禁止“可执行示例/工作流 claim”，但允许“该命令不存在”的解释性说明
+
+## Execution Update (2026-04-05, project template webapp surface drift)
+- 新发现的 repo-local seam：
+  - `QUICKSTART.md` / `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 仍把 `fpdev project new webapp` 当成当前示例
+  - `src/fpdev.project.manager.pas` 仍把 `webapp` 标为 built-in available template
+  - 但 `src/fpdev.project.generator.pas` 并没有 `ptWebApp` 的专用生成分支，实际会走默认脚手架
+  - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev` 的 `project new` 模板建议还保留了陈旧的 `daemon`
+- 设计决策：
+  - 不临时补一个没有明确产品定义的 `webapp` 生成器
+  - 先把 `webapp` 从当前可用模板面撤下，等未来真的有专用 scaffold 再恢复
+- RED 证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract` 失败
+    - 新增 quickstart 契约直接抓到 `webapp` 示例
+  - `python3 -m unittest -v tests.test_cli_surface_consistency` 失败
+    - 新增 completion 契约直接抓到 bash `daemon` / 缺少 `game` / 仍跟 manager 模板面漂移
+  - `bash scripts/run_single_test.sh tests/test_cli_project.lpr` 失败
+    - 新增 CLI 回归证明 `project new/list/info` 仍把 `webapp` 当成可用模板
+- 已实施的最小修复：
+  - `src/fpdev.project.manager.pas`：
+    - 将 `webapp` 的 `Available` 改为 `False`
+    - `GetTemplateInfo` / `GetAvailableTemplates` 过滤掉 unavailable 模板
+  - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev`：
+    - `project new` 模板建议统一到 `console gui library package service game`
+  - `QUICKSTART.md` / `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+    - 将 `webapp` 示例改为 `library`
+  - `tests/test_official_docs_cli_contract.py`：
+    - 新增 quickstart 不得宣传 unavailable `webapp` 模板的契约
+  - `tests/test_cli_surface_consistency.py`：
+    - 新增 `project new` 模板建议必须匹配 manager 当前 available templates 的契约
+  - `tests/test_cli_project.lpr`：
+    - 新增 `webapp` 对 `new/list/info` 已不可用的运行时回归
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_official_docs_cli_contract`：`37` tests OK
+  - `python3 -m unittest -v tests.test_cli_surface_consistency`：`4` tests OK
+  - `bash scripts/run_single_test.sh tests/test_cli_project.lpr`：PASSED
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`115` tests OK，`1` skipped
+- 结论更新：
+  - 当前模板面不再把没有专用 scaffold 的 `webapp` 伪装成现成功能
+  - completion / docs / runtime 三层现在是一致的

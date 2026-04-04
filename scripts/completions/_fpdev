@@ -193,7 +193,7 @@ _fpdev() {
         'android-arm64:Android ARM64'
     )
 
-    project_templates=('console' 'gui' 'library' 'package' 'service' 'daemon')
+    project_templates=('console' 'gui' 'library' 'package' 'service' 'game')
 
     case "${words[2]}" in
         fpc)

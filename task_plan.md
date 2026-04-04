@@ -1126,3 +1126,32 @@ Phase 4 complete
 5. 结论：
    - 官方文档的 FPC 源码维护说明已经重新对齐 live CLI surface
    - docs-contract cleanup 继续把“历史实现计划残留到公开文档”的 seam 自动化收口
+
+## Close-out Update (2026-04-05, project template webapp surface drift)
+1. 新发现的 cross-surface seam：
+   - `QUICKSTART.md` / `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md` 把 `fpdev project new webapp` 写成一等示例
+   - 但 `src/fpdev.project.generator.pas` 只有 `console` / `gui` / `library` 的专用生成分支，`webapp` 会落回默认脚手架
+   - 同时 shell completion 的 `project new` 模板建议还残留 `daemon`，缺少当前真实可用模板面里的 `game`
+2. 决策：
+   - 不补一个拍脑袋的 `webapp` 生成器
+   - 直接把 `webapp` 从当前可用模板面收回，直到以后有专用脚手架实现再重新开放
+3. 已完成的最小修复：
+   - `src/fpdev.project.manager.pas`：
+     - 将 `webapp` 的 `Available` 改为 `False`
+     - `GetTemplateInfo` / `GetAvailableTemplates` 开始尊重 `Available`
+     - 结果是 `project new/list/info` 不再把 `webapp` 当成当前可用模板
+   - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev`：
+     - `project new` 模板建议改成与当前可用模板面一致
+     - 去掉陈旧的 `daemon`，补上 `game`
+   - `QUICKSTART.md` / `docs/QUICKSTART.md` / `docs/QUICKSTART.en.md`：
+     - 用真实存在的 `library` 示例替换 `webapp`
+   - `tests/test_official_docs_cli_contract.py` / `tests/test_cli_surface_consistency.py` / `tests/test_cli_project.lpr`：
+     - 分别补上 quickstart、completion、runtime CLI 三层契约/回归
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_official_docs_cli_contract`：先 RED，修复后 `37` tests OK
+   - `python3 -m unittest -v tests.test_cli_surface_consistency`：先 RED，修复后 `4` tests OK
+   - `bash scripts/run_single_test.sh tests/test_cli_project.lpr`：先 RED，修复后 PASSED
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`115` tests OK，`1` skipped
+5. 结论：
+   - 当前 project template surface 已重新对齐到“有明确当前脚手架或显式保留的模板集合”
+   - 后续若要恢复 `webapp`，应先补专用 generator，再重新开放 docs / list / completion

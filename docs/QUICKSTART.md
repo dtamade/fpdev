@@ -115,12 +115,12 @@ ls -la
 # 应该看到: my-gui-app.lpr, my-gui-app.lpi
 ```
 
-### Web 应用程序
+### 动态库项目
 
 ```bash
-# 创建 Web 应用
-fpdev project new webapp my-web-app
-cd my-web-app
+# 创建动态库项目
+fpdev project new library my-library
+cd my-library
 ```
 
 ### 查看所有可用模板

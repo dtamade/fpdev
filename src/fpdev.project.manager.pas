@@ -112,7 +112,7 @@ const
     (Name: 'package'; DisplayName: 'Lazarus Package';
       Description: 'Lazarus package project'; ProjectType: ptPackage; Available: True),
     (Name: 'webapp'; DisplayName: 'Web Application';
-      Description: 'Pascal web application'; ProjectType: ptWebApp; Available: True),
+      Description: 'Pascal web application'; ProjectType: ptWebApp; Available: False),
     (Name: 'service'; DisplayName: 'System Service';
       Description: 'Background service application'; ProjectType: ptService; Available: True),
     (Name: 'game'; DisplayName: 'Game Project';
@@ -214,7 +214,7 @@ begin
 
   for i := 0 to High(BUILTIN_TEMPLATES) do
   begin
-    if SameText(BUILTIN_TEMPLATES[i].Name, ATemplateName) then
+    if SameText(BUILTIN_TEMPLATES[i].Name, ATemplateName) and BUILTIN_TEMPLATES[i].Available then
     begin
       Result := BUILTIN_TEMPLATES[i];
       Break;
@@ -227,9 +227,13 @@ var
   i: Integer;
 begin
   Result := nil;
-  SetLength(Result, Length(BUILTIN_TEMPLATES));
+
   for i := 0 to High(BUILTIN_TEMPLATES) do
-    Result[i] := BUILTIN_TEMPLATES[i];
+    if BUILTIN_TEMPLATES[i].Available then
+    begin
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := BUILTIN_TEMPLATES[i];
+    end;
 end;
 
 function TProjectManager.GetTemplateList: TProjectTemplateArray;

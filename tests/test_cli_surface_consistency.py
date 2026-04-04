@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BASH_COMPLETION = REPO_ROOT / 'scripts' / 'completions' / 'fpdev.bash'
 ZSH_COMPLETION = REPO_ROOT / 'scripts' / 'completions' / '_fpdev'
 DUMP_SOURCE = REPO_ROOT / 'tests' / 'cli_surface_dump.lpr'
+PROJECT_MANAGER = REPO_ROOT / 'src' / 'fpdev.project.manager.pas'
 
 
 def resolve_python_test_temp_root() -> str:
@@ -73,6 +74,7 @@ class CliSurfaceConsistencyTests(unittest.TestCase):
         cls.registry_tree = cls.build_tree(cls.registry_paths)
         cls.bash_text = BASH_COMPLETION.read_text(encoding='utf-8')
         cls.zsh_text = ZSH_COMPLETION.read_text(encoding='utf-8')
+        cls.project_manager_text = PROJECT_MANAGER.read_text(encoding='utf-8')
 
     @classmethod
     def tearDownClass(cls):
@@ -109,6 +111,27 @@ class CliSurfaceConsistencyTests(unittest.TestCase):
         match = re.search(pattern, self.zsh_text)
         self.assertIsNotNone(match, f'zsh inline describe not found: {label}')
         return match.group(1).split()
+
+    def parse_zsh_simple_array(self, array_name: str) -> list[str]:
+        pattern = rf'{re.escape(array_name)}=\((.*?)\)'
+        match = re.search(pattern, self.zsh_text, re.S)
+        self.assertIsNotNone(match, f'zsh simple array not found: {array_name}')
+        return re.findall(r"'([^']+)'", match.group(1))
+
+    def parse_bash_project_new_templates(self) -> list[str]:
+        pattern = r'new\)\s*\n\s*# Template completion\s*\n\s*COMPREPLY=\(\$\(compgen -W "([^"]+)" -- "\$\{cur\}"\)\)'
+        match = re.search(pattern, self.bash_text, re.S)
+        self.assertIsNotNone(match, 'bash project new template completion not found')
+        return match.group(1).split()
+
+    def parse_available_project_templates_from_manager(self) -> list[str]:
+        entries = re.findall(
+            r"\(Name: '([^']+)';.*?Available: (True|False)\)",
+            self.project_manager_text,
+            re.S,
+        )
+        self.assertTrue(entries, 'no built-in project templates found in project manager')
+        return [name for name, available in entries if available == 'True']
 
     def assertCommandSetEqual(self, actual: list[str], expected: list[str], label: str):
         self.assertEqual(sorted(expected), sorted(actual), label)
@@ -297,6 +320,19 @@ class CliSurfaceConsistencyTests(unittest.TestCase):
             self.parse_zsh_array('system_toolchain_commands'),
             self.registry_children('system', 'toolchain'),
             'zsh system toolchain commands drift',
+        )
+
+    def test_project_template_name_completion_matches_available_templates(self):
+        expected = self.parse_available_project_templates_from_manager()
+        self.assertCommandSetEqual(
+            self.parse_bash_project_new_templates(),
+            expected,
+            'bash project new template suggestions drift',
+        )
+        self.assertCommandSetEqual(
+            self.parse_zsh_simple_array('project_templates'),
+            expected,
+            'zsh project new template suggestions drift',
         )
 
 

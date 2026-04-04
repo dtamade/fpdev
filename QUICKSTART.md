@@ -85,11 +85,11 @@ cd my-gui-app
 fpdev project build
 ```
 
-### Web 应用程序
+### 动态库项目
 
 ```bash
-fpdev project new webapp my-web-app
-cd my-web-app
+fpdev project new library my-library
+cd my-library
 fpdev project build
 ```
 

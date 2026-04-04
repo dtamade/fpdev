@@ -115,12 +115,12 @@ ls -la
 # Should see: my-gui-app.lpr, my-gui-app.lpi
 ```
 
-### Web Application
+### Dynamic Library
 
 ```bash
-# Create web application
-fpdev project new webapp my-web-app
-cd my-web-app
+# Create dynamic library project
+fpdev project new library my-library
+cd my-library
 ```
 
 ### View All Available Templates
