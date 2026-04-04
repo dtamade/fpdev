@@ -2357,3 +2357,39 @@
 | What's the goal? | Keep release-facing documentation honest so historical release notes do not teach users outdated command signatures |
 | What have I learned? | Release docs can preserve stale CLI signatures even after help, runtime, completions, and quickstarts are corrected; changelog inventory needs its own contract |
 | What have I done? | Added one focused release-doc contract, corrected the changelog project command signatures, and re-verified the 92-test release/docs/CI bundle |
+
+## Session: 2026-04-05 (project info completion coverage gap)
+
+### Close-out Execution Follow-up 58
+- **Status:** complete
+- Actions taken:
+  - Recovered a half-finished completion seam left dirty by the interrupted session and first verified that the on-disk changes matched the live `project info <template>` semantics
+  - Adopted the completion change only after fresh focused verification and a full docs/release/CI/completion regression bundle both passed
+  - Extended project-template completion coverage so `fpdev project info` now reuses the same template suggestions as `fpdev project new`
+- Files created/modified:
+  - `scripts/completions/fpdev.bash`
+  - `scripts/completions/_fpdev`
+  - `tests/test_cli_surface_consistency.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Focused completion verification | `python3 -m unittest -v tests.test_cli_surface_consistency` | pass | `5` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `116` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | The interrupted session left uncommitted completion/test changes, so the first task was to distinguish “valid unfinished work” from “stale dirty state” before adopting anything | 1 | Re-read the exact diff, confirmed it matched live `project info <template>` semantics, then required fresh focused and broad verification before keeping it |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | `project info` is now covered by the same template completion surface and consistency tests as `project new` |
+| Where am I going? | Commit and push this checkpoint, then continue to the next remaining contract seam after the project-template cluster |
+| What's the goal? | Keep user-facing discovery surfaces ergonomic and truthful so command signatures and shell assistance do not drift apart |
+| What have I learned? | Interrupted sessions can leave good work dirty; the right response is not to discard it, but to validate it rigorously before adoption |
+| What have I done? | Verified and adopted the pending `project info` completion support, expanded the completion contract, and re-verified the 116-test docs/release/CI/completion bundle |

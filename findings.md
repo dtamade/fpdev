@@ -1722,3 +1722,22 @@
 - 结论更新：
   - changelog release inventory 已重新对齐当前 project CLI surface
   - `project` 语义现在在 help、runtime、quickstart、completion、changelog 五个面上保持一致
+
+## Execution Update (2026-04-05, project info completion coverage gap)
+- 新发现的 repo-local seam：
+  - 当前已提交基线的 `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev` 只为 `project new` 提供模板建议
+  - 但 `src/fpdev.i18n.strings.pas` 和 `src/fpdev.cmd.project.info.pas` 已明确把 `fpdev project info` 定义为 `info <template>`
+  - `tests/test_cli_surface_consistency.py` 也只锁定了 `project new` 的模板补全契约
+- 恢复上下文：
+  - 这条 seam 在会话中断前已留下未提交改动
+  - 当前处理方式不是盲目重写，而是先确认脏改动与 repo truth 一致，再以 fresh verification 决定是否采纳
+- 当前 repo truth：
+  - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev` 现在都把模板补全分支扩展到了 `new|info`
+  - `tests/test_cli_surface_consistency.py` 新增了 `project info` completion helpers 和契约断言
+  - 模板真值源仍来自 `src/fpdev.project.manager.pas` 的 available built-in templates
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_cli_surface_consistency`：`5` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`116` tests OK，`1` skipped
+- 结论更新：
+  - `project info` 现在和 `project new` 共享同一模板补全体验
+  - template discovery surface 已进一步补齐到 completion ergonomics 层

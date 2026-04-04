@@ -117,7 +117,7 @@ _fpdev_completions() {
                     ;;
                 project)
                     case "${subcmd}" in
-                        new)
+                        new|info)
                             # Template completion
                             COMPREPLY=($(compgen -W "console gui library package service game" -- "${cur}"))
                             ;;

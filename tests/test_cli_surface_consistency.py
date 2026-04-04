@@ -119,10 +119,21 @@ class CliSurfaceConsistencyTests(unittest.TestCase):
         return re.findall(r"'([^']+)'", match.group(1))
 
     def parse_bash_project_new_templates(self) -> list[str]:
-        pattern = r'new\)\s*\n\s*# Template completion\s*\n\s*COMPREPLY=\(\$\(compgen -W "([^"]+)" -- "\$\{cur\}"\)\)'
-        match = re.search(pattern, self.bash_text, re.S)
-        self.assertIsNotNone(match, 'bash project new template completion not found')
-        return match.group(1).split()
+        return self.parse_bash_project_template_completion('new')
+
+    def parse_bash_project_template_completion(self, subcommand: str) -> list[str]:
+        pattern = r'([a-z|]+)\)\s*\n\s*# Template completion\s*\n\s*COMPREPLY=\(\$\(compgen -W "([^"]+)" -- "\$\{cur\}"\)\)'
+        for labels, values in re.findall(pattern, self.bash_text, re.S):
+            if subcommand in labels.split('|'):
+                return values.split()
+        self.fail(f'bash project {subcommand} template completion not found')
+
+    def parse_zsh_template_completion_case_labels(self) -> set[str]:
+        labels = set()
+        pattern = r"([a-z|]+)\)\s*\n\s*_describe 'template' project_templates"
+        for raw_labels in re.findall(pattern, self.zsh_text):
+            labels.update(raw_labels.split('|'))
+        return labels
 
     def parse_available_project_templates_from_manager(self) -> list[str]:
         entries = re.findall(
@@ -333,6 +344,16 @@ class CliSurfaceConsistencyTests(unittest.TestCase):
             self.parse_zsh_simple_array('project_templates'),
             expected,
             'zsh project new template suggestions drift',
+        )
+        self.assertCommandSetEqual(
+            self.parse_bash_project_template_completion('info'),
+            expected,
+            'bash project info template suggestions drift',
+        )
+        self.assertIn(
+            'info',
+            self.parse_zsh_template_completion_case_labels(),
+            'zsh project info should use project template suggestions',
         )
 
 

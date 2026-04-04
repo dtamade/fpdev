@@ -265,7 +265,7 @@ _fpdev() {
             ;;
         project)
             case "${words[3]}" in
-                new)
+                new|info)
                     _describe 'template' project_templates
                     ;;
                 template)

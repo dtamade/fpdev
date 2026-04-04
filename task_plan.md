@@ -1183,3 +1183,25 @@ Phase 4 complete
 5. 结论：
    - release baseline 的 changelog inventory 不再把 project 命令签名回退到旧时代接口
    - close-out contract 继续把“历史命令签名残留在公开发布叙事里”的 seam 自动化收口
+
+## Close-out Update (2026-04-05, project info completion coverage gap)
+1. 新发现的 shell-completion seam：
+   - 已提交基线里的 `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev` 只给 `fpdev project new` 提供模板名补全
+   - 但 live CLI 的 `fpdev project info <template>` 同样要求模板名，help/runtime 语义与 `new` 共享同一模板集合
+   - `tests/test_cli_surface_consistency.py` 之前也只覆盖了 `project new` 的模板补全，没有约束 `project info`
+2. 恢复策略：
+   - 这是中断后残留在工作树中的半完成 seam
+   - 不重做无意义改写，直接核对脏改动是否与当前 repo truth 一致，并用 focused + broad verification 作为采纳门槛
+3. 已完成的最小修复：
+   - `scripts/completions/fpdev.bash` / `scripts/completions/_fpdev`：
+     - 将模板补全分支从 `new` 扩展为 `new|info`
+   - `tests/test_cli_surface_consistency.py`：
+     - 增加 `project info` 模板补全契约
+     - 要求 bash suggestions 与 manager 当前 available templates 一致
+     - 要求 zsh `project info` 复用同一 `project_templates` 集合
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_cli_surface_consistency`：`5` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`116` tests OK，`1` skipped
+5. 结论：
+   - `project info` 不再是 completion surface 上的盲点
+   - 当前 project 模板 discovery 已在 runtime、docs、changelog、bash completion、zsh completion、contract tests 六个面上对齐
