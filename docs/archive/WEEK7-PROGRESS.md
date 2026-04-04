@@ -83,7 +83,7 @@ if LCache.SaveArtifacts(LVer, LInstallPath) then
 **测试结果**:
 ```
 [CACHE HIT] Found cached artifact for FPC 3.2.0
-[CACHE] Restoring from cache to: /home/dtamade/.fpdev/toolchains/fpc/3.2.0
+[CACHE] Restoring from cache to: <data-root>/toolchains/fpc/3.2.0
 [WARN] Cache restoration failed, proceeding with download...
 ```
 
@@ -102,8 +102,8 @@ if LCache.SaveArtifacts(LVer, LInstallPath) then
 **手动测试**:
 ```bash
 # 手动创建缓存文件成功
-cd ~/.fpdev/cache
-tar -czf fpc-3.2.0-x86_64-linux.tar.gz -C ~/.fpdev/toolchains/fpc/3.2.0 .
+cd <data-root>/cache
+tar -czf fpc-3.2.0-x86_64-linux.tar.gz -C <data-root>/toolchains/fpc/3.2.0 .
 # 创建了 79MB 的缓存文件
 ```
 
@@ -233,14 +233,14 @@ tar -czf fpc-3.2.0-x86_64-linux.tar.gz -C ~/.fpdev/toolchains/fpc/3.2.0 .
 
 **当前实现** (SaveArtifacts):
 ```
-~/.fpdev/cache/
+<data-root>/cache/
 └── fpc-3.2.0-x86_64-linux.tar.gz  # 79MB (压缩的安装目录)
 └── fpc-3.2.0-x86_64-linux.meta    # 元数据
 ```
 
 **目标实现** (SaveBinaryArtifact):
 ```
-~/.fpdev/cache/
+<data-root>/cache/
 └── fpc-3.2.0-x86_64-linux-binary.tar.gz  # 84MB (原始下载文件)
 └── fpc-3.2.0-x86_64-linux-binary.meta    # 元数据
 ```
@@ -252,7 +252,7 @@ tar -czf fpc-3.2.0-x86_64-linux.tar.gz -C ~/.fpdev/toolchains/fpc/3.2.0 .
 version=3.2.0
 cpu=x86_64
 os=linux
-source_path=/home/user/.fpdev/toolchains/fpc/3.2.0
+source_path=<data-root>/toolchains/fpc/3.2.0
 created_at=2026-01-19 01:14:00
 archive_size=82837504
 ```

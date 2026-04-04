@@ -27,7 +27,7 @@ Week 5 成功完成了 manifest 系统的端到端集成，实现了用户友好
 #### 新增模块（311 行）
 
 **fpdev.manifest.cache.pas** (184 行)
-- 本地缓存 manifest 文件到 `~/.fpdev/cache/manifests/`
+- 本地缓存 manifest 文件到 `<data-root>/cache/manifests/`
 - 支持 TTL（24小时）缓存策略
 - 自动从 GitHub 下载 manifest
 - 支持强制刷新（`--force` 标志）
@@ -67,7 +67,7 @@ Updating FPC manifest...
 Manifest updated successfully!
   Version: 1
   Date: 2026-01-18
-  Cache: /home/dtamade/.fpdev/cache/manifests
+  Cache: <data-root>/cache/manifests
 
 Available FPC versions:
   - 3.2.2
@@ -87,7 +87,7 @@ $ ./bin/fpdev fpc list --remote
 
 **测试 3: 缓存 TTL 机制** ✅
 ```bash
-$ ls -lh ~/.fpdev/cache/manifests/
+$ ls -lh <data-root>/cache/manifests/
 -rw-rw-r-- 1 dtamade dtamade 3.5K  1月18日 17:50 fpc.json
 
 $ ./bin/fpdev fpc update-manifest
@@ -98,14 +98,14 @@ Manifest updated successfully!
 
 **测试 4: Manifest 内容验证** ✅
 ```bash
-$ cat ~/.fpdev/cache/manifests/fpc.json | jq '.pkg | keys'
+$ cat <data-root>/cache/manifests/fpc.json | jq '.pkg | keys'
 [
   "fpc",
   "fpc-3.0.4",
   "fpc-3.2.0"
 ]
 
-$ cat ~/.fpdev/cache/manifests/fpc.json | jq -r '.pkg | to_entries[] | "\(.key): version=\(.value.version), targets=\(.value.targets | keys | join(","))"'
+$ cat <data-root>/cache/manifests/fpc.json | jq -r '.pkg | to_entries[] | "\(.key): version=\(.value.version), targets=\(.value.targets | keys | join(","))"'
 fpc: version=3.2.2, targets=darwin-aarch64,darwin-x86_64,linux-x86_64,windows-x86_64
 fpc-3.2.0: version=3.2.0, targets=darwin-x86_64,linux-x86_64,windows-i386
 fpc-3.0.4: version=3.0.4, targets=darwin-x86_64,linux-x86_64,windows-i386
@@ -464,7 +464,7 @@ fpdev fpc cache path                # 显示缓存目录路径
 ### B. 缓存目录结构
 
 ```
-~/.fpdev/cache/
+<data-root>/cache/
 ├── manifests/
 │   ├── fpc.json              # FPC manifest
 │   ├── lazarus.json          # Lazarus manifest (待实现)

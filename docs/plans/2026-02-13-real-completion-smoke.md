@@ -20,7 +20,7 @@
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 rg -n "\\b(TODO|FIXME|HACK|XXX)\\b" src tests docs || true
 rg -n "not (yet )?implemented" -S src tests docs || true
 ```
@@ -32,7 +32,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 bash scripts/check_toolchain.sh
 ```
 
@@ -43,7 +43,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 lazbuild -B fpdev.lpi
 bash scripts/run_all_tests.sh
 ```
@@ -56,7 +56,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 python3 /tmp/fpdev_cli_smoke.py
 ```
 
@@ -79,7 +79,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 FPDEV_DATA_ROOT=/tmp/fpdev-tests-manual/data FPDEV_LAZARUS_CONFIG_ROOT=/tmp/fpdev-tests-manual/lazarus-config \
   fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_command_registry.lpr && ./bin/test_command_registry
 ```
@@ -98,7 +98,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 FPDEV_DATA_ROOT=/tmp/fpdev-tests-manual/data FPDEV_LAZARUS_CONFIG_ROOT=/tmp/fpdev-tests-manual/lazarus-config \
   fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_command_registry.lpr && ./bin/test_command_registry
 ```
@@ -110,7 +110,7 @@ Expected:
 
 Run:
 ```bash
-cd /home/dtamade/projects/fpdev
+cd <repo-root>
 lazbuild -B fpdev.lpi
 bash scripts/run_all_tests.sh
 python3 /tmp/fpdev_cli_smoke.py
@@ -135,4 +135,3 @@ Expected:
 
 **Step 2: State what is "done" vs "blocked by environment"**
 - Cross compilation execution is gated by host toolchain availability; dry-run/doctor should remain usable regardless.
-

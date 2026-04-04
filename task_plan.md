@@ -1254,3 +1254,28 @@ Phase 4 complete
 5. 结论：
    - 根级 repo fixture 也不再泄漏当前开发机路径
    - 共享测试配置现在统一回到了“占位符或运行时推导”的可移植模型
+
+## Close-out Update (2026-04-05, tracked docs workspace-path contamination)
+1. 新发现的 tracked-doc seam：
+   - `docs/plans/2026-02-13-real-completion-smoke.md`、`docs/archive/WEEK4-SUMMARY.md`、`docs/archive/WEEK6-PROGRESS.md` 仍保留 `/home/dtamade/projects/...` 形式的个人 workspace 路径
+   - 一组 Week 5/6/7 archive 文档也仍把 manifest/cache/toolchain 路径写成 `~/.fpdev/...` 或 `/home/dtamade/.fpdev/...`
+   - 中断后的磁盘状态还把 3 个 archive path-hygiene 契约从 `tests/test_archive_docs_contract.py` 中丢掉了，导致这条 seam 一开始没有被完整锁住
+2. 已完成的最小修复：
+   - `tests/test_archive_docs_contract.py`：
+     - 恢复 archive workspace/data-root hygiene 契约
+     - 要求 archive docs 不得再嵌入 `/home/dtamade/projects/...`
+     - 要求 Week 5/6/7 cache/toolchain 示例统一使用 `<data-root>`
+   - `tests/test_developer_docs_cli_contract.py`：
+     - 保持 `docs/plans/2026-02-13-real-completion-smoke.md` 使用 `<repo-root>` 的契约
+   - `docs/plans/2026-02-13-real-completion-smoke.md`：
+     - 将所有 `cd /home/dtamade/projects/fpdev` 改为 `cd <repo-root>`
+   - `docs/archive/WEEK4-SUMMARY.md` / `docs/archive/WEEK6-PROGRESS.md`：
+     - 将 sibling repo / repo-root / data-root 示例改为 `<workspace>`、`<repo-root>`、`<data-root>`
+   - `docs/archive/WEEK5-PLAN.md`、`WEEK5-COMPLETION.md`、`WEEK5-PROGRESS.md`、`WEEK5-FINAL-REPORT.md`、`WEEK5-SUMMARY.md`、`WEEK5-INTEGRATION-TEST-REPORT.md`、`WEEK6-PLAN.md`、`WEEK6-ISSUES.md`、`WEEK7-PLAN.md`、`WEEK7-PROGRESS.md`、`WEEK7-SUMMARY.md`、`CODE-IMPROVEMENTS-SUMMARY.md`：
+     - 将 manifest/cache/toolchain 示例切换到 `<data-root>/...`
+3. 已完成验证：
+   - `python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_developer_docs_cli_contract`：`13` tests OK
+   - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`121` tests OK，`1` skipped
+4. 结论：
+   - tracked docs 不再传播当前开发机的 workspace 拓扑或旧 `.fpdev` 路径模型
+   - archive/doc portability seam 现在有实际生效的契约托底，而不是只停留在中断会话的脏状态里

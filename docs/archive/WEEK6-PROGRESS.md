@@ -261,19 +261,19 @@ f0de573 fix: correct FPC 3.2.0 file size in manifest
 
 1. **推送 Manifest 修复**
    ```bash
-   cd /home/dtamade/projects/fpdev-fpc
+   cd <workspace>/fpdev-fpc
    git push origin main
    ```
 
 2. **更新本地 Manifest 缓存**
    ```bash
-   cd /home/dtamade/projects/fpdev
+   cd <repo-root>
    ./bin/fpdev fpc update-manifest --force
    ```
 
 3. **重新测试 FPC 3.2.0 安装**
    ```bash
-   rm -rf ~/.fpdev/toolchains/fpc/3.2.0
+   rm -rf <data-root>/toolchains/fpc/3.2.0
    ./bin/fpdev fpc install 3.2.0
    ```
 

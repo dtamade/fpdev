@@ -34,7 +34,7 @@ Week 6 将完成 Week 5 遗留的任务，包括：
 **测试命令**:
 ```bash
 # 1. 清理已有安装（如果存在）
-rm -rf ~/.fpdev/fpc/3.2.0
+rm -rf <data-root>/toolchains/fpc/3.2.0
 
 # 2. 测试安装
 ./bin/fpdev fpc install 3.2.0
@@ -80,22 +80,22 @@ rm -rf ~/.fpdev/fpc/3.2.0
 **测试命令**:
 ```bash
 # 1. 备份原始 manifest
-cp ~/.fpdev/cache/manifests/fpc.json ~/.fpdev/cache/manifests/fpc.json.bak
+cp <data-root>/cache/manifests/fpc.json <data-root>/cache/manifests/fpc.json.bak
 
 # 2. 修改 manifest（将第一个 URL 改为无效）
 # 使用 jq 修改 manifest
 jq '.pkg.fpc.targets["linux-x86_64"].url[0] = "https://invalid-url.example.com/fpc-3.2.2.tar.gz"' \
-  ~/.fpdev/cache/manifests/fpc.json > ~/.fpdev/cache/manifests/fpc.json.tmp
-mv ~/.fpdev/cache/manifests/fpc.json.tmp ~/.fpdev/cache/manifests/fpc.json
+  <data-root>/cache/manifests/fpc.json > <data-root>/cache/manifests/fpc.json.tmp
+mv <data-root>/cache/manifests/fpc.json.tmp <data-root>/cache/manifests/fpc.json
 
 # 3. 清理已有安装
-rm -rf ~/.fpdev/fpc/3.2.2
+rm -rf <data-root>/toolchains/fpc/3.2.2
 
 # 4. 测试安装（应该自动切换到第二个镜像）
 ./bin/fpdev fpc install 3.2.2
 
 # 5. 恢复原始 manifest
-mv ~/.fpdev/cache/manifests/fpc.json.bak ~/.fpdev/cache/manifests/fpc.json
+mv <data-root>/cache/manifests/fpc.json.bak <data-root>/cache/manifests/fpc.json
 ```
 
 **预期结果**:
@@ -115,21 +115,21 @@ mv ~/.fpdev/cache/manifests/fpc.json.bak ~/.fpdev/cache/manifests/fpc.json
 **测试命令**:
 ```bash
 # 1. 备份原始 manifest
-cp ~/.fpdev/cache/manifests/fpc.json ~/.fpdev/cache/manifests/fpc.json.bak
+cp <data-root>/cache/manifests/fpc.json <data-root>/cache/manifests/fpc.json.bak
 
 # 2. 修改 manifest（将 hash 改为错误值）
 jq '.pkg.fpc.targets["linux-x86_64"].hash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"' \
-  ~/.fpdev/cache/manifests/fpc.json > ~/.fpdev/cache/manifests/fpc.json.tmp
-mv ~/.fpdev/cache/manifests/fpc.json.tmp ~/.fpdev/cache/manifests/fpc.json
+  <data-root>/cache/manifests/fpc.json > <data-root>/cache/manifests/fpc.json.tmp
+mv <data-root>/cache/manifests/fpc.json.tmp <data-root>/cache/manifests/fpc.json
 
 # 3. 清理已有安装
-rm -rf ~/.fpdev/fpc/3.2.2
+rm -rf <data-root>/toolchains/fpc/3.2.2
 
 # 4. 测试安装（应该检测到 hash 不匹配）
 ./bin/fpdev fpc install 3.2.2
 
 # 5. 恢复原始 manifest
-mv ~/.fpdev/cache/manifests/fpc.json.bak ~/.fpdev/cache/manifests/fpc.json
+mv <data-root>/cache/manifests/fpc.json.bak <data-root>/cache/manifests/fpc.json
 ```
 
 **预期结果**:
@@ -186,7 +186,7 @@ mv ~/.fpdev/cache/manifests/fpc.json.bak ~/.fpdev/cache/manifests/fpc.json
 **测试命令**:
 ```bash
 # 1. 删除 manifest 缓存
-rm ~/.fpdev/cache/manifests/fpc.json
+rm <data-root>/cache/manifests/fpc.json
 
 # 2. 测试离线模式（应该失败）
 ./bin/fpdev fpc install 3.2.0 --offline

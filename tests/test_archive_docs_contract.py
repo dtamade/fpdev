@@ -8,6 +8,20 @@ FINAL_INTEGRATION = REPO_ROOT / 'docs' / 'archive' / 'FPDEV_FINAL_INTEGRATION.md
 WEEK10_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK10-PLAN.md'
 WEEK10_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'WEEK10-SUMMARY.md'
 COMPLETION_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'COMPLETION_SUMMARY.md'
+WEEK5_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-PLAN.md'
+WEEK5_COMPLETION = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-COMPLETION.md'
+WEEK5_PROGRESS = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-PROGRESS.md'
+WEEK5_FINAL_REPORT = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-FINAL-REPORT.md'
+WEEK5_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-SUMMARY.md'
+WEEK5_INTEGRATION_TEST_REPORT = REPO_ROOT / 'docs' / 'archive' / 'WEEK5-INTEGRATION-TEST-REPORT.md'
+WEEK6_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK6-PLAN.md'
+WEEK6_PROGRESS = REPO_ROOT / 'docs' / 'archive' / 'WEEK6-PROGRESS.md'
+WEEK6_ISSUES = REPO_ROOT / 'docs' / 'archive' / 'WEEK6-ISSUES.md'
+WEEK4_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'WEEK4-SUMMARY.md'
+WEEK7_PLAN = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-PLAN.md'
+WEEK7_PROGRESS = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-PROGRESS.md'
+WEEK7_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'WEEK7-SUMMARY.md'
+CODE_IMPROVEMENTS_SUMMARY = REPO_ROOT / 'docs' / 'archive' / 'CODE-IMPROVEMENTS-SUMMARY.md'
 
 
 class ArchiveDocsContractTests(unittest.TestCase):
@@ -70,6 +84,55 @@ class ArchiveDocsContractTests(unittest.TestCase):
         self.assertIn('<data-root>/toolchains/fpc/<version>/', text)
         self.assertIn('FPDEV_DATA_ROOT', text)
         self.assertNotIn('~/.fpdev/fpc/<version>/', text)
+
+    def test_archive_docs_do_not_embed_developer_workspace_paths(self):
+        week6 = WEEK6_PROGRESS.read_text(encoding='utf-8')
+        self.assertIn('cd <workspace>/fpdev-fpc', week6)
+        self.assertIn('cd <repo-root>', week6)
+        self.assertIn('rm -rf <data-root>/toolchains/fpc/3.2.0', week6)
+        self.assertNotIn('/home/dtamade/projects/', week6)
+
+        week4 = WEEK4_SUMMARY.read_text(encoding='utf-8')
+        self.assertIn('`<workspace>/fpdev-fpc/manifest.json`', week4)
+        self.assertIn('`<workspace>/fpdev-lazarus/manifest.json`', week4)
+        self.assertIn('`<workspace>/fpdev-bootstrap/manifest.json`', week4)
+        self.assertIn('`<workspace>/fpdev-cross/manifest.json`', week4)
+        self.assertIn('`<repo-root>/docs/MANIFEST-MIGRATION.md`', week4)
+        self.assertNotIn('/home/dtamade/projects/', week4)
+
+    def test_archive_manifest_cache_docs_use_active_data_root_paths(self):
+        cache_docs = [
+            WEEK5_PLAN,
+            WEEK5_COMPLETION,
+            WEEK5_PROGRESS,
+            WEEK5_FINAL_REPORT,
+            WEEK5_SUMMARY,
+            WEEK5_INTEGRATION_TEST_REPORT,
+            WEEK6_PLAN,
+        ]
+        for path in cache_docs:
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('<data-root>/cache/manifests', text)
+            self.assertNotIn('~/.fpdev/cache/manifests', text)
+            self.assertNotIn('/home/dtamade/.fpdev/cache/manifests', text)
+
+    def test_archive_cache_restore_docs_use_active_data_root_paths(self):
+        toolchain_docs = [
+            WEEK6_ISSUES,
+            WEEK7_PLAN,
+            WEEK7_PROGRESS,
+            WEEK7_SUMMARY,
+            CODE_IMPROVEMENTS_SUMMARY,
+        ]
+        for path in toolchain_docs:
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('<data-root>/toolchains/fpc/3.2.0', text)
+            self.assertNotIn('~/.fpdev/toolchains/fpc/3.2.0', text)
+            self.assertNotIn('/home/dtamade/.fpdev/toolchains/fpc/3.2.0', text)
+
+        week7_summary_text = WEEK7_SUMMARY.read_text(encoding='utf-8')
+        self.assertIn('<data-root>/cache', week7_summary_text)
+        self.assertNotIn('/home/dtamade/.config/fpdev/.fpdev/cache', week7_summary_text)
 
 
 if __name__ == '__main__':

@@ -57,7 +57,7 @@ Installation completed!
 # Second installation (from cache)
 $ ./bin/fpdev fpc install 3.2.0
 [CACHE HIT] Found cached artifact for FPC 3.2.0
-[CACHE] Restoring from cache to: /home/dtamade/.fpdev/toolchains/fpc/3.2.0
+[CACHE] Restoring from cache to: <data-root>/toolchains/fpc/3.2.0
 [OK] Toolchain registered successfully
 [OK] Installation complete (from cache)
 ```
@@ -83,11 +83,11 @@ $ ./bin/fpdev fpc cache stats
 Cache Statistics:
   Cached versions: 1
   Total size:      78.92 MB
-  Cache directory: /home/dtamade/.config/fpdev/.fpdev/cache
+  Cache directory: <data-root>/cache
 
 # Show cache directory path
 $ ./bin/fpdev fpc cache path
-/home/dtamade/.config/fpdev/.fpdev/cache
+<data-root>/cache
 
 # Clean specific version
 $ ./bin/fpdev fpc cache clean 3.2.0
@@ -124,7 +124,7 @@ This ensures the installation directory contains the properly extracted FPC comp
 
 **Cache Directory Structure**:
 ```
-~/.fpdev/cache/builds/
+<data-root>/cache/builds/
 ├── fpc-3.2.0-x86_64-linux.tar.gz (cached installation)
 └── fpc-3.2.0-x86_64-linux.meta (metadata)
 ```

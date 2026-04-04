@@ -74,8 +74,8 @@ Manifest 中记录的文件大小不正确。
 ```
 Extracting TAR.GZ archive...
   From: /tmp/fpdev_downloads/fpc-3.2.0-111632881.tar.gz
-  To: /home/dtamade/.fpdev/toolchains/fpc/3.2.0
-  Running: tar -xzf /tmp/fpdev_downloads/fpc-3.2.0-111632881.tar.gz -C /home/dtamade/.fpdev/toolchains/fpc/3.2.0
+  To: <data-root>/toolchains/fpc/3.2.0
+  Running: tar -xzf /tmp/fpdev_downloads/fpc-3.2.0-111632881.tar.gz -C <data-root>/toolchains/fpc/3.2.0
 错误: tar 解压失败，退出码: 2
 ```
 

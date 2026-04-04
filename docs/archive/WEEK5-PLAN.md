@@ -20,7 +20,7 @@ Week 5 的目标是完成 manifest 系统的端到端集成，实现用户友好
 - **实现位置**: `src/fpdev.cmd.fpc.update_manifest.pas`
 - **行为**:
   - 从 GitHub 下载 `fpdev-fpc/manifest.json`
-  - 缓存到本地 `~/.fpdev/cache/manifests/fpc.json`
+  - 缓存到本地 `<data-root>/cache/manifests/fpc.json`
   - 支持 `--force` 强制更新
   - 显示下载进度和验证结果
 
@@ -46,7 +46,7 @@ Week 5 的目标是完成 manifest 系统的端到端集成，实现用户友好
 
 #### 2.1 本地缓存结构
 ```
-~/.fpdev/cache/manifests/
+<data-root>/cache/manifests/
 ├── fpc.json              # FPC manifest
 ├── lazarus.json          # Lazarus manifest
 ├── bootstrap.json        # Bootstrap manifest

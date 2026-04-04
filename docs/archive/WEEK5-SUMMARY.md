@@ -19,7 +19,7 @@ Week 5 的目标是完成 manifest 系统的端到端集成，实现用户友好
 **文件**: `src/fpdev.manifest.cache.pas` (184 行)
 
 **功能**:
-- 本地缓存 manifest 文件到 `~/.fpdev/cache/manifests/`
+- 本地缓存 manifest 文件到 `<data-root>/cache/manifests/`
 - 支持 TTL（24小时）缓存策略
 - 自动从 GitHub 下载 manifest
 - 支持强制刷新（`--force` 标志）
@@ -61,7 +61,7 @@ Updating FPC manifest...
 Manifest updated successfully!
   Version: 1
   Date: 2026-01-18
-  Cache: /home/dtamade/.fpdev/cache/manifests
+  Cache: <data-root>/cache/manifests
 
 Available FPC versions:
   - 3.2.2
@@ -192,7 +192,7 @@ e783bef feat(week5): implement manifest cache and update-manifest command
 
 **测试步骤**:
 1. 运行 `fpdev fpc update-manifest --force`
-2. 检查缓存文件 `~/.fpdev/cache/manifests/fpc.json`
+2. 检查缓存文件 `<data-root>/cache/manifests/fpc.json`
 3. 验证 manifest 内容
 
 **测试结果**: ✅ 通过

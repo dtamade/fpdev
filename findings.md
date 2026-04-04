@@ -1793,3 +1793,35 @@
 - 结论更新：
   - 根级 repo fixture 已停止传播开发者主机路径
   - 共享测试配置样例现在和 `examples/` 里的 placeholder 习惯保持一致
+
+## Execution Update (2026-04-05, tracked docs workspace-path contamination)
+- 新发现的 repo-local seam：
+  - `docs/plans/2026-02-13-real-completion-smoke.md`、`docs/archive/WEEK4-SUMMARY.md`、`docs/archive/WEEK6-PROGRESS.md` 仍保留 `/home/dtamade/projects/...` 的个人 workspace 示例
+  - 一批 Week 5/6/7 archive 文档仍把 manifest/cache/toolchain 路径写成 `~/.fpdev/...` 或 `/home/dtamade/.fpdev/...`
+  - 深挖时还发现中断后的磁盘状态已经把 3 个 archive path-hygiene 契约从 `tests/test_archive_docs_contract.py` 中丢掉，导致先前 summary 与实际 test module 不一致
+- 当前 repo truth：
+  - live docs 和 close-out 文档已经统一采用 `<repo-root>`、`<workspace>`、`<data-root>` 这些可复制占位符
+  - 活动安装/缓存路径模型也已经统一为 active data-root，而不是 repo-shared `.fpdev` 或开发机 home 目录
+- RED 证据：
+  - `python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_developer_docs_cli_contract` 失败
+    - 先抓到了 `WEEK6-PROGRESS.md` 仍包含 `/home/dtamade/projects/...`
+  - 随后直接检查 `tests/test_archive_docs_contract.py` 磁盘内容，确认 archive workspace/data-root hygiene 的 3 个测试方法确实缺失
+- 已实施的最小修复：
+  - `tests/test_archive_docs_contract.py`：
+    - 恢复 archive workspace/data-root hygiene 契约
+    - 要求 Week 5/6/7 archive docs 使用 `<data-root>` 路径模型
+    - 要求 archive docs 不得再嵌入 `/home/dtamade/projects/...`
+  - `tests/test_developer_docs_cli_contract.py`：
+    - 保留 `docs/plans/2026-02-13-real-completion-smoke.md` 使用 `<repo-root>` 的契约
+  - `docs/plans/2026-02-13-real-completion-smoke.md`：
+    - 将所有 `cd /home/dtamade/projects/fpdev` 改为 `cd <repo-root>`
+  - `docs/archive/WEEK4-SUMMARY.md` / `docs/archive/WEEK6-PROGRESS.md`：
+    - sibling repo / repo-root / toolchain 删除示例改为 `<workspace>`、`<repo-root>`、`<data-root>`
+  - `docs/archive/WEEK5-PLAN.md`、`WEEK5-COMPLETION.md`、`WEEK5-PROGRESS.md`、`WEEK5-FINAL-REPORT.md`、`WEEK5-SUMMARY.md`、`WEEK5-INTEGRATION-TEST-REPORT.md`、`WEEK6-PLAN.md`、`WEEK6-ISSUES.md`、`WEEK7-PLAN.md`、`WEEK7-PROGRESS.md`、`WEEK7-SUMMARY.md`、`CODE-IMPROVEMENTS-SUMMARY.md`：
+    - manifest/cache/toolchain 示例切换到 `<data-root>/...`
+- 当前最新本地证据：
+  - `python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_developer_docs_cli_contract`：`13` tests OK
+  - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`121` tests OK，`1` skipped
+- 结论更新：
+  - tracked docs 已不再泄漏当前开发机的 workspace 布局或 home 目录路径
+  - archive-doc portability seam 现在既有实际文档修复，也重新拿回了有效契约覆盖

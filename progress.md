@@ -2467,3 +2467,53 @@
 | What's the goal? | Keep every tracked shared fixture safe to copy, package, and inspect on any machine without leaking a developer-specific path |
 | What have I learned? | Old tracked test fixtures can outlive the tests that once depended on them; hygiene contracts need to cover dormant artifacts too |
 | What have I done? | Extended the package/data contract to root-level repo configs, replaced machine-local URLs with placeholders, and re-verified the 118-test docs/release/CI bundle |
+
+## Session: 2026-04-05 (tracked docs workspace-path contamination)
+
+### Close-out Execution Follow-up 61
+- **Status:** complete
+- Actions taken:
+  - Followed a focused archive/docs seam after a fresh rerun exposed that tracked plans and archive reports still embedded personal workspace paths and stale `.fpdev` path models
+  - Re-read the on-disk archive contract module and found that three intended path-hygiene tests had been dropped during the interrupted session, so restored the missing coverage before trusting any green result
+  - Replaced the remaining personal workspace/home-path examples with `<repo-root>`, `<workspace>`, and `<data-root>` placeholders across the affected tracked plan and archive docs
+- Files created/modified:
+  - `docs/plans/2026-02-13-real-completion-smoke.md`
+  - `docs/archive/WEEK4-SUMMARY.md`
+  - `docs/archive/WEEK5-PLAN.md`
+  - `docs/archive/WEEK5-COMPLETION.md`
+  - `docs/archive/WEEK5-PROGRESS.md`
+  - `docs/archive/WEEK5-FINAL-REPORT.md`
+  - `docs/archive/WEEK5-SUMMARY.md`
+  - `docs/archive/WEEK5-INTEGRATION-TEST-REPORT.md`
+  - `docs/archive/WEEK6-PLAN.md`
+  - `docs/archive/WEEK6-ISSUES.md`
+  - `docs/archive/WEEK6-PROGRESS.md`
+  - `docs/archive/WEEK7-PLAN.md`
+  - `docs/archive/WEEK7-PROGRESS.md`
+  - `docs/archive/WEEK7-SUMMARY.md`
+  - `docs/archive/CODE-IMPROVEMENTS-SUMMARY.md`
+  - `tests/test_archive_docs_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for tracked docs path contamination | `python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_developer_docs_cli_contract` | fail before fix | failed because `docs/archive/WEEK6-PROGRESS.md` still embedded `/home/dtamade/projects/...` | Observed |
+| Focused archive/developer verification | `python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_developer_docs_cli_contract` | pass | `13` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `121` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | The interrupted session had left the archive path-hygiene seam split across dirty docs edits and a test file whose three new contract methods were no longer present on disk | 1 | Re-read the live module, restored the missing archive tests, then required a fresh focused and broad rerun using `python3 -B` before accepting the seam |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The tracked plan/archive docs now use portable workspace and data-root placeholders instead of personal machine paths |
+| Where am I going? | Commit and push this checkpoint, then continue to the next highest-value repo-local contract seam |
+| What's the goal? | Keep every tracked shared document safe to copy and execute without leaking developer-local topology or teaching stale path models |
+| What have I learned? | Interrupted sessions can drop tests as easily as they leave dirty docs; the only safe response is to re-read the exact on-disk state and re-establish coverage before trusting a green bundle |
+| What have I done? | Restored the missing archive hygiene contracts, sanitized the remaining tracked docs path examples, and re-verified the 121-test docs/release/CI bundle |

@@ -17,7 +17,7 @@
 
 **测试命令**:
 ```bash
-ls -lh ~/.fpdev/cache/manifests/
+ls -lh <data-root>/cache/manifests/
 ```
 
 **测试结果**: ✅ 通过
@@ -26,7 +26,7 @@ ls -lh ~/.fpdev/cache/manifests/
 ```
 
 **验证点**:
-- ✅ 缓存目录正确创建在 `~/.fpdev/cache/manifests/`
+- ✅ 缓存目录正确创建在 `<data-root>/cache/manifests/`
 - ✅ Manifest 文件成功下载并缓存
 - ✅ 文件大小合理（3.5KB）
 
@@ -34,7 +34,7 @@ ls -lh ~/.fpdev/cache/manifests/
 
 **测试命令**:
 ```bash
-cat ~/.fpdev/cache/manifests/fpc.json | jq '.'
+cat <data-root>/cache/manifests/fpc.json | jq '.'
 ```
 
 **测试结果**: ✅ 通过
@@ -71,7 +71,7 @@ cat ~/.fpdev/cache/manifests/fpc.json | jq '.'
 
 **测试命令**:
 ```bash
-cat ~/.fpdev/cache/manifests/fpc.json | jq -r '.pkg.fpc.targets["linux-x86_64"].url[]'
+cat <data-root>/cache/manifests/fpc.json | jq -r '.pkg.fpc.targets["linux-x86_64"].url[]'
 ```
 
 **测试结果**: ✅ 通过
@@ -103,7 +103,7 @@ Updating FPC manifest...
 Manifest updated successfully!
   Version: 1
   Date: 2026-01-18
-  Cache: /home/dtamade/.fpdev/cache/manifests
+  Cache: <data-root>/cache/manifests
 
 Available FPC versions:
   - 3.2.2
@@ -135,7 +135,7 @@ Forcing manifest refresh...
 Manifest updated successfully!
   Version: 1
   Date: 2026-01-18
-  Cache: /home/dtamade/.fpdev/cache/manifests
+  Cache: <data-root>/cache/manifests
 
 Available FPC versions:
   - 3.2.2
@@ -363,7 +363,7 @@ Forcing manifest refresh...
 Manifest updated successfully!
   Version: 1
   Date: 2026-01-18
-  Cache: /home/dtamade/.fpdev/cache/manifests
+  Cache: <data-root>/cache/manifests
 
 Available FPC versions:
   - 3.2.2
@@ -429,7 +429,7 @@ Available FPC versions:
 ./bin/fpdev fpc install 3.2.0 --offline
 
 # 测试缓存不存在时的离线模式
-rm ~/.fpdev/cache/manifests/fpc.json
+rm <data-root>/cache/manifests/fpc.json
 ./bin/fpdev fpc install 3.2.0 --offline
 ```
 

@@ -199,7 +199,7 @@ Real time: 8.895 seconds
 $ time ./bin/fpdev fpc install 3.2.0
 
 [CACHE HIT] Found cached artifact for FPC 3.2.0
-[CACHE] Restoring from cache to: /home/dtamade/.fpdev/toolchains/fpc/3.2.0
+[CACHE] Restoring from cache to: <data-root>/toolchains/fpc/3.2.0
 [OK] Toolchain registered successfully
 [OK] Installation complete (from cache)
 

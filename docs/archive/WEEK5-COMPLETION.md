@@ -15,7 +15,7 @@ Week 5 成功完成了 manifest 系统的端到端集成，实现了用户友好
 ## 主要成就
 
 ### 1. ✅ Manifest 缓存系统 (184 行)
-- 本地缓存 manifest 文件到 `~/.fpdev/cache/manifests/`
+- 本地缓存 manifest 文件到 `<data-root>/cache/manifests/`
 - 支持 TTL（24小时）缓存策略
 - 自动从 GitHub 下载 manifest
 - 支持强制刷新（`--force` 标志）

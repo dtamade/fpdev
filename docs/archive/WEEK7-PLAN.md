@@ -90,7 +90,7 @@ Week 7 专注于 FPDev manifest 系统的性能优化和二进制缓存功能实
 
 **技术实现**:
 - 使用 `fpdev.build.cache.pas` 中的 `TBuildCache` 类
-- 缓存目录：`~/.fpdev/cache/`
+- 缓存目录：`<data-root>/cache/`
 - 缓存格式：`fpc-{version}-{cpu}-{os}.tar.gz`
 - 元数据文件：`fpc-{version}-{cpu}-{os}.meta`
 
@@ -228,7 +228,7 @@ fpdev fpc install 3.2.0
 
 **缓存目录**:
 ```
-~/.fpdev/cache/
+<data-root>/cache/
 ├── manifests/
 │   └── fpc.json                           # Manifest 缓存（已实现）
 ├── binaries/
@@ -244,7 +244,7 @@ fpdev fpc install 3.2.0
 version=3.2.0
 cpu=x86_64
 os=linux
-archive_path=/home/user/.fpdev/cache/binaries/fpc-3.2.0-x86_64-linux.tar
+archive_path=<data-root>/cache/binaries/fpc-3.2.0-x86_64-linux.tar
 archive_size=84336640
 created_at=2026-01-19T10:30:00Z
 source_type=binary
@@ -467,8 +467,8 @@ end;
 **测试流程**:
 ```bash
 # 1. 清理环境
-rm -rf ~/.fpdev/cache/binaries
-rm -rf ~/.fpdev/toolchains/fpc/3.2.0
+rm -rf <data-root>/cache/binaries
+rm -rf <data-root>/toolchains/fpc/3.2.0
 
 # 2. 首次安装（应该下载并缓存）
 time ./bin/fpdev fpc install 3.2.0
@@ -479,7 +479,7 @@ time ./bin/fpdev fpc install 3.2.0
 # 预期：显示 FPC 3.2.0
 
 # 4. 删除安装目录
-rm -rf ~/.fpdev/toolchains/fpc/3.2.0
+rm -rf <data-root>/toolchains/fpc/3.2.0
 
 # 5. 二次安装（应该从缓存恢复）
 time ./bin/fpdev fpc install 3.2.0
@@ -490,7 +490,7 @@ time ./bin/fpdev fpc install 3.2.0
 # 预期：验证成功
 
 # 7. 离线模式测试
-rm -rf ~/.fpdev/toolchains/fpc/3.2.0
+rm -rf <data-root>/toolchains/fpc/3.2.0
 ./bin/fpdev fpc install 3.2.0 --offline
 # 预期：从缓存安装成功
 
