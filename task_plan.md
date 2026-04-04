@@ -1232,3 +1232,25 @@ Phase 4 complete
 5. 结论：
    - portable/shared config artifact 不再泄漏开发机路径
    - release packaging 与 repo-shared fixture 现在更符合“可移植默认值由运行时决定”的最佳实践
+
+## Close-out Update (2026-04-05, root test-repo config path contamination)
+1. 新发现的 repo-fixture seam：
+   - 仓库根下的 `tests_repo_config.json` / `tests_repo_config_invalid.json` 仍嵌着：
+     - `/home/dtamade/...` 绝对 `install_root`
+     - `/home/dtamade/.../examples/...` 本地 `file://` 仓库 URL
+   - 它们虽然不是当前主测试入口，但仍是 repo-shared tracked fixture，复制或参考时会继续传播开发机路径
+2. 决策：
+   - 保留“本地 sample repo 配置”这个意图
+   - 但把实际机器路径全部改成可读的占位符，并把 `install_root` 还原为中性默认值
+3. 已完成的最小修复：
+   - `tests/test_package_release_assets.py`：
+     - 扩展 package/data hygiene 契约，覆盖根级 test repo config fixture
+   - `tests_repo_config.json` / `tests_repo_config_invalid.json`：
+     - 将本地 repo URL 改成 `file:///REPLACE_ME/...`
+     - 清空 `install_root`
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_package_release_assets`：先 RED，修复后 `4` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`118` tests OK，`1` skipped
+5. 结论：
+   - 根级 repo fixture 也不再泄漏当前开发机路径
+   - 共享测试配置现在统一回到了“占位符或运行时推导”的可移植模型

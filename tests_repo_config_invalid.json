@@ -10,13 +10,13 @@
   "repositories" : {
     "official_fpc" : "https://gitlab.com/freepascal.org/fpc/source.git",
     "official_lazarus" : "https://gitlab.com/freepascal.org/lazarus.git",
-    "invalid-sample" : "file:///home/dtamade/projects/fpdev/examples/sample-repo-invalid/index.json"
+    "invalid-sample" : "file:///REPLACE_ME/examples/sample-repo-invalid/index.json"
   },
   "settings" : {
     "auto_update" : false,
     "parallel_jobs" : 4,
     "keep_sources" : true,
-    "install_root" : "/home/dtamade/projects/fpdev/bin/test_data_invalid",
+    "install_root" : "",
     "default_repo" : "",
     "mirror" : "auto",
     "custom_repo_url" : ""

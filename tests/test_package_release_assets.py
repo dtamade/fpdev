@@ -11,6 +11,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / 'scripts' / 'package_release_assets.py'
 REPO_SHARED_CONFIG = REPO_ROOT / 'src' / 'data' / 'config.json'
 TEST_SHARED_CONFIG = REPO_ROOT / 'tests' / 'data' / 'config.json'
+TEST_REPO_CONFIG = REPO_ROOT / 'tests_repo_config.json'
+TEST_REPO_CONFIG_INVALID = REPO_ROOT / 'tests_repo_config_invalid.json'
+BANNED_MACHINE_PATH_FRAGMENTS = [
+    '/home/dtamade/projects/fpdev',
+    r'D:\projects\Pascal\lazarus\My\projects\fpdev',
+    'D:/projects/Pascal/lazarus/My/projects/fpdev',
+]
 
 
 class PackageReleaseAssetsTests(unittest.TestCase):
@@ -29,6 +36,31 @@ class PackageReleaseAssetsTests(unittest.TestCase):
                     repo_url.startswith('file://'),
                     f'{path.relative_to(REPO_ROOT)} embeds local file repository {repo_name}: {repo_url}',
                 )
+
+    def test_root_level_test_repo_configs_use_placeholders_instead_of_machine_paths(self):
+        for path in [TEST_REPO_CONFIG, TEST_REPO_CONFIG_INVALID]:
+            config = json.loads(path.read_text(encoding='utf-8'))
+            install_root = config.get('settings', {}).get('install_root', '')
+            self.assertEqual(
+                '',
+                install_root,
+                f'{path.relative_to(REPO_ROOT)} should not hardcode install_root',
+            )
+
+            for fragment in BANNED_MACHINE_PATH_FRAGMENTS:
+                self.assertNotIn(
+                    fragment,
+                    path.read_text(encoding='utf-8'),
+                    f'{path.relative_to(REPO_ROOT)} should not embed machine-specific path fragment {fragment}',
+                )
+
+            for repo_name, repo_url in config.get('repositories', {}).items():
+                if repo_url.startswith('file://'):
+                    self.assertIn(
+                        'REPLACE_ME',
+                        repo_url,
+                        f'{path.relative_to(REPO_ROOT)} should use placeholder file URL for {repo_name}',
+                    )
 
     def test_script_packages_available_assets_with_shared_data_dir(self):
         with tempfile.TemporaryDirectory(prefix='fpdev-release-package-') as tmp:

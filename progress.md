@@ -2430,3 +2430,40 @@
 | What's the goal? | Keep shipped defaults and repo fixtures portable, reproducible, and free of developer-local state |
 | What have I learned? | Public docs can be correct while shipped data is still wrong; release/data artifacts need their own explicit contract layer |
 | What have I done? | Added one focused package/data contract, sanitized shared config fixtures, and re-verified the 117-test docs/release/CI bundle |
+
+## Session: 2026-04-05 (root test-repo config path contamination)
+
+### Close-out Execution Follow-up 60
+- **Status:** complete
+- Actions taken:
+  - Continued the portable-data cleanup one layer outward after the shared config fix and found two root-level tracked test repo configs still tied to `/home/dtamade/...`
+  - Extended the same package/data hygiene contract to cover those root-level fixtures
+  - Replaced the machine-specific local repo URLs with `REPLACE_ME` placeholders and cleared their baked-in install roots
+- Files created/modified:
+  - `tests/test_package_release_assets.py`
+  - `tests_repo_config.json`
+  - `tests_repo_config_invalid.json`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for root-level repo fixture contamination | `python3 -m unittest -v tests.test_package_release_assets` | fail before fix | failed because `tests_repo_config.json` still hardcoded `/home/dtamade/...` as `install_root` | Observed |
+| Focused package/data verification | `python3 -m unittest -v tests.test_package_release_assets` | pass | `4` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `118` tests OK，`1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | Two root-level tracked test repo configs were no longer used by core tests, so their machine-local paths had silently survived earlier cleanups | 1 | Folded them into the existing package/data hygiene contract and replaced the paths with neutral defaults/placeholders |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Root-level test repo configs now follow the same portable fixture hygiene as the rest of the shared config artifacts |
+| Where am I going? | Commit and push this checkpoint, then continue to the next remaining public-contract or portable-fixture seam |
+| What's the goal? | Keep every tracked shared fixture safe to copy, package, and inspect on any machine without leaking a developer-specific path |
+| What have I learned? | Old tracked test fixtures can outlive the tests that once depended on them; hygiene contracts need to cover dormant artifacts too |
+| What have I done? | Extended the package/data contract to root-level repo configs, replaced machine-local URLs with placeholders, and re-verified the 118-test docs/release/CI bundle |
