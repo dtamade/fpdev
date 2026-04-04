@@ -1309,3 +1309,23 @@ Phase 4 complete
      - 明确说明“该命令不存在”的官方文档
      - 防回归测试
      - planning/findings/progress 历史记录
+
+## Close-out Update (2026-04-05, analyzer style drift in recovery guidance)
+1. 新发现的 repo-local seam：
+   - `python3 scripts/analyze_code_quality.py .` fresh 运行后只剩 1 类问题：
+     - `src/fpdev.errors.recovery.pas` 的 3 处长行
+   - 这些长行正是上一条 recovery/doc cleanup seam 新加入的手工 cleanup 提示文本
+2. 决策：
+   - 不修改恢复语义
+   - 只做最小的字符串换行/拼接整理，让 analyzer 恢复零问题
+3. 已完成的最小修复：
+   - `src/fpdev.errors.recovery.pas`：
+     - 将 3 处超过 analyzer 阈值的 stale-source-tree 描述拆成多行字符串拼接
+4. 已完成验证：
+   - `python3 scripts/analyze_code_quality.py .`：`总问题数: 0`
+   - `python3 -B -m unittest -v tests.test_analyze_code_quality`：`21` tests OK
+   - `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery`：`41` passed
+   - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_analyze_code_quality tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`146` tests OK，`1` skipped
+5. 结论：
+   - 当前 repo-local quality signal 再次回到 analyzer clean
+   - 上一条 recovery seam 的行为保持不变，只清掉了 style debt

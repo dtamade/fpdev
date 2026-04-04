@@ -2561,3 +2561,40 @@
 | What's the goal? | Keep every user-visible recovery and release narrative aligned with the actual registered CLI surface |
 | What have I learned? | Stale command drift is rarely isolated to one file; once a command becomes invalid, runtime hints, release notes, roadmap text, and inventory counts all need to be treated as one consistency seam |
 | What have I done? | Added regression coverage for runtime/docs leakage, normalized the remaining public surfaces, and re-verified the 125-test contract bundle plus the focused Pascal recovery suite |
+
+## Session: 2026-04-05 (analyzer style drift in recovery guidance)
+
+### Close-out Execution Follow-up 63
+- **Status:** complete
+- Actions taken:
+  - Started the next seam-selection cycle from a clean branch and used the repository quality analyzer as the first fresh signal source
+  - Confirmed the only remaining analyzer issue was a style-only regression in the just-edited recovery guidance text
+  - Applied the smallest possible formatting fix in `src/fpdev.errors.recovery.pas` without changing any recovery wording or behavior
+- Files created/modified:
+  - `src/fpdev.errors.recovery.pas`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| Focused analyzer verification (RED proof) | `python3 scripts/analyze_code_quality.py .` | clean analyzer output | failed with `总问题数: 1`, all in `src/fpdev.errors.recovery.pas` line-length style issues | Observed |
+| Focused analyzer verification (post-fix) | `python3 scripts/analyze_code_quality.py .` | clean analyzer output | `总问题数: 0` | OK |
+| Focused analyzer unit tests | `python3 -B -m unittest -v tests.test_analyze_code_quality` | pass | `21` tests OK | OK |
+| Focused recovery regression | `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery` | pass | `41` passed | OK |
+| Broad analyzer/docs/release/CI bundle | `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_analyze_code_quality tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `146` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | After the previous seam landed, `scripts/analyze_code_quality.py` still reported 3 long lines in the newly added recovery guidance text | 1 | Reflowed the three descriptions into multi-line string concatenations, then reran analyzer, focused unit tests, Pascal recovery tests, and the broad regression bundle |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | The repository quality analyzer is back to zero issues after the recovery-guidance cleanup |
+| Where am I going? | Commit and push this small quality-only seam, then continue from the next fresh repo-local signal rather than stacking more edits into the same diff |
+| What's the goal? | Keep each landed seam behaviorally correct and also clean against the repo’s own quality gates |
+| What have I learned? | Even a correct semantic fix can leave behind quality-gate debt; analyzer-clean is a separate acceptance condition, not a nice-to-have |
+| What have I done? | Cleared the analyzer-reported line-length drift in `fpdev.errors.recovery.pas` and re-verified analyzer, focused recovery tests, and the 146-test broad bundle |

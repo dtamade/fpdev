@@ -1860,3 +1860,26 @@
 - 结论更新：
   - `fpdev fpc clean` 的用户可见泄漏面已被收敛
   - 当前这条 seam 已从“runtime + docs 错误指令”收口到“只剩解释性和历史性残留”
+
+## Execution Update (2026-04-05, analyzer style drift in recovery guidance)
+- 新发现的 repo-local seam：
+  - `python3 scripts/analyze_code_quality.py .` fresh 运行后不再报告 docs/runtime drift，但仍报出 3 个 style issue
+  - 全部集中在 `src/fpdev.errors.recovery.pas` 新增的 stale-source-tree cleanup 描述长行
+- 当前 repo truth：
+  - recovery 文本语义本身已经被 `tests/test_errors_recovery.lpr` 锁住并通过
+  - 因此这条 seam 不是功能回归，而是上一刀引入的 analyzer-visible style debt
+- RED 证据：
+  - `python3 scripts/analyze_code_quality.py .`：`总问题数: 1`
+    - `code_style: 1 个问题`
+    - `src/fpdev.errors.recovery.pas` 第 266 / 299 / 392 行过长
+- 已实施的最小修复：
+  - `src/fpdev.errors.recovery.pas`：
+    - 将 3 处说明文本拆为多行字符串拼接，保持 wording 不变
+- 当前最新本地证据：
+  - `python3 scripts/analyze_code_quality.py .`：`总问题数: 0`
+  - `python3 -B -m unittest -v tests.test_analyze_code_quality`：`21` tests OK
+  - `lazbuild -B tests/test_errors_recovery.lpi && ./bin/test_errors_recovery`：`41` passed
+  - `TMPDIR=/tmp FPDEV_TEST_TMPDIR=/tmp python3 -B -m unittest -v tests.test_analyze_code_quality tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`146` tests OK，`1` skipped
+- 结论更新：
+  - analyzer quality signal 已恢复到零问题
+  - recovery guidance seam 现在同时在 behavior 和 style 两个面上都闭合
