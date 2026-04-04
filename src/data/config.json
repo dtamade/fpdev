@@ -15,6 +15,6 @@
     "auto_update" : false,
     "parallel_jobs" : 2,
     "keep_sources" : true,
-    "install_root" : "D:\\projects\\Pascal\\lazarus\\My\\projects\\fpdev\\src\\data"
+    "install_root" : ""
   }
 }

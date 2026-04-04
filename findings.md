@@ -1741,3 +1741,30 @@
 - 结论更新：
   - `project info` 现在和 `project new` 共享同一模板补全体验
   - template discovery surface 已进一步补齐到 completion ergonomics 层
+
+## Execution Update (2026-04-05, shared config fixture path contamination)
+- 新发现的 repo-local seam：
+  - `src/data/config.json` 的 `settings.install_root` 仍指向开发机绝对路径
+  - `tests/data/config.json` 同时带着：
+    - 开发机绝对 `install_root`
+    - 本地 `file://` sample repository URL
+- 当前 repo truth：
+  - `src/fpdev.paths.pas`：活动配置路径来自当前数据根的 `config.json`
+  - `src/fpdev.config.core.pas`：`TConfigManager.CreateDefaultConfig` 会在配置缺失时按当前配置文件目录动态推导 `install_root`
+  - `src/fpdev.config.settings.pas`：settings 默认值里的 `InstallRoot` 本来就是空字符串
+  - `scripts/package_release_assets.py`：打包时会原样复制给定 `data-dir`，因此 `src/data/config.json` 中的污染路径会进入 release asset
+- RED 证据：
+  - `python3 -m unittest -v tests.test_package_release_assets` 失败
+    - 新增契约直接抓到 `src/data/config.json` 中写死的开发机 `install_root`
+- 已实施的最小修复：
+  - `tests/test_package_release_assets.py`：
+    - 新增共享 config fixture 不得嵌入 machine-specific path / local file repo 的契约
+  - `src/data/config.json` / `tests/data/config.json`：
+    - 清空 `install_root`
+    - 删除本地 `file://` sample repository
+- 当前最新本地证据：
+  - `python3 -m unittest -v tests.test_package_release_assets`：`3` tests OK
+  - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`117` tests OK，`1` skipped
+- 结论更新：
+  - repo-shared config fixture 已去掉开发者本机路径污染
+  - release data artifact 与测试 fixture 现在都更接近真实 portable/runtime 默认行为

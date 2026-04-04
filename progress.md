@@ -2393,3 +2393,40 @@
 | What's the goal? | Keep user-facing discovery surfaces ergonomic and truthful so command signatures and shell assistance do not drift apart |
 | What have I learned? | Interrupted sessions can leave good work dirty; the right response is not to discard it, but to validate it rigorously before adoption |
 | What have I done? | Verified and adopted the pending `project info` completion support, expanded the completion contract, and re-verified the 116-test docs/release/CI/completion bundle |
+
+## Session: 2026-04-05 (shared config fixture path contamination)
+
+### Close-out Execution Follow-up 59
+- **Status:** complete
+- Actions taken:
+  - Switched from the project-command cluster to a higher-severity runtime artifact seam after confirming that repo-shared config fixtures still embedded developer-machine absolute paths
+  - Added a focused release/data contract so shared config artifacts cannot hardcode `install_root` or local `file://` repositories
+  - Sanitized both shipped and test config fixtures back to portable defaults, letting runtime derive install roots dynamically as intended
+- Files created/modified:
+  - `tests/test_package_release_assets.py`
+  - `src/data/config.json`
+  - `tests/data/config.json`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| RED proof for shared config contamination | `python3 -m unittest -v tests.test_package_release_assets` | fail before fix | failed because `src/data/config.json` still hardcoded a developer-machine `install_root` | Observed |
+| Focused release/data verification | `python3 -m unittest -v tests.test_package_release_assets` | pass | `3` tests OK | OK |
+| Archive + contributor/developer + close-out regression bundle | `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency` | pass | `117` tests OK, `1` skipped | OK |
+
+## Error Log
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-04-05 | Shared config fixtures were still carrying machine-local absolute paths even though runtime defaults now derive install roots from the active data root | 1 | Added a package/data contract and replaced the embedded paths with portable empty defaults |
+
+## 5-Question Reboot Check
+| Question | Answer |
+|----------|--------|
+| Where am I? | Shared config fixtures no longer leak developer-machine paths into repo or release data |
+| Where am I going? | Commit and push this checkpoint, then continue to the next remaining public-contract or portable-data seam |
+| What's the goal? | Keep shipped defaults and repo fixtures portable, reproducible, and free of developer-local state |
+| What have I learned? | Public docs can be correct while shipped data is still wrong; release/data artifacts need their own explicit contract layer |
+| What have I done? | Added one focused package/data contract, sanitized shared config fixtures, and re-verified the 117-test docs/release/CI bundle |

@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tarfile
 import tempfile
@@ -8,9 +9,27 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / 'scripts' / 'package_release_assets.py'
+REPO_SHARED_CONFIG = REPO_ROOT / 'src' / 'data' / 'config.json'
+TEST_SHARED_CONFIG = REPO_ROOT / 'tests' / 'data' / 'config.json'
 
 
 class PackageReleaseAssetsTests(unittest.TestCase):
+    def test_repo_shared_data_configs_do_not_embed_machine_specific_paths(self):
+        for path in [REPO_SHARED_CONFIG, TEST_SHARED_CONFIG]:
+            config = json.loads(path.read_text(encoding='utf-8'))
+
+            self.assertEqual(
+                '',
+                config.get('settings', {}).get('install_root', ''),
+                f'{path.relative_to(REPO_ROOT)} should not hardcode install_root',
+            )
+
+            for repo_name, repo_url in config.get('repositories', {}).items():
+                self.assertFalse(
+                    repo_url.startswith('file://'),
+                    f'{path.relative_to(REPO_ROOT)} embeds local file repository {repo_name}: {repo_url}',
+                )
+
     def test_script_packages_available_assets_with_shared_data_dir(self):
         with tempfile.TemporaryDirectory(prefix='fpdev-release-package-') as tmp:
             root = Path(tmp)

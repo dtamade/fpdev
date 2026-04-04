@@ -1205,3 +1205,30 @@ Phase 4 complete
 5. 结论：
    - `project info` 不再是 completion surface 上的盲点
    - 当前 project 模板 discovery 已在 runtime、docs、changelog、bash completion、zsh completion、contract tests 六个面上对齐
+
+## Close-out Update (2026-04-05, shared config fixture path contamination)
+1. 新发现的 data/release seam：
+   - `src/data/config.json` 仍把 `settings.install_root` 写死为开发机绝对路径
+   - `tests/data/config.json` 也包含：
+     - 开发机绝对 `install_root`
+     - 本地 `file://` sample repository 路径
+   - 但当前 runtime truth 是：
+     - 默认配置应由活动数据根动态决定
+     - `TConfigManager.CreateDefaultConfig` 在需要时会根据 `config.json` 所在目录推导 `install_root`
+2. 决策：
+   - 不保留任何 repo-shared machine-specific path
+   - 将共享配置 fixture 改为可移植、可打包、可复制的中性状态
+3. 已完成的最小修复：
+   - `tests/test_package_release_assets.py`：
+     - 新增共享 config fixture 不得嵌入机器私有路径的契约
+   - `src/data/config.json`：
+     - 清空 `settings.install_root`
+   - `tests/data/config.json`：
+     - 清空 `settings.install_root`
+     - 删除本地 `file://` sample repository
+4. 已完成验证：
+   - `python3 -m unittest -v tests.test_package_release_assets`：先 RED，修复后 `3` tests OK
+   - `python3 -m unittest -v tests.test_archive_docs_contract tests.test_contributor_docs_contract tests.test_developer_docs_cli_contract tests.test_release_docs_contract tests.test_release_scripts_contract tests.test_package_release_assets tests.test_generate_release_checksums tests.test_generate_release_evidence tests.test_record_owner_smoke_sh tests.test_record_owner_smoke_ps1 tests.test_official_docs_cli_contract tests.test_release_status_wording tests.test_update_test_stats tests.test_ci_workflow_contract tests.test_ci_release_contracts tests.test_cli_surface_consistency`：`117` tests OK，`1` skipped
+5. 结论：
+   - portable/shared config artifact 不再泄漏开发机路径
+   - release packaging 与 repo-shared fixture 现在更符合“可移植默认值由运行时决定”的最佳实践
