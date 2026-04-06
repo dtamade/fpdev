@@ -36,13 +36,46 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('ExecutablePath', self.text)
 
     def test_ci_has_macos_cli_smoke_job(self):
-        self.assertIn('macos-', self.text)
-        self.assertIn('brew install --cask fpc-laz', self.text)
+        self.assertIn('macos-15-intel', self.text)
+        self.assertIn('macos-15', self.text)
+        self.assertIn('brew install fpc', self.text)
         self.assertIn('choco install freepascal', self.text)
 
     def test_ci_uses_shared_cli_smoke_scripts(self):
         self.assertIn('scripts/cli_smoke.sh', self.text)
         self.assertIn('scripts/cli_smoke.ps1', self.text)
+
+    def test_ci_packages_linux_release_asset(self):
+        self.assertIn('Package Linux release asset', self.text)
+        self.assertIn('release-asset-linux-x64', self.text)
+        self.assertIn('release-assets/fpdev-linux-x64.tar.gz', self.text)
+        self.assertIn('scripts/package_release_assets.py', self.text)
+        self.assertIn('--data-dir src/data', self.text)
+
+    def test_ci_uploads_cross_platform_release_assets(self):
+        self.assertIn('release-asset-windows-x64', self.text)
+        self.assertIn('release-asset-macos-x64', self.text)
+        self.assertIn('release-asset-macos-arm64', self.text)
+        self.assertIn('fpdev-windows-x64.zip', self.text)
+        self.assertIn('fpdev-macos-x64.tar.gz', self.text)
+        self.assertIn('fpdev-macos-arm64.tar.gz', self.text)
+
+    def test_ci_uses_release_grade_cross_platform_build_flags(self):
+        self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
+        self.assertIn('-B -O3 -CX -XX', self.text)
+
+    def test_ci_runs_public_doc_contract_suites(self):
+        self.assertIn('tests.test_contributor_docs_contract', self.text)
+        self.assertIn('tests.test_official_docs_cli_contract', self.text)
+        self.assertIn('tests.test_fusion_status_artifacts_contract', self.text)
+        self.assertIn('tests.test_fusion_task_analysis_contract', self.text)
+        self.assertIn('tests.test_fusion_code_review_report_contract', self.text)
+        self.assertIn('tests.test_fusion_audit_report_contract', self.text)
+
+    def test_ci_runs_release_packaging_contract_suites(self):
+        self.assertIn('tests.test_package_release_assets', self.text)
+        self.assertIn('tests.test_generate_release_checksums', self.text)
+        self.assertIn('tests.test_ci_workflow_contract', self.text)
 
 
 if __name__ == '__main__':
