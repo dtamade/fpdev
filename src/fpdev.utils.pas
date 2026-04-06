@@ -127,6 +127,26 @@ begin
 end;
 {$ENDIF}
 
+{$IFDEF MSWINDOWS}
+type
+  // Some Windows FPC toolchains do not expose the Ex memory API in the Windows unit.
+  TFPDevMemoryStatusEx = record
+    dwLength: DWORD;
+    dwMemoryLoad: DWORD;
+    ullTotalPhys: UInt64;
+    ullAvailPhys: UInt64;
+    ullTotalPageFile: UInt64;
+    ullAvailPageFile: UInt64;
+    ullTotalVirtual: UInt64;
+    ullAvailVirtual: UInt64;
+    ullAvailExtendedVirtual: UInt64;
+  end;
+  PFPDevMemoryStatusEx = ^TFPDevMemoryStatusEx;
+
+function FpdevGlobalMemoryStatusEx(lpBuffer: PFPDevMemoryStatusEx): BOOL; stdcall;
+  external 'kernel32.dll' name 'GlobalMemoryStatusEx';
+{$ENDIF}
+
 // Essential implementations
 function cwd: string;
 begin
@@ -316,7 +336,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -356,9 +376,10 @@ begin
   end;
   {$ELSE}
   {$IFDEF MSWINDOWS}
+    FillChar(MemStatus, SizeOf(MemStatus), 0);
     MemStatus.dwLength := SizeOf(MemStatus);
-    if GlobalMemoryStatusEx(MemStatus) then
-      Result := MemStatus.ullAvailPhys
+    if FpdevGlobalMemoryStatusEx(@MemStatus) then
+      Result := UInt64(MemStatus.ullAvailPhys)
     else
       Result := 0;
   {$ELSE}
@@ -377,7 +398,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -411,15 +432,16 @@ begin
     end;
   end;
   {$ELSE}
-    {$IFDEF MSWINDOWS}
+  {$IFDEF MSWINDOWS}
+  FillChar(MemStatus, SizeOf(MemStatus), 0);
   MemStatus.dwLength := SizeOf(MemStatus);
-  if GlobalMemoryStatusEx(MemStatus) then
-    Result := MemStatus.ullTotalPhys
+  if FpdevGlobalMemoryStatusEx(@MemStatus) then
+    Result := UInt64(MemStatus.ullTotalPhys)
   else
     Result := 0;
-    {$ELSE}
+  {$ELSE}
   Result := 0;
-    {$ENDIF}
+  {$ENDIF}
   {$ENDIF}
 end;
 

@@ -81,6 +81,35 @@ load_test_inventory() {
   mapfile -t TEST_FILES < <(python3 "${SCRIPT_DIR}/update_test_stats.py" --list)
 }
 
+get_test_runtime_root() {
+  local test_name="$1"
+  printf '%s\n' "${TEST_TMP_ROOT}/${test_name}"
+}
+
+run_with_test_runtime_env() {
+  local test_name="$1"
+  local runtime_root=""
+  local runtime_tmp_root=""
+  local runtime_data_root=""
+  local runtime_lazarus_config_root=""
+  shift
+
+  runtime_root="$(get_test_runtime_root "$test_name")"
+  runtime_tmp_root="${runtime_root}/tmp"
+  runtime_data_root="${runtime_root}/fpdev-data"
+  runtime_lazarus_config_root="${runtime_root}/lazarus-config"
+  mkdir -p "${runtime_tmp_root}" "${runtime_data_root}" "${runtime_lazarus_config_root}"
+
+  (
+    export TMPDIR="${runtime_tmp_root}"
+    export TMP="${runtime_tmp_root}"
+    export TEMP="${runtime_tmp_root}"
+    export FPDEV_DATA_ROOT="${runtime_data_root}"
+    export FPDEV_LAZARUS_CONFIG_ROOT="${runtime_lazarus_config_root}"
+    "$@"
+  )
+}
+
 run_test_binary() {
   local bin_path="$1"
   local log_path="$2"
@@ -209,12 +238,15 @@ cleanup_test_binary_candidates() {
   local test_name="$3"
   local test_lpi="$4"
   local candidate=""
+  local -a candidates=()
 
-  while IFS= read -r candidate; do
+  mapfile -t candidates < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+
+  for candidate in "${candidates[@]}"; do
     if [ -n "$candidate" ] && [ -f "$candidate" ]; then
       rm -f "$candidate" 2>/dev/null || true
     fi
-  done < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+  done
 }
 
 resolve_test_binary_path() {
@@ -223,13 +255,17 @@ resolve_test_binary_path() {
   local test_name="$3"
   local test_lpi="$4"
   local candidate=""
+  local -a candidates=()
 
-  while IFS= read -r candidate; do
+  # Consume the full candidate list first so pipefail-enabled shells do not trip over SIGPIPE.
+  mapfile -t candidates < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+
+  for candidate in "${candidates[@]}"; do
     if [ -f "$candidate" ]; then
       printf '%s\n' "$candidate"
       return 0
     fi
-  done < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+  done
 
   return 1
 }
@@ -261,6 +297,10 @@ build_test_with_recovery() {
   test_bin_dir="$(dirname "$preferred_bin")"
   : >"$build_log"
 
+  # Top-level Lazarus projects write units under shared lib/<cpu>-<os> paths.
+  # Clear stale compiler artifacts before each build to avoid cross-test pollution.
+  cleanup_compiled_state_files
+  cleanup_compiler_artifact_files
   cleanup_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi"
   if build_test_with_fallback "$test_lpi" "$test_file" "$test_bin_dir" "$build_log"; then
     build_success=true
@@ -331,9 +371,10 @@ run_single_test() {
 
   echo -n "[$TOTAL] Testing $test_name... "
 
-  if build_test_with_recovery "$test_lpi" "$test_file" "$test_bin" "$test_dir" "$test_name" "$build_log"; then
+  if run_with_test_runtime_env "$test_name" \
+    build_test_with_recovery "$test_lpi" "$test_file" "$test_bin" "$test_dir" "$test_name" "$build_log"; then
     if run_bin="$(resolve_test_binary_path "$test_bin" "$test_dir" "$test_name" "$test_lpi")" \
-      && run_test_binary "$run_bin" "$test_log"; then
+      && run_with_test_runtime_env "$test_name" run_test_binary "$run_bin" "$test_log"; then
       echo -e "${GREEN}PASSED${NC}"
       PASSED=$((PASSED + 1))
       PASSED_TESTS+=("$test_name")

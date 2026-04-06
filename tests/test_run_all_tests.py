@@ -23,6 +23,13 @@ class RunAllTestsScriptTests(unittest.TestCase):
             capture_output=True,
         )
 
+    def read_env_file(self, path: Path) -> dict[str, str]:
+        values: dict[str, str] = {}
+        for line in path.read_text(encoding='utf-8').splitlines():
+            key, value = line.split('=', 1)
+            values[key] = value
+        return values
+
     def create_stub_tool(self, directory: Path, name: str, content: str) -> Path:
         path = directory / name
         path.write_text(content, encoding='utf-8')
@@ -63,7 +70,88 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 result.returncode,
                 msg=f'stdout={result.stdout}\nstderr={result.stderr}',
             )
-            self.assertIn(str(custom_tmp), result.stdout)
+
+    def test_run_single_test_uses_dedicated_runtime_roots_per_pascal_binary(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            tool_dir = tmp_path / 'toolbin'
+            tests_dir = tmp_path / 'tests'
+            tool_dir.mkdir()
+            tests_dir.mkdir()
+
+            test_file = tests_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            shared_env_file = tmp_path / 'shared-env.txt'
+            build_env_file = tmp_path / 'build-env.txt'
+            run_env_file = tmp_path / 'run-env.txt'
+
+            self.create_stub_tool(
+                tool_dir,
+                'fpc',
+                textwrap.dedent(
+                    """#!/bin/sh
+                    printf 'TMPDIR=%s\nFPDEV_DATA_ROOT=%s\nFPDEV_LAZARUS_CONFIG_ROOT=%s\n' \
+                      "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" > "$FPDEV_STUB_BUILD_ENV_FILE"
+                    out_dir=''
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        -FE*)
+                          out_dir=${1#-FE}
+                          ;;
+                      esac
+                      shift
+                    done
+                    mkdir -p "$out_dir"
+                    cat > "$out_dir/test_demo" <<'EOF'
+                    #!/bin/sh
+                    printf 'TMPDIR=%s\nFPDEV_DATA_ROOT=%s\nFPDEV_LAZARUS_CONFIG_ROOT=%s\n' \
+                      "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" > "$FPDEV_STUB_RUN_ENV_FILE"
+                    exit 0
+                    EOF
+                    chmod +x "$out_dir/test_demo"
+                    exit 0
+                    """
+                ),
+            )
+
+            env = {
+                'PATH': f'{tool_dir}:{os.environ.get("PATH", "")}',
+                'FPDEV_STUB_BUILD_ENV_FILE': str(build_env_file),
+                'FPDEV_STUB_RUN_ENV_FILE': str(run_env_file),
+            }
+            result = self.run_bash(
+                textwrap.dedent(
+                    f'''\
+                    source "{SCRIPT_PATH}"
+                    init_test_environment
+                    printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\n' \
+                      "$TEST_TMP_ROOT" "$TEST_DATA_ROOT" "$TEST_LAZARUS_CONFIG_ROOT" > "{shared_env_file}"
+                    run_single_test "tests/test_demo.lpr"
+                    '''
+                ),
+                cwd=tmp_path,
+                env=env,
+            )
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            shared_env = self.read_env_file(shared_env_file)
+            build_env = self.read_env_file(build_env_file)
+            self.assertEqual(
+                str(Path(shared_env['TMPDIR']) / 'test_demo' / 'tmp'),
+                build_env['TMPDIR'],
+            )
+            self.assertEqual(
+                str(Path(shared_env['TMPDIR']) / 'test_demo' / 'fpdev-data'),
+                build_env['FPDEV_DATA_ROOT'],
+            )
+            self.assertEqual(
+                str(Path(shared_env['TMPDIR']) / 'test_demo' / 'lazarus-config'),
+                build_env['FPDEV_LAZARUS_CONFIG_ROOT'],
+            )
 
     def test_init_test_environment_exports_system_temp_env_to_test_tmp_root(self):
         with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
@@ -383,11 +471,106 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 result.returncode,
                 msg=f'stdout={result.stdout}\nstderr={result.stderr}\nlog={build_log.read_text(encoding="utf-8") if build_log.exists() else ""}',
             )
-            self.assertEqual('2', fpc_count_file.read_text(encoding='utf-8'))
-            self.assertFalse(stale_object.exists(), 'recovery should remove stale linker artifacts before retry')
+            self.assertEqual('1', fpc_count_file.read_text(encoding='utf-8'))
+            self.assertFalse(stale_object.exists(), 'pre-build cleanup should remove stale linker artifacts before the first attempt')
             self.assertTrue(test_bin.exists())
             self.assertGreater(test_bin.stat().st_size, 0)
-            self.assertIn('retrying once', build_log.read_text(encoding='utf-8'))
+
+    def test_build_with_recovery_cleans_shared_compiler_artifacts_before_first_build(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            tool_dir = tmp_path / 'toolbin'
+            shared_lib_dir = tmp_path / 'lib' / 'x86_64-linux'
+            tool_dir.mkdir()
+            shared_lib_dir.mkdir(parents=True)
+
+            stale_unit = shared_lib_dir / 'stale.ppu'
+            stale_unit.write_text('stale\n', encoding='utf-8')
+
+            test_dir = tmp_path / 'tests'
+            test_dir.mkdir(parents=True)
+            test_lpi = test_dir / 'test_demo.lpi'
+            test_lpi.write_text('<CONFIG/>\n', encoding='utf-8')
+            test_file = test_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            test_bin = tmp_path / 'bin' / 'test_demo'
+            test_bin.parent.mkdir(parents=True)
+            build_log = tmp_path / 'build.log'
+            lazbuild_count_file = tmp_path / 'lazbuild.count'
+            fpc_count_file = tmp_path / 'fpc.count'
+
+            self.create_stub_tool(
+                tool_dir,
+                'lazbuild',
+                textwrap.dedent(
+                    """#!/bin/sh
+                    count=0
+                    if [ -f "$FPDEV_STUB_LAZBUILD_COUNT" ]; then
+                      count=$(cat "$FPDEV_STUB_LAZBUILD_COUNT")
+                    fi
+                    count=$((count + 1))
+                    printf '%s' "$count" > "$FPDEV_STUB_LAZBUILD_COUNT"
+                    if [ -f "$FPDEV_STUB_STALE_UNIT" ]; then
+                      echo 'stale shared unit still present' >&2
+                      exit 1
+                    fi
+                    mkdir -p "$(dirname "$FPDEV_STUB_TARGET_BIN")"
+                    cat > "$FPDEV_STUB_TARGET_BIN" <<'EOF'
+                    #!/bin/sh
+                    exit 0
+                    EOF
+                    chmod +x "$FPDEV_STUB_TARGET_BIN"
+                    exit 0
+                    """
+                ),
+            )
+            self.create_stub_tool(
+                tool_dir,
+                'fpc',
+                textwrap.dedent(
+                    """#!/bin/sh
+                    count=0
+                    if [ -f "$FPDEV_STUB_FPC_COUNT" ]; then
+                      count=$(cat "$FPDEV_STUB_FPC_COUNT")
+                    fi
+                    count=$((count + 1))
+                    printf '%s' "$count" > "$FPDEV_STUB_FPC_COUNT"
+                    exit 99
+                    """
+                ),
+            )
+
+            env = {
+                'PATH': f'{tool_dir}:{os.environ.get("PATH", "")}',
+                'FPDEV_STUB_TARGET_BIN': str(test_bin),
+                'FPDEV_STUB_STALE_UNIT': str(stale_unit),
+                'FPDEV_STUB_LAZBUILD_COUNT': str(lazbuild_count_file),
+                'FPDEV_STUB_FPC_COUNT': str(fpc_count_file),
+            }
+            command = textwrap.dedent(
+                f'''\
+                source "{SCRIPT_PATH}"
+                build_test_with_recovery \
+                  "{test_lpi}" \
+                  "{test_file}" \
+                  "{test_bin}" \
+                  "{test_dir}" \
+                  "test_demo" \
+                  "{build_log}"
+                test -s "{test_bin}"
+                '''
+            )
+
+            result = self.run_bash(command, cwd=tmp_path, env=env)
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}\nlog={build_log.read_text(encoding="utf-8") if build_log.exists() else ""}',
+            )
+            self.assertFalse(stale_unit.exists(), 'shared compiler artifacts should be cleared before the first lazbuild attempt')
+            self.assertEqual('1', lazbuild_count_file.read_text(encoding='utf-8'))
+            self.assertFalse(fpc_count_file.exists(), 'fpc fallback should stay unused when pre-build cleanup lets lazbuild succeed')
 
     def test_build_with_recovery_uses_isolated_unit_output_for_fpc_fallback(self):
         with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
@@ -555,8 +738,8 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 result.returncode,
                 msg=f'stdout={result.stdout}\nstderr={result.stderr}',
             )
-            self.assertEqual('2', fpc_count_file.read_text(encoding='utf-8'))
-            self.assertFalse(stale_object.exists(), 'recovery should remove stale linker artifacts before retry')
+            self.assertEqual('1', fpc_count_file.read_text(encoding='utf-8'))
+            self.assertFalse(stale_object.exists(), 'pre-build cleanup should remove stale linker artifacts before the first attempt')
             self.assertTrue((tmp_path / 'bin' / 'test_demo').exists())
             self.assertIn('Testing test_demo...', result.stdout)
             self.assertIn('All tests passed!', result.stdout)
