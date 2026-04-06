@@ -249,7 +249,7 @@ var
   SR: TSearchRec;
   FilePath: string;
   FileAge: TDateTime;
-  DaysSinceCreation: Integer;
+  AgeInDays: Integer;
 begin
   if not FConfig.Enabled then
     Exit;
@@ -267,9 +267,9 @@ begin
 
         // Check age
         FileAge := SR.TimeStamp;
-        DaysSinceCreation := DaysBetween(Now, FileAge);
+        AgeInDays := DaysBetween(Now, FileAge);
 
-        if DaysSinceCreation > FConfig.MaxArchiveAge then
+        if AgeInDays >= FConfig.MaxArchiveAge then
           DeleteFile(FilePath);
       end;
     until FindNext(SR) <> 0;

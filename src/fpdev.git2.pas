@@ -342,6 +342,134 @@ begin
     Result := 'Unknown error';
 end;
 
+function GitCheckoutBranchCore(
+  ARepo: git_repository;
+  const ABranch: string;
+  const Force: Boolean
+): Boolean;
+var
+  LRefName: string;
+  LHeadRefName: string;
+  TargetRef: git_reference;
+  CreatedBranchRef: git_reference;
+  TargetObj: git_object;
+  CheckoutCommit: git_object;
+  CheckoutOpts: git_checkout_options;
+  TargetOID: Pgit_oid;
+  HeadTarget: Pgit_oid;
+  LookupRC: cint;
+  CreateLocalBranchFromRemote: Boolean;
+begin
+  Result := False;
+  if (ARepo = nil) or (Trim(ABranch) = '') then
+    Exit(False);
+
+  TargetRef := nil;
+  CreatedBranchRef := nil;
+  TargetObj := nil;
+  CheckoutCommit := nil;
+  try
+    try
+      CreateLocalBranchFromRemote := False;
+      if Pos('refs/', ABranch) = 1 then
+      begin
+        LRefName := ABranch;
+      end
+      else
+      begin
+        LRefName := 'refs/heads/' + ABranch;
+        LookupRC := git_reference_lookup(TargetRef, ARepo, PChar(LRefName));
+        if LookupRC <> GIT_OK then
+        begin
+          LRefName := 'refs/remotes/origin/' + ABranch;
+          LookupRC := git_reference_lookup(TargetRef, ARepo, PChar(LRefName));
+          if LookupRC = GIT_OK then
+            CreateLocalBranchFromRemote := True
+          else
+          begin
+            LRefName := 'refs/tags/' + ABranch;
+            CheckGitResult(git_reference_lookup(TargetRef, ARepo, PChar(LRefName)),
+              'Lookup reference ' + LRefName);
+          end;
+        end;
+      end;
+
+      if TargetRef = nil then
+        CheckGitResult(git_reference_lookup(TargetRef, ARepo, PChar(LRefName)),
+          'Lookup reference ' + LRefName);
+      TargetOID := git_reference_target(TargetRef);
+      if TargetOID = nil then
+        Exit(False);
+
+      CheckGitResult(git_object_lookup(TargetObj, ARepo, TargetOID, GIT_OBJECT_ANY),
+        'Lookup checkout target ' + LRefName);
+
+      case git_object_type(TargetObj) of
+        GIT_OBJECT_COMMIT:
+          CheckoutCommit := TargetObj;
+        GIT_OBJECT_TAG:
+          CheckGitResult(git_object_peel(CheckoutCommit, TargetObj, GIT_OBJECT_COMMIT),
+            'Peel checkout target ' + LRefName);
+      else
+        Exit(False);
+      end;
+
+      CheckoutOpts := Default(git_checkout_options);
+      CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION),
+        'Init checkout options');
+      if Force or CreateLocalBranchFromRemote or (Pos('refs/tags/', LRefName) = 1) then
+        CheckoutOpts.checkout_strategy :=
+          GIT_CHECKOUT_FORCE or
+          GIT_CHECKOUT_RECREATE_MISSING or
+          GIT_CHECKOUT_REMOVE_UNTRACKED
+      else
+        CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+
+      if CreateLocalBranchFromRemote then
+      begin
+        LHeadRefName := 'refs/heads/' + ABranch;
+        CheckGitResult(git_branch_create(CreatedBranchRef, ARepo, PChar(ABranch),
+          git_commit(CheckoutCommit), Ord(Force)),
+          'Create local branch ' + ABranch);
+        CheckGitResult(git_repository_set_head(ARepo, PChar(LHeadRefName)),
+          'Set HEAD to ' + LHeadRefName);
+        CheckGitResult(git_checkout_head(ARepo, @CheckoutOpts),
+          'Checkout branch target ' + LHeadRefName);
+      end
+      else if Pos('refs/heads/', LRefName) = 1 then
+      begin
+        CheckGitResult(git_repository_set_head(ARepo, PChar(LRefName)),
+          'Set HEAD to ' + LRefName);
+        CheckGitResult(git_checkout_head(ARepo, @CheckoutOpts),
+          'Checkout branch target ' + LRefName);
+      end
+      else
+      begin
+        HeadTarget := git_object_id(CheckoutCommit);
+        if HeadTarget = nil then
+          Exit(False);
+        CheckGitResult(git_repository_set_head_detached(ARepo, HeadTarget),
+          'Detach HEAD at ' + LRefName);
+        CheckGitResult(git_checkout_head(ARepo, @CheckoutOpts),
+          'Checkout detached target ' + LRefName);
+      end;
+
+      Result := True;
+    except
+      Result := False;
+    end;
+  finally
+    if CreatedBranchRef <> nil then
+      git_reference_free(CreatedBranchRef);
+    if (CheckoutCommit <> nil) and (CheckoutCommit <> TargetObj) then
+      git_object_free(CheckoutCommit);
+    if TargetObj <> nil then
+      git_object_free(TargetObj);
+    if TargetRef <> nil then
+      git_reference_free(TargetRef);
+  end;
+end;
+
 constructor EGitError.Create(AErrorCode: Integer; const AOperation: string);
 var
   ErrorMsg: string;
@@ -388,130 +516,8 @@ begin
 end;
 
 function TGitRepository.CheckoutBranchEx(const ABranch: string; const Force: Boolean): Boolean;
-var
-  LRefName: string;
-  LHeadRefName: string;
-  TargetRef: git_reference;
-  CreatedBranchRef: git_reference;
-  TargetObj: git_object;
-  CheckoutCommit: git_object;
-  CheckoutTree: git_tree;
-  IndexHandle: git_index;
-  CheckoutOpts: git_checkout_options;
-  TargetOID: Pgit_oid;
-  HeadTarget: Pgit_oid;
-  LookupRC: cint;
-  CreateLocalBranchFromRemote: Boolean;
 begin
-  Result := False;
-  TargetRef := nil;
-  CreatedBranchRef := nil;
-  TargetObj := nil;
-  CheckoutCommit := nil;
-  CheckoutTree := nil;
-  IndexHandle := nil;
-  try
-    try
-      if Trim(ABranch) = '' then Exit(False);
-      CreateLocalBranchFromRemote := False;
-      if Pos('refs/', ABranch) = 1 then
-      begin
-        LRefName := ABranch
-      end
-      else
-      begin
-        LRefName := 'refs/heads/' + ABranch;
-        LookupRC := git_reference_lookup(TargetRef, FHandle, PChar(LRefName));
-        if LookupRC <> GIT_OK then
-        begin
-          LRefName := 'refs/remotes/origin/' + ABranch;
-          LookupRC := git_reference_lookup(TargetRef, FHandle, PChar(LRefName));
-          if LookupRC = GIT_OK then
-            CreateLocalBranchFromRemote := True
-          else
-          begin
-            LRefName := 'refs/tags/' + ABranch;
-            CheckGitResult(git_reference_lookup(TargetRef, FHandle, PChar(LRefName)),
-              'Lookup reference ' + LRefName);
-          end;
-        end;
-      end;
-
-      if TargetRef = nil then
-        CheckGitResult(git_reference_lookup(TargetRef, FHandle, PChar(LRefName)),
-          'Lookup reference ' + LRefName);
-      TargetOID := git_reference_target(TargetRef);
-      if TargetOID = nil then
-        Exit(False);
-
-      CheckGitResult(git_object_lookup(TargetObj, FHandle, TargetOID, GIT_OBJECT_ANY),
-        'Lookup checkout target ' + LRefName);
-
-      case git_object_type(TargetObj) of
-        GIT_OBJECT_COMMIT:
-          CheckoutCommit := TargetObj;
-        GIT_OBJECT_TAG:
-          CheckGitResult(git_object_peel(CheckoutCommit, TargetObj, GIT_OBJECT_COMMIT),
-            'Peel checkout target ' + LRefName);
-      else
-        Exit(False);
-      end;
-
-      CheckGitResult(git_commit_tree(CheckoutTree, git_commit(CheckoutCommit)),
-        'Resolve checkout tree ' + LRefName);
-
-      CheckoutOpts := Default(git_checkout_options);
-      CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
-      if Force then
-        CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING
-      else
-        CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
-
-      CheckGitResult(git_checkout_tree(FHandle, git_object(CheckoutTree), @CheckoutOpts),
-        'Checkout tree ' + LRefName);
-      CheckGitResult(git_repository_index(IndexHandle, FHandle), 'Open repository index');
-      CheckGitResult(git_index_read_tree(IndexHandle, CheckoutTree), 'Reset index to target tree');
-      CheckGitResult(git_index_write(IndexHandle), 'Write repository index');
-
-      if CreateLocalBranchFromRemote then
-      begin
-        LHeadRefName := 'refs/heads/' + ABranch;
-        CheckGitResult(git_branch_create(CreatedBranchRef, FHandle, PChar(ABranch),
-          git_commit(CheckoutCommit), Ord(Force)),
-          'Create local branch ' + ABranch);
-        CheckGitResult(git_repository_set_head(FHandle, PChar(LHeadRefName)),
-          'Set HEAD to ' + LHeadRefName);
-      end
-      else if Pos('refs/heads/', LRefName) = 1 then
-        CheckGitResult(git_repository_set_head(FHandle, PChar(LRefName)),
-          'Set HEAD to ' + LRefName)
-      else
-      begin
-        HeadTarget := git_object_id(CheckoutCommit);
-        if HeadTarget = nil then
-          Exit(False);
-        CheckGitResult(git_repository_set_head_detached(FHandle, HeadTarget),
-          'Detach HEAD at ' + LRefName);
-      end;
-
-      Result := True;
-    except
-      Result := False;
-    end;
-  finally
-    if IndexHandle <> nil then
-      git_index_free(IndexHandle);
-    if CreatedBranchRef <> nil then
-      git_reference_free(CreatedBranchRef);
-    if CheckoutTree <> nil then
-      git_object_free(git_object(CheckoutTree));
-    if (CheckoutCommit <> nil) and (CheckoutCommit <> TargetObj) then
-      git_object_free(CheckoutCommit);
-    if TargetObj <> nil then
-      git_object_free(TargetObj);
-    if TargetRef <> nil then
-      git_reference_free(TargetRef);
-  end;
+  Result := GitCheckoutBranchCore(FHandle, ABranch, Force);
 end;
 
 constructor TGitRepository.Create(const APath: string);
@@ -1355,7 +1361,6 @@ function TGit2Manager.CheckoutBranch(
   const ABranch: string
 ): Boolean;
 var
-  RepoObj: TGitRepository;
   RequestedBranch: string;
 begin
   Result := False;
@@ -1368,18 +1373,7 @@ begin
   if RequestedBranch = '' then
     Exit;
 
-  RepoObj := TGitRepository.Create(string(git_repository_workdir(ARepo)));
-  try
-    Result := RepoObj.CheckoutBranch(RequestedBranch);
-    if (not Result) and (Pos('refs/', RequestedBranch) <> 1) then
-    begin
-      Result := RepoObj.CheckoutBranch('refs/remotes/origin/' + RequestedBranch);
-      if not Result then
-        Result := RepoObj.CheckoutBranch('refs/tags/' + RequestedBranch);
-    end;
-  finally
-    RepoObj.Free;
-  end;
+  Result := GitCheckoutBranchCore(ARepo, RequestedBranch, False);
 end;
 
 function TGit2Manager.ListBranches(ARepo: git_repository): TStringArray;

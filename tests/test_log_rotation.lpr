@@ -3,7 +3,9 @@ program test_log_rotation;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, DateUtils, test_temp_paths, fpdev.logger.structured, fpdev.logger.rotator;
+  Classes, SysUtils, DateUtils,
+  {$IFDEF UNIX}BaseUnix,{$ENDIF}
+  test_temp_paths, fpdev.logger.structured, fpdev.logger.rotator;
 
 var
   TestsPassed: Integer = 0;
@@ -89,10 +91,21 @@ end;
 
 { Helper function to set file modification time }
 procedure SetFileTime(const APath: string; ATime: TDateTime);
+{$IFDEF UNIX}
+var
+  Times: utimbuf;
+{$ENDIF}
 var
   Handle: THandle;
   FileDate: LongInt;
 begin
+  {$IFDEF UNIX}
+  Times.actime := DateTimeToUnix(ATime);
+  Times.modtime := Times.actime;
+  if fpUTime(PChar(APath), @Times) = 0 then
+    Exit;
+  {$ENDIF}
+
   Handle := FileOpen(APath, fmOpenWrite);
   if Handle <> THandle(-1) then
   begin
@@ -187,8 +200,8 @@ begin
     CreateTestLogFile(TestFile, 100);
     AssertTrue(not Rotator.ShouldRotate(TestFile), 'Should not rotate recent file');
 
-    // Set file time to 2 hours ago
-    OldTime := Now - (2 / 24); // 2 hours ago
+    // Keep a generous margin to avoid filesystem timestamp precision edge cases.
+    OldTime := Now - (4 / 24); // 4 hours ago
     SetFileTime(TestFile, OldTime);
     AssertTrue(Rotator.ShouldRotate(TestFile), 'Should rotate old file');
   finally

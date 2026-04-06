@@ -5,7 +5,7 @@ program test_fpc_builder_bootstrapcompat;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
-  fpdev.utils.process,
+  fpdev.utils, fpdev.utils.process,
   test_config_isolation,
   test_temp_paths,
   fpdev.fpc.builder;
@@ -281,6 +281,31 @@ begin
   TProcessExecutor.Execute('chmod', ['+x', APath], '');
 end;
 
+procedure WriteMakeStub(const APath: string);
+var
+  Lines: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  Lines := TStringList.Create;
+  try
+    Lines.Add('#!/bin/sh');
+    Lines.Add('pp=""');
+    Lines.Add('for arg in "$@"; do');
+    Lines.Add('  case "$arg" in');
+    Lines.Add('    PP=*)');
+    Lines.Add('      pp="${arg#PP=}"');
+    Lines.Add('      ;;');
+    Lines.Add('  esac');
+    Lines.Add('done');
+    Lines.Add('printf ''%s\n'' "$pp" > build-pp.txt');
+    Lines.Add('exit 0');
+    Lines.SaveToFile(APath);
+  finally
+    Lines.Free;
+  end;
+  TProcessExecutor.Execute('chmod', ['+x', APath], '');
+end;
+
 function ReadTrimmedTextFile(const APath: string): string;
 var
   Lines: TStringList;
@@ -316,6 +341,10 @@ var
   OutBuf: IOutput;
   ErrBuf: IOutput;
   BuildOK: Boolean;
+  SavedPath: string;
+  StubBinDir: string;
+  StubSystemFPC: string;
+  StubMake: string;
 begin
   TempRoot := CreateUniqueTempDir('fpdev-custom-prefix-bootstrap');
 
@@ -332,15 +361,21 @@ begin
     PathDelim + '3.2.2' + PathDelim + 'bin' + PathDelim + 'fpc';
   RequiredBootstrapExe := TempRoot + PathDelim + 'toolchains' + PathDelim + 'fpc' +
     PathDelim + '3.2.0' + PathDelim + 'bin' + PathDelim + 'fpc';
+  StubBinDir := TempRoot + PathDelim + 'system-bin';
+  StubSystemFPC := StubBinDir + PathDelim + 'fpc';
+  StubMake := StubBinDir + PathDelim + 'make';
   MakefilePath := SourceDir + PathDelim + 'Makefile';
   BuildPPPath := SourceDir + PathDelim + 'build-pp.txt';
 
   ForceDirectories(SourceDir);
   ForceDirectories(ExtractFileDir(TargetBootstrapExe));
   ForceDirectories(ExtractFileDir(RequiredBootstrapExe));
+  ForceDirectories(StubBinDir);
 
   WriteBootstrapStub(TargetBootstrapExe, '3.2.2');
   WriteBootstrapStub(RequiredBootstrapExe, '3.2.0');
+  WriteBootstrapStub(StubSystemFPC, '3.3.1');
+  WriteMakeStub(StubMake);
 
   WriteBuildHarnessMakefile(MakefilePath);
 
@@ -348,6 +383,11 @@ begin
   ErrBufObj := TStringOutput.Create;
   OutBuf := OutBufObj as IOutput;
   ErrBuf := ErrBufObj as IOutput;
+  SavedPath := GetEnvironmentVariable('PATH');
+  if SavedPath <> '' then
+    set_env('PATH', StubBinDir + PathSeparator + SavedPath)
+  else
+    set_env('PATH', StubBinDir);
 
   Builder := TFPCSourceBuilder.Create(Config, OutBuf, ErrBuf);
   try
@@ -388,6 +428,10 @@ begin
     );
   finally
     Builder.Free;
+    if SavedPath <> '' then
+      set_env('PATH', SavedPath)
+    else
+      unset_env('PATH');
     CleanupTempDir(TempRoot);
   end;
 end;

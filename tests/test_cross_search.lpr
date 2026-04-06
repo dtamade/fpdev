@@ -430,16 +430,21 @@ var
   S: TCrossToolchainSearch;
   T: TCrossTarget;
   Libs: TStringArray;
+  TmpDir: string;
 begin
+  TmpDir := '';
   S := TCrossToolchainSearch.Create;
   try
+    TmpDir := CreateUniqueTempDir('fpdev_test_search_libs_arm');
     T := MakeTarget('arm', 'linux');
-    T.LibrariesPath := '/usr/arm-linux-gnueabihf/lib';
+    T.LibrariesPath := TmpDir;
     Libs := S.SearchLibraries(T);
     Check(Length(Libs) >= 1, 'SearchLibs ARM: returns candidates');
-    Check(Libs[0] = '/usr/arm-linux-gnueabihf/lib', 'SearchLibs ARM: configured path is first');
+    if Length(Libs) > 0 then
+      Check(Libs[0] = TmpDir, 'SearchLibs ARM: configured path is first');
   finally
     S.Free;
+    CleanupTempDir(TmpDir);
   end;
 end;
 

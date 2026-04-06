@@ -104,15 +104,15 @@ end;
 function TLogRotator.ShouldRotateByTime(const ACurrentFile: string): Boolean;
 var
   FileAge: TDateTime;
-  HoursSinceCreation: Double;
+  HoursSinceUpdate: Integer;
 begin
   Result := False;
   if not FileExists(ACurrentFile) then
     Exit;
 
   FileAge := GetFileAge(ACurrentFile);
-  HoursSinceCreation := HoursBetween(Now, FileAge);
-  Result := HoursSinceCreation >= FConfig.RotationInterval;
+  HoursSinceUpdate := HoursBetween(Now, FileAge);
+  Result := HoursSinceUpdate >= FConfig.RotationInterval;
 end;
 
 function TLogRotator.ShouldRotate(const ACurrentFile: string): Boolean;
@@ -170,7 +170,7 @@ var
   SR: TSearchRec;
   FilePath: string;
   FileAge: TDateTime;
-  DaysSinceCreation: Integer;
+  AgeInDays: Integer;
 begin
   if FindFirst(ALogDir + PathDelim + '*.*', faAnyFile, SR) = 0 then
   begin
@@ -184,9 +184,9 @@ begin
         begin
           // Check age
           FileAge := SR.TimeStamp;
-          DaysSinceCreation := DaysBetween(Now, FileAge);
+          AgeInDays := DaysBetween(Now, FileAge);
 
-          if DaysSinceCreation > FConfig.MaxAge then
+          if AgeInDays >= FConfig.MaxAge then
             DeleteFile(FilePath);
         end;
       end;

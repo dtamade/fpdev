@@ -804,7 +804,7 @@ begin
       AddLine('     ' + Libs[I]);
   end
   else
-    AddLine('[!] No library paths found');
+    AddLine('[!] Libraries not found');
 
   // Search log summary
   AddLine('Search log (' + IntToStr(GetSearchLogCount) + ' entries):');
