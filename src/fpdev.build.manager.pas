@@ -63,6 +63,7 @@ type
     function RunPreflightPolicyCheck(const AVersion: string; out AStatus, AReason,
       AMin, ARecommended, ACurrentFpcVersion: string): Boolean;
     function BuildToolchainReportJSONValue: string;
+    function RunFullBuildPreflight(const AVersion: string): Boolean;
   public
     constructor Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
     destructor Destroy; override;
@@ -828,7 +829,7 @@ function TBuildManager.FullBuild(const AVersion: string): Boolean;
 begin
   Result := RunFullBuildCore(
     AVersion,
-    @Preflight,
+    @RunFullBuildPreflight,
     @BuildCompiler,
     @BuildRTL,
     @BuildPackages,
@@ -930,6 +931,11 @@ begin
 end;
 
 { IBuildManager interface implementation }
+
+function TBuildManager.RunFullBuildPreflight(const AVersion: string): Boolean;
+begin
+  Result := Preflight(AVersion);
+end;
 
 function TBuildManager.Preflight: Boolean;
 begin

@@ -67,10 +67,18 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_runs_public_doc_contract_suites(self):
         self.assertIn('tests.test_contributor_docs_contract', self.text)
         self.assertIn('tests.test_official_docs_cli_contract', self.text)
-        self.assertIn('tests.test_fusion_status_artifacts_contract', self.text)
-        self.assertIn('tests.test_fusion_task_analysis_contract', self.text)
-        self.assertIn('tests.test_fusion_code_review_report_contract', self.text)
-        self.assertIn('tests.test_fusion_audit_report_contract', self.text)
+
+    def test_ci_does_not_require_private_fusion_contract_suites(self):
+        self.assertNotIn('tests.test_fusion_status_artifacts_contract', self.text)
+        self.assertNotIn('tests.test_fusion_task_analysis_contract', self.text)
+        self.assertNotIn('tests.test_fusion_code_review_report_contract', self.text)
+        self.assertNotIn('tests.test_fusion_audit_report_contract', self.text)
+
+    def test_ci_bootstraps_windows_fpc_path(self):
+        self.assertIn('Add FPC to PATH on Windows', self.text)
+        self.assertIn('Get-Command fpc.exe', self.text)
+        self.assertIn('$env:GITHUB_PATH', self.text)
+        self.assertIn('Unable to locate fpc.exe after Chocolatey installation.', self.text)
 
     def test_ci_runs_release_packaging_contract_suites(self):
         self.assertIn('tests.test_package_release_assets', self.text)
