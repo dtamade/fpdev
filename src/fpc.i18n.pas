@@ -159,6 +159,15 @@ uses
 {$ENDIF}
   ;
 
+{$IFDEF MSWINDOWS}
+type
+  // Some Windows FPC toolchains do not expose UI language APIs in the Windows unit.
+  TFPDevLangID = Word;
+
+function FpdevGetUserDefaultUILanguage: TFPDevLangID; stdcall;
+  external 'kernel32.dll' name 'GetUserDefaultUILanguage';
+{$ENDIF}
+
 var
   GI18nManager: TI18nManager = nil;
 
@@ -232,14 +241,14 @@ function TI18nManager.DetectSystemLanguage: TLanguage;
 var
   LangCode: string;
   {$IFDEF MSWINDOWS}
-  LangID: LANGID;
+  LangID: TFPDevLangID;
   PrimaryLang: Word;
   {$ENDIF}
 begin
   Result := langEnglish;
 
   {$IFDEF MSWINDOWS}
-  LangID := GetUserDefaultUILanguage;
+  LangID := FpdevGetUserDefaultUILanguage;
   PrimaryLang := LangID and $3FF;
 
   case PrimaryLang of
