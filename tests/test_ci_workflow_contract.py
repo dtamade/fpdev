@@ -39,7 +39,6 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('macos-15-intel', self.text)
         self.assertIn('macos-15', self.text)
         self.assertIn('brew install fpc libgit2', self.text)
-        self.assertIn('choco install freepascal', self.text)
 
     def test_ci_uses_shared_cli_smoke_scripts(self):
         self.assertIn('scripts/cli_smoke.sh', self.text)
@@ -77,17 +76,20 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertNotIn('tests.test_fusion_audit_report_contract', self.text)
 
     def test_ci_bootstraps_windows_fpc_path(self):
-        self.assertIn('Add FPC to PATH on Windows', self.text)
-        self.assertIn('ppcx64.exe', self.text)
+        self.assertIn('Download Windows FPC toolchain', self.text)
+        self.assertIn(
+            'https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-windows-x86_64.zip',
+            self.text,
+        )
+        self.assertIn('Invoke-WebRequest', self.text)
+        self.assertIn('Expand-Archive', self.text)
+        self.assertIn('Add repo-managed FPC to PATH on Windows', self.text)
         self.assertIn('ppcrossx64.exe', self.text)
         self.assertIn('$env:GITHUB_PATH', self.text)
         self.assertIn('$env:GITHUB_ENV', self.text)
-        self.assertIn('WINDOWS_FPC_BACKEND', self.text)
-        self.assertIn('Unable to locate fpc.exe after Chocolatey installation.', self.text)
-        self.assertIn(
-            'Unable to locate ppcx64.exe or ppcrossx64.exe after Chocolatey installation.',
-            self.text,
-        )
+        self.assertIn('WINDOWS_FPC_BACKEND=ppcrossx64.exe', self.text)
+        self.assertNotIn('choco install freepascal', self.text)
+        self.assertNotIn('Chocolatey installation', self.text)
         self.assertIn('where.exe $env:WINDOWS_FPC_BACKEND', self.text)
 
     def test_ci_installs_libgit2_for_linked_builds(self):
