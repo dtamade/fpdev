@@ -52,6 +52,7 @@ var
   HelpParams: TStringArray;
   Index: Integer;
 begin
+  HelpParams := nil;
   if Length(AParams) = 0 then
     ExecuteHelpCore(AParams, Ctx.Out)
   else
