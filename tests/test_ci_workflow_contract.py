@@ -95,6 +95,14 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertNotIn('Chocolatey installation', self.text)
         self.assertIn('where.exe $env:WINDOWS_FPC_BACKEND', self.text)
 
+    def test_ci_generates_windows_fpc_cfg_for_repo_managed_toolchain(self):
+        self.assertIn('Generate repo-managed FPC config on Windows', self.text)
+        self.assertIn("Join-Path $binDir 'fpc.cfg'", self.text)
+        self.assertIn('Set-Content -Path $cfgPath', self.text)
+        self.assertIn('-Fu${toolchainRootForConfig}/units/$fpctarget', self.text)
+        self.assertIn('-Fu${toolchainRootForConfig}/units/$fpctarget/*', self.text)
+        self.assertIn('-FD${binDirForConfig}', self.text)
+
     def test_ci_installs_libgit2_for_linked_builds(self):
         self.assertIn('sudo apt-get install -y fpc lazarus libgit2-dev', self.text)
         self.assertIn('brew install fpc libgit2', self.text)

@@ -184,6 +184,29 @@ jobs:
         Write-Host "Added FPC backend shim to PATH: $frontendBackendPath"
         Write-Host "Source backend retained at: $backendPath"
 
+    - name: Generate repo-managed FPC config on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $toolchainRoot = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2-windows-x86_64'
+        $binDir = Join-Path $toolchainRoot 'bin'
+        $cfgPath = Join-Path $binDir 'fpc.cfg'
+        $toolchainRootForConfig = $toolchainRoot -replace '\\', '/'
+        $binDirForConfig = $binDir -replace '\\', '/'
+        $cfgContent = @'
+        # Auto-generated for the repo-managed Windows FPC toolchain
+        -FD${binDirForConfig}
+        -Fu${toolchainRootForConfig}/units/$fpctarget
+        -Fu${toolchainRootForConfig}/units/$fpctarget/*
+        -Fu${toolchainRootForConfig}/units/$fpctarget/rtl
+        -Fi${toolchainRootForConfig}/units/$fpctarget/rtl
+        -Fl${toolchainRootForConfig}/units/$fpctarget/rtl
+        '@
+        $cfgContent = $cfgContent.Replace('${toolchainRootForConfig}', $toolchainRootForConfig)
+        $cfgContent = $cfgContent.Replace('${binDirForConfig}', $binDirForConfig)
+        Set-Content -Path $cfgPath -Value $cfgContent -Encoding ascii
+        Write-Host "Generated FPC config at: $cfgPath"
+
     - name: Resolve libgit2 linker path on macOS
       if: runner.os == 'macOS'
       shell: bash
