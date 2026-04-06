@@ -39,6 +39,7 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('macos-15-intel', self.text)
         self.assertIn('macos-15', self.text)
         self.assertIn('brew install fpc libgit2', self.text)
+        self.assertNotIn('choco install freepascal', self.text)
 
     def test_ci_uses_shared_cli_smoke_scripts(self):
         self.assertIn('scripts/cli_smoke.sh', self.text)
@@ -61,7 +62,7 @@ class CIWorkflowContractTests(unittest.TestCase):
 
     def test_ci_uses_release_grade_cross_platform_build_flags(self):
         self.assertIn('BUILD_FLAGS="${{ matrix.build_flags }}"', self.text)
-        self.assertIn('$COMPILER $BUILD_FLAGS', self.text)
+        self.assertIn('fpc $BUILD_FLAGS', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
         self.assertIn('-Twin64 -Px86_64', self.text)
 
@@ -84,10 +85,12 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('Invoke-WebRequest', self.text)
         self.assertIn('Expand-Archive', self.text)
         self.assertIn('Add repo-managed FPC to PATH on Windows', self.text)
+        self.assertIn('Copy-Item', self.text)
+        self.assertIn('ppcx64.exe', self.text)
         self.assertIn('ppcrossx64.exe', self.text)
         self.assertIn('$env:GITHUB_PATH', self.text)
         self.assertIn('$env:GITHUB_ENV', self.text)
-        self.assertIn('WINDOWS_FPC_BACKEND=ppcrossx64.exe', self.text)
+        self.assertIn('WINDOWS_FPC_BACKEND=ppcx64.exe', self.text)
         self.assertNotIn('choco install freepascal', self.text)
         self.assertNotIn('Chocolatey installation', self.text)
         self.assertIn('where.exe $env:WINDOWS_FPC_BACKEND', self.text)

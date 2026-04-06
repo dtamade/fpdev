@@ -168,16 +168,21 @@ jobs:
         $binDir = Join-Path $toolchainRoot 'bin'
         $fpcPath = Join-Path $binDir 'fpc.exe'
         $backendPath = Join-Path $binDir 'ppcrossx64.exe'
+        $frontendBackendPath = Join-Path $binDir 'ppcx64.exe'
         if (-not (Test-Path $fpcPath)) {
           throw "Unable to locate repo-managed fpc.exe at $fpcPath"
         }
         if (-not (Test-Path $backendPath)) {
           throw "Unable to locate repo-managed ppcrossx64.exe at $backendPath"
         }
+        if (-not (Test-Path $frontendBackendPath)) {
+          Copy-Item -Path $backendPath -Destination $frontendBackendPath
+        }
         $binDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        "WINDOWS_FPC_BACKEND=ppcrossx64.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "WINDOWS_FPC_BACKEND=ppcx64.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         Write-Host "Added FPC frontend to PATH: $fpcPath"
-        Write-Host "Added FPC backend to PATH: $backendPath"
+        Write-Host "Added FPC backend shim to PATH: $frontendBackendPath"
+        Write-Host "Source backend retained at: $backendPath"
 
     - name: Resolve libgit2 linker path on macOS
       if: runner.os == 'macOS'
@@ -204,16 +209,11 @@ jobs:
         rm -rf bin lib
         mkdir -p bin lib
         EXTRA_FLAGS=()
-        COMPILER="fpc"
         BUILD_FLAGS="${{ matrix.build_flags }}"
-        if [ "$RUNNER_OS" = "Windows" ] && [ -n "${WINDOWS_FPC_BACKEND:-}" ]; then
-          COMPILER="${WINDOWS_FPC_BACKEND}"
-          BUILD_FLAGS="${BUILD_FLAGS/-Px86_64/}"
-        fi
         if [ -n "${LIBGIT2_LIB_DIR:-}" ]; then
           EXTRA_FLAGS+=("-Fl${LIBGIT2_LIB_DIR}" "-k-lgit2")
         fi
-        $COMPILER $BUILD_FLAGS "${EXTRA_FLAGS[@]}" -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        fpc $BUILD_FLAGS "${EXTRA_FLAGS[@]}" -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
