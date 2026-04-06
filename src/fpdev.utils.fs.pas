@@ -70,18 +70,37 @@ function DeleteDirRecursive(const ADir: string): Boolean;
 var
   SR: TSearchRec;
   Path: string;
+  SearchAttr: LongInt;
 begin
   Result := True;
   if not DirectoryExists(ADir) then
     Exit(True);
 
-  if FindFirst(IncludeTrailingPathDelimiter(ADir) + '*', faAnyFile, SR) = 0 then
+  SearchAttr := faAnyFile;
+  {$IFDEF UNIX}
+  {$WARN SYMBOL_PLATFORM OFF}
+  SearchAttr := SearchAttr or faSymLink;
+  {$WARN SYMBOL_PLATFORM ON}
+  {$ENDIF}
+
+  if FindFirst(IncludeTrailingPathDelimiter(ADir) + '*', SearchAttr, SR) = 0 then
   begin
     repeat
       if (SR.Name = '.') or (SR.Name = '..') then
         Continue;
 
       Path := IncludeTrailingPathDelimiter(ADir) + SR.Name;
+
+      {$IFDEF UNIX}
+      {$WARN SYMBOL_PLATFORM OFF}
+      if (SR.Attr and faSymLink) <> 0 then
+      {$WARN SYMBOL_PLATFORM ON}
+      begin
+        if not DeleteFile(Path) then
+          Result := False;
+        Continue;
+      end;
+      {$ENDIF}
 
       if (SR.Attr and faDirectory) <> 0 then
       begin
@@ -90,9 +109,8 @@ begin
       end
       else
       begin
-        if FileExists(Path) then
-          if not DeleteFile(Path) then
-            Result := False;
+        if not DeleteFile(Path) then
+          Result := False;
       end;
     until FindNext(SR) <> 0;
     FindClose(SR);

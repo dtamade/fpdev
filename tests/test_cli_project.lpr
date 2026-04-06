@@ -64,6 +64,32 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestNewUnexpectedArg;
+var Cmd: TProjectNewCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectNewCommand.Create;
+  try
+    Ret := Cmd.Execute(['console', 'demo', '.', 'extra'], Ctx);
+    Check('new unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('new unexpected arg shows usage', StdErr.Contains('Usage: fpdev project new <template> <name> [dir]'));
+    Check('new unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestNewUnknownOption;
+var Cmd: TProjectNewCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectNewCommand.Create;
+  try
+    Ret := Cmd.Execute(['console', 'demo', '--unknown'], Ctx);
+    Check('new unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('new unknown option shows usage', StdErr.Contains('Usage: fpdev project new <template> <name> [dir]'));
+    Check('new unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
 { ===== build ===== }
 
 procedure TestBuildName;
@@ -93,6 +119,32 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('build no args returns valid code', Ret >= 0);
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildUnexpectedArg;
+var Cmd: TProjectBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', 'win64', 'extra'], Ctx);
+    Check('build unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build unexpected arg shows usage', StdErr.Contains('Usage: fpdev project build [dir] [target]'));
+    Check('build unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestBuildUnknownOption;
+var Cmd: TProjectBuildCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectBuildCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', '--unknown'], Ctx);
+    Check('build unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('build unknown option shows usage', StdErr.Contains('Usage: fpdev project build [dir] [target]'));
+    Check('build unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally Cmd.Free; end;
 end;
 
@@ -128,6 +180,18 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestRunAcceptsOptionLikeArgs;
+var Cmd: TProjectRunCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectRunCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', '--demo-flag', 'value'], Ctx);
+    Check('run option-like args avoid usage error', Ret <> EXIT_USAGE_ERROR);
+    Check('run option-like args do not print usage', not StdErr.Contains('Usage: fpdev project run [dir] [args...]'));
+  finally Cmd.Free; end;
+end;
+
 { ===== test ===== }
 
 procedure TestTestName;
@@ -160,6 +224,32 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestTestUnexpectedArg;
+var Cmd: TProjectTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', 'extra'], Ctx);
+    Check('test unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('test unexpected arg shows usage', StdErr.Contains('Usage: fpdev project test [dir]'));
+    Check('test unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestTestUnknownOption;
+var Cmd: TProjectTestCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTestCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', '--unknown'], Ctx);
+    Check('test unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('test unknown option shows usage', StdErr.Contains('Usage: fpdev project test [dir]'));
+    Check('test unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
 { ===== clean ===== }
 
 procedure TestCleanName;
@@ -189,6 +279,32 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('clean no args returns valid code', Ret >= 0);
+  finally Cmd.Free; end;
+end;
+
+procedure TestCleanUnknownOption;
+var Cmd: TProjectCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', '--unknown'], Ctx);
+    Check('clean unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('clean unknown option shows usage', StdErr.Contains('Usage: fpdev project clean [dir]'));
+    Check('clean unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestCleanUnexpectedArg;
+var Cmd: TProjectCleanCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectCleanCommand.Create;
+  try
+    Ret := Cmd.Execute(['.', 'extra'], Ctx);
+    Check('clean unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('clean unexpected arg shows usage', StdErr.Contains('Usage: fpdev project clean [dir]'));
+    Check('clean unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally Cmd.Free; end;
 end;
 
@@ -235,6 +351,45 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestListHelpRejectsExtraOption;
+var Cmd: TProjectListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', '--json'], Ctx);
+    Check('list --help with extra option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('list --help with extra option shows usage', StdErr.Contains('Usage: fpdev project list [--json]'));
+    Check('list --help with extra option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestListUnexpectedArg;
+var Cmd: TProjectListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check('list unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('list unexpected arg shows usage', StdErr.Contains('Usage: fpdev project list [--json]'));
+    Check('list unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestListUnknownOption;
+var Cmd: TProjectListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check('list unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('list unknown option shows usage', StdErr.Contains('Usage: fpdev project list [--json]'));
+    Check('list unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
 { ===== info ===== }
 
 procedure TestInfoName;
@@ -264,6 +419,32 @@ begin
   try
     Ret := Cmd.Execute([], Ctx);
     Check('info no args EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+  finally Cmd.Free; end;
+end;
+
+procedure TestInfoUnexpectedArg;
+var Cmd: TProjectInfoCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectInfoCommand.Create;
+  try
+    Ret := Cmd.Execute(['console', 'extra'], Ctx);
+    Check('info unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('info unexpected arg shows usage', StdErr.Contains('Usage: fpdev project info <template>'));
+    Check('info unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
+procedure TestInfoUnknownOption;
+var Cmd: TProjectInfoCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectInfoCommand.Create;
+  try
+    Ret := Cmd.Execute(['console', '--unknown'], Ctx);
+    Check('info unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('info unknown option shows usage', StdErr.Contains('Usage: fpdev project info <template>'));
+    Check('info unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
   finally Cmd.Free; end;
 end;
 
@@ -348,30 +529,39 @@ begin
     TestNewName;
     TestNewHelp;
     TestNewMissingArgs;
+    TestNewUnexpectedArg;
+    TestNewUnknownOption;
 
     WriteLn('');
     WriteLn('--- build ---');
     TestBuildName;
     TestBuildHelp;
     TestBuildNoArgs;
+    TestBuildUnexpectedArg;
+    TestBuildUnknownOption;
 
     WriteLn('');
     WriteLn('--- run ---');
     TestRunName;
     TestRunHelp;
     TestRunNoArgs;
+    TestRunAcceptsOptionLikeArgs;
 
     WriteLn('');
     WriteLn('--- test ---');
     TestTestName;
     TestTestHelp;
     TestTestNoArgs;
+    TestTestUnexpectedArg;
+    TestTestUnknownOption;
 
     WriteLn('');
     WriteLn('--- clean ---');
     TestCleanName;
     TestCleanHelp;
     TestCleanNoArgs;
+    TestCleanUnexpectedArg;
+    TestCleanUnknownOption;
 
     WriteLn('');
     WriteLn('--- list ---');
@@ -379,12 +569,17 @@ begin
     TestListHelp;
     TestListNoArgs;
     TestListJsonOutput;
+    TestListHelpRejectsExtraOption;
+    TestListUnexpectedArg;
+    TestListUnknownOption;
 
     WriteLn('');
     WriteLn('--- info ---');
     TestInfoName;
     TestInfoHelp;
     TestInfoMissingTemplate;
+    TestInfoUnexpectedArg;
+    TestInfoUnknownOption;
 
     WriteLn('');
     WriteLn('--- help ---');

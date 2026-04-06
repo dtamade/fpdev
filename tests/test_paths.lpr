@@ -35,6 +35,7 @@ type
     procedure TestGetDataRoot;
     procedure TestTempDataRootUsesSystemTempAndUniqueSuffix;
     procedure TestGetDataRootEnvOverride;
+    procedure TestPortableEnvOverrideBeatsCachedFalse;
     procedure TestGetCacheDir;
     procedure TestGetSandboxDir;
     procedure TestGetLogsDir;
@@ -146,6 +147,7 @@ begin
   TestGetDataRoot;
   TestTempDataRootUsesSystemTempAndUniqueSuffix;
   TestGetDataRootEnvOverride;
+  TestPortableEnvOverrideBeatsCachedFalse;
   TestGetCacheDir;
   TestGetSandboxDir;
   TestGetLogsDir;
@@ -227,6 +229,22 @@ begin
   set_env('FPDEV_DATA_ROOT', '');
   set_env('FPDEV_PORTABLE', '');
   CleanupTempDir(TestPath);
+end;
+
+procedure TPathsTest.TestPortableEnvOverrideBeatsCachedFalse;
+begin
+  WriteLn('-- TestPortableEnvOverrideBeatsCachedFalse --');
+
+  set_env('FPDEV_PORTABLE', '');
+  SetPortableMode(False);
+  try
+    set_env('FPDEV_PORTABLE', '1');
+    AssertTrue(IsPortableMode(),
+      'IsPortableMode() should respect FPDEV_PORTABLE even after cached false');
+  finally
+    set_env('FPDEV_PORTABLE', '');
+    SetPortableMode(False);
+  end;
 end;
 
 procedure TPathsTest.TestGetCacheDir;

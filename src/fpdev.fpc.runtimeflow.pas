@@ -34,6 +34,8 @@ type
   TFPCVersionInfoWriter = procedure(const AOut: IOutput; const AInfo: TToolchainInfo);
   TFPCExecutableInfoRunner = function(const AExecutable: string): TProcessResult of object;
 
+function FormatToolchainInstallDate(const AInstallDate: TDateTime): string;
+
 function CreateFPCSourcePlanCore(
   const AInstallRoot, ARequestedVersion: string
 ): TFPCSourcePlan;
@@ -84,12 +86,43 @@ implementation
 uses
   fpdev.i18n,
   fpdev.i18n.strings,
-  fpdev.fpc.installversionflow;
+  fpdev.fpc.installversionflow,
+  fpdev.utils.git;
+
+function FormatToolchainInstallDate(const AInstallDate: TDateTime): string;
+begin
+  if AInstallDate <= 0 then
+    Exit('unknown');
+
+  Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', AInstallDate);
+end;
 
 procedure WriteLine(const AOut: IOutput; const AText: string = '');
 begin
   if AOut <> nil then
     AOut.WriteLn(AText);
+end;
+
+function NormalizeGitPullErrorDetail(const AError: string): string;
+var
+  LError: string;
+begin
+  LError := Trim(AError);
+  case ClassifyGitPullFailure(LError) of
+    gpfkDirtyWorktree:
+      Exit(_(MSG_GIT_UPDATE_DIRTY_WORKTREE));
+    gpfkDetachedHead:
+      Exit(_(MSG_GIT_UPDATE_DETACHED_HEAD));
+    gpfkDivergedHistory:
+      Exit(_(MSG_GIT_UPDATE_DIVERGED_HISTORY));
+    gpfkUnknown:
+      ;
+  end;
+
+  if LError = '' then
+    Result := _(MSG_FAILED)
+  else
+    Result := LError;
 end;
 
 function CreateFPCSourcePlanCore(
@@ -152,7 +185,8 @@ begin
     Exit(True);
   end;
 
-  WriteLine(Errp, _(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_PULL_FAILED, [AGit.GetLastError]));
+  WriteLine(Errp, _(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_PULL_FAILED,
+    [NormalizeGitPullErrorDetail(AGit.GetLastError)]));
 end;
 
 function ExecuteFPCCleanPlanCore(
@@ -193,7 +227,7 @@ end;
 
 procedure WriteLocalizedToolchainInfo(const AOut: IOutput; const AInfo: TToolchainInfo);
 begin
-  WriteLine(AOut, _Fmt(MSG_FPC_INSTALL_DATE, [FormatDateTime('yyyy-mm-dd hh:nn:ss', AInfo.InstallDate)]));
+  WriteLine(AOut, _Fmt(MSG_FPC_INSTALL_DATE, [FormatToolchainInstallDate(AInfo.InstallDate)]));
   WriteLine(AOut, _Fmt(MSG_FPC_SOURCE_URL, [AInfo.SourceURL]));
 end;
 

@@ -4,6 +4,7 @@ program test_config_simple;
 
 uses
   SysUtils, test_config_isolation,
+  test_temp_paths,
   fpdev.config.interfaces,
   fpdev.config.managers;
 
@@ -21,8 +22,7 @@ begin
     // Create config manager with a test path
     WriteLn('Creating config manager...');
     Config := CreateIsolatedConfigManager;
-    if Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(Config.GetConfigPath)) <> 1 then
+    if not PathUsesSystemTempRoot(Config.GetConfigPath) then
       raise Exception.Create('config path should live under system temp');
     WriteLn('Config manager created successfully');
     WriteLn;

@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.exitcodes;
+  fpdev.exitcodes, fpdev.utils;
 
 type
   TEnvVarsCommand = class(TInterfacedObject, ICommand)
@@ -48,7 +48,7 @@ end;
 
 function TEnvVarsCommand.GetEnvVar(const AName: string): string;
 begin
-  Result := GetEnvironmentVariable(AName);
+  Result := get_env(AName);
   if Result = '' then
     Result := '(not set)';
 end;

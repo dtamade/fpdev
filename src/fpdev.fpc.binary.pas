@@ -8,7 +8,8 @@ interface
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
   fpdev.archive.extract, fpdev.build.cache,
-  fpdev.build.cache.types, fpdev.fpc.verify, fpdev.toolchain.fetcher, fpdev.manifest;
+  fpdev.build.cache.types, fpdev.fpc.verify, fpdev.toolchain.fetcher,
+  fpdev.manifest, fpdev.paths;
 
 type
   { TBinaryInstaller - Manages FPC binary installation }
@@ -57,7 +58,7 @@ begin
   inherited Create;
   FMirrorManager := TMirrorManager.Create;
   FExtractor := TArchiveExtractor.Create;
-  FCacheManager := TBuildCache.Create(GetUserDir + '.fpdev' + PathDelim + 'cache');
+  FCacheManager := TBuildCache.Create(IncludeTrailingPathDelimiter(GetDataRoot) + 'cache');
   FVerifier := TFPCVerifier.Create;
   FManifestParser := nil;  // Create lazily when needed
   FLastError := '';

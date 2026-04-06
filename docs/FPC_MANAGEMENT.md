@@ -13,7 +13,7 @@ FPDev 的 FPC 版本管理功能提供了完整的 FreePascal 编译器生命周
 
 ### 📦 安装方式
 - **源码安装**: 从 Git 仓库自动下载源码并编译安装
-- **预编译包**: 支持预编译二进制包安装（规划中）
+- **预编译包**: 支持预编译二进制包安装，默认优先尝试该路径
 - **自定义仓库**: 支持从自定义 Git 仓库安装
 
 ### 🛠️ 构建系统
@@ -52,6 +52,9 @@ fpdev fpc current
 ### 安装管理
 
 ```bash
+# 安装 FPC 3.2.2（二进制优先）
+fpdev fpc install 3.2.2
+
 # 从源码安装 FPC 3.2.2
 fpdev fpc install 3.2.2 --from-source
 
@@ -69,7 +72,7 @@ fpdev fpc uninstall 3.2.2
 fpdev fpc use 3.2.2
 
 # 查看版本信息
-fpdev fpc info 3.2.2
+fpdev fpc show 3.2.2
 
 # 测试安装
 fpdev fpc test 3.2.2

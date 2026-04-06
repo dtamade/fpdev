@@ -19,6 +19,8 @@ function GetResourceRepoLastCommitHashCore(
   AQueryShortHead: TRepoCommitQueryFunc
 ): string;
 
+function FormatResourceRepoLastUpdateCheck(const ALastUpdateCheck: TDateTime): string;
+
 function BuildResourceRepoStatusCore(
   const ALocalPath: string;
   const ALastUpdateCheck: TDateTime;
@@ -49,6 +51,14 @@ begin
     Result := 'unknown';
 end;
 
+function FormatResourceRepoLastUpdateCheck(const ALastUpdateCheck: TDateTime): string;
+begin
+  if ALastUpdateCheck = 0 then
+    Exit('never');
+
+  Result := DateTimeToStr(ALastUpdateCheck);
+end;
+
 function BuildResourceRepoStatusCore(
   const ALocalPath: string;
   const ALastUpdateCheck: TDateTime;
@@ -61,7 +71,7 @@ begin
 
   Result := 'Initialized at: ' + ALocalPath + LineEnding +
             'Commit: ' + AGetLastCommitHash() + LineEnding +
-            'Last update check: ' + DateTimeToStr(ALastUpdateCheck);
+            'Last update check: ' + FormatResourceRepoLastUpdateCheck(ALastUpdateCheck);
 end;
 
 end.

@@ -87,7 +87,7 @@ uses
   {$IFDEF WINDOWS}
   Windows,
   {$ENDIF}
-  fpdev.config;
+  fpdev.config, fpdev.utils;
 
 function GetTickCount64: QWord;
 {$IFDEF UNIX}
@@ -106,8 +106,8 @@ end;
 function CreateProgressBar: IProgressBar;
 begin
   // Check if in non-interactive mode (CI/CD)
-  if (GetEnvironmentVariable('FPDEV_NONINTERACTIVE') = '1') or
-     (GetEnvironmentVariable('CI') = 'true') then
+  if (get_env('FPDEV_NONINTERACTIVE') = '1') or
+     (get_env('CI') = 'true') then
     Result := TSilentProgressBar.Create
   else
     Result := TConsoleProgressBar.Create;
@@ -214,32 +214,32 @@ begin
   for I := 1 to FBarWidth do
   begin
     if I <= FilledWidth then
-      Bar += '='
+      Bar := Bar + '='
     else if I = FilledWidth + 1 then
-      Bar += '>'
+      Bar := Bar + '>'
     else
-      Bar += ' ';
+      Bar := Bar + ' ';
   end;
-  Bar += ']';
+  Bar := Bar + ']';
 
   // Build status string
   Status := Format(' %3d%% ', [Percentage]);
 
   if FTotal > 0 then
-    Status += Format('(%s/%s)', [FormatSize(FCurrent), FormatSize(FTotal)]);
+    Status := Status + Format('(%s/%s)', [FormatSize(FCurrent), FormatSize(FTotal)]);
 
   if FShowSpeed and (FCurrent > 0) then
   begin
     Speed := CalculateSpeed;
     if Speed > 0 then
-      Status += Format(' %s/s', [FormatSize(Trunc(Speed))]);
+      Status := Status + Format(' %s/s', [FormatSize(Trunc(Speed))]);
   end;
 
   if FShowETA and (Percentage > 0) and (Percentage < 100) then
   begin
     ETA := CalculateETA;
     if ETA > 0 then
-      Status += Format(' ETA: %s', [FormatTime(ETA)]);
+      Status := Status + Format(' ETA: %s', [FormatTime(ETA)]);
   end;
 
   // Output (carriage return to overwrite previous line)

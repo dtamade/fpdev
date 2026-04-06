@@ -5,6 +5,7 @@ program test_fpc_installer_sourceforgeflow;
 uses
   SysUtils, Classes,
   fpdev.output.intf,
+  fpdev.fpc.installer.downloadflow,
   fpdev.fpc.installer.sourceforgeflow,
   test_temp_paths;
 
@@ -146,11 +147,15 @@ type
     LastTempFile: string;
     LastTempDir: string;
     LastInstallPath: string;
+    UseLegacyDownloadPlan: Boolean;
+    LegacyDownloadPlan: TFPCLegacyBinaryDownloadPlan;
     function DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
     function ExtractLinux(const ATempFile, ATempDir, AInstallPath: string): Boolean;
   end;
 
 function TSourceForgeProbe.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
+var
+  Err: string;
 begin
   Inc(DownloadCalls);
   LastVersion := AVersion;
@@ -160,7 +165,19 @@ begin
     Exit(False);
   end;
 
-  ATempFile := GTempRoot + PathDelim + 'fpc-' + AVersion + '.tar';
+  if UseLegacyDownloadPlan then
+  begin
+    Err := '';
+    if not PrepareFPCLegacyBinaryDownloadPlan(AVersion, LegacyDownloadPlan, Err) then
+    begin
+      ATempFile := '';
+      Exit(False);
+    end;
+    ATempFile := LegacyDownloadPlan.TempFile;
+  end
+  else
+    ATempFile := GTempRoot + PathDelim + 'fpc-' + AVersion + '.tar';
+
   with TStringList.Create do
   try
     Add('fake archive');
@@ -236,6 +253,38 @@ begin
   end;
 end;
 
+procedure TestSourceForgeFlowSuccessRemovesEmptyLegacyDownloadDir;
+var
+  Probe: TSourceForgeProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  InstallDir: string;
+  OK: Boolean;
+begin
+  Probe := TSourceForgeProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  InstallDir := CreateUniqueTempDir('test_sf_success_legacy_install');
+  try
+    Probe.DownloadShouldSucceed := True;
+    Probe.ExtractShouldSucceed := True;
+    Probe.CreateInstallBin := True;
+    Probe.UseLegacyDownloadPlan := True;
+
+    OK := ExecuteFPCSourceForgeInstallFlow('3.2.2', InstallDir, OutBuf, ErrBuf,
+      @Probe.DownloadBinary, @Probe.ExtractLinux);
+
+    Check('legacy success returns true', OK, 'expected success');
+    Check('legacy success removes empty download dir',
+      not DirectoryExists(Probe.LegacyDownloadPlan.TempDir),
+      'download dir should be deleted');
+  finally
+    CleanupTempDir(InstallDir);
+    if DirectoryExists(Probe.LegacyDownloadPlan.TempDir) then
+      CleanupTempDir(Probe.LegacyDownloadPlan.TempDir);
+    Probe.Free;
+  end;
+end;
+
 procedure TestSourceForgeFlowDownloadFailure;
 var
   Probe: TSourceForgeProbe;
@@ -280,6 +329,7 @@ begin
     Probe.DownloadShouldSucceed := True;
     Probe.ExtractShouldSucceed := False;
     Probe.CreateInstallBin := False;
+    Probe.UseLegacyDownloadPlan := True;
 
     OK := ExecuteFPCSourceForgeInstallFlow('3.2.2', InstallDir, OutBuf, ErrBuf,
       @Probe.DownloadBinary, @Probe.ExtractLinux);
@@ -289,9 +339,12 @@ begin
       'temp dir should be deleted');
     Check('extract failure keeps downloaded archive', FileExists(Probe.LastTempFile),
       'archive should remain for inspection');
-    DeleteFile(Probe.LastTempFile);
   finally
+    if FileExists(Probe.LastTempFile) then
+      DeleteFile(Probe.LastTempFile);
     CleanupTempDir(InstallDir);
+    if DirectoryExists(Probe.LegacyDownloadPlan.TempDir) then
+      CleanupTempDir(Probe.LegacyDownloadPlan.TempDir);
     Probe.Free;
   end;
 end;
@@ -311,6 +364,7 @@ begin
     Probe.DownloadShouldSucceed := True;
     Probe.ExtractShouldSucceed := True;
     Probe.CreateInstallBin := False;
+    Probe.UseLegacyDownloadPlan := True;
 
     OK := ExecuteFPCSourceForgeInstallFlow('3.2.2', InstallDir, OutBuf, ErrBuf,
       @Probe.DownloadBinary, @Probe.ExtractLinux);
@@ -318,12 +372,17 @@ begin
     Check('verify failure returns false', not OK, 'expected failure');
     Check('verify failure removes downloaded archive', not FileExists(Probe.LastTempFile),
       'archive should be deleted after verification step');
+    Check('verify failure removes empty download dir',
+      not DirectoryExists(Probe.LegacyDownloadPlan.TempDir),
+      'download dir should be deleted after archive cleanup');
     Check('verify failure prints guidance block', ErrBuf.Contains('Binary Installation Failed'),
       'guidance header missing');
     Check('verify failure suggests from-source', ErrBuf.Contains('--from-source'),
       'from-source guidance missing');
   finally
     CleanupTempDir(InstallDir);
+    if DirectoryExists(Probe.LegacyDownloadPlan.TempDir) then
+      CleanupTempDir(Probe.LegacyDownloadPlan.TempDir);
     Probe.Free;
   end;
 end;
@@ -333,6 +392,7 @@ begin
   GTempRoot := CreateUniqueTempDir('test_sf_flow_root');
   try
     TestSourceForgeFlowSuccess;
+    TestSourceForgeFlowSuccessRemovesEmptyLegacyDownloadDir;
     TestSourceForgeFlowDownloadFailure;
     TestSourceForgeFlowExtractFailureKeepsArchive;
     TestSourceForgeFlowVerifyFailureShowsGuidance;

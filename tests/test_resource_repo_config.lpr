@@ -3,10 +3,12 @@ program test_resource_repo_config;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils,
+  SysUtils, test_temp_paths,
   fpdev.constants,
+  fpdev.paths,
   fpdev.resource.repo.types,
-  fpdev.resource.repo.config;
+  fpdev.resource.repo.config,
+  fpdev.utils;
 
 var
   TestsPassed: Integer = 0;
@@ -32,6 +34,14 @@ begin
     AMessage + ' (expected: ' + AExpected + ', got: ' + AActual + ')');
 end;
 
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
 procedure TestCurrentPlatformIsKnown;
 var
   Platform: string;
@@ -50,6 +60,73 @@ begin
   AssertTrue(Length(Config.Mirrors) = 1, 'default config exposes one fallback mirror');
   AssertEquals(FPDEV_REPO_MIRROR, Config.Mirrors[0], 'default config uses default mirror');
   AssertEquals('main', Config.Branch, 'default config uses main branch');
+end;
+
+procedure TestCreateDefaultConfigUsesSameProcessEnvOverride;
+var
+  Config: TResourceRepoConfig;
+  ProbeBase: string;
+  ExpectedLocalPath: string;
+  SavedEnv: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  ProbeBase := IncludeTrailingPathDelimiter(GetTempDir(False)) + 'fpdev-resource-repo-probe';
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedEnv := get_env('APPDATA');
+  {$ELSE}
+  SavedEnv := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('APPDATA', ProbeBase);
+    {$ELSE}
+    set_env('HOME', ProbeBase);
+    {$ENDIF}
+
+    Config := ResourceRepoCreateDefaultConfig;
+    ExpectedLocalPath := IncludeTrailingPathDelimiter(ProbeBase) +
+      FPDEV_CONFIG_DIR + PathDelim + 'resources';
+    AssertEquals(ExpectedLocalPath, Config.LocalPath,
+      'default config uses same-process HOME/APPDATA override for local path');
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('APPDATA', SavedEnv);
+    {$ELSE}
+    RestoreEnv('HOME', SavedEnv);
+    {$ENDIF}
+  end;
+end;
+
+procedure TestCreateDefaultConfigUsesFPDEVDataRootOverride;
+var
+  Config: TResourceRepoConfig;
+  ProbeRoot: string;
+  ExpectedLocalPath: string;
+  SavedDataRoot: string;
+begin
+  ProbeRoot := CreateUniqueTempDir('fpdev-resource-repo-data-root-probe');
+  AssertTrue(PathUsesSystemTempRoot(ProbeRoot),
+    'FPDEV_DATA_ROOT override probe uses system temp root');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  try
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    Config := ResourceRepoCreateDefaultConfig;
+    ExpectedLocalPath := IncludeTrailingPathDelimiter(GetDataRoot) + 'resources';
+    AssertEquals(ExpectedLocalPath, Config.LocalPath,
+      'default config uses FPDEV_DATA_ROOT override for local path');
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+  end;
 end;
 
 procedure TestCreateConfigWithMirrorSelection;
@@ -77,6 +154,8 @@ end;
 begin
   TestCurrentPlatformIsKnown;
   TestCreateDefaultConfig;
+  TestCreateDefaultConfigUsesSameProcessEnvOverride;
+  TestCreateDefaultConfigUsesFPDEVDataRootOverride;
   TestCreateConfigWithMirrorSelection;
   TestCreateConfigWithCustomURL;
 

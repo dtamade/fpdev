@@ -26,7 +26,7 @@ unit fpdev.package.lockfile;
       },
       "libfoo": {
         "version": "1.2.3",
-        "resolved": "~/.fpdev/registry/packages/libfoo/1.2.3/libfoo-1.2.3.tar.gz",
+        "resolved": "<data-root>/registry/packages/libfoo/1.2.3/libfoo-1.2.3.tar.gz",
         "integrity": "sha256-...",
         "dependencies": {
           "libbar": ">=2.0.0"
@@ -34,7 +34,7 @@ unit fpdev.package.lockfile;
       },
       "libbar": {
         "version": "2.1.0",
-        "resolved": "~/.fpdev/registry/packages/libbar/2.1.0/libbar-2.1.0.tar.gz",
+        "resolved": "<data-root>/registry/packages/libbar/2.1.0/libbar-2.1.0.tar.gz",
         "integrity": "sha256-..."
       }
     }

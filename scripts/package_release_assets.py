@@ -40,9 +40,15 @@ def package_tar_gz(binary: Path, data_dir: Path, output_path: Path, binary_name:
             archive.add(staging / 'data', arcname='data')
 
 
+def collect_windows_runtime_files(binary: Path) -> list[Path]:
+    return sorted(path for path in binary.parent.glob('*.dll') if path.is_file())
+
+
 def package_zip(binary: Path, data_dir: Path, output_path: Path, binary_name: str) -> None:
     with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(binary, arcname=binary_name)
+        for runtime_file in collect_windows_runtime_files(binary):
+            archive.write(runtime_file, arcname=runtime_file.name)
         for path in sorted(data_dir.rglob('*')):
             if path.is_file():
                 archive.write(path, arcname=str(Path('data') / path.relative_to(data_dir)))

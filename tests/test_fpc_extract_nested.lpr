@@ -396,6 +396,70 @@ begin
     StdOut.Contains('base') or StdOut.Contains('Base'));
 end;
 
+procedure TestExtractPipeline_ExtractsRemainingPackages;
+var
+  SrcDir, TempDir, InstallDir: string;
+  StdOut, StdErr: TStringOutput;
+  Res: TFPCExtractResult;
+  ProcRes: fpdev.utils.process.TProcessResult;
+  BaseDir, UnitsDir: string;
+begin
+  SrcDir := MakeTempDir('pipeline_packages_src');
+  TempDir := MakeTempDir('pipeline_packages_temp');
+  InstallDir := MakeTempDir('pipeline_packages_install');
+
+  BaseDir := SrcDir + PathDelim + 'base_content';
+  ForceDirectories(BaseDir + PathDelim + 'bin');
+  ForceDirectories(BaseDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + '3.2.2');
+  CreateFile(BaseDir + PathDelim + 'bin' + PathDelim + 'fpc', '#!/bin/sh' + LineEnding + 'echo FPC 3.2.2');
+  CreateFile(BaseDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + '3.2.2' + PathDelim + 'ppcx64', 'dummy');
+
+  UnitsDir := SrcDir + PathDelim + 'units_content';
+  ForceDirectories(UnitsDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
+    '3.2.2' + PathDelim + 'units' + PathDelim + 'x86_64-linux' + PathDelim + 'fcl-base');
+  CreateFile(UnitsDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
+    '3.2.2' + PathDelim + 'units' + PathDelim + 'x86_64-linux' + PathDelim +
+    'fcl-base' + PathDelim + 'custapp.ppu', 'dummy');
+
+  ProcRes := TProcessExecutor.Execute('tar', [
+    '-czf', SrcDir + PathDelim + 'base.x86_64-linux.tar.gz',
+    '-C', BaseDir, 'bin', 'lib'], '');
+  Test('Create base.tar.gz for package pipeline succeeds', ProcRes.Success);
+
+  ProcRes := TProcessExecutor.Execute('tar', [
+    '-czf', SrcDir + PathDelim + 'units-fcl-base.x86_64-linux.tar.gz',
+    '-C', UnitsDir, 'lib'], '');
+  Test('Create units package tar.gz succeeds', ProcRes.Success);
+
+  ProcRes := TProcessExecutor.Execute('tar', [
+    '-cf', SrcDir + PathDelim + 'binary.x86_64-linux.tar',
+    '-C', SrcDir, 'base.x86_64-linux.tar.gz', 'units-fcl-base.x86_64-linux.tar.gz'], '');
+  Test('Create binary.tar with extra package succeeds', ProcRes.Success);
+
+  ForceDirectories(SrcDir + PathDelim + 'fpc-3.2.2.x86_64-linux');
+  ProcRes := TProcessExecutor.Execute('mv', [
+    SrcDir + PathDelim + 'binary.x86_64-linux.tar',
+    SrcDir + PathDelim + 'fpc-3.2.2.x86_64-linux' + PathDelim + 'binary.x86_64-linux.tar'], '');
+  Test('Move binary.tar with extra package succeeds', ProcRes.Success);
+
+  ProcRes := TProcessExecutor.Execute('tar', [
+    '-cf', SrcDir + PathDelim + 'fpc-3.2.2-with-packages.tar',
+    '-C', SrcDir, 'fpc-3.2.2.x86_64-linux'], '');
+  Test('Create outer tar with extra package succeeds', ProcRes.Success);
+
+  StdOut := TStringOutput.Create;
+  StdErr := TStringOutput.Create;
+  Res := TFPCArchiveExtractor.ExtractLinuxFPCTarball(
+    SrcDir + PathDelim + 'fpc-3.2.2-with-packages.tar',
+    TempDir, InstallDir, StdOut, StdErr);
+
+  Test('Full pipeline with extra package succeeds', Res.Success);
+  Test('Extra package archive gets extracted',
+    FileExists(InstallDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim +
+      '3.2.2' + PathDelim + 'units' + PathDelim + 'x86_64-linux' + PathDelim +
+      'fcl-base' + PathDelim + 'custapp.ppu'));
+end;
+
 { ===== Group 6: ExtractNestedFPCPackage gap - missing base archive ===== }
 
 procedure TestExtractPipeline_MissingBaseArchive;
@@ -487,6 +551,7 @@ begin
     WriteLn('');
     WriteLn('--- Full Extraction Pipeline ---');
     TestExtractPipeline_CreateFakeFPCStructure;
+    TestExtractPipeline_ExtractsRemainingPackages;
 
     // Group 6: Missing base archive gap
     WriteLn('');

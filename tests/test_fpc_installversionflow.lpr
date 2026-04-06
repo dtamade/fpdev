@@ -45,6 +45,7 @@ type
     BuildFromSourceResult: Boolean;
     SetupEnvironmentResult: Boolean;
     InstallBinaryResult: Boolean;
+    WriteMetadataResult: Boolean;
     VerifyCalls: Integer;
     HasArtifactsCalls: Integer;
     RestoreArtifactsCalls: Integer;
@@ -54,10 +55,14 @@ type
     BuildFromSourceCalls: Integer;
     SetupEnvironmentCalls: Integer;
     InstallBinaryCalls: Integer;
+    WriteMetadataCalls: Integer;
     LastVerifyExe: string;
     LastInstallPath: string;
     LastSourceDir: string;
     LastPrefix: string;
+    LastMetadataInstallPath: string;
+    LastMetadataVersion: string;
+    LastMetadataFromSource: Boolean;
     function VerifyInstalledExecutable(const AFPCExe, AVersion: string; out AError: string): Boolean;
     function HasArtifacts(const AVersion: string): Boolean;
     function RestoreArtifacts(const AVersion, AInstallPath: string): Boolean;
@@ -67,6 +72,8 @@ type
     function BuildFromSource(const ASourceDir, AInstallPath: string): Boolean;
     function SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
     function InstallBinary(const AVersion, APrefix: string): Boolean;
+    function WriteMetadata(const AVersion, AInstallPath: string;
+      AFromSource: Boolean): Boolean;
   end;
 
 var
@@ -213,6 +220,16 @@ begin
   Result := InstallBinaryResult;
 end;
 
+function TInstallFlowProbe.WriteMetadata(const AVersion, AInstallPath: string;
+  AFromSource: Boolean): Boolean;
+begin
+  Inc(WriteMetadataCalls);
+  LastMetadataVersion := AVersion;
+  LastMetadataInstallPath := AInstallPath;
+  LastMetadataFromSource := AFromSource;
+  Result := WriteMetadataResult;
+end;
+
 procedure Pass(const AName: string);
 begin
   WriteLn('[PASS] ', AName);
@@ -250,10 +267,11 @@ begin
 
     OK := ExecuteFPCInstallVersionCore(
       '3.2.2', '/root', '/root/fpc/3.2.2', '', False, False, True,
+      True,
       OutRef, ErrRef,
       @Probe.VerifyInstalledExecutable,
       nil, nil, nil,
-      nil, nil, nil, nil,
+      nil, nil, nil, nil, nil,
       @Probe.InstallBinary
     );
 
@@ -295,10 +313,11 @@ begin
 
     OK := ExecuteFPCInstallVersionCore(
       '3.2.2', '/root', '/root/fpc/3.2.2', '', False, False, True,
+      True,
       OutRef, ErrRef,
       @Probe.VerifyInstalledExecutable,
       nil, nil, nil,
-      nil, nil, nil, nil,
+      nil, nil, nil, nil, nil,
       @Probe.InstallBinary
     );
 
@@ -334,9 +353,11 @@ begin
     Probe.HasArtifactsResult := True;
     Probe.RestoreArtifactsResult := True;
     Probe.SetupEnvironmentResult := True;
+    Probe.WriteMetadataResult := True;
 
     OK := ExecuteFPCInstallVersionCore(
       '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      True,
       OutRef, ErrRef,
       @Probe.VerifyInstalledExecutable,
       @Probe.HasArtifacts,
@@ -345,6 +366,7 @@ begin
       @Probe.DownloadSource,
       @Probe.EnsureBootstrap,
       @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
       @Probe.SetupEnvironment,
       @Probe.InstallBinary
     );
@@ -356,6 +378,13 @@ begin
       'download calls=' + IntToStr(Probe.DownloadSourceCalls));
     Check('cache fast path runs setup once', Probe.SetupEnvironmentCalls = 1,
       'setup calls=' + IntToStr(Probe.SetupEnvironmentCalls));
+    Check('cache fast path writes metadata once', Probe.WriteMetadataCalls = 1,
+      'metadata calls=' + IntToStr(Probe.WriteMetadataCalls));
+    Check('cache fast path writes metadata for source install', Probe.LastMetadataFromSource,
+      'expected source metadata');
+    Check('cache fast path metadata install path matches restored install path',
+      Probe.LastMetadataInstallPath = '/install-root/fpc/3.2.2',
+      'path=' + Probe.LastMetadataInstallPath);
     Check('cache fast path prints restore message',
       OutBuf.Contains('Build cache restored successfully'), 'restore success missing');
     Check('cache fast path prints install done',
@@ -389,9 +418,11 @@ begin
     Probe.BuildFromSourceResult := True;
     Probe.SetupEnvironmentResult := True;
     Probe.SaveArtifactsResult := True;
+    Probe.WriteMetadataResult := True;
 
     OK := ExecuteFPCInstallVersionCore(
       '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      True,
       OutRef, ErrRef,
       @Probe.VerifyInstalledExecutable,
       @Probe.HasArtifacts,
@@ -400,6 +431,7 @@ begin
       @Probe.DownloadSource,
       @Probe.EnsureBootstrap,
       @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
       @Probe.SetupEnvironment,
       @Probe.InstallBinary
     );
@@ -411,6 +443,10 @@ begin
       'bootstrap calls=' + IntToStr(Probe.EnsureBootstrapCalls));
     Check('cache miss builds once', Probe.BuildFromSourceCalls = 1,
       'build calls=' + IntToStr(Probe.BuildFromSourceCalls));
+    Check('cache miss writes metadata once', Probe.WriteMetadataCalls = 1,
+      'metadata calls=' + IntToStr(Probe.WriteMetadataCalls));
+    Check('cache miss metadata marks source install', Probe.LastMetadataFromSource,
+      'expected source metadata');
     Check('cache miss saves cache once', Probe.SaveArtifactsCalls = 1,
       'save calls=' + IntToStr(Probe.SaveArtifactsCalls));
     Check('cache miss uses canonical source dir',
@@ -447,6 +483,7 @@ begin
 
     OK := ExecuteFPCInstallVersionCore(
       '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      True,
       OutRef, ErrRef,
       @Probe.VerifyInstalledExecutable,
       @Probe.HasArtifacts,
@@ -455,6 +492,7 @@ begin
       @Probe.DownloadSource,
       @Probe.EnsureBootstrap,
       @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
       @Probe.SetupEnvironment,
       @Probe.InstallBinary
     );
@@ -473,12 +511,125 @@ begin
   end;
 end;
 
+procedure TestSourceInstallSkipsCacheWhenDisabled;
+var
+  Probe: TInstallFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OutRef, ErrRef: IOutput;
+  OK: Boolean;
+begin
+  Probe := TInstallFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  OutRef := OutBuf as IOutput;
+  ErrRef := ErrBuf as IOutput;
+  try
+    Probe.HasArtifactsResult := True;
+    Probe.RestoreArtifactsResult := True;
+    Probe.DownloadSourceResult := True;
+    Probe.EnsureBootstrapResult := True;
+    Probe.BuildFromSourceResult := True;
+    Probe.SetupEnvironmentResult := True;
+    Probe.SaveArtifactsResult := True;
+    Probe.WriteMetadataResult := True;
+
+    OK := ExecuteFPCInstallVersionCore(
+      '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      False,
+      OutRef, ErrRef,
+      @Probe.VerifyInstalledExecutable,
+      @Probe.HasArtifacts,
+      @Probe.RestoreArtifacts,
+      @Probe.SaveArtifacts,
+      @Probe.DownloadSource,
+      @Probe.EnsureBootstrap,
+      @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
+      @Probe.SetupEnvironment,
+      @Probe.InstallBinary
+    );
+
+    Check('no-cache source install returns true', OK, 'expected success');
+    Check('no-cache skips cache lookup', Probe.HasArtifactsCalls = 0,
+      'has calls=' + IntToStr(Probe.HasArtifactsCalls));
+    Check('no-cache skips cache restore', Probe.RestoreArtifactsCalls = 0,
+      'restore calls=' + IntToStr(Probe.RestoreArtifactsCalls));
+    Check('no-cache skips cache save', Probe.SaveArtifactsCalls = 0,
+      'save calls=' + IntToStr(Probe.SaveArtifactsCalls));
+    Check('no-cache still downloads source', Probe.DownloadSourceCalls = 1,
+      'download calls=' + IntToStr(Probe.DownloadSourceCalls));
+    Check('no-cache still builds source', Probe.BuildFromSourceCalls = 1,
+      'build calls=' + IntToStr(Probe.BuildFromSourceCalls));
+    Check('no-cache still writes metadata', Probe.WriteMetadataCalls = 1,
+      'metadata calls=' + IntToStr(Probe.WriteMetadataCalls));
+  finally
+    OutRef := nil;
+    ErrRef := nil;
+    OutBuf := nil;
+    ErrBuf := nil;
+    Probe.Free;
+  end;
+end;
+
+procedure TestBinaryInstallWritesMetadata;
+var
+  Probe: TInstallFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OutRef, ErrRef: IOutput;
+  OK: Boolean;
+begin
+  Probe := TInstallFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  OutRef := OutBuf as IOutput;
+  ErrRef := ErrBuf as IOutput;
+  try
+    Probe.InstallBinaryResult := True;
+    Probe.WriteMetadataResult := True;
+
+    OK := ExecuteFPCInstallVersionCore(
+      '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '/custom/prefix',
+      False, False, False, True,
+      OutRef, ErrRef,
+      @Probe.VerifyInstalledExecutable,
+      @Probe.HasArtifacts,
+      @Probe.RestoreArtifacts,
+      @Probe.SaveArtifacts,
+      @Probe.DownloadSource,
+      @Probe.EnsureBootstrap,
+      @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
+      @Probe.SetupEnvironment,
+      @Probe.InstallBinary
+    );
+
+    Check('binary install returns true', OK, 'expected success');
+    Check('binary install invokes installer once', Probe.InstallBinaryCalls = 1,
+      'binary calls=' + IntToStr(Probe.InstallBinaryCalls));
+    Check('binary install writes metadata once', Probe.WriteMetadataCalls = 1,
+      'metadata calls=' + IntToStr(Probe.WriteMetadataCalls));
+    Check('binary install metadata marks binary mode', not Probe.LastMetadataFromSource,
+      'expected binary metadata');
+    Check('binary install metadata uses resolved prefix path',
+      Probe.LastMetadataInstallPath = ExpandFileName('/custom/prefix'),
+      'path=' + Probe.LastMetadataInstallPath);
+  finally
+    OutRef := nil;
+    ErrRef := nil;
+    OutBuf := nil;
+    ErrBuf := nil;
+    Probe.Free;
+  end;
+end;
+
 begin
   TestReuseInstalledShortCircuitsInstall;
   TestReuseInstalledFallsBackToReinstall;
   TestSourceInstallUsesCacheFastPath;
   TestSourceInstallBuildsAndCachesAfterCacheMiss;
   TestSourceInstallReportsBootstrapFailure;
+  TestSourceInstallSkipsCacheWhenDisabled;
+  TestBinaryInstallWritesMetadata;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);

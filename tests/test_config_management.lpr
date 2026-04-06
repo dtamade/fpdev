@@ -125,8 +125,7 @@ begin
   
   try
     AssertTrue(
-      Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-        ExpandFileName(FTestConfigPath)) = 1,
+      PathUsesSystemTempRoot(FConfigManager.ConfigPath),
       'Config path should live under system temp'
     );
     AssertTrue(FConfigManager.CreateDefaultConfig, 'Should create default config');
@@ -354,6 +353,8 @@ begin
   Test := TConfigManagementTest.Create;
   try
     Test.RunAllTests;
+    if Test.TestsFailed > 0 then
+      ExitCode := 1;
   finally
     Test.Free;
   end;

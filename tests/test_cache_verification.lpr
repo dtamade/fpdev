@@ -3,8 +3,8 @@ program test_cache_verification;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
+  SysUtils, Classes, DateUtils, test_temp_paths,
+  fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;
@@ -24,28 +24,6 @@ begin
   end;
 end;
 
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
-  ForceDirectories(Result);
-end;
-
-procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
-begin
-  Assert(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ATestName
-  );
-end;
-
-procedure CleanupTestDir(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
 procedure TestCleanupRemovesNestedDirectories;
 var
   CacheDir: string;
@@ -55,8 +33,8 @@ var
 begin
   WriteLn('=== TestCleanupRemovesNestedDirectories ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-verification-cleanup');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Cache verification cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-verification-cleanup');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Cache verification cleanup temp directory should live under system temp');
 
   NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
   NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'hash.txt';
@@ -70,7 +48,7 @@ begin
     TestData.Free;
   end;
 
-  CleanupTestDir(CacheDir);
+  CleanupTempDir(CacheDir);
   Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache verification test directory');
 end;
 
@@ -83,8 +61,8 @@ var
 begin
   WriteLn('=== TestSHA256Calculation ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-sha256');
-  AssertPathIsUnderSystemTemp(CacheDir, 'SHA256 temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-sha256');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'SHA256 temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -118,7 +96,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -131,8 +109,8 @@ var
 begin
   WriteLn('=== TestVerificationOnRestore ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-verify');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Verification temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-verify');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Verification temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -176,7 +154,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -191,8 +169,8 @@ var
 begin
   WriteLn('=== TestVerificationPerformance ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-perf');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Verification performance temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-perf');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Verification performance temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -218,12 +196,11 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
 begin
-  Randomize;
   WriteLn('Running Cache Verification Tests...');
   WriteLn;
 

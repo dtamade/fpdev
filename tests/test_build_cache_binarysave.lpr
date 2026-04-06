@@ -4,12 +4,12 @@ program test_build_cache_binarysave;
 
 uses
   SysUtils,
+  test_temp_paths,
   fpdev.build.cache.binarysave;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
-  GTempPathSequence: Int64 = 0;
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
 begin
@@ -27,25 +27,25 @@ end;
 
 function BuildTempFilePath(const APrefix, AExt: string): string;
 begin
-  Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-'
-    + IntToStr(GTempPathSequence) + AExt;
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir(APrefix))
+    + 'artifact' + AExt;
 end;
 
 procedure TestBuildTempFilePathUsesSystemTempAndUniqueSuffix;
 var
   FirstPath: string;
   SecondPath: string;
-  TempRoot: string;
 begin
   FirstPath := BuildTempFilePath('fpdev-binarysave', '.tmp');
   SecondPath := BuildTempFilePath('fpdev-binarysave', '.tmp');
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-
-  AssertTrue(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
-    'temp binarysave path uses system temp root');
-  AssertTrue(FirstPath <> SecondPath, 'temp binarysave path is unique');
+  try
+    AssertTrue(PathUsesSystemTempRoot(ExtractFileDir(FirstPath)),
+      'temp binarysave path uses system temp root');
+    AssertTrue(FirstPath <> SecondPath, 'temp binarysave path is unique');
+  finally
+    CleanupTempDir(ExtractFileDir(FirstPath));
+    CleanupTempDir(ExtractFileDir(SecondPath));
+  end;
 end;
 
 procedure AssertEquals(const AExpected, AActual: string; const AMessage: string);
@@ -104,7 +104,9 @@ begin
     AssertTrue(BuildCacheReadBinaryArchiveSize(TempFile) = 321,
       'archive size is read from file metadata');
   finally
-    DeleteFile(TempFile);
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    CleanupTempDir(ExtractFileDir(TempFile));
   end;
 end;
 
@@ -123,7 +125,9 @@ begin
     Hash := BuildCacheResolveBinarySHA256('', TempFile);
     AssertTrue(Hash <> '', 'computed hash fallback returns non-empty hash');
   finally
-    DeleteFile(TempFile);
+    if FileExists(TempFile) then
+      DeleteFile(TempFile);
+    CleanupTempDir(ExtractFileDir(TempFile));
   end;
 end;
 

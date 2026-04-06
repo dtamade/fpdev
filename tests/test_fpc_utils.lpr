@@ -21,7 +21,7 @@ uses
   SysUtils, test_pause_control, test_config_isolation, Classes,
   fpdev.types, fpdev.fpc.types, fpdev.fpc.utils, fpdev.fpc.logger,
   fpdev.config.interfaces, fpdev.config.managers, fpdev.fpc.version,
-  fpdev.fpc.installer, fpdev.utils.fs, test_temp_paths;
+  fpdev.fpc.installer, fpdev.utils, fpdev.utils.fs, test_temp_paths;
 
 type
   { TFPCUtilsTest }
@@ -51,6 +51,7 @@ type
 
     // Unit tests
     procedure TestFindProjectRoot;
+    procedure TestFindProjectRootUsesSameProcessUserConfigEnv;
     procedure TestDetectInstallScope;
     procedure TestDetectArchiveFormat;
     procedure TestExtractZip;
@@ -79,6 +80,14 @@ begin
   FTestsFailed := 0;
   FTestDataDir := 'tests' + PathDelim + 'data' + PathDelim + 'cross' + PathDelim;
   FTestOutputDir := CreateUniqueTempDir('fpdev_fpc_utils_test') + PathDelim;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 destructor TFPCUtilsTest.Destroy;
@@ -174,6 +183,7 @@ begin
     TestOutputDirUsesSystemTempAndUniqueSuffix;
     TestConfigManagerUsesIsolatedDefaultConfigPath;
     TestFindProjectRoot;
+    TestFindProjectRootUsesSameProcessUserConfigEnv;
     TestDetectInstallScope;
     TestDetectArchiveFormat;
     TestExtractZip;
@@ -230,6 +240,51 @@ begin
   // 测试从不存在 .fpdev 的目录查找
   Result := FindProjectRoot(GetTempDir);
   AssertTrue(Result = '', 'Should return empty for non-project directory');
+
+  WriteLn;
+end;
+
+procedure TFPCUtilsTest.TestFindProjectRootUsesSameProcessUserConfigEnv;
+var
+  ProbeBase, UserConfigDir, NestedDir, RootResult: string;
+  SavedHome, SavedAppData, SavedUserProfile: string;
+  Scope: TInstallScope;
+begin
+  WriteLn('TestFindProjectRootUsesSameProcessUserConfigEnv:');
+
+  ProbeBase := '';
+  SavedHome := get_env('HOME');
+  SavedAppData := get_env('APPDATA');
+  SavedUserProfile := get_env('USERPROFILE');
+  try
+    ProbeBase := CreateUniqueTempDir('fpdev_fpc_utils_home_probe');
+    UserConfigDir := ProbeBase + PathDelim + '.fpdev';
+    NestedDir := UserConfigDir + PathDelim + 'workspace' + PathDelim + 'src';
+    CreateTestDir(NestedDir);
+
+    {$IFDEF MSWINDOWS}
+    AssertTrue(set_env('APPDATA', ProbeBase),
+      'Should set same-process APPDATA override for user config detection');
+    AssertTrue(set_env('USERPROFILE', ProbeBase),
+      'Should set same-process USERPROFILE override for user config detection');
+    {$ELSE}
+    AssertTrue(set_env('HOME', ProbeBase),
+      'Should set same-process HOME override for user config detection');
+    {$ENDIF}
+
+    RootResult := FindProjectRoot(NestedDir);
+    AssertEquals('', RootResult,
+      'Should ignore same-process user config dir when finding project root');
+
+    Scope := DetectInstallScope(NestedDir);
+    AssertTrue(Scope = isUser,
+      'Should keep same-process user config dir in user scope');
+  finally
+    RestoreEnv('HOME', SavedHome);
+    RestoreEnv('APPDATA', SavedAppData);
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    CleanupTempDir(ProbeBase);
+  end;
 
   WriteLn;
 end;

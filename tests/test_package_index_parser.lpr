@@ -3,7 +3,7 @@ program test_package_index_parser;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.utils.fs,
+  SysUtils, Classes, test_temp_paths,
   fpdev.package.types,
   fpdev.package.indexparser;
 
@@ -13,8 +13,7 @@ var
 
 function BuildTempDir: string;
 begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'fpdev_pkg_index_parser_' + IntToStr(GetTickCount64);
+  Result := CreateUniqueTempDir('fpdev-pkg-index-parser');
 end;
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
@@ -45,10 +44,8 @@ var
   Packages: TPackageArray;
 begin
   TempDir := BuildTempDir;
-  ForceDirectories(TempDir);
   try
-    AssertTrue(Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(TempDir)) = 1, 'temp dir uses system temp root');
+    AssertTrue(PathUsesSystemTempRoot(TempDir), 'temp dir uses system temp root');
 
     IndexPath := IncludeTrailingPathDelimiter(TempDir) + 'index.json';
 
@@ -75,8 +72,7 @@ begin
     AssertEquals('new', Packages[0].Description, 'metadata follows selected highest version');
     AssertEquals('gamma', Packages[1].Name, 'second valid package is preserved');
   finally
-    if DirectoryExists(TempDir) then
-      DeleteDirRecursive(TempDir);
+    CleanupTempDir(TempDir);
   end;
 end;
 

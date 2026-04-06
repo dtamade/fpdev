@@ -13,7 +13,7 @@ FPDev's FPC version management provides complete FreePascal compiler lifecycle m
 
 ### Installation Methods
 - **Source install**: Automatically download source code from Git repositories and compile
-- **Pre-built packages**: Support for pre-built binary package installation
+- **Pre-built packages**: Binary package installation is supported and is the default path to try first
 - **Custom repositories**: Support installation from custom Git repositories
 
 ### Build System
@@ -52,6 +52,9 @@ fpdev fpc current
 ### Installation Management
 
 ```bash
+# Install FPC 3.2.2 (binary-first)
+fpdev fpc install 3.2.2
+
 # Install FPC 3.2.2 from source
 fpdev fpc install 3.2.2 --from-source
 
@@ -69,7 +72,7 @@ fpdev fpc uninstall 3.2.2
 fpdev fpc use 3.2.2
 
 # View version information
-fpdev fpc info 3.2.2
+fpdev fpc show 3.2.2
 
 # Test installation
 fpdev fpc test 3.2.2

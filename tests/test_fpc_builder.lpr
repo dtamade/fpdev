@@ -16,9 +16,11 @@ program test_fpc_builder;
 }
 
 uses
-  SysUtils, Classes, git2.api, git2.types,
+  SysUtils, Classes, git2.api, git2.types, test_temp_paths,
   fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.builder.di,
-  fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config;
+  fpdev.fpc.installversionflow,
+  fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config,
+  fpdev.version.registry, fpdev.constants, fpdev.utils, fpdev.paths;
 
 var
   TestInstallRoot: string;
@@ -31,10 +33,33 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+type
+  TProbeBuilderGitManager = class(TInterfacedObject, IGitManager)
+  public
+    InitializeResult: Boolean;
+    CloneResult: IGitRepository;
+    LastCloneURL: string;
+    LastClonePath: string;
+    function Initialize: Boolean;
+    procedure Finalize;
+    function OpenRepository(const APath: string): IGitRepository;
+    function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
+    function InitRepository(const APath: string; ABare: Boolean = False): IGitRepository;
+    function IsRepository(const APath: string): Boolean;
+    function DiscoverRepository(const AStartPath: string): string;
+    function GetGlobalConfig(const AKey: string): string;
+    function SetGlobalConfig(const AKey, AValue: string): Boolean;
+    function Version: string;
+    procedure SetVerifySSL(AEnabled: Boolean);
+    procedure SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
+    procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
+    function Initialized: Boolean;
+    function VerifySSL: Boolean;
+  end;
+
 function BuildTempRoot(const APrefix: string): string;
 begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + IntToStr(GetTickCount64);
+  Result := CreateUniqueTempDir(APrefix);
 end;
 
 procedure SetupTestEnvironment;
@@ -135,6 +160,25 @@ begin
   end;
 end;
 
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
+function BuildExpectedBootstrapCompilerPath(const AVersion: string): string;
+begin
+  {$IFDEF MSWINDOWS}
+  Result := IncludeTrailingPathDelimiter(GetDataRoot) + 'bootstrap' + PathDelim +
+    'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  Result := IncludeTrailingPathDelimiter(GetDataRoot) + 'bootstrap' + PathDelim +
+    'fpc-' + AVersion + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+end;
+
 procedure TestTempPathsUseSystemTempRoot;
 var
   TempRoot: string;
@@ -156,6 +200,249 @@ begin
   MockFileSystem.Clear;
   MockProcessRunner.Clear;
   MockProcessRunner.SetDefaultResult(0, '', '');
+end;
+
+procedure Test_GetBootstrapCompilerPath_UsesSameProcessUserHome;
+var
+  LocalSourceBuilder: TFPCSourceBuilder;
+  ProbeHome: string;
+  ExpectedPath: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  {$IFDEF MSWINDOWS}
+  SavedAppData: string;
+  SavedUserProfile: string;
+  {$ELSE}
+  SavedHome: string;
+  {$ENDIF}
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetBootstrapCompilerPath - Same-Process User Home');
+  WriteLn('==================================================');
+
+  ProbeHome := BuildTempRoot('test_builder_bootstrap_home_');
+  ForceDirectories(ProbeHome);
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedAppData := get_env('APPDATA');
+  SavedUserProfile := get_env('USERPROFILE');
+  {$ELSE}
+  SavedHome := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('APPDATA', ProbeHome);
+    set_env('USERPROFILE', ProbeHome);
+    {$ELSE}
+    set_env('HOME', ProbeHome);
+    {$ENDIF}
+    ExpectedPath := BuildExpectedBootstrapCompilerPath('3.2.2');
+
+    LocalSourceBuilder := TFPCSourceBuilder.Create(ConfigManager.AsConfigManager);
+    try
+      AssertEqualsStr(ExpectedPath,
+        LocalSourceBuilder.GetBootstrapCompilerPath('3.2.2'),
+        'GetBootstrapCompilerPath should use same-process user home');
+    finally
+      LocalSourceBuilder.Free;
+    end;
+  finally
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    RestoreEnv('APPDATA', SavedAppData);
+    {$ELSE}
+    RestoreEnv('HOME', SavedHome);
+    {$ENDIF}
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeHome);
+  end;
+end;
+
+procedure Test_GetBootstrapCompilerPath_UsesFPDEVDataRootOverride;
+var
+  LocalSourceBuilder: TFPCSourceBuilder;
+  ProbeRoot: string;
+  ExpectedPath: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetBootstrapCompilerPath - FPDEV_DATA_ROOT override');
+  WriteLn('==================================================');
+
+  ProbeRoot := BuildTempRoot('test_builder_bootstrap_data_root_');
+  ForceDirectories(ProbeRoot);
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+    ExpectedPath := BuildExpectedBootstrapCompilerPath('3.2.2');
+
+    LocalSourceBuilder := TFPCSourceBuilder.Create(ConfigManager.AsConfigManager);
+    try
+      AssertEqualsStr(ExpectedPath,
+        LocalSourceBuilder.GetBootstrapCompilerPath('3.2.2'),
+        'GetBootstrapCompilerPath should use FPDEV_DATA_ROOT override');
+    finally
+      LocalSourceBuilder.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
+procedure Test_GetRequiredBootstrapVersion_UsesFPDEVDataRootInstallRoot;
+var
+  LocalSourceBuilder: TFPCSourceBuilder;
+  Settings: TFPDevSettings;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  ProbeRoot: string;
+  SourceDir: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: GetRequiredBootstrapVersion - FPDEV_DATA_ROOT install root');
+  WriteLn('==================================================');
+
+  ProbeRoot := BuildTempRoot('test_builder_install_root_data_root_');
+  ForceDirectories(ProbeRoot);
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    Settings.InstallRoot := '';
+    ConfigManager.SetSettings(Settings);
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    SourceDir := BuildFPCSourceInstallPathCore(GetDataRoot, '9.9.9');
+    ForceDirectories(SourceDir);
+    with TStringList.Create do
+    try
+      Add('REQUIREDVERSION=30202');
+      SaveToFile(SourceDir + PathDelim + 'Makefile');
+    finally
+      Free;
+    end;
+
+    LocalSourceBuilder := TFPCSourceBuilder.Create(ConfigManager.AsConfigManager);
+    try
+      AssertEqualsStr('3.2.2',
+        LocalSourceBuilder.GetRequiredBootstrapVersion('9.9.9'),
+        'GetRequiredBootstrapVersion should read source tree under FPDEV_DATA_ROOT');
+    finally
+      LocalSourceBuilder.Free;
+    end;
+  finally
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
+function TProbeBuilderGitManager.Initialize: Boolean;
+begin
+  Result := InitializeResult;
+end;
+
+procedure TProbeBuilderGitManager.Finalize;
+begin
+end;
+
+function TProbeBuilderGitManager.OpenRepository(const APath: string): IGitRepository;
+begin
+  if APath <> '' then;
+  Result := nil;
+end;
+
+function TProbeBuilderGitManager.CloneRepository(const AURL,
+  ALocalPath: string): IGitRepository;
+begin
+  LastCloneURL := AURL;
+  LastClonePath := ALocalPath;
+  Result := CloneResult;
+end;
+
+function TProbeBuilderGitManager.InitRepository(const APath: string;
+  ABare: Boolean): IGitRepository;
+begin
+  if APath <> '' then;
+  if ABare then;
+  Result := nil;
+end;
+
+function TProbeBuilderGitManager.IsRepository(const APath: string): Boolean;
+begin
+  if APath <> '' then;
+  Result := False;
+end;
+
+function TProbeBuilderGitManager.DiscoverRepository(const AStartPath: string): string;
+begin
+  if AStartPath <> '' then;
+  Result := '';
+end;
+
+function TProbeBuilderGitManager.GetGlobalConfig(const AKey: string): string;
+begin
+  if AKey <> '' then;
+  Result := '';
+end;
+
+function TProbeBuilderGitManager.SetGlobalConfig(const AKey, AValue: string): Boolean;
+begin
+  if AKey <> '' then;
+  if AValue <> '' then;
+  Result := True;
+end;
+
+function TProbeBuilderGitManager.Version: string;
+begin
+  Result := 'probe';
+end;
+
+procedure TProbeBuilderGitManager.SetVerifySSL(AEnabled: Boolean);
+begin
+  if AEnabled then;
+end;
+
+procedure TProbeBuilderGitManager.SetCredentialAcquireHandler(
+  AHandler: TCredentialAcquireEvent);
+begin
+  if Assigned(AHandler) then;
+end;
+
+procedure TProbeBuilderGitManager.SetCertificateCheckHandler(
+  AHandler: TCertificateCheckEvent);
+begin
+  if Assigned(AHandler) then;
+end;
+
+function TProbeBuilderGitManager.Initialized: Boolean;
+begin
+  Result := InitializeResult;
+end;
+
+function TProbeBuilderGitManager.VerifySSL: Boolean;
+begin
+  Result := True;
 end;
 
 { Test: DownloadSource prefers libgit2 when available }
@@ -193,6 +480,143 @@ begin
     AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0, 'Git CLI should not be executed');
     AssertTrue(MockFileSystem.DirectoryExists(TargetDir), 'Target directory should be created');
   finally
+    LocalBuilder.Free;
+  end;
+end;
+
+procedure Test_DownloadSource_UsesRegistryRepository_Libgit2;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+  LocalBuilder: TFPCBuilder;
+  ProbeGitManager: TProbeBuilderGitManager;
+  Repo: TMockGitRepository;
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+  CustomRepoURL: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - Uses registry repository with libgit2');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  CustomRepoURL := 'https://mirror.example.invalid/fpc-source.git';
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-builder-libgit2.json';
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-builder-libgit2';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "repository": "' + CustomRepoURL + '",');
+    Add('    "releases": [');
+    Add('      {');
+    Add('        "version": "3.2.2",');
+    Add('        "release_date": "2021-05-19",');
+    Add('        "git_tag": "custom_release_3_2_2",');
+    Add('        "branch": "custom_fixes_3_2",');
+    Add('        "channel": "stable",');
+    Add('        "lts": true');
+    Add('      }');
+    Add('    ]');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  ProbeGitManager := TProbeBuilderGitManager.Create;
+  ProbeGitManager.InitializeResult := True;
+  Repo := TMockGitRepository.Create(TargetDir);
+  Repo.SetCheckoutOk(True);
+  ProbeGitManager.CloneResult := Repo as IGitRepository;
+
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, ProbeGitManager as IGitManager);
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Custom builder registry data reloads for libgit2 path');
+
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
+
+    AssertTrue(Result.Success, 'DownloadSource should succeed via libgit2 with registry repository');
+    AssertEqualsStr(CustomRepoURL, ProbeGitManager.LastCloneURL,
+      'DownloadSource should clone from registry repository URL');
+    AssertEqualsStr(TargetDir, ProbeGitManager.LastClonePath,
+      'DownloadSource should clone into requested target directory');
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+    LocalBuilder.Free;
+  end;
+end;
+
+procedure Test_DownloadSource_EmptyRegistryFallsBackToStaticCatalog_Libgit2;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+  LocalBuilder: TFPCBuilder;
+  ProbeGitManager: TProbeBuilderGitManager;
+  Repo: TMockGitRepository;
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - Empty registry falls back to static catalog with libgit2');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-builder-empty-libgit2.json';
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-empty-libgit2';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "releases": []');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  ProbeGitManager := TProbeBuilderGitManager.Create;
+  ProbeGitManager.InitializeResult := True;
+  Repo := TMockGitRepository.Create(TargetDir);
+  Repo.SetCheckoutOk(True);
+  ProbeGitManager.CloneResult := Repo as IGitRepository;
+
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, ProbeGitManager as IGitManager);
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Empty builder registry data reloads for libgit2 path');
+
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
+
+    AssertTrue(Result.Success,
+      'DownloadSource should succeed with static catalog fallback when registry releases are empty');
+    AssertEqualsStr(FPC_OFFICIAL_REPO, ProbeGitManager.LastCloneURL,
+      'Empty registry should still clone from default FPC repository');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0,
+      'libgit2 fallback path should not execute git CLI');
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
     LocalBuilder.Free;
   end;
 end;
@@ -291,6 +715,131 @@ begin
   if MockProcessRunner.GetExecutedCommands.Count >= 2 then
     AssertTrue(Pos('git clone', MockProcessRunner.GetExecutedCommands[1]) = 1,
       'CLI fallback should clone through injected runner');
+end;
+
+procedure Test_DownloadSource_CliFallbackUsesRegistryRepository;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+  CustomRepoURL: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - CLI fallback uses registry repository');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  CustomRepoURL := 'https://mirror.example.invalid/fpc-source.git';
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-builder-cli.json';
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-cli-registry';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "repository": "' + CustomRepoURL + '",');
+    Add('    "releases": [');
+    Add('      {');
+    Add('        "version": "3.2.2",');
+    Add('        "release_date": "2021-05-19",');
+    Add('        "git_tag": "custom_release_3_2_2",');
+    Add('        "branch": "custom_fixes_3_2",');
+    Add('        "channel": "stable",');
+    Add('        "lts": true');
+    Add('      }');
+    Add('    ]');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
+
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Custom builder registry data reloads for CLI path');
+
+    Result := Builder.DownloadSource('3.2.2', TargetDir);
+
+    AssertTrue(Result.Success, 'DownloadSource should succeed through CLI fallback with registry repository');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
+      'CLI fallback should execute git probe and clone commands');
+    if MockProcessRunner.GetExecutedCommands.Count >= 2 then
+      AssertTrue(
+        Pos('git clone --depth 1 --branch custom_release_3_2_2 ' + CustomRepoURL + ' ', MockProcessRunner.GetExecutedCommands[1]) = 1,
+        'CLI fallback should clone from registry repository URL'
+      );
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+  end;
+end;
+
+procedure Test_DownloadSource_EmptyRegistryCliFallbackUsesStaticGitTag;
+var
+  Result: TOperationResult;
+  TargetDir: string;
+  OriginalRegistryPath: string;
+  VersionsJSONPath: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: DownloadSource - CLI fallback uses static git tag when registry is empty');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  OriginalRegistryPath := TVersionRegistry.Instance.DataPath;
+  VersionsJSONPath := TestInstallRoot + PathDelim + 'versions-fpc-builder-empty-cli.json';
+  TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-empty-cli';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "schema_version": "1.0",');
+    Add('  "updated_at": "test",');
+    Add('  "fpc": {');
+    Add('    "default_version": "3.2.2",');
+    Add('    "releases": []');
+    Add('  }');
+    Add('}');
+    SaveToFile(VersionsJSONPath);
+  finally
+    Free;
+  end;
+
+  MockGitManager.SetInitializeOk(False);
+  MockGitManager.Finalize;
+  MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
+
+  try
+    TVersionRegistry.Instance.DataPath := VersionsJSONPath;
+    AssertTrue(TVersionRegistry.Instance.Reload,
+      'Empty builder registry data reloads for CLI path');
+
+    Result := Builder.DownloadSource('3.2.2', TargetDir);
+
+    AssertTrue(Result.Success,
+      'DownloadSource should succeed through CLI fallback when registry releases are empty');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
+      'CLI fallback should execute git probe and clone commands');
+    if MockProcessRunner.GetExecutedCommands.Count >= 2 then
+      AssertTrue(
+        Pos('git clone --depth 1 --branch release_3_2_2 ' + FPC_OFFICIAL_REPO + ' ', MockProcessRunner.GetExecutedCommands[1]) = 1,
+        'CLI fallback should use static git tag when registry releases are empty'
+      );
+  finally
+    TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
+    TVersionRegistry.Instance.Reload;
+  end;
 end;
 
 { Test: DownloadSource fails with invalid version }
@@ -571,6 +1120,138 @@ begin
   AssertTrue(Pos('not a git repository', Result.ErrorMessage) > 0, 'Error message should mention not a git repo');
 end;
 
+procedure Test_UpdateSources_UsesSameProcessInstallRootFallback;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeHome: string;
+  ExpectedSourceDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile: string;
+  SavedAppData: string;
+  {$ELSE}
+  SavedHome: string;
+  {$ENDIF}
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - Same-Process Install Root Fallback');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeHome := BuildTempRoot('test_builder_update_home_');
+  ForceDirectories(ProbeHome);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedAppData := get_env('APPDATA');
+  {$ELSE}
+  SavedHome := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('USERPROFILE', ProbeHome);
+    set_env('APPDATA', ProbeHome);
+    {$ELSE}
+    set_env('HOME', ProbeHome);
+    {$ENDIF}
+
+    ExpectedSourceDir := BuildFPCSourceInstallPathCore(GetDataRoot, '3.2.2');
+    MockFileSystem.AddDirectory(ExpectedSourceDir);
+
+    Result := Builder.UpdateSources('3.2.2');
+
+    AssertFalse(Result.Success,
+      'UpdateSources should fail cleanly when same-process fallback source dir lacks .git');
+    AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode),
+      'Same-process fallback should still return ecFileSystemError');
+    AssertTrue(
+      Pos('not a git repository: ' + ExpectedSourceDir, Result.ErrorMessage) > 0,
+      'UpdateSources should report same-process fallback source dir'
+    );
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    RestoreEnv('APPDATA', SavedAppData);
+    {$ELSE}
+    RestoreEnv('HOME', SavedHome);
+    {$ENDIF}
+    CleanupTempDir(ProbeHome);
+  end;
+end;
+
+procedure Test_UpdateSources_UsesFPDEVDataRootOverride;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeRoot: string;
+  ExpectedSourceDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources - FPDEV_DATA_ROOT Override');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeRoot := BuildTempRoot('test_builder_update_data_root_');
+  ForceDirectories(ProbeRoot);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    ExpectedSourceDir := BuildFPCSourceInstallPathCore(GetDataRoot, '3.2.2');
+    MockFileSystem.AddDirectory(ExpectedSourceDir);
+
+    Result := Builder.UpdateSources('3.2.2');
+
+    AssertFalse(Result.Success,
+      'UpdateSources should fail cleanly when FPDEV_DATA_ROOT source dir lacks .git');
+    AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode),
+      'FPDEV_DATA_ROOT override should still return ecFileSystemError');
+    AssertTrue(
+      Pos('not a git repository: ' + ExpectedSourceDir, Result.ErrorMessage) > 0,
+      'UpdateSources should report FPDEV_DATA_ROOT source dir'
+    );
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
 { Test: CleanSources succeeds }
 procedure Test_CleanSources_Success;
 var
@@ -612,6 +1293,134 @@ begin
   AssertFalse(Result.Success, 'CleanSources should fail when directory does not exist');
   AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode), 'ErrorCode should be ecFileSystemError');
   AssertTrue(Pos('does not exist', Result.ErrorMessage) > 0, 'Error message should mention directory not exist');
+end;
+
+procedure Test_CleanSources_UsesSameProcessInstallRootFallback;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeHome: string;
+  ExpectedSourceDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile: string;
+  SavedAppData: string;
+  {$ELSE}
+  SavedHome: string;
+  {$ENDIF}
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: CleanSources - Same-Process Install Root Fallback');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeHome := BuildTempRoot('test_builder_clean_home_');
+  ForceDirectories(ProbeHome);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedUserProfile := get_env('USERPROFILE');
+  SavedAppData := get_env('APPDATA');
+  {$ELSE}
+  SavedHome := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('USERPROFILE', ProbeHome);
+    set_env('APPDATA', ProbeHome);
+    {$ELSE}
+    set_env('HOME', ProbeHome);
+    {$ENDIF}
+
+    ExpectedSourceDir := BuildFPCSourceInstallPathCore(GetDataRoot, '3.2.2');
+    Result := Builder.CleanSources('3.2.2');
+
+    AssertFalse(Result.Success,
+      'CleanSources should fail cleanly when same-process fallback source dir is missing');
+    AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode),
+      'Same-process fallback missing source dir should return ecFileSystemError');
+    AssertTrue(
+      Pos('Source directory does not exist: ' + ExpectedSourceDir, Result.ErrorMessage) > 0,
+      'CleanSources should report same-process fallback source dir'
+    );
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('USERPROFILE', SavedUserProfile);
+    RestoreEnv('APPDATA', SavedAppData);
+    {$ELSE}
+    RestoreEnv('HOME', SavedHome);
+    {$ENDIF}
+    CleanupTempDir(ProbeHome);
+  end;
+end;
+
+procedure Test_CleanSources_UsesFPDEVDataRootOverride;
+var
+  Result: TOperationResult;
+  Settings: TFPDevSettings;
+  ProbeRoot: string;
+  ExpectedSourceDir: string;
+  SavedInstallRoot: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: CleanSources - FPDEV_DATA_ROOT Override');
+  WriteLn('==================================================');
+
+  ResetMocks;
+  ProbeRoot := BuildTempRoot('test_builder_clean_data_root_');
+  ForceDirectories(ProbeRoot);
+
+  Settings := ConfigManager.GetSettings;
+  SavedInstallRoot := Settings.InstallRoot;
+  Settings.InstallRoot := '';
+  ConfigManager.SetSettings(Settings);
+
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  try
+    SetPortableMode(False);
+    unset_env('XDG_DATA_HOME');
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    ExpectedSourceDir := BuildFPCSourceInstallPathCore(GetDataRoot, '3.2.2');
+    Result := Builder.CleanSources('3.2.2');
+
+    AssertFalse(Result.Success,
+      'CleanSources should fail cleanly when FPDEV_DATA_ROOT source dir is missing');
+    AssertEquals(Ord(ecFileSystemError), Ord(Result.ErrorCode),
+      'FPDEV_DATA_ROOT missing source dir should return ecFileSystemError');
+    AssertTrue(
+      Pos('Source directory does not exist: ' + ExpectedSourceDir, Result.ErrorMessage) > 0,
+      'CleanSources should report FPDEV_DATA_ROOT source dir'
+    );
+  finally
+    Settings := ConfigManager.GetSettings;
+    Settings.InstallRoot := SavedInstallRoot;
+    ConfigManager.SetSettings(Settings);
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    CleanupTempDir(ProbeRoot);
+  end;
 end;
 
 { Test: Builder uses injected dependencies }
@@ -686,10 +1495,17 @@ begin
           try
             // Run tests
             Test_DownloadSource_PrefersLibgit2;
+            Test_DownloadSource_UsesRegistryRepository_Libgit2;
+            Test_DownloadSource_EmptyRegistryFallsBackToStaticCatalog_Libgit2;
             Test_DownloadSource_Success;
             Test_DownloadSource_CliFallbackUsesInjectedRunner;
+            Test_DownloadSource_CliFallbackUsesRegistryRepository;
+            Test_DownloadSource_EmptyRegistryCliFallbackUsesStaticGitTag;
             Test_DownloadSource_InvalidVersion;
             Test_DownloadSource_GitFailed;
+            Test_GetBootstrapCompilerPath_UsesSameProcessUserHome;
+            Test_GetBootstrapCompilerPath_UsesFPDEVDataRootOverride;
+            Test_GetRequiredBootstrapVersion_UsesFPDEVDataRootInstallRoot;
             Test_BuildFromSource_Success;
             Test_BuildFromSource_SourceNotExist;
             Test_BuildFromSource_MakeFailed;
@@ -699,8 +1515,12 @@ begin
             Test_UpdateSources_DetachedHeadFailsFastForwardOnly;
             Test_UpdateSources_DirtyFailsFastForwardOnly;
             Test_UpdateSources_NotGitRepo;
+            Test_UpdateSources_UsesSameProcessInstallRootFallback;
+            Test_UpdateSources_UsesFPDEVDataRootOverride;
             Test_CleanSources_Success;
             Test_CleanSources_DirNotExist;
+            Test_CleanSources_UsesSameProcessInstallRootFallback;
+            Test_CleanSources_UsesFPDEVDataRootOverride;
             Test_Builder_UsesDependencies;
             Test_ErrorCodes;
 

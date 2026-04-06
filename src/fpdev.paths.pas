@@ -54,18 +54,16 @@ function IsPortableMode: Boolean;
 var
   PortableMarker: string;
 begin
+  // Same-process tests and CLI bootstrap code may toggle FPDEV_PORTABLE
+  // after a previous probe, so the env override must stay live.
+  if get_env('FPDEV_PORTABLE') = '1' then
+    Exit(True);
+
   // Already checked, return cached result directly
   if GPortableModeChecked then
     Exit(GPortableMode);
 
   GPortableModeChecked := True;
-
-  // 1. Environment variable takes priority
-  if GetEnvironmentVariable('FPDEV_PORTABLE') = '1' then
-  begin
-    GPortableMode := True;
-    Exit(True);
-  end;
 
   // 2. Check if .portable marker file exists in program directory
   PortableMarker := GetProgramDir + '.portable';

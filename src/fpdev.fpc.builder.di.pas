@@ -56,6 +56,7 @@ type
     FGitManager: IGitManager;
     FOwnsGitManager: Boolean;
 
+    function GetResolvedInstallRoot: string;
     function GetSourceDir(const AVersion: string): string;
     function EnsureGitManagerInitialized(out AError: string): Boolean;
     function CheckoutRefWithLibgit2(const ARepo: IGitRepository; const ARefName: string; out AError: string): Boolean;
@@ -103,7 +104,8 @@ type
 implementation
 
 uses
-  fpdev.utils.git, fpdev.utils.process, git2.impl;
+  fpdev.utils.git, fpdev.utils.process, fpdev.version.registry, git2.impl,
+  fpdev.paths, fpdev.fpc.installversionflow;
 
 type
   TGitCliRunnerFromProcessRunner = class(TInterfacedObject, IGitCliRunner)
@@ -143,9 +145,13 @@ begin
     gpffNeedsMerge:
       Result := 'Fast-forward-only update blocked because branches diverged; reconcile manually before retrying.';
     gpffDetachedHead:
-      Result := 'Fast-forward-only update blocked because the repository is in detached HEAD state; switch to a branch before retrying.';
+      Result :=
+        'Fast-forward-only update blocked because the repository is in detached HEAD state; ' +
+        'switch to a branch before retrying.';
     gpffDirty:
-      Result := 'Fast-forward-only update blocked because the working tree has local changes; commit or stash them before retrying.';
+      Result :=
+        'Fast-forward-only update blocked because the working tree has local changes; ' +
+        'commit or stash them before retrying.';
     gpffNoRemote:
       Result := 'No remote configured';
   else
@@ -195,12 +201,19 @@ begin
   inherited Destroy;
 end;
 
-function TFPCBuilder.GetSourceDir(const AVersion: string): string;
+function TFPCBuilder.GetResolvedInstallRoot: string;
 var
   Settings: TFPDevSettings;
 begin
   Settings := FConfigManager.GetSettings;
-  Result := Settings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-' + AVersion;
+  Result := Settings.InstallRoot;
+  if Result = '' then
+    Result := GetDataRoot;
+end;
+
+function TFPCBuilder.GetSourceDir(const AVersion: string): string;
+begin
+  Result := BuildFPCSourceInstallPathCore(GetResolvedInstallRoot, AVersion);
 end;
 
 function TFPCBuilder.EnsureGitManagerInitialized(out AError: string): Boolean;
@@ -231,7 +244,11 @@ begin
   end;
 end;
 
-function TFPCBuilder.CheckoutRefWithLibgit2(const ARepo: IGitRepository; const ARefName: string; out AError: string): Boolean;
+function TFPCBuilder.CheckoutRefWithLibgit2(
+  const ARepo: IGitRepository;
+  const ARefName: string;
+  out AError: string
+): Boolean;
 var
   LName: string;
 begin
@@ -251,15 +268,15 @@ begin
   try
     // Keep behavior aligned with fpdev.utils.git: try plain name first, then tags, then remote tracking refs.
     if Pos('refs/', LName) = 1 then
-      Exit(ARepo.CheckoutBranchEx(LName, False));
+      Exit(ARepo.CheckoutBranchEx(LName, True));
 
-    if ARepo.CheckoutBranchEx(LName, False) then
+    if ARepo.CheckoutBranchEx(LName, True) then
       Exit(True);
 
-    if ARepo.CheckoutBranchEx('refs/tags/' + LName, False) then
+    if ARepo.CheckoutBranchEx('refs/tags/' + LName, True) then
       Exit(True);
 
-    if ARepo.CheckoutBranchEx('refs/remotes/origin/' + LName, False) then
+    if ARepo.CheckoutBranchEx('refs/remotes/origin/' + LName, True) then
       Exit(True);
 
     AError := 'libgit2 checkout failed: ' + LName;
@@ -276,6 +293,7 @@ end;
 function TFPCBuilder.DownloadSource(const AVersion, ATargetDir: string): TOperationResult;
 var
   GitTag: string;
+  RepoURL: string;
   LGitErr: string;
   LRepo: IGitRepository;
   GitOps: TGitOperations;
@@ -295,6 +313,10 @@ begin
     Exit;
   end;
 
+  RepoURL := TVersionRegistry.Instance.GetFPCRepository;
+  if RepoURL = '' then
+    RepoURL := FPC_OFFICIAL_REPO;
+
   // Ensure parent directory exists (avoid creating ATargetDir before clone)
   if not FFileSystem.ForceDirectories(ExtractFileDir(ATargetDir)) then
   begin
@@ -307,7 +329,7 @@ begin
   if EnsureGitManagerInitialized(LGitErr) then
   begin
     try
-      LRepo := FGitManager.CloneRepository(FPC_OFFICIAL_REPO, ATargetDir);
+      LRepo := FGitManager.CloneRepository(RepoURL, ATargetDir);
       if Assigned(LRepo) and CheckoutRefWithLibgit2(LRepo, GitTag, LGitErr) then
       begin
         // Keep DI tests deterministic: mock FS doesn't observe external side effects.
@@ -323,7 +345,7 @@ begin
   // Fallback: command-line git through TGitOperations with injected CLI runner.
   GitOps := TGitOperations.Create(TGitCliRunnerFromProcessRunner.Create(FProcessRunner), True);
   try
-    if GitOps.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag) then
+    if GitOps.Clone(RepoURL, ATargetDir, GitTag) then
     begin
       FFileSystem.ForceDirectories(ATargetDir);
       Exit(OperationSuccess);

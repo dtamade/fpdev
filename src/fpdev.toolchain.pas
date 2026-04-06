@@ -124,7 +124,7 @@ var P: string;
 begin
   Result := False;
   // Environment variable takes priority
-  P := GetEnvironmentVariable('FPDEV_POLICY_FILE');
+  P := get_env('FPDEV_POLICY_FILE');
   if (P<>'') and LoadPolicyFromFile(P) then Exit(True);
   // Common locations
   if LoadPolicyFromFile('src'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
@@ -320,8 +320,10 @@ begin
   for i := 1 to Length(S) do
   begin
     ch := S[i];
-    if (ch in ['0'..'9','.']) then Result += ch
-    else break;
+    if ((ch >= '0') and (ch <= '9')) or (ch = '.') then
+      Result := Result + ch
+    else
+      break;
   end;
 end;
 
@@ -421,7 +423,7 @@ begin
   {$elseif defined(CPUARM)} R.HostCPU := 'arm'
   {$else} R.HostCPU := 'unknown' {$endif};
 
-  PathStr := GetEnvironmentVariable('PATH');
+  PathStr := get_env('PATH');
   R.PathHead := SplitPathHead(PathStr, 5);
 
   // fpc

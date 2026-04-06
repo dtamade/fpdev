@@ -165,10 +165,10 @@ fpdev package repo list
 fpdev cross list --all
 
 # 安装 Windows 64位目标 (在 Linux/macOS 上)
-fpdev cross install win64
+fpdev cross install x86_64-win64
 
 # 配置工具链路径 (需要手动安装工具链)
-fpdev cross configure win64 \
+fpdev cross configure x86_64-win64 \
   --binutils=/usr/x86_64-w64-mingw32/bin \
   --libraries=/usr/x86_64-w64-mingw32/lib
 ```

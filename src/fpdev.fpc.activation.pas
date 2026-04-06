@@ -7,7 +7,7 @@ unit fpdev.fpc.activation;
 
   Manages FPC version activation, including:
   - Project-scoped activation (.fpdev/env/activate.sh|cmd)
-  - User-scoped activation (~/.fpdev/env/activate-<version>.sh|cmd)
+  - User-scoped activation (data-root/env/activate-<version>.sh|cmd)
   - VS Code integration (settings.json PATH configuration)
 
   This service is extracted from TFPCManager as part of the Facade pattern
@@ -34,7 +34,8 @@ interface
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.config.interfaces, fpdev.types, fpdev.utils.fs, fpdev.constants;
+  fpdev.config.interfaces, fpdev.types, fpdev.utils, fpdev.utils.fs, fpdev.constants,
+  fpdev.paths;
 
 type
   { TActivationResult - Result of version activation operation }
@@ -75,7 +76,7 @@ type
       var AResult: TActivationResult
     ): Boolean;
 
-    { Creates user-scoped activation at ~/.fpdev/env/activate-<version>.sh|cmd }
+    { Creates user-scoped activation at data-root/env/activate-<version>.sh|cmd }
     function ActivateUserScope(
       const AVersion, ABinPath: string;
       var AResult: TActivationResult
@@ -144,19 +145,14 @@ begin
   FInstallRoot := Settings.InstallRoot;
 
   if FInstallRoot = '' then
-  begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR;
-    {$ENDIF}
-  end;
+    FInstallRoot := GetDataRoot;
 end;
 
 function TFPCActivationManager.FindProjectRoot(const AStartDir: string): string;
 var
   Dir: string;
   UserConfigDir: string;
+  SystemUserConfigDir: string;
   Candidate: string;
 begin
   Result := '';
@@ -164,16 +160,25 @@ begin
 
   // Avoid mistaking user-level ~/.fpdev as a project marker when scanning upward.
   {$IFDEF MSWINDOWS}
-  UserConfigDir := GetEnvironmentVariable('APPDATA');
+  UserConfigDir := get_env('APPDATA');
   if UserConfigDir <> '' then
     UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + FPDEV_CONFIG_DIR))
   else
     UserConfigDir := ExcludeTrailingPathDelimiter(
-      ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR)
+      ExpandFileName(get_env('USERPROFILE') + PathDelim + FPDEV_CONFIG_DIR)
     );
   {$ELSE}
   UserConfigDir := ExcludeTrailingPathDelimiter(
-    ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + FPDEV_CONFIG_DIR)
+    ExpandFileName(get_env('HOME') + PathDelim + FPDEV_CONFIG_DIR)
+  );
+  SystemUserConfigDir := ExcludeTrailingPathDelimiter(
+    ExpandFileName(get_home_dir + PathDelim + FPDEV_CONFIG_DIR)
+  );
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  SystemUserConfigDir := ExcludeTrailingPathDelimiter(
+    ExpandFileName(get_home_dir + PathDelim + 'AppData' + PathDelim + 'Roaming' +
+      PathDelim + FPDEV_CONFIG_DIR)
   );
   {$ENDIF}
 
@@ -182,7 +187,8 @@ begin
     Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Dir + PathDelim + FPDEV_CONFIG_DIR));
     if DirectoryExists(Candidate) then
     begin
-      if (UserConfigDir = '') or (not SameText(Candidate, UserConfigDir)) then
+      if ((UserConfigDir = '') or (not SameText(Candidate, UserConfigDir))) and
+         ((SystemUserConfigDir = '') or (not SameText(Candidate, SystemUserConfigDir))) then
       begin
         Result := Dir;
         Exit;

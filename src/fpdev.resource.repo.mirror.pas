@@ -39,7 +39,7 @@ procedure ResourceRepoSetCachedMirror(const ASelectedMirror: string; ACurrentTim
 implementation
 
 uses
-  Classes, DateUtils, fpdev.utils.process;
+  Classes, DateUtils, fpdev.utils, fpdev.utils.process;
 
 const
   DEFAULT_REGION_US = 'us';
@@ -53,15 +53,17 @@ const
 function ResourceRepoDetectUserRegion(const ALog: TResourceRepoMirrorLogProc): string;
 var
   TZ: string;
+  Lang: string;
 begin
   Result := DEFAULT_REGION_US;
+  Lang := get_env('LANG');
 
   {$IFDEF MSWINDOWS}
-  TZ := GetEnvironmentVariable('TZ');
+  TZ := get_env('TZ');
   if TZ = '' then
-    TZ := GetEnvironmentVariable('LANG');
+    TZ := Lang;
   {$ELSE}
-  TZ := GetEnvironmentVariable('TZ');
+  TZ := get_env('TZ');
   if TZ = '' then
   begin
     if FileExists(SYSTEM_TIMEZONE_FILE) then
@@ -91,8 +93,8 @@ begin
      (Pos('Asia/Beijing', TZ) > 0) or
      (Pos('Asia/Chongqing', TZ) > 0) or
      (Pos('Asia/Hong_Kong', TZ) > 0) or
-     (Pos('zh_CN', GetEnvironmentVariable('LANG')) > 0) or
-     (Pos('zh_TW', GetEnvironmentVariable('LANG')) > 0) then
+     (Pos('zh_CN', Lang) > 0) or
+     (Pos('zh_TW', Lang) > 0) then
   begin
     Result := 'china';
     Exit;

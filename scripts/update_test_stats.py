@@ -19,6 +19,9 @@ EXCLUDED_PARTS = (
 README_MD = REPO_ROOT / 'README.md'
 README_EN = REPO_ROOT / 'README.en.md'
 TESTING_MD = REPO_ROOT / 'docs' / 'testing.md'
+ROADMAP_MD = REPO_ROOT / 'docs' / 'ROADMAP.md'
+MVP_ACCEPTANCE_MD = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
+MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
 CI_YML = REPO_ROOT / '.github' / 'workflows' / 'ci.yml'
 RUN_ALL_TESTS = REPO_ROOT / 'scripts' / 'run_all_tests.sh'
 
@@ -66,8 +69,8 @@ def render_readme_md(text: str, count: int) -> str:
     )
     text = replace_once(
         text,
-        r'^\[OK\] (?:Test coverage: .*|Discoverable test programs: .*)$',
-        f'[OK] Discoverable test programs: {count} (same inventory rules as CI)',
+        r'^(?:\[OK\]|\[INFO\]) (?:Test coverage: .*|Discoverable test programs: .*)$',
+        f'[INFO] Discoverable test programs: {count} (same inventory rules as CI)',
         README_MD,
     )
     text = replace_marker_block(
@@ -88,8 +91,8 @@ def render_readme_en(text: str, count: int) -> str:
     )
     text = replace_once(
         text,
-        r'^✅ (?:Test Coverage: .*|Discoverable test programs: .*)$',
-        f'✅ Discoverable test programs: {count} (same inventory rules as CI)',
+        r'^(?:✅|\[INFO\]) (?:Test Coverage: .*|Discoverable test programs: .*)$',
+        f'[INFO] Discoverable test programs: {count} (same inventory rules as CI)',
         README_EN,
     )
     text = replace_marker_block(
@@ -124,19 +127,51 @@ def render_testing_md(text: str, count: int) -> str:
     return text
 
 
-def render_ci_yml(text: str) -> str:
+def render_roadmap_md(text: str, count: int) -> str:
+    text = replace_once(
+        text,
+        r'^- ✅ \*\*Test Coverage\*\*: .*$',
+        f'- ✅ **Test Coverage**: {count} discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately',
+        ROADMAP_MD,
+    )
+    text = replace_once(
+        text,
+        r'^- Test Coverage: .*$',
+        f'- Test Coverage: {count} discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately',
+        ROADMAP_MD,
+    )
+    return text
+
+
+def render_mvp_acceptance_md(text: str, count: int) -> str:
     return replace_once(
         text,
-        r'    - name: Verify test(?: count| inventory sync)\n      run: \|\n[\s\S]*?        echo "(?:Test count check passed\.|Discoverable test programs: \$\{TEST_COUNT\})"\n',
-        (
-            '    - name: Verify test inventory sync\n'
-            '      run: |\n'
-            '        python3 scripts/update_test_stats.py --check\n'
-            '        TEST_COUNT=$(python3 scripts/update_test_stats.py --count)\n'
-            '        echo "Discoverable test programs: ${TEST_COUNT}"\n'
-        ),
-        CI_YML,
+        r'^- \[x\] Test inventory is synchronized at `\d+` discoverable `test_\*\.lpr` programs$',
+        f'- [x] Test inventory is synchronized at `{count}` discoverable `test_*.lpr` programs',
+        MVP_ACCEPTANCE_MD,
     )
+
+
+def render_ci_yml(text: str) -> str:
+    pattern = (
+        r'    - name: Verify test(?: count| inventory sync)\n'
+        r'      run: \|\n'
+        r'[\s\S]*?'
+        r'        echo "(?:Test count check passed\.|Discoverable test programs: \$\{TEST_COUNT\})"\n'
+    )
+    replacement = (
+        '    - name: Verify test inventory sync\n'
+        '      run: |\n'
+        '        python3 scripts/update_test_stats.py --check\n'
+        '        TEST_COUNT=$(python3 scripts/update_test_stats.py --count)\n'
+        '        echo "Discoverable test programs: ${TEST_COUNT}"\n'
+    )
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
+    if count == 0:
+        return text
+    if count == 1:
+        return updated
+    raise RuntimeError(f'pattern not found exactly once in {CI_YML}: {pattern}')
 
 
 def render_run_all_tests(text: str) -> str:
@@ -158,6 +193,9 @@ def render_updates(count: int) -> dict[Path, str]:
         README_MD: render_readme_md(README_MD.read_text(), count),
         README_EN: render_readme_en(README_EN.read_text(), count),
         TESTING_MD: render_testing_md(TESTING_MD.read_text(), count),
+        ROADMAP_MD: render_roadmap_md(ROADMAP_MD.read_text(), count),
+        MVP_ACCEPTANCE_MD: render_mvp_acceptance_md(MVP_ACCEPTANCE_MD.read_text(), count),
+        MVP_ACCEPTANCE_EN: render_mvp_acceptance_md(MVP_ACCEPTANCE_EN.read_text(), count),
         CI_YML: render_ci_yml(CI_YML.read_text()),
         RUN_ALL_TESTS: render_run_all_tests(RUN_ALL_TESTS.read_text()),
     }

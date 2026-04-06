@@ -24,7 +24,8 @@ function CreateFPCPolicyCheckCommand: ICommand;
 implementation
 
 uses
-  fpdev.toolchain;
+  fpdev.toolchain,
+  fpdev.command.utils;
 
 function CreateFPCPolicyCheckCommand: ICommand;
 begin
@@ -55,23 +56,37 @@ var
   RecommendedVersion: string;
   CurrentVersion: string;
   SourceVersion: string;
+  UnknownOption: string;
+  PositionalCount: Integer;
 begin
   Result := EXIT_OK;
 
-  if (Length(AParams) = 1) and ((AParams[0] = '--help') or (AParams[0] = '-h')) then
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev fpc policy check [source-version]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev fpc policy check [source-version]');
     Exit;
   end;
 
-  if Length(AParams) > 1 then
+  if FindUnknownOption(AParams, [], UnknownOption) then
   begin
     Ctx.Err.WriteLn('Usage: fpdev fpc policy check [source-version]');
     Exit(EXIT_USAGE_ERROR);
   end;
 
-  if Length(AParams) = 1 then
-    SourceVersion := AParams[0]
+  PositionalCount := CountPositionalArgs(AParams);
+  if PositionalCount > 1 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev fpc policy check [source-version]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if PositionalCount = 1 then
+    SourceVersion := GetPositionalArg(AParams, 0)
   else
     SourceVersion := 'main';
 

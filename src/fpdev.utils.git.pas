@@ -21,10 +21,16 @@ unit fpdev.utils.git;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils.process, git2.api, git2.types;
+  SysUtils, Classes, fpdev.utils, fpdev.utils.process, git2.api, git2.types;
 
 type
   TGitBackend = (gbLibgit2, gbCommandLine, gbNone);
+  TGitPullFailureKind = (
+    gpfkUnknown,
+    gpfkDirtyWorktree,
+    gpfkDetachedHead,
+    gpfkDivergedHistory
+  );
 
   IGitCliRunner = interface
     ['{7D40CB2F-5C75-4B33-98D7-9E7138A50A8B}']
@@ -52,12 +58,21 @@ type
     // libgit2 backend functions (use instance FGitManager)
     function CloneWithLibgit2(const AURL, ALocalPath: string; out AError: string): Boolean;
     function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
-    function PullWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+    function PullWithLibgit2(const ARepoPath: string; out AError: string;
+      out ANeedsFallback: Boolean; const AAllowMerge: Boolean = True): Boolean;
     function GetBranchWithLibgit2(const ARepoPath: string): string;
     function CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
     function AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
-    function CommitWithLibgit2(const ARepoPath, AMessage: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
-    function PushWithLibgit2(const ARepoPath, ARemote, ABranch: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+    function CommitWithLibgit2(
+      const ARepoPath, AMessage: string;
+      out AError: string;
+      out ANeedsFallback: Boolean
+    ): Boolean;
+    function PushWithLibgit2(
+      const ARepoPath, ARemote, ABranch: string;
+      out AError: string;
+      out ANeedsFallback: Boolean
+    ): Boolean;
 
   public
     constructor Create; overload;
@@ -68,11 +83,14 @@ type
     function Clone(const AURL, ALocalPath: string; const ABranch: string = ''): Boolean;
     function Fetch(const ARepoPath: string; const ARemote: string = 'origin'): Boolean;
     function Pull(const ARepoPath: string): Boolean;
+    function PullFastForwardOnly(const ARepoPath: string): Boolean;
     function Checkout(const ARepoPath, AName: string; const Force: Boolean = False): Boolean;
     function IsRepository(const APath: string): Boolean;
     function HasRemote(const ARepoPath: string): Boolean;
+    function GetRemoteURL(const ARepoPath: string; const ARemote: string = 'origin'): string;
     function GetCurrentBranch(const ARepoPath: string): string;
     function GetShortHeadHash(const ARepoPath: string; const ALength: Integer = 7): string;
+    function ListBranches(const ARepoPath: string): TStringArray;
     function Add(const ARepoPath, APathSpec: string): Boolean;
     function Commit(const ARepoPath, AMessage: string): Boolean;
     function Push(const ARepoPath: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
@@ -86,6 +104,9 @@ type
 
 // Helper function to get backend name
 function GitBackendToString(ABackend: TGitBackend): string;
+function ClassifyGitPullFailure(const AError: string): TGitPullFailureKind;
+procedure ResolveGitCredentialEnv(out AUsername, APassword, ASshUsername: string);
+procedure ResolveGitIdentityEnv(var AAuthorName, AAuthorEmail, ACommitterName, ACommitterEmail: string);
 
 implementation
 
@@ -138,6 +159,41 @@ begin
     gbCommandLine: Result := 'git (command-line)';
     gbNone: Result := 'none';
   end;
+end;
+
+function ClassifyGitPullFailure(const AError: string): TGitPullFailureKind;
+var
+  LError: string;
+begin
+  LError := LowerCase(Trim(AError));
+  if LError = '' then
+    Exit(gpfkUnknown);
+
+  if (Pos('detached head', LError) > 0) or
+     (Pos('not currently on a branch', LError) > 0) or
+     (Pos('specify which branch you want to merge with', LError) > 0) then
+    Exit(gpfkDetachedHead);
+
+  if (Pos('working tree has local changes', LError) > 0) or
+     (Pos('your local changes to the following files would be overwritten by merge', LError) > 0) or
+     (Pos('untracked working tree files would be overwritten by merge', LError) > 0) or
+     (Pos('please commit your changes or stash them before you merge', LError) > 0) or
+     (Pos('please move or remove them before you merge', LError) > 0) then
+    Exit(gpfkDirtyWorktree);
+
+  if (Pos('non-fast-forward update requires merge/rebase', LError) > 0) or
+     (Pos('not possible to fast-forward', LError) > 0) or
+     (Pos('merge has conflicts', LError) > 0) or
+     (Pos('manual resolution required', LError) > 0) or
+     (Pos('automatic merge failed', LError) > 0) or
+     (Pos('merge conflict', LError) > 0) or
+     (Pos('conflict (content)', LError) > 0) or
+     (Pos('reconcile divergent branches', LError) > 0) or
+     (Pos('branches diverged', LError) > 0) or
+     (Pos('refusing to merge unrelated histories', LError) > 0) then
+    Exit(gpfkDivergedHistory);
+
+  Result := gpfkUnknown;
 end;
 
 function Libgit2LastErrorText: string;
@@ -238,6 +294,45 @@ begin
     Inc(P^.MatchCount);
 end;
 
+procedure ResolveGitCredentialEnv(out AUsername, APassword, ASshUsername: string);
+begin
+  AUsername := Trim(get_env('FPDEV_GIT_USERNAME'));
+  APassword := Trim(get_env('FPDEV_GIT_PASSWORD'));
+  if AUsername = '' then
+    AUsername := Trim(get_env('GIT_USERNAME'));
+  if APassword = '' then
+    APassword := Trim(get_env('GIT_PASSWORD'));
+
+  if APassword = '' then
+    APassword := Trim(get_env('FPDEV_GIT_TOKEN'));
+  if APassword = '' then
+    APassword := Trim(get_env('GIT_TOKEN'));
+
+  ASshUsername := Trim(get_env('FPDEV_GIT_SSH_USERNAME'));
+  if ASshUsername = '' then
+    ASshUsername := Trim(get_env('GIT_SSH_USERNAME'));
+end;
+
+procedure ResolveGitIdentityEnv(var AAuthorName, AAuthorEmail, ACommitterName, ACommitterEmail: string);
+var
+  EnvAuthorName: string;
+  EnvAuthorEmail: string;
+begin
+  EnvAuthorName := Trim(get_env('GIT_AUTHOR_NAME'));
+  EnvAuthorEmail := Trim(get_env('GIT_AUTHOR_EMAIL'));
+  if AAuthorName = '' then
+    AAuthorName := EnvAuthorName;
+  if AAuthorEmail = '' then
+    AAuthorEmail := EnvAuthorEmail;
+
+  ACommitterName := Trim(get_env('GIT_COMMITTER_NAME'));
+  ACommitterEmail := Trim(get_env('GIT_COMMITTER_EMAIL'));
+  if ACommitterName = '' then
+    ACommitterName := AAuthorName;
+  if ACommitterEmail = '' then
+    ACommitterEmail := AAuthorEmail;
+end;
+
 procedure LoadCredentialPayloadFromEnv(out APayload: TGitCredentialPayload);
 var
   U: string;
@@ -252,28 +347,19 @@ begin
   APayload.Password := '';
   APayload.SshUsername := '';
 
-  U := Trim(GetEnvironmentVariable('FPDEV_GIT_USERNAME'));
-  P := Trim(GetEnvironmentVariable('FPDEV_GIT_PASSWORD'));
-  if U = '' then
-    U := Trim(GetEnvironmentVariable('GIT_USERNAME'));
-  if P = '' then
-    P := Trim(GetEnvironmentVariable('GIT_PASSWORD'));
-
-  if P = '' then
-    P := Trim(GetEnvironmentVariable('FPDEV_GIT_TOKEN'));
-  if P = '' then
-    P := Trim(GetEnvironmentVariable('GIT_TOKEN'));
-
-  SU := Trim(GetEnvironmentVariable('FPDEV_GIT_SSH_USERNAME'));
-  if SU = '' then
-    SU := Trim(GetEnvironmentVariable('GIT_SSH_USERNAME'));
+  ResolveGitCredentialEnv(U, P, SU);
 
   APayload.Username := AnsiString(U);
   APayload.Password := AnsiString(P);
   APayload.SshUsername := AnsiString(SU);
 end;
 
-function CredentialAcquireCb(out ACred: Pointer; const AUrl, AUserFromUrl: PChar; AAllowedTypes: cuint; APayload: Pointer): cint; cdecl;
+function CredentialAcquireCb(
+  out ACred: Pointer;
+  const AUrl, AUserFromUrl: PChar;
+  AAllowedTypes: cuint;
+  APayload: Pointer
+): cint; cdecl;
 var
   P: PGitCredentialPayload;
   UserFromUrl: string;
@@ -476,7 +562,7 @@ var
   CurrentPath: string;
   LResult: TProcessResult;
 begin
-  CurrentPath := GetEnvironmentVariable('PATH');
+  CurrentPath := SysUtils.GetEnvironmentVariable('PATH');
   if (not FCommandLineChecked) or (CurrentPath <> FCommandLineCheckedPath) then
   begin
     FCommandLineChecked := True;
@@ -531,7 +617,7 @@ begin
       if Result then
       begin
         if ABranch <> '' then
-          Result := Checkout(ALocalPath, ABranch, False);
+          Result := Checkout(ALocalPath, ABranch, True);
         Exit(Result);
       end;
 
@@ -618,7 +704,7 @@ begin
   begin
     try
       NeedsFallback := False;
-      Result := PullWithLibgit2(ARepoPath, FLastError, NeedsFallback);
+      Result := PullWithLibgit2(ARepoPath, FLastError, NeedsFallback, True);
       if Result then Exit;
 
       if (not NeedsFallback) then
@@ -649,9 +735,79 @@ begin
   Result := ExecuteGitCommand(['pull'], ARepoPath);
 end;
 
+function TGitOperations.PullFastForwardOnly(const ARepoPath: string): Boolean;
+var
+  NeedsFallback: Boolean;
+begin
+  Result := False;
+  FLastError := '';
+
+  if FBackend = gbNone then
+  begin
+    FLastError := 'No Git backend available';
+    Exit;
+  end;
+
+  if FBackend = gbLibgit2 then
+  begin
+    try
+      NeedsFallback := False;
+      Result := PullWithLibgit2(ARepoPath, FLastError, NeedsFallback, False);
+      if Result then
+        Exit(True);
+
+      if not NeedsFallback then
+        Exit(False);
+
+      // Keep known worktree/ref-state failures stable instead of replacing them
+      // with backend-specific CLI stderr.
+      if ClassifyGitPullFailure(FLastError) <> gpfkUnknown then
+        Exit(False);
+
+      if not CommandLineGitAvailable then
+      begin
+        if FLastError = '' then
+          FLastError := 'No command-line git available';
+        Exit(False);
+      end;
+    except
+      on E: Exception do
+      begin
+        if FVerbose then
+          WriteLn('libgit2 fast-forward-only pull exception: ', E.Message,
+            ', falling back to git command-line');
+      end;
+    end;
+  end;
+
+  if not CommandLineGitAvailable then
+  begin
+    if FLastError = '' then
+      FLastError := 'No command-line git available';
+    Exit(False);
+  end;
+
+  FLastError := '';
+  Result := ExecuteGitCommand(['pull', '--ff-only'], ARepoPath);
+end;
+
 function TGitOperations.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
 var
   LError: string;
+  LCheckoutTarget: string;
+  LDetach: Boolean;
+  LCreateLocalBranch: Boolean;
+  LCheckoutStartPoint: string;
+
+  function CliRefExists(const ARefName: string): Boolean;
+  var
+    LResult: TProcessResult;
+  begin
+    if Trim(ARefName) = '' then
+      Exit(False);
+    LResult := ExecuteGitCli(['show-ref', '--verify', '--quiet', ARefName], ARepoPath);
+    Result := LResult.Success and (LResult.ExitCode = 0);
+  end;
 begin
   Result := False;
   FLastError := '';
@@ -691,10 +847,56 @@ begin
   end;
 
   FLastError := '';
-  if Force then
-    Result := ExecuteGitCommand(['checkout', '-f', AName], ARepoPath)
+  LCheckoutTarget := AName;
+  LDetach := False;
+  LCreateLocalBranch := False;
+  LCheckoutStartPoint := '';
+
+  if Pos('refs/', AName) = 1 then
+  begin
+    if Pos('refs/heads/', AName) = 1 then
+      LCheckoutTarget := Copy(AName, Length('refs/heads/') + 1, MaxInt)
+    else if (Pos('refs/remotes/', AName) = 1) or (Pos('refs/tags/', AName) = 1) then
+      LDetach := True;
+  end
   else
-    Result := ExecuteGitCommand(['checkout', AName], ARepoPath);
+  begin
+    if CliRefExists('refs/heads/' + AName) then
+      LCheckoutTarget := AName
+    else if CliRefExists('refs/remotes/origin/' + AName) then
+    begin
+      LCheckoutTarget := AName;
+      LCheckoutStartPoint := 'origin/' + AName;
+      LCreateLocalBranch := True;
+    end
+    else if CliRefExists('refs/tags/' + AName) then
+    begin
+      LCheckoutTarget := 'refs/tags/' + AName;
+      LDetach := True;
+    end;
+  end;
+
+  if LCreateLocalBranch then
+  begin
+    if Force then
+      Result := ExecuteGitCommand(['checkout', '-f', '-B', LCheckoutTarget, LCheckoutStartPoint], ARepoPath)
+    else
+      Result := ExecuteGitCommand(['checkout', '-b', LCheckoutTarget, LCheckoutStartPoint], ARepoPath);
+  end
+  else if Force then
+  begin
+    if LDetach then
+      Result := ExecuteGitCommand(['checkout', '-f', '--detach', LCheckoutTarget], ARepoPath)
+    else
+      Result := ExecuteGitCommand(['checkout', '-f', LCheckoutTarget], ARepoPath);
+  end
+  else
+  begin
+    if LDetach then
+      Result := ExecuteGitCommand(['checkout', '--detach', LCheckoutTarget], ARepoPath)
+    else
+      Result := ExecuteGitCommand(['checkout', LCheckoutTarget], ARepoPath);
+  end;
 end;
 
 function TGitOperations.IsRepository(const APath: string): Boolean;
@@ -752,6 +954,49 @@ begin
     Result := Trim(LResult.StdOut) <> '';
 end;
 
+function TGitOperations.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;
+var
+  Repo: IGitRepository;
+  Remote: IGitRemote;
+  LResult: TProcessResult;
+begin
+  Result := '';
+  FLastError := '';
+
+  if Trim(ARemote) = '' then
+    Exit('');
+
+  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+  begin
+    try
+      Repo := FGitManager.OpenRepository(ARepoPath);
+      if Repo <> nil then
+      begin
+        Remote := Repo.Remote(ARemote);
+        if Remote <> nil then
+        begin
+          Result := Trim(Remote.URL);
+          if Result <> '' then
+            Exit;
+        end;
+      end;
+    except
+      // Fall back to command-line when libgit2 remote lookup fails.
+    end;
+  end;
+
+  if not CommandLineGitAvailable then
+    Exit('');
+
+  LResult := ExecuteGitCli(['remote', 'get-url', ARemote], ARepoPath);
+  if LResult.Success then
+    Result := Trim(LResult.StdOut)
+  else if LResult.StdErr <> '' then
+    FLastError := Trim(LResult.StdErr)
+  else if LResult.ErrorMessage <> '' then
+    FLastError := Trim(LResult.ErrorMessage);
+end;
+
 function TGitOperations.GetCurrentBranch(const ARepoPath: string): string;
 var
   LResult: TProcessResult;
@@ -776,9 +1021,26 @@ begin
   // Command-line fallback
   if not CommandLineGitAvailable then
     Exit('');
+  LResult := ExecuteGitCli(['symbolic-ref', '--quiet', 'HEAD'], ARepoPath);
+  if LResult.Success then
+  begin
+    Result := Trim(LResult.StdOut);
+    if Pos('refs/heads/', Result) = 1 then
+      Result := Copy(Result, Length('refs/heads/') + 1, MaxInt)
+    else if Pos('heads/', Result) = 1 then
+      Result := Copy(Result, Length('heads/') + 1, MaxInt);
+    if Result <> '' then
+      Exit;
+  end;
   LResult := ExecuteGitCli(['rev-parse', '--abbrev-ref', 'HEAD'], ARepoPath);
   if LResult.Success then
+  begin
     Result := Trim(LResult.StdOut);
+    if Pos('refs/heads/', Result) = 1 then
+      Result := Copy(Result, Length('refs/heads/') + 1, MaxInt)
+    else if Pos('heads/', Result) = 1 then
+      Result := Copy(Result, Length('heads/') + 1, MaxInt);
+  end;
 end;
 
 function TGitOperations.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
@@ -837,7 +1099,11 @@ begin
     FLastError := 'git rev-parse failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
 end;
 
-function TGitOperations.AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+function TGitOperations.AddAllWithLibgit2(
+  const ARepoPath: string;
+  out AError: string;
+  out ANeedsFallback: Boolean
+): Boolean;
 var
   RepoHandle: git_repository;
   IndexHandle: git_index;
@@ -973,7 +1239,11 @@ begin
   end;
 end;
 
-function TGitOperations.CommitWithLibgit2(const ARepoPath, AMessage: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+function TGitOperations.CommitWithLibgit2(
+  const ARepoPath, AMessage: string;
+  out AError: string;
+  out ANeedsFallback: Boolean
+): Boolean;
 var
   RepoHandle: git_repository;
   IndexHandle: git_index;
@@ -1044,6 +1314,10 @@ var
   AuthorEmail: string;
   CommitterName: string;
   CommitterEmail: string;
+  EnvAuthorName: string;
+  EnvAuthorEmail: string;
+  EnvCommitterName: string;
+  EnvCommitterEmail: string;
 begin
   Result := False;
   AError := '';
@@ -1112,14 +1386,19 @@ begin
 
     AuthorName := '';
     AuthorEmail := '';
+    EnvAuthorName := '';
+    EnvAuthorEmail := '';
+    EnvCommitterName := '';
+    EnvCommitterEmail := '';
+    ResolveGitIdentityEnv(EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
     if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
     begin
-      AuthorName := Trim(GetEnvironmentVariable('GIT_AUTHOR_NAME'));
-      AuthorEmail := Trim(GetEnvironmentVariable('GIT_AUTHOR_EMAIL'));
+      AuthorName := EnvAuthorName;
+      AuthorEmail := EnvAuthorEmail;
     end;
 
-    CommitterName := Trim(GetEnvironmentVariable('GIT_COMMITTER_NAME'));
-    CommitterEmail := Trim(GetEnvironmentVariable('GIT_COMMITTER_EMAIL'));
+    CommitterName := EnvCommitterName;
+    CommitterEmail := EnvCommitterEmail;
     if CommitterName = '' then
       CommitterName := AuthorName;
     if CommitterEmail = '' then
@@ -1233,7 +1512,11 @@ begin
   end;
 end;
 
-function TGitOperations.PushWithLibgit2(const ARepoPath, ARemote, ABranch: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+function TGitOperations.PushWithLibgit2(
+  const ARepoPath, ARemote, ABranch: string;
+  out AError: string;
+  out ANeedsFallback: Boolean
+): Boolean;
 var
   RepoHandle: git_repository;
   RemoteHandle: git_remote;
@@ -1475,7 +1758,13 @@ begin
 
           RC := git_index_update_all(IndexHandle, @PathSpecs, @IndexMatchedCb, @MatchPayload);
           if RC = GIT_OK then
-            RC := git_index_add_all(IndexHandle, @PathSpecs, GIT_INDEX_ADD_CHECK_PATHSPEC, @IndexMatchedCb, @MatchPayload);
+            RC := git_index_add_all(
+              IndexHandle,
+              @PathSpecs,
+              GIT_INDEX_ADD_CHECK_PATHSPEC,
+              @IndexMatchedCb,
+              @MatchPayload
+            );
 
           if RC = GIT_OK then
           begin
@@ -1698,6 +1987,123 @@ begin
     FLastError := Trim(LResult.ErrorMessage)
   else
     FLastError := 'git --version failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+end;
+
+function TGitOperations.ListBranches(const ARepoPath: string): TStringArray;
+var
+  Repo: IGitRepository;
+  BranchRefs: TStringArray;
+  List: TStringList;
+  LResult: TProcessResult;
+  i: Integer;
+
+  function NormalizeBranchRef(const ARef: string): string;
+  var
+    LValue: string;
+    LSlashPos: Integer;
+  begin
+    Result := '';
+    LValue := Trim(ARef);
+    if LValue = '' then
+      Exit('');
+
+    if Pos('refs/heads/', LValue) = 1 then
+      LValue := Copy(LValue, Length('refs/heads/') + 1, MaxInt)
+    else if Pos('refs/remotes/', LValue) = 1 then
+    begin
+      LValue := Copy(LValue, Length('refs/remotes/') + 1, MaxInt);
+      LSlashPos := Pos('/', LValue);
+      if LSlashPos > 0 then
+        LValue := Copy(LValue, LSlashPos + 1, MaxInt);
+    end
+    else if Pos('heads/', LValue) = 1 then
+      LValue := Copy(LValue, Length('heads/') + 1, MaxInt)
+    else if Pos('remotes/', LValue) = 1 then
+    begin
+      LValue := Copy(LValue, Length('remotes/') + 1, MaxInt);
+      LSlashPos := Pos('/', LValue);
+      if LSlashPos > 0 then
+        LValue := Copy(LValue, LSlashPos + 1, MaxInt);
+    end;
+
+    if (LValue = '') or SameText(LValue, 'HEAD') then
+      Exit('');
+
+    Result := LValue;
+  end;
+
+  function BranchExists(const AName: string): Boolean;
+  var
+    j: Integer;
+  begin
+    Result := False;
+    for j := 0 to List.Count - 1 do
+      if SameText(List[j], AName) then
+        Exit(True);
+  end;
+
+  procedure AddBranch(const ARef: string);
+  var
+    LName: string;
+  begin
+    LName := NormalizeBranchRef(ARef);
+    if (LName = '') or BranchExists(LName) then
+      Exit;
+    List.Add(LName);
+  end;
+begin
+  Result := nil;
+  FLastError := '';
+  List := TStringList.Create;
+  try
+    if (FBackend = gbLibgit2) and (FGitManager <> nil) then
+    begin
+      try
+        Repo := FGitManager.OpenRepository(ARepoPath);
+        if Repo <> nil then
+        begin
+          BranchRefs := Repo.ListBranches(gbAll);
+          for i := 0 to High(BranchRefs) do
+            AddBranch(BranchRefs[i]);
+
+          SetLength(Result, List.Count);
+          for i := 0 to List.Count - 1 do
+            Result[i] := List[i];
+          Exit;
+        end;
+      except
+        // Fall back to command-line
+      end;
+    end;
+
+    if not CommandLineGitAvailable then
+    begin
+      FLastError := 'No command-line git available';
+      Exit(nil);
+    end;
+
+    LResult := ExecuteGitCli(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], ARepoPath);
+    if not LResult.Success then
+    begin
+      if LResult.StdErr <> '' then
+        FLastError := Trim(LResult.StdErr)
+      else if LResult.ErrorMessage <> '' then
+        FLastError := Trim(LResult.ErrorMessage)
+      else
+        FLastError := 'git for-each-ref failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+      Exit(nil);
+    end;
+
+    BranchRefs := LResult.StdOut.Split([#10, #13]);
+    for i := 0 to High(BranchRefs) do
+      AddBranch(BranchRefs[i]);
+
+    SetLength(Result, List.Count);
+    for i := 0 to List.Count - 1 do
+      Result[i] := List[i];
+  finally
+    List.Free;
+  end;
 end;
 
 function TGitOperations.ListRemoteBranches(const ARepoPath: string; const ARemote: string): TStringArray;
@@ -1956,7 +2362,8 @@ begin
   end;
 end;
 
-function TGitOperations.PullWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+function TGitOperations.PullWithLibgit2(const ARepoPath: string; out AError: string;
+  out ANeedsFallback: Boolean; const AAllowMerge: Boolean): Boolean;
 var
   Repo: IGitRepository;
   Branch: string;
@@ -2096,9 +2503,19 @@ var
   end;
 
   function TryLoadIdentity(out AuthorName, AuthorEmail, CommitterName, CommitterEmail: string): Boolean;
+  var
+    EnvAuthorName: string;
+    EnvAuthorEmail: string;
+    EnvCommitterName: string;
+    EnvCommitterEmail: string;
   begin
     AuthorName := '';
     AuthorEmail := '';
+    EnvAuthorName := '';
+    EnvAuthorEmail := '';
+    EnvCommitterName := '';
+    EnvCommitterEmail := '';
+    ResolveGitIdentityEnv(EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
     if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
     begin
       if not TryLoadUserFromLocalConfig(AuthorName, AuthorEmail) then
@@ -2110,12 +2527,12 @@ var
 
     if (AuthorName = '') or (AuthorEmail = '') then
     begin
-      AuthorName := Trim(GetEnvironmentVariable('GIT_AUTHOR_NAME'));
-      AuthorEmail := Trim(GetEnvironmentVariable('GIT_AUTHOR_EMAIL'));
+      AuthorName := EnvAuthorName;
+      AuthorEmail := EnvAuthorEmail;
     end;
 
-    CommitterName := Trim(GetEnvironmentVariable('GIT_COMMITTER_NAME'));
-    CommitterEmail := Trim(GetEnvironmentVariable('GIT_COMMITTER_EMAIL'));
+    CommitterName := EnvCommitterName;
+    CommitterEmail := EnvCommitterEmail;
     if CommitterName = '' then
       CommitterName := AuthorName;
     if CommitterEmail = '' then
@@ -2387,8 +2804,15 @@ begin
         Exit(False);
       end;
 
-      // Ensure newly introduced files are created on disk after fast-forward.
-      CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
+      // The worktree was verified clean before we rewrote the branch/index.
+      // Force checkout is required here so tracked files changed upstream are
+      // refreshed on disk instead of being preserved as false local edits.
+      // After the ref/index move, remote deletions look like untracked files,
+      // so remove them as part of the fast-forward checkout as well.
+      CheckoutOpts.checkout_strategy :=
+        GIT_CHECKOUT_FORCE or
+        GIT_CHECKOUT_RECREATE_MISSING or
+        GIT_CHECKOUT_REMOVE_UNTRACKED;
       RC := git_checkout_head(RepoHandle, @CheckoutOpts);
       if RC <> GIT_OK then
       begin
@@ -2407,6 +2831,13 @@ begin
     // Local is ahead only: nothing to merge, already up-to-date with remote.
     if (Ahead > 0) and (Behind = 0) then
       Exit(True);
+
+    if not AAllowMerge then
+    begin
+      AError := 'Non-fast-forward update requires merge/rebase';
+      ANeedsFallback := True;
+      Exit(False);
+    end;
 
     // Diverged: attempt a non-conflicting merge commit via libgit2.
     if (Ahead > 0) and (Behind > 0) then
@@ -2671,32 +3102,13 @@ begin
   end;
 end;
 
-function TGitOperations.CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
+function TGitOperations.CheckoutWithLibgit2(
+  const ARepoPath, AName: string;
+  const Force: Boolean;
+  out AError: string
+): Boolean;
 var
   Repo: IGitRepository;
-  RepoHandle: git_repository;
-  CheckoutOpts: git_checkout_options;
-  RC: cint;
-  LErr: string;
-
-  function ForceCheckoutRef(const ARefName: string): Boolean;
-  begin
-    Result := False;
-    AError := '';
-
-    RC := git_repository_set_head(RepoHandle, PChar(ARefName));
-    if RC <> GIT_OK then
-      Exit(False);
-
-    FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
-    RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
-    if RC <> GIT_OK then
-      Exit(False);
-
-    CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING;
-    RC := git_checkout_head(RepoHandle, @CheckoutOpts);
-    Result := RC = GIT_OK;
-  end;
 
   function CandidateRefs: TStringArray;
   begin
@@ -2714,9 +3126,6 @@ var
     Result[2] := 'refs/remotes/origin/' + AName;
   end;
 
-var
-  Candidates: TStringArray;
-  i: Integer;
 begin
   Result := False;
   AError := '';
@@ -2728,40 +3137,6 @@ begin
   end;
 
   try
-    if Force then
-    begin
-      RepoHandle := nil;
-      try
-        RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-        if RC <> GIT_OK then
-        begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 open repository failed: ' + LErr
-          else
-            AError := 'libgit2 open repository failed';
-          Exit(False);
-        end;
-
-        Candidates := CandidateRefs;
-        for i := 0 to High(Candidates) do
-        begin
-          if ForceCheckoutRef(Candidates[i]) then
-            Exit(True);
-        end;
-
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 force checkout failed: ' + LErr
-        else
-          AError := 'libgit2 force checkout failed';
-        Exit(False);
-      finally
-        if RepoHandle <> nil then
-          git_repository_free(RepoHandle);
-      end;
-    end;
-
     Repo := FGitManager.OpenRepository(ARepoPath);
     if Repo = nil then
     begin
@@ -2780,10 +3155,10 @@ begin
     if Repo.CheckoutBranchEx(AName, Force) then
       Exit(True);
 
-    if Repo.CheckoutBranchEx('refs/tags/' + AName, Force) then
+    if Repo.CheckoutBranchEx('refs/remotes/origin/' + AName, Force) then
       Exit(True);
 
-    if Repo.CheckoutBranchEx('refs/remotes/origin/' + AName, Force) then
+    if Repo.CheckoutBranchEx('refs/tags/' + AName, Force) then
       Exit(True);
 
     AError := 'libgit2 checkout failed: ' + AName;

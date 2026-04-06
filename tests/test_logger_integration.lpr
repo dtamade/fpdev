@@ -3,7 +3,9 @@ program test_logger_integration;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, DateUtils, test_temp_paths,
+  Classes, SysUtils, DateUtils,
+  {$IFDEF UNIX}BaseUnix,{$ENDIF}
+  test_temp_paths,
   fpdev.logger.intf,
   fpdev.logger.structured,
   fpdev.logger.rotator,
@@ -35,6 +37,31 @@ begin
   Result.ThreadId := GetCurrentThreadId;
   Result.ProcessId := GetProcessID;
   Result.CustomFields := nil;
+end;
+
+procedure SetFileTimePortable(const APath: string; ATime: TDateTime);
+{$IFDEF UNIX}
+var
+  Times: utimbuf;
+{$ENDIF}
+var
+  Handle: THandle;
+  FileDate: LongInt;
+begin
+  {$IFDEF UNIX}
+  Times.actime := DateTimeToUnix(ATime);
+  Times.modtime := Times.actime;
+  if fpUTime(PChar(APath), @Times) = 0 then
+    Exit;
+  {$ENDIF}
+
+  Handle := FileOpen(APath, fmOpenWrite);
+  if Handle <> THandle(-1) then
+  begin
+    FileDate := DateTimeToFileDate(ATime);
+    FileSetDate(Handle, FileDate);
+    FileClose(Handle);
+  end;
 end;
 
 { Test 1: Basic Logger + Rotator Integration }
@@ -319,8 +346,6 @@ var
   Context: TLogContext;
   i: Integer;
   OldArchive: string;
-  Handle: THandle;
-  FileDate: LongInt;
 begin
   WriteLn('=== Test 5: Archive Cleanup ===');
 
@@ -363,13 +388,7 @@ begin
       Free;
 
     // Set file date to 2 days ago
-    Handle := FileOpen(OldArchive, fmOpenWrite);
-    if Handle <> THandle(-1) then
-    begin
-      FileDate := DateTimeToFileDate(Now - 2);
-      FileSetDate(Handle, FileDate);
-      FileClose(Handle);
-    end;
+    SetFileTimePortable(OldArchive, Now - 2);
 
     Assert(FileExists(OldArchive), 'Old archive should exist before cleanup');
 

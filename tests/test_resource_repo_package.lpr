@@ -3,7 +3,7 @@ program test_resource_repo_package;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, fpdev.resource.repo.package;
+  SysUtils, Classes, test_temp_paths, fpdev.resource.repo.package;
 
 var
   TestsPassed: Integer = 0;
@@ -107,22 +107,22 @@ end;
 
 begin
   Randomize;
-  TempDir := IncludeTrailingPathDelimiter(GetTempDir(True)) +
-    'test_repo_pkg_' + IntToStr(Random(100000));
-  ForceDirectories(TempDir);
+  TempDir := CreateUniqueTempDir('test_repo_pkg');
+  try
+    Check(PathUsesSystemTempRoot(TempDir), 'TempDir lives under system temp');
 
-  WriteLn('=== Resource Repo Package Unit Tests ===');
-  WriteLn;
+    WriteLn('=== Resource Repo Package Unit Tests ===');
+    WriteLn;
 
-  TestResolveDirectPath;
-  TestResolveCorePath;
-  TestResolveUIPath;
-  TestResolveUtilsPath;
-  TestResolveNotFound;
-  TestResolvePriorityOrder;
-
-  // Cleanup - best effort
-  // RemoveDir won't remove non-empty dirs, but that's ok for temp
+    TestResolveDirectPath;
+    TestResolveCorePath;
+    TestResolveUIPath;
+    TestResolveUtilsPath;
+    TestResolveNotFound;
+    TestResolvePriorityOrder;
+  finally
+    CleanupTempDir(TempDir);
+  end;
 
   WriteLn;
   WriteLn('=== Summary ===');

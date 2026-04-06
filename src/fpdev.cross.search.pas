@@ -66,15 +66,15 @@ type
     constructor Create;
 
     { Search all layers for binutils }
-    function SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult;
+    function SearchBinutils(const ATarget: TCrossTarget): TCrossSearchResult; virtual;
     function SearchBinutilsWithConfig(const ATarget: TCrossTarget;
-      const AFpcCfgPath: string): TCrossSearchResult;
+      const AFpcCfgPath: string): TCrossSearchResult; virtual;
 
     { Search for cross-compilation libraries }
-    function SearchLibraries(const ATarget: TCrossTarget): TStringArray;
+    function SearchLibraries(const ATarget: TCrossTarget): TStringArray; virtual;
 
     { Diagnose toolchain status for a specific target (for cross doctor) }
-    function DiagnoseTarget(const ATarget: TCrossTarget): TStringArray;
+    function DiagnoseTarget(const ATarget: TCrossTarget): TStringArray; virtual;
 
     { Diagnostics }
     function GetSearchLog: TStringArray;
@@ -358,7 +358,7 @@ var
 begin
   Result := Default(TCrossSearchResult);
 
-  EnvPath := GetEnvironmentVariable('PATH');
+  EnvPath := SysUtils.GetEnvironmentVariable('PATH');
   if EnvPath = '' then Exit;
 
   {$IFDEF MSWINDOWS}
@@ -449,7 +449,7 @@ begin
   // Android NDK typical location
   if ATarget.OS = 'android' then
   begin
-    AddDir(GetEnvironmentVariable('ANDROID_NDK_HOME') + '/toolchains/llvm/prebuilt/linux-x86_64/bin');
+    AddDir(SysUtils.GetEnvironmentVariable('ANDROID_NDK_HOME') + '/toolchains/llvm/prebuilt/linux-x86_64/bin');
     AddDir(GetUserDir + 'Android/Sdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/bin');
   end;
   {$ENDIF}
@@ -467,7 +467,7 @@ begin
   AddDir('C:\msys64\mingw32\bin');
   AddDir('C:\msys64\usr\bin');
   // Typical Windows cross-compilation paths
-  AddDir(GetEnvironmentVariable('PROGRAMFILES') + '\FPC\bin');
+  AddDir(SysUtils.GetEnvironmentVariable('PROGRAMFILES') + '\FPC\bin');
   {$ENDIF}
 
   Prefixes := GetPrefixCandidates(ATarget);
@@ -713,7 +713,7 @@ begin
   // Priority 4: NDK sysroot for Android
   if ATarget.OS = 'android' then
   begin
-    AddCandidate(GetEnvironmentVariable('ANDROID_NDK_HOME') +
+    AddCandidate(SysUtils.GetEnvironmentVariable('ANDROID_NDK_HOME') +
       '/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/' +
       ATarget.CPU + '-linux-android');
     AddCandidate(GetUserDir + 'Android/Sdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/' +
@@ -804,7 +804,7 @@ begin
       AddLine('     ' + Libs[I]);
   end
   else
-    AddLine('[!] No library paths found');
+    AddLine('[!] Libraries not found');
 
   // Search log summary
   AddLine('Search log (' + IntToStr(GetSearchLogCount) + ' entries):');

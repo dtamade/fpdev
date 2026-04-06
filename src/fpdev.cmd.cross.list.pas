@@ -68,7 +68,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_OPT_ALL));
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_CROSS_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_CROSS_LIST_OPT_HELP));
     Exit(EXIT_OK);
   end;

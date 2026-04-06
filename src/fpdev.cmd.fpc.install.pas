@@ -8,7 +8,7 @@ uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.config.interfaces, fpdev.fpc.manager, fpdev.types,
   fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes,
-  fpdev.paths;
+  fpdev.paths, fpdev.utils;
 
 type
   { TFPCInstallCommand }
@@ -53,12 +53,19 @@ var
   LOk: Boolean;
   LMgr: TFPCManager;
   LCache: TBuildCache;
+  LUnknownOption: string;
+  LPositionalCount: Integer;
 begin
   Result := 0;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPTIONS));
@@ -73,13 +80,32 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if FindUnknownOption(
+    AParams,
+    ['--from-source', '--from-binary', '--from=', '--jobs=', '--prefix=',
+     '--offline', '--no-cache'],
+    LUnknownOption
+  ) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LPositionalCount := CountPositionalArgs(AParams);
+  if LPositionalCount < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
-  LVer := AParams[0];
+
+  if LPositionalCount > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LVer := GetPositionalArg(AParams, 0);
 
   // Parse cache-related flags
   LOfflineMode := HasFlag(AParams, 'offline');
@@ -105,10 +131,25 @@ begin
   if GetFlagValue(AParams, 'jobs', LJobs) then
   begin
     LSettings := Ctx.Config.GetSettingsManager.GetSettings;
-    if TryStrToInt(LJobs, LSettings.ParallelJobs) then
-      Ctx.Config.GetSettingsManager.SetSettings(LSettings);
+    if not TryStrToInt(LJobs, LSettings.ParallelJobs) then
+    begin
+      Ctx.Err.WriteLn('Error: Invalid --jobs value: ' + LJobs);
+      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+    Ctx.Config.GetSettingsManager.SetSettings(LSettings);
   end;
-  if not GetFlagValue(AParams, 'prefix', LPrefix) then LPrefix := '';
+  if GetFlagValue(AParams, 'prefix', LPrefix) then
+  begin
+    if LPrefix = '' then
+    begin
+      Ctx.Err.WriteLn('Error: Missing --prefix value');
+      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end
+  else
+    LPrefix := '';
 
   // Initialize cache (use same directory as TFPCManager for consistency)
   LSettings := Ctx.Config.GetSettingsManager.GetSettings;
@@ -190,7 +231,7 @@ begin
     // Test runner safeguard: keep unit/integration tests offline/deterministic by
     // short-circuiting any network install attempts unless explicitly requested
     // via --offline + cache hit.
-    if GetEnvironmentVariable('FPDEV_SKIP_NETWORK_TESTS') = '1' then
+    if get_env('FPDEV_SKIP_NETWORK_TESTS') = '1' then
     begin
       Ctx.Err.WriteLn('[FAIL] Network operations disabled (FPDEV_SKIP_NETWORK_TESTS=1)');
       Ctx.Err.WriteLn('[HINT] Re-run without FPDEV_SKIP_NETWORK_TESTS=1 to perform real installation');
@@ -204,7 +245,7 @@ begin
       if LMode = imAuto then
       begin
         Ctx.Out.WriteLn('Attempting binary installation first...');
-        LOk := LMgr.InstallVersion(LVer, False, LPrefix, False);
+        LOk := LMgr.InstallVersion(LVer, False, LPrefix, False, LNoCache);
 
         if not LOk then
         begin
@@ -212,7 +253,7 @@ begin
           Ctx.Out.WriteLn('Binary installation failed, falling back to source installation...');
           Ctx.Out.WriteLn('Note: Source installation requires a bootstrap compiler and may take longer');
           Ctx.Out.WriteLn('');
-          LOk := LMgr.InstallVersion(LVer, True, LPrefix, False);
+          LOk := LMgr.InstallVersion(LVer, True, LPrefix, False, LNoCache);
 
           if not LOk then
           begin
@@ -230,7 +271,7 @@ begin
       begin
         // Explicit mode: binary or source only
         LFromSource := (LMode = imSource);
-        LOk := LMgr.InstallVersion(LVer, LFromSource, LPrefix, False);
+        LOk := LMgr.InstallVersion(LVer, LFromSource, LPrefix, False, LNoCache);
       end;
 
       if LOk then
@@ -241,10 +282,7 @@ begin
         Exit(EXIT_OK);
       end
       else
-      begin
-        Ctx.Err.WriteLn(_Fmt(CMD_FPC_INSTALL_FAILED, [LVer]));
         Exit(EXIT_ERROR);
-      end;
     finally
       LMgr.Free;
     end;

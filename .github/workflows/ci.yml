@@ -17,7 +17,7 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Show FPC version
       run: fpc -iV
@@ -28,15 +28,35 @@ jobs:
     - name: Run release contract unit tests
       run: |
         python3 -m unittest \
+          tests.test_contributor_docs_contract \
+          tests.test_official_docs_cli_contract \
           tests.test_release_docs_contract \
           tests.test_release_scripts_contract \
+          tests.test_package_release_assets \
+          tests.test_generate_release_checksums \
           tests.test_generate_release_evidence \
           tests.test_record_owner_smoke_sh \
           tests.test_release_status_wording \
+          tests.test_ci_workflow_contract \
           tests.test_ci_release_contracts
 
     - name: Run Linux release acceptance lane
       run: bash scripts/release_acceptance_linux.sh
+
+    - name: Package Linux release asset
+      run: |
+        rm -rf release-assets
+        python3 scripts/package_release_assets.py \
+          --output-dir release-assets \
+          --data-dir src/data \
+          --linux-bin bin/fpdev
+
+    - name: Upload Linux release asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-asset-linux-x64
+        path: release-assets/fpdev-linux-x64.tar.gz
+        retention-days: 7
 
     - name: Upload release acceptance logs
       if: always()
@@ -56,10 +76,11 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Check for warnings and hints
       run: |
+        set -o pipefail
         lazbuild -B fpdev.lpi 2>&1 | tee build.log
 
         # Check for compilation warnings in source files
@@ -95,27 +116,154 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            install_step: choco install freepascal --no-progress -y
-          - os: macos-13
-            install_step: brew install --cask fpc-laz
+            lane: windows-x64
+            toolchain_url: https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-windows-x86_64.zip
+            build_flags: -B -O3 -CX -XX -Twin64 -Px86_64
+            python_cmd: python
+            package_arg: --windows-bin bin/fpdev.exe
+            asset_file: fpdev-windows-x64.zip
+            artifact_name: release-asset-windows-x64
+          - os: macos-15-intel
+            lane: macos-x64
+            install_step: brew install fpc libgit2
+            build_flags: -B -O3 -CX -XX -Xs
+            python_cmd: python3
+            package_arg: --macos-x64-bin bin/fpdev
+            asset_file: fpdev-macos-x64.tar.gz
+            artifact_name: release-asset-macos-x64
+          - os: macos-15
+            lane: macos-arm64
+            install_step: brew install fpc libgit2
+            build_flags: -B -O3 -CX -XX -Xs
+            python_cmd: python3
+            package_arg: --macos-arm64-bin bin/fpdev
+            asset_file: fpdev-macos-arm64.tar.gz
+            artifact_name: release-asset-macos-arm64
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Install FPC toolchain
+      if: runner.os != 'Windows'
       run: ${{ matrix.install_step }}
+
+    - name: Download Windows FPC toolchain
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $archivePath = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2-windows-x86_64.zip'
+        $toolchainRoot = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2-windows-x86_64'
+        Invoke-WebRequest -Uri '${{ matrix.toolchain_url }}' -OutFile $archivePath
+        if (Test-Path $toolchainRoot) {
+          Remove-Item $toolchainRoot -Recurse -Force
+        }
+        Expand-Archive -Path $archivePath -DestinationPath $toolchainRoot
+
+    - name: Add repo-managed FPC to PATH on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $toolchainRoot = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2-windows-x86_64'
+        $binDir = Join-Path $toolchainRoot 'bin'
+        $fpcPath = Join-Path $binDir 'fpc.exe'
+        $backendPath = Join-Path $binDir 'ppcrossx64.exe'
+        $frontendBackendPath = Join-Path $binDir 'ppcx64.exe'
+        if (-not (Test-Path $fpcPath)) {
+          throw "Unable to locate repo-managed fpc.exe at $fpcPath"
+        }
+        if (-not (Test-Path $backendPath)) {
+          throw "Unable to locate repo-managed ppcrossx64.exe at $backendPath"
+        }
+        if (-not (Test-Path $frontendBackendPath)) {
+          Copy-Item -Path $backendPath -Destination $frontendBackendPath
+        }
+        $binDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        "WINDOWS_FPC_BACKEND=ppcx64.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        Write-Host "Added FPC frontend to PATH: $fpcPath"
+        Write-Host "Added FPC backend shim to PATH: $frontendBackendPath"
+        Write-Host "Source backend retained at: $backendPath"
+
+    - name: Generate repo-managed FPC config on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $toolchainRoot = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2-windows-x86_64'
+        $binDir = Join-Path $toolchainRoot 'bin'
+        $cfgPath = Join-Path $binDir 'fpc.cfg'
+        $toolchainRootForConfig = $toolchainRoot -replace '\\', '/'
+        $binDirForConfig = $binDir -replace '\\', '/'
+        $cfgContent = @'
+        # Auto-generated for the repo-managed Windows FPC toolchain
+        -FD${binDirForConfig}
+        -Fu${toolchainRootForConfig}/units/$fpctarget
+        -Fu${toolchainRootForConfig}/units/$fpctarget/*
+        -Fu${toolchainRootForConfig}/units/$fpctarget/rtl
+        -Fi${toolchainRootForConfig}/units/$fpctarget/rtl
+        -Fl${toolchainRootForConfig}/units/$fpctarget/rtl
+        '@
+        $cfgContent = $cfgContent.Replace('${toolchainRootForConfig}', $toolchainRootForConfig)
+        $cfgContent = $cfgContent.Replace('${binDirForConfig}', $binDirForConfig)
+        Set-Content -Path $cfgPath -Value $cfgContent -Encoding ascii
+        Write-Host "Generated FPC config at: $cfgPath"
+
+    - name: Resolve libgit2 linker path on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        LIBGIT2_LIB_DIR="$(brew --prefix libgit2)/lib"
+        echo "LIBGIT2_LIB_DIR=${LIBGIT2_LIB_DIR}" >> "$GITHUB_ENV"
+        echo "Resolved libgit2 library directory: ${LIBGIT2_LIB_DIR}"
 
     - name: Show FPC version
       shell: bash
       run: fpc -iV
+
+    - name: Verify Windows FPC toolchain
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        where.exe fpc
+        where.exe $env:WINDOWS_FPC_BACKEND
 
     - name: Build CLI smoke binary
       shell: bash
       run: |
         rm -rf bin lib
         mkdir -p bin lib
-        fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        EXTRA_FLAGS=()
+        BUILD_FLAGS="${{ matrix.build_flags }}"
+        if [ -n "${LIBGIT2_LIB_DIR:-}" ]; then
+          EXTRA_FLAGS+=("-Fl${LIBGIT2_LIB_DIR}" "-k-lgit2")
+        fi
+        fpc $BUILD_FLAGS "${EXTRA_FLAGS[@]}" -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Install libgit2 runtime on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $vcpkgCommand = $null
+        $resolvedCommand = Get-Command vcpkg -ErrorAction SilentlyContinue
+        if ($resolvedCommand) {
+          $vcpkgCommand = $resolvedCommand.Source
+        } elseif ($env:VCPKG_INSTALLATION_ROOT) {
+          $candidate = Join-Path $env:VCPKG_INSTALLATION_ROOT 'vcpkg.exe'
+          if (Test-Path $candidate) {
+            $vcpkgCommand = $candidate
+          }
+        }
+        if (-not $vcpkgCommand) {
+          throw 'Unable to locate vcpkg on the Windows runner'
+        }
+        $vcpkgRoot = Split-Path -Parent $vcpkgCommand
+        & $vcpkgCommand install libgit2:x64-windows
+        $runtimeBin = Join-Path $vcpkgRoot 'installed/x64-windows/bin'
+        if (-not (Test-Path $runtimeBin)) {
+          throw "Unable to locate Windows libgit2 runtime directory at $runtimeBin"
+        }
+        Copy-Item -Path (Join-Path $runtimeBin '*.dll') -Destination .\bin -Force
+        $runtimeBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Host "Added Windows libgit2 runtime directory to PATH: $runtimeBin"
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
@@ -126,3 +274,19 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe
+
+    - name: Package release asset
+      shell: bash
+      run: |
+        rm -rf release-assets
+        ${{ matrix.python_cmd }} scripts/package_release_assets.py \
+          --output-dir release-assets \
+          --data-dir src/data \
+          ${{ matrix.package_arg }}
+
+    - name: Upload packaged release asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: release-assets/${{ matrix.asset_file }}
+        retention-days: 7

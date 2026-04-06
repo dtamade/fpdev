@@ -16,13 +16,14 @@ program test_cli_lazarus;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, Process,
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
   fpdev.command.intf, fpdev.command.registry,
   fpdev.config.interfaces,
   fpdev.exitcodes,
+  fpdev.i18n, fpdev.i18n.strings,
   fpdev.cmd.lazarus,             // Register 'lazarus' root
   fpdev.cmd.lazarus.install,
   fpdev.cmd.lazarus.list,
@@ -39,6 +40,109 @@ uses
 
 var
   GTempDir: string;
+
+function SetInstallRoot(const Ctx: IContext; const AInstallRoot: string): Boolean;
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := AInstallRoot;
+  Result := Ctx.Config.GetSettingsManager.SetSettings(Settings);
+end;
+
+function RunCommandInDir(const AExecutable: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  Proc: TProcess;
+  I: Integer;
+begin
+  Proc := TProcess.Create(nil);
+  try
+    Proc.Executable := AExecutable;
+    Proc.CurrentDirectory := AWorkDir;
+    Proc.Options := [poWaitOnExit];
+    for I := Low(AArgs) to High(AArgs) do
+      Proc.Parameters.Add(AArgs[I]);
+    try
+      Proc.Execute;
+      Result := Proc.ExitStatus = 0;
+    except
+      Result := False;
+    end;
+  finally
+    Proc.Free;
+  end;
+end;
+
+procedure WriteTextFile(const APath, AContent: string);
+var
+  SL: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  SL := TStringList.Create;
+  try
+    SL.Text := AContent;
+    SL.SaveToFile(APath);
+  finally
+    SL.Free;
+  end;
+end;
+
+function ConfigureGitUser(const ARepoDir: string): Boolean;
+begin
+  Result :=
+    RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], ARepoDir) and
+    RunCommandInDir('git', ['config', 'user.email', 'fpdev-test@example.invalid'], ARepoDir);
+end;
+
+function CommitAll(const ARepoDir, AMessage: string): Boolean;
+begin
+  Result :=
+    RunCommandInDir('git', ['add', '-A'], ARepoDir) and
+    RunCommandInDir('git', ['commit', '-m', AMessage], ARepoDir);
+end;
+
+function SetupTrackedLazarusSourceRepo(const AInstallRoot, AVersion: string;
+  out ASourceDir, ASeedDir: string): Boolean;
+var
+  FixtureRoot: string;
+  RemoteBareDir: string;
+begin
+  Result := False;
+  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
+  FixtureRoot := AInstallRoot + PathDelim + '_git_fixture';
+  ASeedDir := FixtureRoot + PathDelim + 'seed';
+  RemoteBareDir := FixtureRoot + PathDelim + 'remote.git';
+
+  ForceDirectories(AInstallRoot);
+  if not RunCommandInDir('git', ['init', '--bare', '--initial-branch=main', RemoteBareDir], GTempDir) then
+    Exit;
+  if not RunCommandInDir('git', ['clone', RemoteBareDir, ASeedDir], GTempDir) then
+    Exit;
+  if not ConfigureGitUser(ASeedDir) then
+    Exit;
+
+  ForceDirectories(ASeedDir + PathDelim + 'ide');
+  ForceDirectories(ASeedDir + PathDelim + 'lcl');
+  ForceDirectories(ASeedDir + PathDelim + 'packager');
+  WriteTextFile(ASeedDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'base' + LineEnding);
+  WriteTextFile(ASeedDir + PathDelim + 'lcl' + PathDelim + '.keep', 'keep' + LineEnding);
+  WriteTextFile(ASeedDir + PathDelim + 'packager' + PathDelim + '.keep', 'keep' + LineEnding);
+  if not CommitAll(ASeedDir, 'initial commit') then
+    Exit;
+  if not RunCommandInDir('git', ['branch', '-M', 'main'], ASeedDir) then
+    Exit;
+  if not RunCommandInDir('git', ['push', '-u', 'origin', 'main'], ASeedDir) then
+    Exit;
+
+  ForceDirectories(ExtractFileDir(ASourceDir));
+  if not RunCommandInDir('git', ['clone', RemoteBareDir, ASourceDir], GTempDir) then
+    Exit;
+  if not ConfigureGitUser(ASourceDir) then
+    Exit;
+
+  Result := True;
+end;
 
 { ===== install ===== }
 
@@ -95,6 +199,86 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestInstallUnsupportedVersionDoesNotAppendGenericFailure;
+var
+  Cmd: TLazInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9'], Ctx);
+    Check('install unsupported version EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('install unsupported version emits concrete error',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_UNSUPPORTED_VERSION, ['9.9'])));
+    Check('install unsupported version does not append generic failure',
+      StdErr.LineCount = 1);
+    Check('install unsupported version keeps start banner',
+      StdOut.Contains(_Fmt(CMD_LAZARUS_INSTALL_START, ['9.9'])));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallInvalidJobsValue;
+var
+  Cmd: TLazInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9', '--jobs=abc'], Ctx);
+    Check('install invalid --jobs EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('install invalid --jobs shows usage', StdErr.Contains('install'));
+    Check('install invalid --jobs keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallInvalidFromMode;
+var
+  Cmd: TLazInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9', '--from=garbage'], Ctx);
+    Check('install invalid --from EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('install invalid --from shows usage', StdErr.Contains('install'));
+    Check('install invalid --from keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallEmptyFPCValue;
+var
+  Cmd: TLazInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['9.9', '--fpc='], Ctx);
+    Check('install empty --fpc EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('install empty --fpc shows usage', StdErr.Contains('install'));
+    Check('install empty --fpc keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== list ===== }
 
 procedure TestListName;
@@ -127,6 +311,27 @@ begin
     Check('list --json EXIT_OK', Ret = EXIT_OK);
     Check('list --json has versions key', StdOut.Contains('versions'));
   finally Cmd.Free; end;
+end;
+
+procedure TestListJsonOutputUsesNullWhenDefaultUnset;
+var
+  Cmd: TLazListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--json'], Ctx);
+    Check('list --json default-unset EXIT_OK', Ret = EXIT_OK);
+    Check('list --json default-unset uses has_default false',
+      StdOut.Contains('"has_default" : false'));
+    Check('list --json default-unset uses null default',
+      StdOut.Contains('"default" : null'));
+  finally
+    Cmd.Free;
+  end;
 end;
 
 procedure TestListUnexpectedArg;
@@ -237,6 +442,25 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestCurrentHelpAdvertisesJsonUsage;
+var
+  Cmd: TLazCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Check('current --help usage advertises --json', Ret = EXIT_OK);
+    Check('current --help usage advertises optional json flag',
+      StdOut.Contains('Usage: fpdev lazarus current [--json]'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestCurrentNoArgs;
 var Cmd: TLazCurrentCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
@@ -261,6 +485,27 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestCurrentJsonOutputUsesNullWhenDefaultUnset;
+var
+  Cmd: TLazCurrentCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazCurrentCommand.Create;
+  try
+    Ret := Cmd.Execute(['--json'], Ctx);
+    Check('current --json default-unset EXIT_OK', Ret = EXIT_OK);
+    Check('current --json default-unset uses has_default false',
+      StdOut.Contains('"has_default" : false'));
+    Check('current --json default-unset uses null version',
+      StdOut.Contains('"version" : null'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
 procedure TestCurrentUnexpectedArg;
 var Cmd: TLazCurrentCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
@@ -269,6 +514,8 @@ begin
   try
     Ret := Cmd.Execute(['extra'], Ctx);
     Check('current unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('current unexpected arg usage advertises optional json flag',
+      StdErr.Contains('Usage: fpdev lazarus current [--json]'));
   finally Cmd.Free; end;
 end;
 
@@ -411,6 +658,29 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestConfigureMissingInstallDoesNotAppendGenericFailure;
+var
+  Cmd: TLazConfigureCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazConfigureCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('configure missing install EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('configure missing install emits concrete error',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_USE_NOT_INSTALLED, ['3.0'])));
+    Check('configure missing install does not append generic failed',
+      StdErr.LineCount = 1);
+    Check('configure missing install keeps start banner',
+      StdOut.Contains(_Fmt(CMD_LAZARUS_CONFIG_START, ['3.0'])));
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== doctor ===== }
 
 procedure TestDoctorName;
@@ -551,6 +821,48 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestRunMissingCurrentVersionWritesErrorToStderr;
+var
+  Cmd: TLazRunCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazRunCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check('run missing current version EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('run missing current version writes stderr',
+      StdErr.Contains(_(CMD_LAZARUS_RUN_NO_VERSION)));
+    Check('run missing current version keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestRunMissingInstallWritesErrorToStderr;
+var
+  Cmd: TLazRunCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TLazRunCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.0'], Ctx);
+    Check('run missing install EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('run missing install writes stderr',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_RUN_NOT_INSTALLED, ['3.2.0'])));
+    Check('run missing install keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== uninstall ===== }
 
 procedure TestUninstallName;
@@ -646,6 +958,305 @@ begin
     Ret := Cmd.Execute(['--unknown'], Ctx);
     Check('update unknown option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
   finally Cmd.Free; end;
+end;
+
+procedure TestUpdateMissingSourceDoesNotAppendGenericFailure;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_missing_installroot';
+  ForceDirectories(InstallRoot);
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update missing source setup install root', False);
+    Exit;
+  end;
+
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update missing source EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update missing source emits concrete error',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_SOURCE_DIR_NOT_FOUND, [SourceDir])));
+    Check('update missing source does not append generic failed',
+      StdErr.LineCount = 1);
+    Check('update missing source keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateLocalOnlyDoesNotAppendGenericSuccess;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_local_only_installroot';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+  ForceDirectories(SourceDir + PathDelim + 'ide');
+  ForceDirectories(SourceDir + PathDelim + 'lcl');
+  ForceDirectories(SourceDir + PathDelim + 'packager');
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update local-only setup install root', False);
+    Exit;
+  end;
+
+  if not RunCommandInDir('git', ['init'], SourceDir) then
+  begin
+    Check('update local-only setup git init', False);
+    Exit;
+  end;
+
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update local-only EXIT_OK', Ret = EXIT_OK);
+    Check('update local-only emits local-only status',
+      StdOut.Contains(_(MSG_LAZARUS_SOURCE_LOCAL_ONLY) + ' ' + SourceDir));
+    Check('update local-only does not append generic success',
+      StdOut.LineCount = 1);
+    Check('update local-only keeps stderr empty',
+      Trim(StdErr.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDirtyWorktreeShowsNormalizedPullFailure;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_dirty_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update dirty setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedLazarusSourceRepo(InstallRoot, '3.0', SourceDir, SeedDir) then
+  begin
+    Check('update dirty setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'remote-change' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update dirty setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update dirty setup remote push', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'local-uncommitted' + LineEnding);
+
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update dirty EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update dirty emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIRTY_WORKTREE)])));
+    Check('update dirty keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDetachedHeadShowsNormalizedPullFailure;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_detached_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update detached setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedLazarusSourceRepo(InstallRoot, '3.0', SourceDir, SeedDir) then
+  begin
+    Check('update detached setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'remote-change' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update detached setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update detached setup remote push', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['checkout', '--detach', 'HEAD'], SourceDir) then
+  begin
+    Check('update detached setup checkout detach', False);
+    Exit;
+  end;
+
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update detached EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update detached emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DETACHED_HEAD)])));
+    Check('update detached keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateDivergedConflictShowsNormalizedPullFailure;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_diverged_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update diverged setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedLazarusSourceRepo(InstallRoot, '3.0', SourceDir, SeedDir) then
+  begin
+    Check('update diverged setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'local-commit' + LineEnding);
+  if not CommitAll(SourceDir, 'local change') then
+  begin
+    Check('update diverged setup local commit', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'ide' + PathDelim + 'README.txt', 'remote-commit' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update diverged setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update diverged setup remote push', False);
+    Exit;
+  end;
+
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update diverged EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update diverged emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])));
+    Check('update diverged keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateNonConflictingDivergedHistoryFailsFastForwardOnly;
+var
+  Cmd: TLazUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  SourceDir: string;
+  SeedDir: string;
+begin
+  InstallRoot := GTempDir + PathDelim + 'update_ffonly_diverged_installroot';
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  if not SetInstallRoot(Ctx, InstallRoot) then
+  begin
+    Check('update ff-only diverged setup install root', False);
+    Exit;
+  end;
+  if not SetupTrackedLazarusSourceRepo(InstallRoot, '3.0', SourceDir, SeedDir) then
+  begin
+    Check('update ff-only diverged setup tracked repo', False);
+    Exit;
+  end;
+
+  WriteTextFile(SourceDir + PathDelim + 'local.txt', 'local-commit' + LineEnding);
+  if not CommitAll(SourceDir, 'local change') then
+  begin
+    Check('update ff-only diverged setup local commit', False);
+    Exit;
+  end;
+
+  WriteTextFile(SeedDir + PathDelim + 'remote.txt', 'remote-commit' + LineEnding);
+  if not CommitAll(SeedDir, 'remote change') then
+  begin
+    Check('update ff-only diverged setup remote commit', False);
+    Exit;
+  end;
+  if not RunCommandInDir('git', ['push'], SeedDir) then
+  begin
+    Check('update ff-only diverged setup remote push', False);
+    Exit;
+  end;
+
+  Cmd := TLazUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.0'], Ctx);
+    Check('update ff-only diverged EXIT_ERROR', Ret = EXIT_ERROR);
+    Check('update ff-only diverged emits normalized pull failure',
+      StdErr.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])));
+    Check('update ff-only diverged keeps stdout empty',
+      Trim(StdOut.GetBuffer) = '');
+    Check('update ff-only diverged keeps local-only file',
+      FileExists(SourceDir + PathDelim + 'local.txt'));
+    Check('update ff-only diverged does not materialize remote file',
+      not FileExists(SourceDir + PathDelim + 'remote.txt'));
+  finally
+    Cmd.Free;
+  end;
 end;
 
 { ===== test ===== }
@@ -760,12 +1371,17 @@ begin
     TestInstallHelpShort;
     TestInstallHelpUnexpectedArg;
     TestInstallMissingVersion;
+    TestInstallInvalidJobsValue;
+    TestInstallInvalidFromMode;
+    TestInstallEmptyFPCValue;
+    TestInstallUnsupportedVersionDoesNotAppendGenericFailure;
 
     WriteLn('');
     WriteLn('--- list ---');
     TestListName;
     TestListHelp;
     TestListJsonOutput;
+    TestListJsonOutputUsesNullWhenDefaultUnset;
     TestListUnexpectedArg;
     TestListUnknownOption;
 
@@ -782,8 +1398,10 @@ begin
     WriteLn('--- current ---');
     TestCurrentName;
     TestCurrentHelp;
+    TestCurrentHelpAdvertisesJsonUsage;
     TestCurrentNoArgs;
     TestCurrentJsonOutput;
+    TestCurrentJsonOutputUsesNullWhenDefaultUnset;
     TestCurrentUnexpectedArg;
     TestCurrentUnknownOption;
 
@@ -803,6 +1421,7 @@ begin
     TestConfigureMissingVersion;
     TestConfigureUnexpectedArg;
     TestConfigureUnknownOption;
+    TestConfigureMissingInstallDoesNotAppendGenericFailure;
 
     WriteLn('');
     WriteLn('--- doctor ---');
@@ -819,6 +1438,8 @@ begin
     TestRunHelp;
     TestRunUnexpectedArg;
     TestRunUnknownOption;
+    TestRunMissingCurrentVersionWritesErrorToStderr;
+    TestRunMissingInstallWritesErrorToStderr;
 
     WriteLn('');
     WriteLn('--- uninstall ---');
@@ -834,6 +1455,12 @@ begin
     TestUpdateHelp;
     TestUpdateUnexpectedArg;
     TestUpdateUnknownOption;
+    TestUpdateMissingSourceDoesNotAppendGenericFailure;
+    TestUpdateLocalOnlyDoesNotAppendGenericSuccess;
+    TestUpdateDirtyWorktreeShowsNormalizedPullFailure;
+    TestUpdateDetachedHeadShowsNormalizedPullFailure;
+    TestUpdateDivergedConflictShowsNormalizedPullFailure;
+    TestUpdateNonConflictingDivergedHistoryFailsFastForwardOnly;
 
     WriteLn('');
     WriteLn('--- test ---');

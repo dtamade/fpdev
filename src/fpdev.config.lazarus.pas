@@ -81,6 +81,8 @@ begin
     if Index >= 0 then
     begin
       FVersions.Delete(Index);
+      if SameText(FDefaultVersion, AName) then
+        FDefaultVersion := '';
       if Assigned(FNotifier) then
         FNotifier.NotifyConfigChanged;
       Result := True;
@@ -180,6 +182,9 @@ begin
         FVersions.Values[Key] := VersionsJSON.Items[I].AsJSON;
       end;
     end;
+
+    if (FDefaultVersion <> '') and (FVersions.IndexOfName(FDefaultVersion) < 0) then
+      FDefaultVersion := '';
   end;
 end;
 

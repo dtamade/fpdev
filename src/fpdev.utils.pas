@@ -117,6 +117,34 @@ implementation
 function c_setenv(name, value: PChar; overwrite: cint): cint; cdecl; external 'c' name 'setenv';
 function c_unsetenv(name: PChar): cint; cdecl; external 'c' name 'unsetenv';
 function c_getenv(name: PChar): PChar; cdecl; external 'c' name 'getenv';
+var
+  environ: PPAnsiChar; cvar; external;
+
+procedure SyncUnixEnvSnapshot;
+begin
+  if environ <> nil then
+    envp := environ;
+end;
+{$ENDIF}
+
+{$IFDEF MSWINDOWS}
+type
+  // Some Windows FPC toolchains do not expose the Ex memory API in the Windows unit.
+  TFPDevMemoryStatusEx = record
+    dwLength: DWORD;
+    dwMemoryLoad: DWORD;
+    ullTotalPhys: UInt64;
+    ullAvailPhys: UInt64;
+    ullTotalPageFile: UInt64;
+    ullAvailPageFile: UInt64;
+    ullTotalVirtual: UInt64;
+    ullAvailVirtual: UInt64;
+    ullAvailExtendedVirtual: UInt64;
+  end;
+  PFPDevMemoryStatusEx = ^TFPDevMemoryStatusEx;
+
+function FpdevGlobalMemoryStatusEx(lpBuffer: PFPDevMemoryStatusEx): BOOL; stdcall;
+  external 'kernel32.dll' name 'GlobalMemoryStatusEx';
 {$ENDIF}
 
 // Essential implementations
@@ -187,6 +215,8 @@ function unset_env(const aName: string): Boolean;
 begin
   {$IFDEF UNIX}
   Result := c_unsetenv(PChar(aName)) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   Result := SetEnvironmentVariableW(PWideChar(UTF8Decode(aName)), nil);
@@ -203,6 +233,8 @@ begin
     Result := c_unsetenv(PChar(aName)) = 0
   else
     Result := c_setenv(PChar(aName), PChar(aValue), 1) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   if aValue = '' then
@@ -237,13 +269,13 @@ end;
 function get_hostname: string;
 begin
   {$IFDEF UNIX}
-  Result := GetEnvironmentVariable('HOSTNAME');
+  Result := SysUtils.GetEnvironmentVariable('HOSTNAME');
   if Result = '' then
-    Result := GetEnvironmentVariable('HOST');
+    Result := SysUtils.GetEnvironmentVariable('HOST');
   if Result = '' then
     Result := 'localhost';
   {$ELSE}
-  Result := GetEnvironmentVariable('COMPUTERNAME');
+  Result := SysUtils.GetEnvironmentVariable('COMPUTERNAME');
   if Result = '' then
     Result := 'localhost';
   {$ENDIF}
@@ -302,6 +334,10 @@ var
   MemFree: Int64;
   Code: Integer;
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  MemStatus: TFPDevMemoryStatusEx;
+{$ENDIF}
 begin
   Result := 0;
   {$IFDEF UNIX}
@@ -339,19 +375,16 @@ begin
     end;
   end;
   {$ELSE}
-    {$IFDEF MSWINDOWS}
-  var
-    MemStatus: TMemoryStatusEx;
-  begin
+  {$IFDEF MSWINDOWS}
+    FillChar(MemStatus, SizeOf(MemStatus), 0);
     MemStatus.dwLength := SizeOf(MemStatus);
-    if GlobalMemoryStatusEx(MemStatus) then
-      Result := MemStatus.ullAvailPhys
+    if FpdevGlobalMemoryStatusEx(@MemStatus) then
+      Result := UInt64(MemStatus.ullAvailPhys)
     else
       Result := 0;
-  end;
-    {$ELSE}
+  {$ELSE}
   Result := 0;
-    {$ENDIF}
+  {$ENDIF}
   {$ENDIF}
 end;
 
@@ -365,7 +398,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -399,15 +432,16 @@ begin
     end;
   end;
   {$ELSE}
-    {$IFDEF MSWINDOWS}
+  {$IFDEF MSWINDOWS}
+  FillChar(MemStatus, SizeOf(MemStatus), 0);
   MemStatus.dwLength := SizeOf(MemStatus);
-  if GlobalMemoryStatusEx(MemStatus) then
-    Result := MemStatus.ullTotalPhys
+  if FpdevGlobalMemoryStatusEx(@MemStatus) then
+    Result := UInt64(MemStatus.ullTotalPhys)
   else
     Result := 0;
-    {$ELSE}
+  {$ELSE}
   Result := 0;
-    {$ENDIF}
+  {$ENDIF}
   {$ENDIF}
 end;
 

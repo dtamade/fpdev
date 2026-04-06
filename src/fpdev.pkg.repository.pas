@@ -164,6 +164,7 @@ var
   Names: TStringArray;
   i, j: Integer;
   RepoURL: string;
+  RepoName: string;
   Combined: TJSONArray;
   Err: string;
   CacheDir, IndexPath, TmpPath: string;
@@ -195,7 +196,8 @@ begin
 
       for i := 0 to High(Names) do
       begin
-        RepoURL := Trim(FConfigManager.GetRepositoryManager.GetRepository(Names[i]));
+        RepoName := Names[i];
+        RepoURL := Trim(FConfigManager.GetRepositoryManager.GetRepository(RepoName));
         if RepoURL = '' then
           Continue;
 
@@ -207,68 +209,79 @@ begin
         IsFileURL := (LeftStr(LowerCase(RepoURL), 7) = 'file://');
         SL := TStringList.Create;
         try
-          if IsFileURL then
-          begin
-            LocalFile := Copy(RepoURL, 8, MaxInt);
-            {$IFDEF MSWINDOWS}
-            // Windows: file:///C:/... -> C:/...
-            while (Length(LocalFile) > 0) and
-              ((LocalFile[1] = CHAR_FORWARD_SLASH) or (LocalFile[1] = '\')) do
-              Delete(LocalFile, 1, 1);
-            {$ELSE}
-            // Unix: file:///home/... -> /home/... (keep one leading slash)
-            while (Length(LocalFile) > 1) and
-              (LocalFile[1] = CHAR_FORWARD_SLASH) and
-              (LocalFile[2] = CHAR_FORWARD_SLASH) do
-              Delete(LocalFile, 1, 1);
-            {$ENDIF}
-            LocalFile := StringReplace(
-              LocalFile, CHAR_FORWARD_SLASH, PathDelim, [rfReplaceAll]
-            );
-            if FileExists(LocalFile) then
-              SL.LoadFromFile(LocalFile)
+          try
+            if IsFileURL then
+            begin
+              LocalFile := Copy(RepoURL, 8, MaxInt);
+              {$IFDEF MSWINDOWS}
+              // Windows: file:///C:/... -> C:/...
+              while (Length(LocalFile) > 0) and
+                ((LocalFile[1] = CHAR_FORWARD_SLASH) or (LocalFile[1] = '\')) do
+                Delete(LocalFile, 1, 1);
+              {$ELSE}
+              // Unix: file:///home/... -> /home/... (keep one leading slash)
+              while (Length(LocalFile) > 1) and
+                (LocalFile[1] = CHAR_FORWARD_SLASH) and
+                (LocalFile[2] = CHAR_FORWARD_SLASH) do
+                Delete(LocalFile, 1, 1);
+              {$ENDIF}
+              LocalFile := StringReplace(
+                LocalFile, CHAR_FORWARD_SLASH, PathDelim, [rfReplaceAll]
+              );
+              if FileExists(LocalFile) then
+                SL.LoadFromFile(LocalFile)
+              else
+                Continue;
+            end
             else
-              Continue;
-          end
-          else
-          begin
-            // Download to temp file
-            SetLength(URLs, 1);
-            URLs[0] := RepoURL;
-            Opt.DestDir := CacheDir;
-            Opt.Hash := '';
-            Opt.HashAlgorithm := haUnknown;
-            Opt.HashDigest := '';
-            Opt.TimeoutMS := 15000;
-            Opt.ExpectedSize := 0;
-            if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
-              Continue;
-            SL.LoadFromFile(TmpPath);
-          end;
+            begin
+              // Download to temp file
+              SetLength(URLs, 1);
+              URLs[0] := RepoURL;
+              Opt.DestDir := CacheDir;
+              Opt.Hash := '';
+              Opt.HashAlgorithm := haUnknown;
+              Opt.HashDigest := '';
+              Opt.TimeoutMS := 15000;
+              Opt.ExpectedSize := 0;
+              if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
+                Continue;
+              SL.LoadFromFile(TmpPath);
+            end;
 
-          // Read and merge packages array
-          JSONData := GetJSON(SL.Text);
-          Arr := nil;
-          if JSONData.JSONType = jtArray then
-            Arr := TJSONArray(JSONData)
-          else if (JSONData.JSONType = jtObject) and Assigned(TJSONObject(JSONData).Arrays['packages']) then
-            Arr := TJSONObject(JSONData).Arrays['packages'];
+            // Read and merge packages array
+            JSONData := GetJSON(SL.Text);
+            Arr := nil;
+            if JSONData.JSONType = jtArray then
+              Arr := TJSONArray(JSONData)
+            else if (JSONData.JSONType = jtObject) and Assigned(TJSONObject(JSONData).Arrays['packages']) then
+              Arr := TJSONObject(JSONData).Arrays['packages'];
 
-          if Arr <> nil then
-          begin
-            // Merge into Combined: clone each element
-            for j := 0 to Arr.Count - 1 do
-              Combined.Add(Arr.Items[j].Clone as TJSONData);
-          end
-          else
-          begin
-            // If object without packages array, try treating object as single package info
-            if JSONData.JSONType = jtObject then
-              Combined.Add(JSONData.Clone as TJSONData);
+            if Arr <> nil then
+            begin
+              // Merge into Combined: clone each element
+              for j := 0 to Arr.Count - 1 do
+                Combined.Add(Arr.Items[j].Clone as TJSONData);
+            end
+            else
+            begin
+              // If object without packages array, try treating object as single package info
+              if JSONData.JSONType = jtObject then
+                Combined.Add(JSONData.Clone as TJSONData);
+            end;
+          except
+            on E: Exception do
+            begin
+              if Errp <> nil then
+                Errp.WriteLn('Skipping repository "' + RepoName + '": ' + E.Message);
+            end;
           end;
         finally
           if Assigned(JSONData) then
+          begin
             JSONData.Free;
+            JSONData := nil;
+          end;
           SL.Free;
         end;
       end;

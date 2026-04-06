@@ -154,7 +154,6 @@ end;
 procedure TestUpdateValidGitRepository;
 var
   TestSourceDir: string;
-  GitDir: string;
   Process: TProcess;
   TestFile: TextFile;
   Success: Boolean;
@@ -268,6 +267,65 @@ begin
   end;
 end;
 
+procedure TestUpdateUsesCurrentVersionWhenVersionBlank;
+var
+  CurrentSourceDir: string;
+  Process: TProcess;
+  Success: Boolean;
+  Toolchain: TToolchainInfo;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: UpdateSources uses current version when version blank');
+  WriteLn('==================================================');
+
+  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  ForceDirectories(CurrentSourceDir);
+
+  Toolchain := Default(TToolchainInfo);
+  Toolchain.Version := 'currentver';
+  Toolchain.InstallPath := CurrentSourceDir;
+  Toolchain.Installed := True;
+  if not ConfigManager.GetToolchainManager.AddToolchain('fpc-currentver', Toolchain) then
+  begin
+    WriteLn('Failed: Could not register current FPC toolchain for blank update test');
+    Halt(1);
+  end;
+
+  if not ConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-currentver') then
+  begin
+    WriteLn('Failed: Could not seed current FPC version for blank update test');
+    Halt(1);
+  end;
+
+  Process := TProcess.Create(nil);
+  try
+    Process.Executable := 'git';
+    Process.Parameters.Add('init');
+    Process.CurrentDirectory := CurrentSourceDir;
+    Process.Options := Process.Options + [poWaitOnExit, poUsePipes];
+    Process.Execute;
+
+    if Process.ExitStatus <> 0 then
+    begin
+      WriteLn('Failed: Could not initialize current-version git repository');
+      Halt(1);
+    end;
+  finally
+    Process.Free;
+  end;
+
+  Success := FPCManager.UpdateSources('');
+
+  if not Success then
+  begin
+    WriteLn('Failed: Expected UpdateSources("") to use current version instead of main');
+    Halt(1);
+  end;
+
+  WriteLn('Passed: UpdateSources uses current version when version blank');
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('  FPC Update Functionality Test Suite');
@@ -294,6 +352,9 @@ begin
 
         // Test 3: Update valid git repository
         TestUpdateValidGitRepository;
+
+        // Test 4: Blank version uses current version
+        TestUpdateUsesCurrentVersionWhenVersionBlank;
 
         WriteLn;
         WriteLn('========================================');

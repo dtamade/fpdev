@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 import tempfile
@@ -11,10 +12,32 @@ ZSH_COMPLETION = REPO_ROOT / 'scripts' / 'completions' / '_fpdev'
 DUMP_SOURCE = REPO_ROOT / 'tests' / 'cli_surface_dump.lpr'
 
 
+def resolve_python_test_temp_root() -> str:
+    candidate = os.environ.get('FPDEV_TEST_TMPDIR', '').strip()
+    if candidate == '':
+        candidate = os.environ.get('TMPDIR', '').strip()
+    if candidate == '':
+        candidate = os.environ.get('TMP', '').strip()
+    if candidate == '':
+        candidate = os.environ.get('TEMP', '').strip()
+
+    if candidate != '':
+        root = Path(candidate).expanduser()
+    else:
+        fallback_root = REPO_ROOT / '.tmp-pytest'
+        root = fallback_root
+
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root)
+
+
 class CliSurfaceConsistencyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._temp_dir = tempfile.TemporaryDirectory(prefix='fpdev-cli-surface-')
+        cls._temp_dir = tempfile.TemporaryDirectory(
+            prefix='fpdev-cli-surface-',
+            dir=resolve_python_test_temp_root(),
+        )
         temp_root = Path(cls._temp_dir.name)
         dump_bin_dir = temp_root / 'bin'
         dump_lib_dir = temp_root / 'lib'

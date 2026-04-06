@@ -50,7 +50,7 @@ function EnsureResourceRepoManifestLoadedCore(
 implementation
 
 uses
-  Classes, jsonparser;
+  Classes, jsonparser, fpdev.resource.repo.statusflow;
 
 function ExecuteResourceRepoInitializeCore(
   const ALocalPath, APrimaryURL: string;
@@ -159,7 +159,7 @@ begin
   end;
 
   LogLine(Format('Resource repository is up to date (last check: %s)', [
-    DateTimeToStr(ALastUpdateCheck)
+    FormatResourceRepoLastUpdateCheck(ALastUpdateCheck)
   ]));
   Result := True;
 end;

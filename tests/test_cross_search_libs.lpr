@@ -3,37 +3,15 @@ program test_cross_search_libs;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_temp_paths,
   fpdev.config.interfaces,
-  fpdev.cross.search, fpdev.utils.fs;
+  fpdev.cross.search;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
 procedure Check(const ACondition: Boolean; const ATestName: string); forward;
-
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64);
-  ForceDirectories(Result);
-end;
-
-procedure CleanupTempDir(const ADir: string);
-begin
-  if (ADir <> '') and DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
-procedure AssertUsesSystemTempPath(const APath, ALabel: string);
-begin
-  Check(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ALabel + ' lives under system temp'
-  );
-end;
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -70,8 +48,8 @@ begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a temp directory to use as configured path
-    TmpDir := MakeTempDir('fpdev_test_libs');
-    AssertUsesSystemTempPath(TmpDir, 'ConfiguredFirst temp dir');
+    TmpDir := CreateUniqueTempDir('fpdev_test_libs');
+    Check(PathUsesSystemTempRoot(TmpDir), 'ConfiguredFirst temp dir lives under system temp');
     NestedDir := IncludeTrailingPathDelimiter(TmpDir) + 'nested';
     ForceDirectories(NestedDir);
 
@@ -117,8 +95,8 @@ begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a temp dir that could match multiple paths
-    TmpDir := MakeTempDir('fpdev_test_dedup');
-    AssertUsesSystemTempPath(TmpDir, 'Dedup temp dir');
+    TmpDir := CreateUniqueTempDir('fpdev_test_dedup');
+    Check(PathUsesSystemTempRoot(TmpDir), 'Dedup temp dir lives under system temp');
 
     T := MakeTarget('arm', 'linux');
     T.LibrariesPath := TmpDir;
@@ -340,8 +318,8 @@ begin
   S := TCrossToolchainSearch.Create;
   try
     // Create a fake toolchain
-    TmpDir := MakeTempDir('fpdev_test_diag');
-    AssertUsesSystemTempPath(TmpDir, 'Diagnose temp dir');
+    TmpDir := CreateUniqueTempDir('fpdev_test_diag');
+    Check(PathUsesSystemTempRoot(TmpDir), 'Diagnose temp dir lives under system temp');
     ToolPath := TmpDir + PathDelim + 'test-diag-as';
     with TFileStream.Create(ToolPath, fmCreate) do Free;
 
@@ -375,10 +353,10 @@ var
 begin
   S := TCrossToolchainSearch.Create;
   try
-    TmpDir1 := MakeTempDir('fpdev_test_multi1');
-    TmpDir2 := MakeTempDir('fpdev_test_multi2');
-    AssertUsesSystemTempPath(TmpDir1, 'MultipleDirs temp dir 1');
-    AssertUsesSystemTempPath(TmpDir2, 'MultipleDirs temp dir 2');
+    TmpDir1 := CreateUniqueTempDir('fpdev_test_multi1');
+    TmpDir2 := CreateUniqueTempDir('fpdev_test_multi2');
+    Check(PathUsesSystemTempRoot(TmpDir1), 'MultipleDirs temp dir 1 lives under system temp');
+    Check(PathUsesSystemTempRoot(TmpDir2), 'MultipleDirs temp dir 2 lives under system temp');
 
     // Create a target with configured path, and create another dir that could match
     // a multiarch path (simulated by creating the dir)

@@ -150,6 +150,7 @@ const
   HELP_FPC_LIST_DESC = 'help.fpc.list.desc';
   HELP_FPC_LIST_OPTIONS = 'help.fpc.list.options';
   HELP_FPC_LIST_OPT_ALL = 'help.fpc.list.opt.all';
+  HELP_FPC_LIST_OPT_JSON = 'help.fpc.list.opt.json';
   HELP_FPC_LIST_OPT_HELP = 'help.fpc.list.opt.help';
   HELP_FPC_USE_USAGE = 'help.fpc.use.usage';
   HELP_FPC_USE_DESC = 'help.fpc.use.desc';
@@ -158,6 +159,7 @@ const
   HELP_FPC_USE_OPT_HELP = 'help.fpc.use.opt.help';
   HELP_FPC_CURRENT_USAGE = 'help.fpc.current.usage';
   HELP_FPC_CURRENT_DESC = 'help.fpc.current.desc';
+  HELP_FPC_CURRENT_OPT_JSON = 'help.fpc.current.opt.json';
   HELP_FPC_CURRENT_OPT_HELP = 'help.fpc.current.opt.help';
   HELP_FPC_SHOW_USAGE = 'help.fpc.show.usage';
   HELP_FPC_SHOW_DESC = 'help.fpc.show.desc';
@@ -191,12 +193,14 @@ const
   HELP_LAZARUS_LIST_DESC = 'help.lazarus.list.desc';
   HELP_LAZARUS_LIST_OPTIONS = 'help.lazarus.list.options';
   HELP_LAZARUS_LIST_OPT_ALL = 'help.lazarus.list.opt.all';
+  HELP_LAZARUS_LIST_OPT_JSON = 'help.lazarus.list.opt.json';
   HELP_LAZARUS_LIST_OPT_HELP = 'help.lazarus.list.opt.help';
   HELP_LAZARUS_USE_USAGE = 'help.lazarus.use.usage';
   HELP_LAZARUS_USE_DESC = 'help.lazarus.use.desc';
   HELP_LAZARUS_USE_OPT_HELP = 'help.lazarus.use.opt.help';
   HELP_LAZARUS_CURRENT_USAGE = 'help.lazarus.current.usage';
   HELP_LAZARUS_CURRENT_DESC = 'help.lazarus.current.desc';
+  HELP_LAZARUS_CURRENT_OPT_JSON = 'help.lazarus.current.opt.json';
   HELP_LAZARUS_CURRENT_OPT_HELP = 'help.lazarus.current.opt.help';
   HELP_LAZARUS_SHOW_USAGE = 'help.lazarus.show.usage';
   HELP_LAZARUS_SHOW_DESC = 'help.lazarus.show.desc';
@@ -229,6 +233,7 @@ const
   HELP_PROJECT_NEW_OPT_HELP = 'help.project.new.opt.help';
   HELP_PROJECT_LIST_USAGE = 'help.project.list.usage';
   HELP_PROJECT_LIST_DESC = 'help.project.list.desc';
+  HELP_PROJECT_LIST_OPT_JSON = 'help.project.list.opt.json';
   HELP_PROJECT_LIST_OPT_HELP = 'help.project.list.opt.help';
   HELP_PROJECT_BUILD_USAGE = 'help.project.build.usage';
   HELP_PROJECT_BUILD_DESC = 'help.project.build.desc';
@@ -330,6 +335,7 @@ const
   HELP_CROSS_LIST_DESC = 'help.cross.list.desc';
   HELP_CROSS_LIST_OPTIONS = 'help.cross.list.options';
   HELP_CROSS_LIST_OPT_ALL = 'help.cross.list.opt.all';
+  HELP_CROSS_LIST_OPT_JSON = 'help.cross.list.opt.json';
   HELP_CROSS_LIST_OPT_HELP = 'help.cross.list.opt.help';
   HELP_CROSS_INSTALL_USAGE = 'help.cross.install.usage';
   HELP_CROSS_INSTALL_DESC = 'help.cross.install.desc';
@@ -468,6 +474,12 @@ const
   CMD_LAZARUS_INSTALL_START = 'cmd.lazarus.install.start';
   CMD_LAZARUS_INSTALL_DONE = 'cmd.lazarus.install.done';
   CMD_LAZARUS_INSTALL_FAILED = 'cmd.lazarus.install.failed';
+  CMD_LAZARUS_UPDATE_DONE = 'cmd.lazarus.update.done';
+  CMD_LAZARUS_NO_GIT_BACKEND = 'cmd.lazarus.no_git_backend';
+  CMD_LAZARUS_GIT_PULL_FAILED = 'cmd.lazarus.git_pull_failed';
+  CMD_LAZARUS_NOT_GIT_REPO = 'cmd.lazarus.not_git_repo';
+  CMD_LAZARUS_SOURCE_DIR_NOT_FOUND = 'cmd.lazarus.source_dir_not_found';
+  CMD_LAZARUS_INVALID_SOURCE_DIR = 'cmd.lazarus.invalid_source_dir';
   CMD_LAZARUS_UNSUPPORTED_VERSION = 'cmd.lazarus.unsupported_version';
   CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED = 'cmd.lazarus.source_download_failed';
   CMD_LAZARUS_SOURCE_BUILD_FAILED = 'cmd.lazarus.source_build_failed';
@@ -856,6 +868,10 @@ const
   MSG_FPC_STEP_EXTRACT_BIN = 'msg.fpc.step_extract_bin';
   MSG_FPC_STEP_SETUP_BIN = 'msg.fpc.step_setup_bin';
   MSG_FPC_SOURCE_LOCAL_ONLY = 'msg.fpc.source_local_only';
+  MSG_LAZARUS_SOURCE_LOCAL_ONLY = 'msg.lazarus.source_local_only';
+  MSG_GIT_UPDATE_DIRTY_WORKTREE = 'msg.git.update.dirty_worktree';
+  MSG_GIT_UPDATE_DETACHED_HEAD = 'msg.git.update.detached_head';
+  MSG_GIT_UPDATE_DIVERGED_HISTORY = 'msg.git.update.diverged_history';
   MSG_FPC_INSTALL_DATE = 'msg.fpc.install_date';
   MSG_FPC_SOURCE_URL = 'msg.fpc.source_url';
 
@@ -1019,18 +1035,20 @@ begin
   T(HELP_FPC_INSTALL_OPT_JOBS,  '  --jobs=<n>       Number of parallel jobs for compilation',                  '  --jobs=<n>       编译并行任务数');
   T(HELP_FPC_INSTALL_OPT_PREFIX,'  --prefix=<dir>   Custom installation prefix',                               '  --prefix=<目录>  自定义安装路径');
   T(HELP_FPC_INSTALL_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
-  T(HELP_FPC_LIST_USAGE,        'Usage: fpdev fpc list [--all]',                                               '用法: fpdev fpc list [--all]');
+  T(HELP_FPC_LIST_USAGE,        'Usage: fpdev fpc list [--all] [--json]',                                      '用法: fpdev fpc list [--all] [--json]');
   T(HELP_FPC_LIST_DESC,         'List installed FPC versions. Use --all to show available remote versions.',   '列出已安装的 FPC 版本。使用 --all 显示可用的远程版本。');
   T(HELP_FPC_LIST_OPTIONS,      'Options:',                                                                    '选项:');
   T(HELP_FPC_LIST_OPT_ALL,      '  --all            Show all available versions (local and remote)',          '  --all            显示所有可用版本（本地和远程）');
+  T(HELP_FPC_LIST_OPT_JSON,     '  --json           Output in JSON format',                                   '  --json           以 JSON 格式输出');
   T(HELP_FPC_LIST_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
   T(HELP_FPC_USE_USAGE,         'Usage: fpdev fpc use <version> [--ensure]',                                   '用法: fpdev fpc use <版本> [--ensure]');
   T(HELP_FPC_USE_DESC,          'Switch to a specific FPC version and generate activation scripts.',          '切换到指定的 FPC 版本并生成激活脚本。');
   T(HELP_FPC_USE_OPTIONS,       'Options:',                                                                    '选项:');
   T(HELP_FPC_USE_OPT_ENSURE,    '  --ensure         Auto-install if version is not installed',                '  --ensure         如果版本未安装则自动安装');
   T(HELP_FPC_USE_OPT_HELP,      '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
-  T(HELP_FPC_CURRENT_USAGE,     'Usage: fpdev fpc current',                                                    '用法: fpdev fpc current');
+  T(HELP_FPC_CURRENT_USAGE,     'Usage: fpdev fpc current [--json]',                                           '用法: fpdev fpc current [--json]');
   T(HELP_FPC_CURRENT_DESC,      'Show the currently active FPC version.',                                      '显示当前激活的 FPC 版本。');
+  T(HELP_FPC_CURRENT_OPT_JSON,  '  --json           Output in JSON format',                                    '  --json           以 JSON 格式输出');
   T(HELP_FPC_CURRENT_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
   T(HELP_FPC_SHOW_USAGE,        'Usage: fpdev fpc show <version>',                                             '用法: fpdev fpc show <版本>');
   T(HELP_FPC_SHOW_DESC,         'Show detailed information about a specific FPC version.',                     '显示指定 FPC 版本的详细信息。');
@@ -1041,8 +1059,8 @@ begin
   T(HELP_FPC_TEST_USAGE,        'Usage: fpdev fpc test [version]',                                             '用法: fpdev fpc test [版本]');
   T(HELP_FPC_TEST_DESC,         'Test FPC installation by compiling a simple program.',                        '通过编译简单程序测试 FPC 安装。');
   T(HELP_FPC_TEST_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
-  T(HELP_FPC_UPDATE_USAGE,      'Usage: fpdev fpc update <version>',                                           '用法: fpdev fpc update <版本>');
-  T(HELP_FPC_UPDATE_DESC,       'Update an installed FPC version to the latest patch.',                        '将已安装的 FPC 版本更新到最新补丁。');
+  T(HELP_FPC_UPDATE_USAGE,      'Usage: fpdev fpc update [version]',                                           '用法: fpdev fpc update [版本]');
+  T(HELP_FPC_UPDATE_DESC,       'Update the FPC index or an installed FPC version''s sources.',               '更新 FPC 索引或指定已安装版本的源码。');
   T(HELP_FPC_UPDATE_OPT_HELP,   '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
   T(HELP_FPC_UNINSTALL_USAGE,   'Usage: fpdev fpc uninstall <version>',                                         '用法: fpdev fpc uninstall <版本>');
   T(HELP_FPC_UNINSTALL_DESC,    'Uninstall an FPC version.',                                                    '卸载指定的 FPC 版本。');
@@ -1064,12 +1082,14 @@ begin
   T(HELP_LAZARUS_LIST_DESC,          'List installed Lazarus versions.',                                       '列出已安装的 Lazarus 版本。');
   T(HELP_LAZARUS_LIST_OPTIONS,       'Options:',                                                               '选项:');
   T(HELP_LAZARUS_LIST_OPT_ALL,       '  --all            Show all available versions',                         '  --all            显示所有可用版本');
+  T(HELP_LAZARUS_LIST_OPT_JSON,      '  --json           Output in JSON format',                               '  --json           以 JSON 格式输出');
   T(HELP_LAZARUS_LIST_OPT_HELP,      '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
   T(HELP_LAZARUS_USE_USAGE,          'Usage: fpdev lazarus use <version>',                                     '用法: fpdev lazarus use <版本>');
   T(HELP_LAZARUS_USE_DESC,           'Set the default Lazarus version.',                                       '设置默认 Lazarus 版本。');
   T(HELP_LAZARUS_USE_OPT_HELP,       '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
-  T(HELP_LAZARUS_CURRENT_USAGE,      'Usage: fpdev lazarus current',                                           '用法: fpdev lazarus current');
+  T(HELP_LAZARUS_CURRENT_USAGE,      'Usage: fpdev lazarus current [--json]',                                  '用法: fpdev lazarus current [--json]');
   T(HELP_LAZARUS_CURRENT_DESC,       'Show the current default Lazarus version.',                              '显示当前默认 Lazarus 版本。');
+  T(HELP_LAZARUS_CURRENT_OPT_JSON,   '  --json           Output in JSON format',                               '  --json           以 JSON 格式输出');
   T(HELP_LAZARUS_CURRENT_OPT_HELP,   '  --help, -h       Show this help message',                              '  --help, -h       显示此帮助信息');
   T(HELP_LAZARUS_SHOW_USAGE,         'Usage: fpdev lazarus show <version>',                                    '用法: fpdev lazarus show <版本>');
   T(HELP_LAZARUS_SHOW_DESC,          'Show details of a Lazarus installation.',                                '显示 Lazarus 安装详情。');
@@ -1100,8 +1120,9 @@ begin
   T(HELP_PROJECT_NEW_DESC,      'Create a new project from a template.',                                       '从模板创建新项目。');
   T(HELP_PROJECT_NEW_EXAMPLE,   'Example: fpdev project new console hello-world',                              '示例: fpdev project new console hello-world');
   T(HELP_PROJECT_NEW_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
-  T(HELP_PROJECT_LIST_USAGE,    'Usage: fpdev project list',                                                   '用法: fpdev project list');
+  T(HELP_PROJECT_LIST_USAGE,    'Usage: fpdev project list [--json]',                                          '用法: fpdev project list [--json]');
   T(HELP_PROJECT_LIST_DESC,     'List available project templates.',                                           '列出可用的项目模板。');
+  T(HELP_PROJECT_LIST_OPT_JSON, '  --json           Output in JSON format',                                    '  --json           以 JSON 格式输出');
   T(HELP_PROJECT_LIST_OPT_HELP, '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
   T(HELP_PROJECT_BUILD_USAGE,   'Usage: fpdev project build [dir] [target]',                                   '用法: fpdev project build [目录] [目标]');
   T(HELP_PROJECT_BUILD_DESC,    'Build the project.',                                                          '构建项目。');
@@ -1142,7 +1163,7 @@ begin
   T(HELP_PACKAGE_LIST_OPT_ALL,     '  --all, -a        Show all available packages',                           '  --all, -a        显示所有可用包');
   T(HELP_PACKAGE_LIST_OPT_JSON,    '  --json           Output in JSON format',                                 '  --json           以 JSON 格式输出');
   T(HELP_PACKAGE_LIST_OPT_HELP,    '  --help, -h       Show this help message',                                '  --help, -h       显示此帮助信息');
-  T(HELP_PACKAGE_SEARCH_USAGE,     'Usage: fpdev package search <query>',                                      '用法: fpdev package search <关键词>');
+  T(HELP_PACKAGE_SEARCH_USAGE,     'Usage: fpdev package search <query> [--json]',                             '用法: fpdev package search <关键词> [--json]');
   T(HELP_PACKAGE_SEARCH_DESC,      'Search for packages.',                                                     '搜索包。');
   T(HELP_PACKAGE_SEARCH_EXAMPLE,   'Example: fpdev package search json',                                       '示例: fpdev package search json');
   T(HELP_PACKAGE_SEARCH_OPT_JSON,  '  --json           Output in JSON format',                                 '  --json           以 JSON 格式输出');
@@ -1202,10 +1223,11 @@ begin
   T(HELP_CROSS_LIST_DESC,              'List cross-compilation targets.',                                         '列出交叉编译目标。');
   T(HELP_CROSS_LIST_OPTIONS,           'Options:',                                                                '选项:');
   T(HELP_CROSS_LIST_OPT_ALL,           '  --all            Show all available targets',                           '  --all            显示所有可用目标');
+  T(HELP_CROSS_LIST_OPT_JSON,          '  --json           Output in JSON format',                                '  --json           以 JSON 格式输出');
   T(HELP_CROSS_LIST_OPT_HELP,          '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
   T(HELP_CROSS_INSTALL_USAGE,          'Usage: fpdev cross install <target>',                                     '用法: fpdev cross install <目标>');
   T(HELP_CROSS_INSTALL_DESC,           'Install a cross-compilation target.',                                     '安装交叉编译目标。');
-  T(HELP_CROSS_INSTALL_EXAMPLE,        'Example: fpdev cross install win64',                                      '示例: fpdev cross install win64');
+  T(HELP_CROSS_INSTALL_EXAMPLE,        'Example: fpdev cross install x86_64-win64',                               '示例: fpdev cross install x86_64-win64');
   T(HELP_CROSS_INSTALL_OPT_HELP,       '  --help, -h       Show this help message',                               '  --help, -h       显示此帮助信息');
   T(HELP_CROSS_UNINSTALL_USAGE,        'Usage: fpdev cross uninstall <target>',                                   '用法: fpdev cross uninstall <目标>');
   T(HELP_CROSS_UNINSTALL_DESC,         'Uninstall a cross-compilation target.',                                   '卸载交叉编译目标。');
@@ -1344,6 +1366,12 @@ begin
   T(CMD_LAZARUS_INSTALL_START,   'Installing Lazarus %s...',               '正在安装 Lazarus %s...');
   T(CMD_LAZARUS_INSTALL_DONE,    'Lazarus %s installed successfully',      'Lazarus %s 安装成功');
   T(CMD_LAZARUS_INSTALL_FAILED,  'Installation failed',                    '安装失败');
+  T(CMD_LAZARUS_UPDATE_DONE,     'Lazarus sources updated successfully',   'Lazarus 源码更新成功');
+  T(CMD_LAZARUS_NO_GIT_BACKEND,  'No Git backend available (neither libgit2 nor git command found)', '没有可用的 Git 后端 (未找到 libgit2 或 git 命令)');
+  T(CMD_LAZARUS_GIT_PULL_FAILED, 'Git pull failed: %s',                    'Git 拉取失败: %s');
+  T(CMD_LAZARUS_NOT_GIT_REPO,    'Directory is not a git repository: %s',  '目录不是 git 仓库: %s');
+  T(CMD_LAZARUS_SOURCE_DIR_NOT_FOUND, 'Lazarus source directory not found: %s', 'Lazarus 源码目录不存在: %s');
+  T(CMD_LAZARUS_INVALID_SOURCE_DIR, 'Invalid Lazarus source directory: %s', '无效的 Lazarus 源码目录: %s');
   T(CMD_LAZARUS_UNSUPPORTED_VERSION, 'Unsupported Lazarus version: %s',    '不支持的 Lazarus 版本: %s');
   T(CMD_LAZARUS_SOURCE_DOWNLOAD_FAILED, 'Source download failed',          '源码下载失败');
   T(CMD_LAZARUS_SOURCE_BUILD_FAILED, 'Source compilation failed',          '源码编译失败');
@@ -1733,7 +1761,7 @@ begin
   T(MSG_CROSS_BUILD_TARGET_OS,       '  Target OS: %s',                    '  目标 OS: %s');
   T(MSG_CROSS_URL,                   '  URL: %s',                          '  URL: %s');
   T(MSG_CROSS_INSTALL_HINT,          '  fpdev cross install %s',           '  fpdev cross install %s');
-  T(MSG_CROSS_CONFIGURE_HINT,        '  fpdev cross configure %s --binutils=/path/to/bin --libs=/path/to/libs', '  fpdev cross configure %s --binutils=/path/to/bin --libs=/path/to/libs');
+  T(MSG_CROSS_CONFIGURE_HINT,        '  fpdev cross configure %s --binutils=/path/to/bin --libraries=/path/to/libs', '  fpdev cross configure %s --binutils=/path/to/bin --libraries=/path/to/libs');
 
   // ========================================
   // FPC additional messages
@@ -1746,6 +1774,10 @@ begin
   T(MSG_FPC_STEP_EXTRACT_BIN,    'Step 2/3: Extracting files...',          '步骤 2/3: 正在解压文件...');
   T(MSG_FPC_STEP_SETUP_BIN,      'Step 3/3: Setting up environment...',    '步骤 3/3: 正在设置环境...');
   T(MSG_FPC_SOURCE_LOCAL_ONLY,   'FPC source is local-only, cannot update from remote.', 'FPC 源码仅限本地，无法从远程更新。');
+  T(MSG_LAZARUS_SOURCE_LOCAL_ONLY, 'Lazarus source is local-only, cannot update from remote.', 'Lazarus 源码仅限本地，无法从远程更新。');
+  T(MSG_GIT_UPDATE_DIRTY_WORKTREE, 'Working tree has local or untracked changes; commit, stash, or remove them before updating.', '工作区存在本地或未跟踪的更改；请先提交、暂存或移除后再更新。');
+  T(MSG_GIT_UPDATE_DETACHED_HEAD, 'Repository is in detached HEAD state; switch to a branch before updating.', '仓库当前处于 detached HEAD 状态；请先切换到分支后再更新。');
+  T(MSG_GIT_UPDATE_DIVERGED_HISTORY, 'Branches diverged or merge conflicts occurred; reconcile them manually before updating.', '分支已分叉或出现合并冲突；请先手动处理后再更新。');
   T(MSG_FPC_INSTALL_DATE,        'Install Date: %s',                       '安装日期: %s');
   T(MSG_FPC_SOURCE_URL,          'Source URL: %s',                         '源码 URL: %s');
 

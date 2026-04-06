@@ -18,7 +18,7 @@ function ExecuteFPCNestedPackageInstallFlow(const ATempDir,
 implementation
 
 uses
-  SysUtils,
+  SysUtils, Classes,
   fpdev.fpc.installer.extract;
 
 procedure WriteLine(const AOut: IOutput; const AText: string = '');
@@ -49,6 +49,54 @@ function HasInstalledArtifacts(const AInstallPath: string): Boolean;
 begin
   Result := DirectoryExists(AInstallPath + PathDelim + 'bin') or
     DirectoryExists(AInstallPath + PathDelim + 'lib');
+end;
+
+function IsPackageArchive(const AFileName: string): Boolean;
+begin
+  Result := (Pos('units-', AFileName) = 1) or
+    (Pos('utils-', AFileName) = 1) or
+    (Pos('utils.', AFileName) = 1);
+end;
+
+function ExtractRemainingPackageArchives(const AInstallPath: string;
+  const AOut, AErr: IOutput;
+  AExtractArchive: TFPCNestedArchiveExtractHandler): Boolean;
+var
+  Archives: TStringList;
+  ArchivePath: string;
+  Search: TSearchRec;
+  I: Integer;
+begin
+  Result := True;
+  Archives := TStringList.Create;
+  try
+    if FindFirst(AInstallPath + PathDelim + '*.tar.gz', faAnyFile, Search) = 0 then
+    begin
+      repeat
+        if ((Search.Attr and faDirectory) = 0) and IsPackageArchive(Search.Name) then
+          Archives.Add(AInstallPath + PathDelim + Search.Name);
+      until FindNext(Search) <> 0;
+      FindClose(Search);
+    end;
+
+    Archives.Sort;
+    for I := 0 to Archives.Count - 1 do
+    begin
+      ArchivePath := Archives[I];
+      WriteLine(AOut, '[Manifest] Extracting package archive: ' +
+        ExtractFileName(ArchivePath));
+      if (not Assigned(AExtractArchive)) or
+         (not AExtractArchive(ArchivePath, AInstallPath)) then
+      begin
+        WriteLine(AErr, '[Manifest] Package archive extraction failed: ' +
+          ExtractFileName(ArchivePath));
+        Exit(False);
+      end;
+      DeleteFile(ArchivePath);
+    end;
+  finally
+    Archives.Free;
+  end;
 end;
 
 function ExecuteFPCNestedPackageInstallFlow(const ATempDir,
@@ -90,6 +138,10 @@ begin
     end
     else
       WriteLine(AOut, '[Manifest] No base archive found, checking if binaries are directly available...');
+
+    if not ExtractRemainingPackageArchives(AInstallPath, AOut, AErr,
+      AExtractArchive) then
+      Exit;
   end
   else
   begin

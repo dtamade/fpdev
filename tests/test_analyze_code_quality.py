@@ -219,6 +219,34 @@ end.
         })
         self.assertNotIn('fpdev.output.console.pas', self.debug_flagged_files(issues))
 
+    def test_ioutput_adapter_methods_are_not_flagged_as_debug(self):
+        issues = self.run_debug_analysis({
+            'fpdev.cmd.lazarus.run.pas': """
+unit fpdev.cmd.lazarus.run;
+{$mode objfpc}{$H+}
+interface
+uses fpdev.output.intf;
+type
+  TBufferedOutput = class(TInterfacedObject, IOutput)
+  public
+    procedure Write(const S: string);
+    procedure WriteLn(const S: string);
+  end;
+implementation
+procedure TBufferedOutput.Write(const S: string);
+begin
+  if S <> '' then;
+end;
+
+procedure TBufferedOutput.WriteLn(const S: string);
+begin
+  Write(S);
+end;
+end.
+"""
+        })
+        self.assertNotIn('fpdev.cmd.lazarus.run.pas', self.debug_flagged_files(issues))
+
     def test_real_debug_writeln_still_detected(self):
         issues = self.run_debug_analysis({
             'test_debug.pas': """
@@ -367,6 +395,22 @@ end.
         })
         self.assertNotIn('test_hardcoded_comment_line.pas', self.hardcoded_flagged_files(issues))
 
+    def test_single_slash_separator_literals_are_not_flagged_as_hardcoded(self):
+        issues = self.run_hardcoded_analysis({
+            'test_separator_literal.pas': """
+unit test_separator_literal;
+{$mode objfpc}{$H+}
+interface
+implementation
+function Normalize(const APath: string): string;
+begin
+  Result := StringReplace(APath, '/', PathDelim, [rfReplaceAll]);
+end;
+end.
+"""
+        })
+        self.assertNotIn('test_separator_literal.pas', self.hardcoded_flagged_files(issues))
+
     def test_block_comment_literals_are_not_flagged_as_hardcoded(self):
         issues = self.run_hardcoded_analysis({
             'test_hardcoded_comment_block.pas': """
@@ -403,16 +447,16 @@ end.
 
     def test_non_empty_line_trailing_space_is_still_flagged(self):
         issues = self.run_style_analysis({
-            'test_trailing_space.pas': """
-unit test_trailing_space;
-{$mode objfpc}{$H+}
-interface
-implementation
-procedure Run;
-begin
-end;
-end.
-"""
+            'test_trailing_space.pas': (
+                "unit test_trailing_space;\n"
+                "{$mode objfpc}{$H+}\n"
+                "interface\n"
+                "implementation\n"
+                "procedure Run;\n"
+                "begin\n"
+                "end;\n"
+                "end. \n"
+            )
         })
         self.assertIn('test_trailing_space.pas', self.style_flagged_files(issues))
 

@@ -4,12 +4,12 @@ program test_build_cache_deletefiles;
 
 uses
   SysUtils,
+  test_temp_paths,
   fpdev.build.cache.deletefiles;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
-  GTempPathSequence: Int64 = 0;
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
 begin
@@ -27,25 +27,25 @@ end;
 
 function BuildTempFilePath(const APrefix, AExt: string): string;
 begin
-  Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-'
-    + IntToStr(GTempPathSequence) + AExt;
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir(APrefix))
+    + 'artifact' + AExt;
 end;
 
 procedure TestBuildTempFilePathUsesSystemTempAndUniqueSuffix;
 var
   FirstPath: string;
   SecondPath: string;
-  TempRoot: string;
 begin
   FirstPath := BuildTempFilePath('fpdev-deletefiles', '.tmp');
   SecondPath := BuildTempFilePath('fpdev-deletefiles', '.tmp');
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-
-  AssertTrue(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
-    'temp deletefiles path uses system temp root');
-  AssertTrue(FirstPath <> SecondPath, 'temp deletefiles path is unique');
+  try
+    AssertTrue(PathUsesSystemTempRoot(ExtractFileDir(FirstPath)),
+      'temp deletefiles path uses system temp root');
+    AssertTrue(FirstPath <> SecondPath, 'temp deletefiles path is unique');
+  finally
+    CleanupTempDir(ExtractFileDir(FirstPath));
+    CleanupTempDir(ExtractFileDir(SecondPath));
+  end;
 end;
 
 procedure CreateEmptyFile(const APath: string);
@@ -64,13 +64,22 @@ var
 begin
   ArchivePath := BuildTempFilePath('fpdev-delete-archive', '.tar.gz');
   MetaPath := BuildTempFilePath('fpdev-delete-archive', '.meta');
-  CreateEmptyFile(ArchivePath);
-  CreateEmptyFile(MetaPath);
+  try
+    CreateEmptyFile(ArchivePath);
+    CreateEmptyFile(MetaPath);
 
-  AssertTrue(BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath),
-    'deleting existing archive and meta succeeds');
-  AssertTrue(not FileExists(ArchivePath), 'archive file is removed');
-  AssertTrue(not FileExists(MetaPath), 'meta file is removed');
+    AssertTrue(BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath),
+      'deleting existing archive and meta succeeds');
+    AssertTrue(not FileExists(ArchivePath), 'archive file is removed');
+    AssertTrue(not FileExists(MetaPath), 'meta file is removed');
+  finally
+    if FileExists(ArchivePath) then
+      DeleteFile(ArchivePath);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+    CleanupTempDir(ExtractFileDir(ArchivePath));
+    CleanupTempDir(ExtractFileDir(MetaPath));
+  end;
 end;
 
 procedure TestMissingFilesAreIgnored;
@@ -80,11 +89,20 @@ var
 begin
   ArchivePath := BuildTempFilePath('fpdev-delete-missing', '.tar.gz');
   MetaPath := BuildTempFilePath('fpdev-delete-missing', '.meta');
-  DeleteFile(ArchivePath);
-  DeleteFile(MetaPath);
+  try
+    DeleteFile(ArchivePath);
+    DeleteFile(MetaPath);
 
-  AssertTrue(BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath),
-    'missing files are treated as already deleted');
+    AssertTrue(BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath),
+      'missing files are treated as already deleted');
+  finally
+    if FileExists(ArchivePath) then
+      DeleteFile(ArchivePath);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+    CleanupTempDir(ExtractFileDir(ArchivePath));
+    CleanupTempDir(ExtractFileDir(MetaPath));
+  end;
 end;
 
 begin

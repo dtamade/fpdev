@@ -168,6 +168,7 @@ function TDoctorCommand.Execute(const AParams: array of string; const Ctx: ICont
 var
   I: Integer;
   LQuick: Boolean;
+  LHasHelpFlag: Boolean;
 begin
   Result := 0;
   FCtx := Ctx;
@@ -178,14 +179,24 @@ begin
   FChecks := TStringList.Create;
 
   try
+    LHasHelpFlag := False;
+
     // Check help flag
     for I := 0 to High(AParams) do
     begin
       if (AParams[I] = '-h') or (AParams[I] = '--help') then
+        LHasHelpFlag := True;
+    end;
+
+    if LHasHelpFlag then
+    begin
+      if Length(AParams) <> 1 then
       begin
-        Ctx.Out.WriteLn(BuildDoctorHelpTextCore);
-        Exit(EXIT_OK);
+        Ctx.Err.WriteLn(BuildDoctorHelpTextCore);
+        Exit(EXIT_USAGE_ERROR);
       end;
+      Ctx.Out.WriteLn(BuildDoctorHelpTextCore);
+      Exit(EXIT_OK);
     end;
 
     // Check flags

@@ -80,6 +80,7 @@ type
     function GetCompatibleFPCVersion(const ALazarusVersion: string): string;
     function CleanSourceArtifacts(const ASourceDir: string): Integer;
     function LaunchLazarusExecutable(const AExecutable: string): Boolean;
+    function RunConfigureIDEInstall(const Outp, Errp: IOutput; const AVersion: string): Boolean;
   protected
     function CreateGitClient(const ACliOnly: Boolean): ILazarusGitClient; virtual;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
@@ -695,7 +696,7 @@ begin
       @DownloadSource,
       @BuildFromSource,
       @SetupEnvironment,
-      @ConfigureIDE
+      @RunConfigureIDEInstall
     );
 
   except
@@ -1111,6 +1112,12 @@ end;
 function TLazarusManager.ConfigureIDE(const AVersion: string): Boolean;
 begin
   Result := ConfigureIDE(nil, nil, AVersion);
+end;
+
+function TLazarusManager.RunConfigureIDEInstall(const Outp, Errp: IOutput;
+  const AVersion: string): Boolean;
+begin
+  Result := ConfigureIDE(Outp, Errp, AVersion);
 end;
 
 function TLazarusManager.ConfigureIDE(const Outp, Errp: IOutput; const AVersion: string): Boolean;

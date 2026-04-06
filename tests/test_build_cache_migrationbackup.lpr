@@ -4,19 +4,17 @@ program test_build_cache_migrationbackup;
 
 uses
   SysUtils,
+  test_temp_paths,
   fpdev.build.cache.migrationbackup;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
-  GTempPathSequence: Int64 = 0;
 
 function BuildTempMetaPath(const APrefix: string): string;
 begin
-  Inc(GTempPathSequence);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-'
-    + IntToStr(GTempPathSequence) + '.meta';
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir(APrefix))
+    + 'artifact.meta';
 end;
 
 procedure AssertTrue(ACondition: Boolean; const AMessage: string);
@@ -80,15 +78,17 @@ procedure TestBuildTempMetaPathUsesSystemTempAndUniqueSuffix;
 var
   FirstPath: string;
   SecondPath: string;
-  TempRoot: string;
 begin
   FirstPath := BuildTempMetaPath('fpdev-migrate');
   SecondPath := BuildTempMetaPath('fpdev-migrate');
-  TempRoot := IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False)));
-
-  AssertTrue(Pos(TempRoot, ExpandFileName(FirstPath)) = 1,
-    'temp migration meta path uses system temp root');
-  AssertTrue(FirstPath <> SecondPath, 'temp migration meta path is unique');
+  try
+    AssertTrue(PathUsesSystemTempRoot(ExtractFileDir(FirstPath)),
+      'temp migration meta path uses system temp root');
+    AssertTrue(FirstPath <> SecondPath, 'temp migration meta path is unique');
+  finally
+    CleanupTempDir(ExtractFileDir(FirstPath));
+    CleanupTempDir(ExtractFileDir(SecondPath));
+  end;
 end;
 
 procedure TestFinalizeMetaMigrationRenamesFile;
@@ -98,16 +98,18 @@ var
 begin
   OldMetaPath := BuildTempMetaPath('fpdev-migrate-old');
   BackupPath := BuildCacheGetMetaBackupPath(OldMetaPath);
-  WriteTextFile(OldMetaPath, 'version=3.2.1');
-  DeleteFile(BackupPath);
+  try
+    WriteTextFile(OldMetaPath, 'version=3.2.1');
+    DeleteFile(BackupPath);
 
-  AssertTrue(BuildCacheFinalizeMetaMigration(OldMetaPath),
-    'existing old meta is renamed to backup');
-  AssertTrue(not FileExists(OldMetaPath), 'old meta is removed after backup');
-  AssertTrue(FileExists(BackupPath), 'backup file is created');
-  AssertEquals('version=3.2.1', ReadTextFile(BackupPath), 'backup keeps original contents');
-
-  DeleteFile(BackupPath);
+    AssertTrue(BuildCacheFinalizeMetaMigration(OldMetaPath),
+      'existing old meta is renamed to backup');
+    AssertTrue(not FileExists(OldMetaPath), 'old meta is removed after backup');
+    AssertTrue(FileExists(BackupPath), 'backup file is created');
+    AssertEquals('version=3.2.1', ReadTextFile(BackupPath), 'backup keeps original contents');
+  finally
+    CleanupTempDir(ExtractFileDir(OldMetaPath));
+  end;
 end;
 
 procedure TestFinalizeMetaMigrationOverwritesExistingBackup;
@@ -117,15 +119,17 @@ var
 begin
   OldMetaPath := BuildTempMetaPath('fpdev-migrate-overwrite');
   BackupPath := BuildCacheGetMetaBackupPath(OldMetaPath);
-  WriteTextFile(OldMetaPath, 'new-content');
-  WriteTextFile(BackupPath, 'old-content');
+  try
+    WriteTextFile(OldMetaPath, 'new-content');
+    WriteTextFile(BackupPath, 'old-content');
 
-  AssertTrue(BuildCacheFinalizeMetaMigration(OldMetaPath),
-    'existing backup is replaced during migration');
-  AssertEquals('new-content', ReadTextFile(BackupPath),
-    'backup contains latest old-meta content');
-
-  DeleteFile(BackupPath);
+    AssertTrue(BuildCacheFinalizeMetaMigration(OldMetaPath),
+      'existing backup is replaced during migration');
+    AssertEquals('new-content', ReadTextFile(BackupPath),
+      'backup contains latest old-meta content');
+  finally
+    CleanupTempDir(ExtractFileDir(OldMetaPath));
+  end;
 end;
 
 begin
