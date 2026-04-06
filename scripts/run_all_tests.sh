@@ -110,15 +110,50 @@ run_with_test_runtime_env() {
   )
 }
 
+get_test_runtime_retry_delay() {
+  printf '%s\n' "${FPDEV_TEST_RUNTIME_RETRY_DELAY:-1}"
+}
+
+is_transient_runtime_failure() {
+  local run_log="$1"
+  grep -Eq \
+    "run_all_tests\\.sh: line [0-9]+: .+: (Text file busy|No such file or directory)" \
+    "$run_log"
+}
+
+run_binary_with_retry() {
+  local log_path="$1"
+  local retry_delay="$2"
+  local attempt=1
+  local max_attempts=3
+  shift 2
+
+  while true; do
+    if "$@" >"${log_path}" 2>&1; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ] || ! is_transient_runtime_failure "${log_path}"; then
+      return 1
+    fi
+
+    sleep "${retry_delay}"
+    attempt=$((attempt + 1))
+  done
+}
+
 run_test_binary() {
   local bin_path="$1"
   local log_path="$2"
+  local retry_delay=""
 
-  if "${bin_path}" --all >"${log_path}" 2>&1; then
+  retry_delay="$(get_test_runtime_retry_delay)"
+
+  if run_binary_with_retry "${log_path}" "${retry_delay}" "${bin_path}" --all; then
     return 0
   fi
 
-  if "${bin_path}" >"${log_path}" 2>&1; then
+  if run_binary_with_retry "${log_path}" "${retry_delay}" "${bin_path}"; then
     return 0
   fi
 

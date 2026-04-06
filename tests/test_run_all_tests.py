@@ -202,6 +202,100 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 msg=f'stdout={result.stdout}\nstderr={result.stderr}',
             )
 
+    def test_transient_runtime_failure_detects_busy_or_missing_binary_noise(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            busy_log = tmp_path / 'busy.log'
+            busy_log.write_text('scripts/run_all_tests.sh: line 121: bin/test_demo: Text file busy\n', encoding='utf-8')
+            missing_log = tmp_path / 'missing.log'
+            missing_log.write_text('scripts/run_all_tests.sh: line 121: bin/test_demo: No such file or directory\n', encoding='utf-8')
+
+            busy_result = self.run_bash(
+                f'source "{SCRIPT_PATH}" && is_transient_runtime_failure "{busy_log}"',
+                cwd=tmp_path,
+            )
+            missing_result = self.run_bash(
+                f'source "{SCRIPT_PATH}" && is_transient_runtime_failure "{missing_log}"',
+                cwd=tmp_path,
+            )
+
+            self.assertEqual(
+                0,
+                busy_result.returncode,
+                msg=f'stdout={busy_result.stdout}\nstderr={busy_result.stderr}',
+            )
+            self.assertEqual(
+                0,
+                missing_result.returncode,
+                msg=f'stdout={missing_result.stdout}\nstderr={missing_result.stderr}',
+            )
+
+    def test_transient_runtime_failure_ignores_regular_test_output(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            run_log = tmp_path / 'run.log'
+            run_log.write_text('Error: No such file or directory\n', encoding='utf-8')
+
+            result = self.run_bash(
+                f'source "{SCRIPT_PATH}" && is_transient_runtime_failure "{run_log}"',
+                cwd=tmp_path,
+            )
+
+            self.assertNotEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+
+    def test_run_test_binary_retries_transient_runtime_failures(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            run_count_file = tmp_path / 'run.count'
+            run_log = tmp_path / 'run.log'
+            test_bin = tmp_path / 'test_demo'
+
+            test_bin.write_text(
+                textwrap.dedent(
+                    """#!/bin/sh
+                    count=0
+                    if [ -f "$FPDEV_STUB_RUN_COUNT" ]; then
+                      count=$(cat "$FPDEV_STUB_RUN_COUNT")
+                    fi
+                    count=$((count + 1))
+                    printf '%s' "$count" > "$FPDEV_STUB_RUN_COUNT"
+                    if [ "$count" -lt 3 ]; then
+                      echo "scripts/run_all_tests.sh: line 121: $0: Text file busy" >&2
+                      exit 126
+                    fi
+                    exit 0
+                    """
+                ),
+                encoding='utf-8',
+            )
+            test_bin.chmod(0o755)
+
+            env = {
+                'FPDEV_STUB_RUN_COUNT': str(run_count_file),
+                'FPDEV_TEST_RUNTIME_RETRY_DELAY': '0',
+            }
+            result = self.run_bash(
+                textwrap.dedent(
+                    f'''\
+                    source "{SCRIPT_PATH}"
+                    run_test_binary "{test_bin}" "{run_log}"
+                    '''
+                ),
+                cwd=tmp_path,
+                env=env,
+            )
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}\nlog={run_log.read_text(encoding="utf-8") if run_log.exists() else ""}',
+            )
+            self.assertEqual('3', run_count_file.read_text(encoding='utf-8'))
+
     def test_build_with_recovery_retries_zero_byte_binary_after_successful_lazbuild(self):
         with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
             tmp_path = Path(tmp)
