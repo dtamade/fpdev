@@ -562,7 +562,7 @@ var
   CurrentPath: string;
   LResult: TProcessResult;
 begin
-  CurrentPath := GetEnvironmentVariable('PATH');
+  CurrentPath := SysUtils.GetEnvironmentVariable('PATH');
   if (not FCommandLineChecked) or (CurrentPath <> FCommandLineCheckedPath) then
   begin
     FCommandLineChecked := True;

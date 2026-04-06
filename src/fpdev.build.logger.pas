@@ -154,7 +154,7 @@ begin
   Log('env: OS=' + LOS);
 
   // PATH fragments
-  LPath := GetEnvironmentVariable('PATH');
+  LPath := SysUtils.GetEnvironmentVariable('PATH');
   LParts := TStringList.Create;
   try
     {$IFDEF MSWINDOWS}
