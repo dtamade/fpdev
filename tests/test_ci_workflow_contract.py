@@ -63,6 +63,7 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_uses_release_grade_cross_platform_build_flags(self):
         self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
+        self.assertIn('-Twin64 -Px86_64', self.text)
 
     def test_ci_runs_public_doc_contract_suites(self):
         self.assertIn('tests.test_contributor_docs_contract', self.text)
@@ -77,6 +78,7 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_bootstraps_windows_fpc_path(self):
         self.assertIn('Add FPC to PATH on Windows', self.text)
         self.assertIn('Get-Command fpc.exe', self.text)
+        self.assertIn('x86_64-win64', self.text)
         self.assertIn('$env:GITHUB_PATH', self.text)
         self.assertIn('Unable to locate fpc.exe after Chocolatey installation.', self.text)
 

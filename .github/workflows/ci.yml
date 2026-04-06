@@ -117,7 +117,7 @@ jobs:
           - os: windows-latest
             lane: windows-x64
             install_step: choco install freepascal --no-progress -y
-            build_flags: -B -O3 -CX -XX
+            build_flags: -B -O3 -CX -XX -Twin64 -Px86_64
             python_cmd: python
             package_arg: --windows-bin bin/fpdev.exe
             asset_file: fpdev-windows-x64.zip
@@ -151,6 +151,7 @@ jobs:
       shell: pwsh
       run: |
         $fpcPath = (Get-Command fpc.exe -ErrorAction SilentlyContinue |
+          Where-Object { $_.Source -match 'x86_64-win64' } |
           Select-Object -ExpandProperty Source -First 1)
         if (-not $fpcPath) {
           $roots = @(
@@ -160,8 +161,14 @@ jobs:
             'C:\FPC'
           ) | Where-Object { Test-Path $_ }
           foreach ($root in $roots) {
-            $candidate = Get-ChildItem -Path $root -Filter fpc.exe -File -Recurse -ErrorAction SilentlyContinue |
+            $candidates = Get-ChildItem -Path $root -Filter fpc.exe -File -Recurse -ErrorAction SilentlyContinue
+            $candidate = $candidates |
+              Where-Object { $_.FullName -match 'x86_64-win64' } |
               Select-Object -ExpandProperty FullName -First 1
+            if (-not $candidate) {
+              $candidate = $candidates |
+                Select-Object -ExpandProperty FullName -First 1
+            }
             if ($candidate) {
               $fpcPath = $candidate
               break

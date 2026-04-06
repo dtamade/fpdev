@@ -249,13 +249,13 @@ end;
 function get_hostname: string;
 begin
   {$IFDEF UNIX}
-  Result := GetEnvironmentVariable('HOSTNAME');
+  Result := SysUtils.GetEnvironmentVariable('HOSTNAME');
   if Result = '' then
-    Result := GetEnvironmentVariable('HOST');
+    Result := SysUtils.GetEnvironmentVariable('HOST');
   if Result = '' then
     Result := 'localhost';
   {$ELSE}
-  Result := GetEnvironmentVariable('COMPUTERNAME');
+  Result := SysUtils.GetEnvironmentVariable('COMPUTERNAME');
   if Result = '' then
     Result := 'localhost';
   {$ENDIF}
@@ -314,6 +314,10 @@ var
   MemFree: Int64;
   Code: Integer;
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  MemStatus: TMemoryStatusEx;
+{$ENDIF}
 begin
   Result := 0;
   {$IFDEF UNIX}
@@ -351,19 +355,15 @@ begin
     end;
   end;
   {$ELSE}
-    {$IFDEF MSWINDOWS}
-  var
-    MemStatus: TMemoryStatusEx;
-  begin
+  {$IFDEF MSWINDOWS}
     MemStatus.dwLength := SizeOf(MemStatus);
     if GlobalMemoryStatusEx(MemStatus) then
       Result := MemStatus.ullAvailPhys
     else
       Result := 0;
-  end;
-    {$ELSE}
+  {$ELSE}
   Result := 0;
-    {$ENDIF}
+  {$ENDIF}
   {$ENDIF}
 end;
 
