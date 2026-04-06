@@ -103,6 +103,14 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('-Fu${toolchainRootForConfig}/units/$fpctarget/*', self.text)
         self.assertIn('-FD${binDirForConfig}', self.text)
 
+    def test_ci_installs_windows_libgit2_runtime_for_cli_smoke(self):
+        self.assertIn('Install libgit2 runtime on Windows', self.text)
+        self.assertIn('Get-Command vcpkg', self.text)
+        self.assertIn('libgit2:x64-windows', self.text)
+        self.assertIn("Join-Path $vcpkgRoot 'installed/x64-windows/bin'", self.text)
+        self.assertIn("Copy-Item -Path (Join-Path $runtimeBin '*.dll') -Destination .\\bin -Force", self.text)
+        self.assertIn('Added Windows libgit2 runtime directory to PATH', self.text)
+
     def test_ci_installs_libgit2_for_linked_builds(self):
         self.assertIn('sudo apt-get install -y fpc lazarus libgit2-dev', self.text)
         self.assertIn('brew install fpc libgit2', self.text)
