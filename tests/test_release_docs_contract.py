@@ -23,6 +23,8 @@ class ReleaseDocsContractTests(unittest.TestCase):
 
     def test_owner_checkpoint_doc_uses_release_packaging_script(self):
         self.assertIn('scripts/package_release_assets.py', self.text)
+        self.assertIn('--data-dir src/data', self.text)
+        self.assertNotIn('--data-dir bin/data', self.text)
 
     def test_owner_checkpoint_doc_uses_release_evidence_script(self):
         self.assertIn('scripts/generate_release_evidence.py', self.text)
