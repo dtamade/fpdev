@@ -17,7 +17,7 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Show FPC version
       run: fpc -iV
@@ -76,10 +76,11 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Check for warnings and hints
       run: |
+        set -o pipefail
         lazbuild -B fpdev.lpi 2>&1 | tee build.log
 
         # Check for compilation warnings in source files
@@ -124,7 +125,7 @@ jobs:
             artifact_name: release-asset-windows-x64
           - os: macos-15-intel
             lane: macos-x64
-            install_step: brew install fpc
+            install_step: brew install fpc libgit2
             build_flags: -B -O3 -CX -XX -Xs
             python_cmd: python3
             package_arg: --macos-x64-bin bin/fpdev
@@ -132,7 +133,7 @@ jobs:
             artifact_name: release-asset-macos-x64
           - os: macos-15
             lane: macos-arm64
-            install_step: brew install fpc
+            install_step: brew install fpc libgit2
             build_flags: -B -O3 -CX -XX -Xs
             python_cmd: python3
             package_arg: --macos-arm64-bin bin/fpdev
@@ -150,47 +151,71 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        $fpcPath = (Get-Command fpc.exe -ErrorAction SilentlyContinue |
-          Where-Object { $_.Source -match 'x86_64-win64' } |
-          Select-Object -ExpandProperty Source -First 1)
-        if (-not $fpcPath) {
-          $roots = @(
-            'C:\tools',
-            'C:\Program Files',
-            'C:\ProgramData\chocolatey\lib',
-            'C:\FPC'
-          ) | Where-Object { Test-Path $_ }
-          foreach ($root in $roots) {
-            $candidates = Get-ChildItem -Path $root -Filter fpc.exe -File -Recurse -ErrorAction SilentlyContinue
-            $candidate = $candidates |
-              Where-Object { $_.FullName -match 'x86_64-win64' } |
-              Select-Object -ExpandProperty FullName -First 1
-            if (-not $candidate) {
-              $candidate = $candidates |
-                Select-Object -ExpandProperty FullName -First 1
-            }
-            if ($candidate) {
-              $fpcPath = $candidate
-              break
-            }
+        $roots = @(
+          'C:\tools\freepascal',
+          'C:\tools',
+          'C:\Program Files',
+          'C:\ProgramData\chocolatey\lib',
+          'C:\FPC'
+        ) | Where-Object { Test-Path $_ }
+        $backendPath = $null
+        foreach ($root in $roots) {
+          $candidate = Get-ChildItem -Path $root -Filter ppcx64.exe -File -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName -First 1
+          if ($candidate) {
+            $backendPath = $candidate
+            break
           }
+        }
+        if (-not $backendPath) {
+          throw 'Unable to locate ppcx64.exe after Chocolatey installation.'
+        }
+        $backendDir = Split-Path -Parent $backendPath
+        $fpcPath = Join-Path $backendDir 'fpc.exe'
+        if (-not (Test-Path $fpcPath)) {
+          $fpcPath = Get-ChildItem -Path $roots -Filter fpc.exe -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match 'i386-win32|x86_64-win64' } |
+            Select-Object -ExpandProperty FullName -First 1
         }
         if (-not $fpcPath) {
           throw 'Unable to locate fpc.exe after Chocolatey installation.'
         }
-        Split-Path -Parent $fpcPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        Write-Host "Added FPC to PATH: $fpcPath"
+        @(
+          Split-Path -Parent $fpcPath
+          $backendDir
+        ) | Select-Object -Unique | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Host "Added FPC frontend to PATH: $fpcPath"
+        Write-Host "Added FPC backend to PATH: $backendPath"
+
+    - name: Resolve libgit2 linker path on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        LIBGIT2_LIB_DIR="$(brew --prefix libgit2)/lib"
+        echo "LIBGIT2_LIB_DIR=${LIBGIT2_LIB_DIR}" >> "$GITHUB_ENV"
+        echo "Resolved libgit2 library directory: ${LIBGIT2_LIB_DIR}"
 
     - name: Show FPC version
       shell: bash
       run: fpc -iV
+
+    - name: Verify Windows FPC toolchain
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        where.exe fpc
+        where.exe ppcx64
 
     - name: Build CLI smoke binary
       shell: bash
       run: |
         rm -rf bin lib
         mkdir -p bin lib
-        fpc ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        EXTRA_FLAGS=()
+        if [ -n "${LIBGIT2_LIB_DIR:-}" ]; then
+          EXTRA_FLAGS+=("-Fl${LIBGIT2_LIB_DIR}" "-k-lgit2")
+        fi
+        fpc ${{ matrix.build_flags }} "${EXTRA_FLAGS[@]}" -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'

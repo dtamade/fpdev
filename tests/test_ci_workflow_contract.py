@@ -38,7 +38,7 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_has_macos_cli_smoke_job(self):
         self.assertIn('macos-15-intel', self.text)
         self.assertIn('macos-15', self.text)
-        self.assertIn('brew install fpc', self.text)
+        self.assertIn('brew install fpc libgit2', self.text)
         self.assertIn('choco install freepascal', self.text)
 
     def test_ci_uses_shared_cli_smoke_scripts(self):
@@ -77,10 +77,24 @@ class CIWorkflowContractTests(unittest.TestCase):
 
     def test_ci_bootstraps_windows_fpc_path(self):
         self.assertIn('Add FPC to PATH on Windows', self.text)
-        self.assertIn('Get-Command fpc.exe', self.text)
-        self.assertIn('x86_64-win64', self.text)
+        self.assertIn('ppcx64.exe', self.text)
         self.assertIn('$env:GITHUB_PATH', self.text)
         self.assertIn('Unable to locate fpc.exe after Chocolatey installation.', self.text)
+        self.assertIn('Unable to locate ppcx64.exe after Chocolatey installation.', self.text)
+        self.assertIn('where.exe ppcx64', self.text)
+
+    def test_ci_installs_libgit2_for_linked_builds(self):
+        self.assertIn('sudo apt-get install -y fpc lazarus libgit2-dev', self.text)
+        self.assertIn('brew install fpc libgit2', self.text)
+
+    def test_ci_compile_check_uses_pipefail(self):
+        self.assertIn('set -o pipefail', self.text)
+
+    def test_ci_resolves_macos_libgit2_linker_flags(self):
+        self.assertIn('Resolve libgit2 linker path on macOS', self.text)
+        self.assertIn('brew --prefix libgit2', self.text)
+        self.assertIn('LIBGIT2_LIB_DIR', self.text)
+        self.assertIn('-k-lgit2', self.text)
 
     def test_ci_runs_release_packaging_contract_suites(self):
         self.assertIn('tests.test_package_release_assets', self.text)

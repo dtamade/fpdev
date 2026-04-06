@@ -4,9 +4,6 @@ unit fpdev.debug.symbols;
 
 interface
 
-uses
-  fpdev.build.cache.types;
-
 procedure EnsureDebugSymbolAnchor;
 
 implementation
