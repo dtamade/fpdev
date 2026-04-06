@@ -320,8 +320,10 @@ begin
   for i := 1 to Length(S) do
   begin
     ch := S[i];
-    if (ch in ['0'..'9','.']) then Result := Result + ch
-    else break;
+    if ((ch >= '0') and (ch <= '9')) or (ch = '.') then
+      Result := Result + ch
+    else
+      break;
   end;
 end;
 
