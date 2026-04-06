@@ -61,7 +61,8 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('fpdev-macos-arm64.tar.gz', self.text)
 
     def test_ci_uses_release_grade_cross_platform_build_flags(self):
-        self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
+        self.assertIn('BUILD_FLAGS="${{ matrix.build_flags }}"', self.text)
+        self.assertIn('$COMPILER $BUILD_FLAGS', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
         self.assertIn('-Twin64 -Px86_64', self.text)
 
@@ -78,10 +79,16 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_bootstraps_windows_fpc_path(self):
         self.assertIn('Add FPC to PATH on Windows', self.text)
         self.assertIn('ppcx64.exe', self.text)
+        self.assertIn('ppcrossx64.exe', self.text)
         self.assertIn('$env:GITHUB_PATH', self.text)
+        self.assertIn('$env:GITHUB_ENV', self.text)
+        self.assertIn('WINDOWS_FPC_BACKEND', self.text)
         self.assertIn('Unable to locate fpc.exe after Chocolatey installation.', self.text)
-        self.assertIn('Unable to locate ppcx64.exe after Chocolatey installation.', self.text)
-        self.assertIn('where.exe ppcx64', self.text)
+        self.assertIn(
+            'Unable to locate ppcx64.exe or ppcrossx64.exe after Chocolatey installation.',
+            self.text,
+        )
+        self.assertIn('where.exe $env:WINDOWS_FPC_BACKEND', self.text)
 
     def test_ci_installs_libgit2_for_linked_builds(self):
         self.assertIn('sudo apt-get install -y fpc lazarus libgit2-dev', self.text)
