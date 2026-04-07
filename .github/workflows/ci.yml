@@ -123,6 +123,7 @@ jobs:
         include:
           - os: windows-latest
             lane: windows-x64
+            install_step: ''
             build_flags: -B -O3 -CX -XX
             python_cmd: python
             package_arg: --windows-bin bin/fpdev.exe
