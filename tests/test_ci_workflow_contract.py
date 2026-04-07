@@ -1,5 +1,4 @@
 import unittest
-import re
 from pathlib import Path
 
 
@@ -15,6 +14,16 @@ class CIWorkflowContractTests(unittest.TestCase):
     @classmethod
     def _assemble_release_ready_bundle_section(cls):
         return cls.text.split('assemble-release-ready-bundle:', 1)[1]
+
+    @classmethod
+    def _cross_platform_cli_smoke_section(cls):
+        return cls.text.split('cross-platform-cli-smoke:', 1)[1].split('assemble-release-ready-bundle:', 1)[0]
+
+    @classmethod
+    def _smoke_step_block(cls, name: str) -> str:
+        marker = f'- name: {name}'
+        after = cls._cross_platform_cli_smoke_section().split(marker, 1)[1]
+        return marker + after.split('\n    - name:', 1)[0]
 
     def test_ci_runs_linux_release_acceptance_lane(self):
         self.assertIn(
@@ -74,63 +83,43 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_uploads_cross_platform_owner_proof_artifacts(self):
         self.assertIn('owner-proof-${{ matrix.lane }}', self.text)
         self.assertIn('owner-proof/', self.text)
-        self.assertIn('if: always()', self.text)
+        self.assertIn("if: always() && runner.os != 'Windows' && hashFiles('bin/fpdev') != ''", self.text)
+        self.assertIn("if: always() && runner.os == 'Windows' && hashFiles('bin/fpdev.exe') != ''", self.text)
+        self.assertIn("if: always() && hashFiles('owner-proof/**') != ''", self.text)
 
     def test_ci_uses_release_grade_cross_platform_build_flags(self):
         self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
 
     def test_ci_exports_windows_fpc_path_after_chocolatey_install(self):
-        self.assertRegex(
-            self.text,
-            re.compile(
-                r"- name: Export Windows FPC path\s+"
-                r"if: runner\.os == 'Windows'\s+"
-                r"shell: pwsh\s+"
-                r"run:\s+\|\s+"
-                r".*Get-ChildItem 'C:\\tools\\freepascal\\bin' -Recurse -Filter fpc\.exe.*"
-                r".*\$env:GITHUB_PATH.*",
-                re.S,
-            ),
-        )
+        section = self._smoke_step_block('Export Windows x64 FPC path')
+        self.assertIn("if: runner.os == 'Windows'", section)
+        self.assertIn('shell: pwsh', section)
+        self.assertIn("Get-ChildItem 'C:\\tools\\freepascal\\bin' -Recurse -Filter fpc.exe", section)
+        self.assertIn('x86_64-win64', section)
+        self.assertIn('$env:GITHUB_ENV', section)
+        self.assertIn('FPC_EXE=$($FpcExe.FullName)', section)
+        self.assertIn('$env:GITHUB_PATH', section)
 
     def test_ci_uses_windows_specific_steps_for_fpc_probe_and_build(self):
-        self.assertRegex(
-            self.text,
-            re.compile(
-                r"- name: Show FPC version\s+"
-                r"if: runner\.os != 'Windows'\s+"
-                r"shell: bash",
-                re.S,
-            ),
-        )
-        self.assertRegex(
-            self.text,
-            re.compile(
-                r"- name: Show FPC version on Windows\s+"
-                r"if: runner\.os == 'Windows'\s+"
-                r"shell: pwsh",
-                re.S,
-            ),
-        )
-        self.assertRegex(
-            self.text,
-            re.compile(
-                r"- name: Build CLI smoke binary\s+"
-                r"if: runner\.os != 'Windows'\s+"
-                r"shell: bash",
-                re.S,
-            ),
-        )
-        self.assertRegex(
-            self.text,
-            re.compile(
-                r"- name: Build CLI smoke binary on Windows\s+"
-                r"if: runner\.os == 'Windows'\s+"
-                r"shell: pwsh",
-                re.S,
-            ),
-        )
+        show_unix = self._smoke_step_block('Show FPC version')
+        show_windows = self._smoke_step_block('Show FPC version on Windows')
+        build_unix = self._smoke_step_block('Build CLI smoke binary')
+        build_windows = self._smoke_step_block('Build CLI smoke binary on Windows')
+
+        self.assertIn("if: runner.os != 'Windows'", show_unix)
+        self.assertIn('shell: bash', show_unix)
+
+        self.assertIn("if: runner.os == 'Windows'", show_windows)
+        self.assertIn('shell: pwsh', show_windows)
+        self.assertIn('$env:FPC_EXE -iV', show_windows)
+
+        self.assertIn("if: runner.os != 'Windows'", build_unix)
+        self.assertIn('shell: bash', build_unix)
+
+        self.assertIn("if: runner.os == 'Windows'", build_windows)
+        self.assertIn('shell: pwsh', build_windows)
+        self.assertIn('$env:FPC_EXE ${{ matrix.build_flags }}', build_windows)
 
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()

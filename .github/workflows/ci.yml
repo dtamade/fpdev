@@ -149,19 +149,25 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        persist-credentials: false
 
     - name: Install FPC toolchain
       run: ${{ matrix.install_step }}
 
-    - name: Export Windows FPC path
+    - name: Export Windows x64 FPC path
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
         $FpcExe = Get-ChildItem 'C:\tools\freepascal\bin' -Recurse -Filter fpc.exe -ErrorAction Stop |
+          Where-Object { $_.FullName -match '[\\/]x86_64-win64[\\/]' } |
           Select-Object -First 1
         if ($null -eq $FpcExe) {
-          throw 'fpc.exe not found under C:\tools\freepascal\bin'
+          $KnownBins = Get-ChildItem 'C:\tools\freepascal\bin' -Recurse -Filter fpc.exe -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.FullName }
+          throw "x64 fpc.exe not found under C:\tools\freepascal\bin. Found: $($KnownBins -join '; ')"
         }
+        "FPC_EXE=$($FpcExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Export macOS libgit2 paths
@@ -183,7 +189,8 @@ jobs:
     - name: Show FPC version on Windows
       if: runner.os == 'Windows'
       shell: pwsh
-      run: fpc -iV
+      run: |
+        & $env:FPC_EXE -iV
 
     - name: Build CLI smoke binary
       if: runner.os != 'Windows'
@@ -200,7 +207,7 @@ jobs:
         if (Test-Path bin) { Remove-Item bin -Recurse -Force }
         if (Test-Path lib) { Remove-Item lib -Recurse -Force }
         New-Item -ItemType Directory -Force -Path bin, lib | Out-Null
-        fpc ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        & $env:FPC_EXE ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
@@ -213,12 +220,12 @@ jobs:
       run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe
 
     - name: Record owner smoke transcript
-      if: runner.os != 'Windows'
+      if: always() && runner.os != 'Windows' && hashFiles('bin/fpdev') != ''
       shell: bash
       run: bash scripts/record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof
 
     - name: Record owner smoke transcript on Windows
-      if: runner.os == 'Windows'
+      if: always() && runner.os == 'Windows' && hashFiles('bin/fpdev.exe') != ''
       shell: pwsh
       run: ./scripts/record_owner_smoke.ps1 -Lane ${{ matrix.lane }} -ExecutablePath .\bin\fpdev.exe -OutputDir owner-proof
 

@@ -255,7 +255,7 @@ begin
   if Result = '' then
     Result := 'localhost';
   {$ELSE}
-  Result := GetEnvironmentVariable('COMPUTERNAME');
+  Result := SysUtils.GetEnvironmentVariable('COMPUTERNAME');
   if Result = '' then
     Result := 'localhost';
   {$ENDIF}
@@ -314,6 +314,10 @@ var
   MemFree: Int64;
   Code: Integer;
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  MemStatus: TMemoryStatusEx;
+{$ENDIF}
 begin
   Result := 0;
   {$IFDEF UNIX}
@@ -352,15 +356,11 @@ begin
   end;
   {$ELSE}
     {$IFDEF MSWINDOWS}
-  var
-    MemStatus: TMemoryStatusEx;
-  begin
-    MemStatus.dwLength := SizeOf(MemStatus);
-    if GlobalMemoryStatusEx(MemStatus) then
-      Result := MemStatus.ullAvailPhys
-    else
-      Result := 0;
-  end;
+  MemStatus.dwLength := SizeOf(MemStatus);
+  if GlobalMemoryStatusEx(MemStatus) then
+    Result := MemStatus.ullAvailPhys
+  else
+    Result := 0;
     {$ELSE}
   Result := 0;
     {$ENDIF}

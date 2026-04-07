@@ -6,6 +6,10 @@ unit libgit2;
 
 interface
 
+{$IFDEF DARWIN}
+{$linklib git2}
+{$ENDIF}
+
 uses
   SysUtils, ctypes;
 
