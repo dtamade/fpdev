@@ -162,16 +162,16 @@ jobs:
       run: |
         $InstallationPath = 'C:\tools\freepascal'
         $SetupInfPath = Join-Path $env:RUNNER_TEMP 'fpc-setup.inf'
-        @"
-[Setup]
-Lang=default
-Dir=$InstallationPath
-Group=Free Pascal
-NoIcons=1
-SetupType=full
-Components=base,binutils,docs,ide,utils,make,demo,gdb,units,examples
-Tasks=
-"@ | Set-Content -Path $SetupInfPath -Encoding ascii
+        @(
+          '[Setup]'
+          'Lang=default'
+          "Dir=$InstallationPath"
+          'Group=Free Pascal'
+          'NoIcons=1'
+          'SetupType=full'
+          'Components=base,binutils,docs,ide,utils,make,demo,gdb,units,examples'
+          'Tasks='
+        ) | Set-Content -Path $SetupInfPath -Encoding ascii
 
         $InstallerPath = Join-Path $env:RUNNER_TEMP 'fpc-3.2.2.win32.and.win64.exe'
         Invoke-WebRequest 'https://sourceforge.net/projects/freepascal/files/Win32/3.2.2/fpc-3.2.2.win32.and.win64.exe/download' -OutFile $InstallerPath
