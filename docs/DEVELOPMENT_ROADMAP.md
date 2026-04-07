@@ -2,6 +2,7 @@
 
 > Historical document: this snapshot reflects the 2026-01-13 gap analysis and is no longer the current execution truth.
 > For current public status use `docs/ROADMAP.md`; for release close-out use `docs/MVP_ACCEPTANCE_CRITERIA.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`.
+> 当前工作树补充说明：本文提到的 `src/fpdev.cmd.fpc.pas` 现已不是当前实现中心，而是兼容层；当前 worktree 的实现重心与发布状态应以 `docs/ROADMAP.md` 和相关 manager/action 单元为准。
 
 ## Project Status Analysis
 
@@ -243,6 +244,9 @@ tests/
 ```
 
 ### Integration Tests
+
+> 历史示例：下面的 `scripts/test_mvp.sh` 只反映 2026-01-13 规划时的验证设想，当前工作树未跟踪这个脚本。
+> 当前可用的发布/验收入口请以 `docs/MVP_ACCEPTANCE_CRITERIA.md` 和现行 release verification 流程为准。
 
 ```bash
 # Test script: scripts/test_mvp.sh

@@ -1,5 +1,9 @@
 # TODO: fpdev fpc v1 — Philosophy, Directories, Commands
 
+> 2026-04-06 更新：本文是早期 `fpdev fpc v1` 计划草案，不是当前工作树状态说明。
+> 当前工作树中的命令边界、交付状态和验证入口应以 `README.md`、`docs/ROADMAP.md`、活跃测试项目以及现行契约测试结果为准。
+> 文中早期 draft 提到的 `.bat` 测试 wrappers 目前在仓库中未跟踪；若需要当前可执行入口，请优先使用 `scripts/run_single_test.sh` 配合现有 `.lpi` 测试项目。
+
 ## 0) Purpose (Agreed Philosophy)
 Prepare a verifiable, switchable, reproducible FPC toolchain with smart reuse (cache/repos), without touching the system environment by default.
 
@@ -143,10 +147,11 @@ Deferred (separate epic): repo sub-commands (list/add/update/remove/validate).
 
 ---
 
-## 10) Test Plan (scripts)
-- scripts/test_fpc_install_prefix.bat: verifies `--prefix` honored, metadata written
-- scripts/test_fpc_idempotent.bat: run install twice; ensure no re-clone; times
-- scripts/test_fpc_verify.bat: runs verify and asserts output
-- scripts/test_fpc_list_status.bat: confirms list/status formatting
-
-
+## 10) Test Plan (planned coverage placeholders)
+- Current executable entrypoint: `scripts/run_single_test.sh`
+- Closest active install/verify coverage:
+  - `bash scripts/run_single_test.sh tests/test_fpc_install_cli.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_management.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_verify.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_current.lpr`
+- The earlier `scripts/test_fpc_*.bat` names in this plan are placeholders from the draft, not tracked files in the current worktree.

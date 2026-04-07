@@ -1,5 +1,10 @@
 # Agent Team Kickoff (Sprint 1)
 
+> 2026-04-06 更新：本文是 2026-04-05 那一轮 agent sprint 的历史快照，不代表当前工作树状态。
+> 当前工作树的功能范围、发布收口状态与测试库存应以 `README.md`、`docs/ROADMAP.md` 和现行契约测试结果为准。
+
+## 2026-04-05 Sprint 1 快照正文
+
 ## Team Roster
 - `Agent-Coder`: 编码实现与测试落地（TDD）
 - `Agent-Reviewer`: 代码审查与准入把关

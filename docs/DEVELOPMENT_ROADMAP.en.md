@@ -2,6 +2,7 @@
 
 > Historical document: this snapshot reflects the 2026-01-13 gap analysis and is no longer the current execution truth.
 > For current public status use `docs/ROADMAP.md`; for release close-out use `docs/MVP_ACCEPTANCE_CRITERIA.en.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`.
+> current worktree note: the `src/fpdev.cmd.fpc.pas` references below no longer name the active implementation center; that unit is now a compatibility shim, and current release status should be read from `docs/ROADMAP.md` plus the current manager/action units.
 
 ## Project Status Analysis
 
@@ -243,6 +244,9 @@ tests/
 ```
 
 ### Integration Tests
+
+> Historical example: the `scripts/test_mvp.sh` snippet below reflects the 2026-01-13 plan only and is not tracked in the current worktree.
+> For current release/acceptance entrypoints, use `docs/MVP_ACCEPTANCE_CRITERIA.en.md` and the active release verification flow instead.
 
 ```bash
 # Test script: scripts/test_mvp.sh

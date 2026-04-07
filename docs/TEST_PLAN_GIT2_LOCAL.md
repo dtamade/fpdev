@@ -9,10 +9,10 @@
 - 不执行 CheckoutBranch（空仓库缺提交/树，待后续 API 补齐）
 
 落地内容：
-- tests/test_git2_local_repo.lpr：控制台程序构建最小测试
-- scripts/test_git2_local_repo.bat：编译与运行脚本
+- tests/test_git2_local_repo.lpr：当前 focused runner 的测试入口
+- tests/test_git2_local_repo.lpi：当前仓库中的 Lazarus 项目入口
+- `bash scripts/run_single_test.sh tests/test_git2_local_repo.lpr`：当前可用的单测编译/运行入口
 
 后续扩展（待批示）：
 - 增补 index/tree/commit API，创建最小提交后，覆盖 GetCurrentBranch/CheckoutBranch
 - 加入 fpcunit 测试套件，结构化断言与清理逻辑
-

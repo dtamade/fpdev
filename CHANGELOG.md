@@ -13,7 +13,8 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - Added a bounded Linux release acceptance entrypoint: `bash scripts/release_acceptance_linux.sh`
 - Added explicit Windows/macOS owner checkpoints in `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 - Synchronized release documentation, roadmap status, and installation URLs to `v2.1.0`
-- Current discoverable test inventory: 271 `test_*.lpr` programs
+- Release-time discoverable test inventory: 271 `test_*.lpr` programs
+- For current inventory and release evidence, see `README.md` and `docs/ROADMAP.md`
 
 ### Added
 - **Phase 6: Architecture Improvement & Feature Completion - COMPLETE (2026-02-11)**
@@ -128,6 +129,8 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - Created examples/.fpdev.toml - Example project configuration
 
 ## [2.0.6] - 2026-01-22
+### Added
+- **Cross-Compilation Toolchain Downloads**
   - TCrossToolchainDownloader class (724 lines) - Modern toolchain downloader
   - Manifest management (JSON schema, loading, validation)
   - Platform detection (Windows/Linux/macOS + x86_64/ARM64)
@@ -138,28 +141,6 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Progress callback system
   - Offline mode support
   - Example manifest: examples/cross-manifest.json
-
-### Changed
-- **fpdev.cmd.cross.pas Refactoring**
-  - Migrated from legacy TCrossManifest to modern TCrossToolchainDownloader
-  - DownloadBinutils() now uses TCrossToolchainDownloader.DownloadBinutils()
-  - DownloadLibraries() now uses TCrossToolchainDownloader.DownloadLibraries()
-  - Simplified error handling with LastError property
-  - Improved user feedback with structured messages
-
-### Testing
-- tests/test_cross_downloader.lpr: 11 test scenarios, 100% pass rate
-  - Host platform detection
-  - Toolchain selection and availability
-  - Offline mode support
-  - Property-based tests (retry, mirrors, checksums, verification)
-
-### Documentation
-- Updated ROADMAP.md - Phase 3.2 marked complete
-- Created examples/cross-manifest.json - Example toolchain configuration
-
-## [2.0.6] - 2026-01-22
-### Added
 - **Documentation Improvements**
   - Added QUICKSTART.md - 5-minute quick start guide
   - Added FAQ.md - Comprehensive frequently asked questions
@@ -173,13 +154,28 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Improved error messages when binary installation fails
 
 ### Changed
+- **fpdev.cmd.cross.pas Refactoring**
+  - Migrated from legacy TCrossManifest to modern TCrossToolchainDownloader
+  - DownloadBinutils() now uses TCrossToolchainDownloader.DownloadBinutils()
+  - DownloadLibraries() now uses TCrossToolchainDownloader.DownloadLibraries()
+  - Simplified error handling with LastError property
+  - Improved user feedback with structured messages
 - **README.md Updates**
   - Added "Known Limitations" section
   - Documented binary installation dependency on manifest system
   - Documented project name hyphen-to-underscore conversion
   - Added recommended workflow section
 
+### Testing
+- tests/test_cross_downloader.lpr: 11 test scenarios, 100% pass rate
+  - Host platform detection
+  - Toolchain selection and availability
+  - Offline mode support
+  - Property-based tests (retry, mirrors, checksums, verification)
+
 ### Documentation
+- Updated ROADMAP.md - Phase 3.2 marked complete
+- Created examples/cross-manifest.json - Example toolchain configuration
 - Updated README.md with known limitations
 - Created comprehensive quick start guide
 - Created FAQ with common troubleshooting steps
@@ -503,7 +499,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 ### Notes
 - All features developed using Test-Driven Development (Red-Green-Refactor)
 - Phase 1 completion: 90% (9/10 tasks complete)
-- Production-ready code quality maintained throughout
+- Release-quality engineering practices documented throughout the v1.1.0 cycle
 
 ## [0.1.1] - 2025-08-17
 ### Added

@@ -4,6 +4,8 @@
 **Batches**: B173 - B205 (33 planned, 30 executed, 3 merged/skipped)
 **Branch**: main
 
+> Historical note / 历史快照：this summary preserves the Phase 5 milestone view as of 2026-02-11. 当前工作树中的测试数量、文件分布和 release status may differ from the phase snapshot below.
+
 ---
 
 ## Objectives
@@ -180,6 +182,8 @@ Build: Release mode successful
 
 ## Conclusion
 
+### Historical conclusion (2026-02-11)
+
 Phase 5 successfully achieved all primary objectives:
 - Zero compiler warnings maintained throughout
 - Binary installer hardened with extraction and post-install tests
@@ -189,4 +193,4 @@ Phase 5 successfully achieved all primary objectives:
 - 10 English documentation files available
 - 168 tests, all passing, zero regressions
 
-The project is ready for continued development or release preparation.
+At that time, the project was considered ready for continued development or release preparation.

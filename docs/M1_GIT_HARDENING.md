@@ -2,6 +2,9 @@
 
 本文件汇总本里程碑对 Git 集成的硬化改动，包括动态加载、初始化错误信息增强、最小网络选项接线、CLI 对齐，以及后续步骤与测试脚本。
 
+> 历史快照说明：本文记录 M1 里程碑当时的实施摘要。当前工作树中的 Git 架构、命令边界和兼容层状态可能已变化。
+> 当前工作树补充说明：文中提到的 `scripts/test_dynamic_loader.bat` 与 `src/test_dyn_loader.lpr` 已不在当前工作树；现行 libgit2 动态加载边界请以 `docs/LIBGIT2_DYNAMIC.md` 和 `src/libgit2.pas` 为准。
+
 ## 1. 动态加载与 DLL 探测
 - 新增 `src/libgit2.dynamic.pas`：Windows 下按顺序探测 `git2.dll` → `libgit2-1.dll` → `libgit2.dll`
 - 默认启用 `LIBGIT2_DYNAMIC`（`src/fpdev.config.inc`），可用 `-dNO_LIBGIT2_DYNAMIC` 退回 external 方式
@@ -53,4 +56,3 @@
 - 小步扩展：把凭据/证书回调桥接到 `TGitManager` 的事件（credentials/certificate_check/transfer_progress）
 - 完成本地 TDD 测试程序与脚本
 - M2：FPC/Lazarus Manager 加固（缓存/失败回滚/幂等/离线）
-

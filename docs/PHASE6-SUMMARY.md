@@ -4,6 +4,8 @@
 **Batches**: B206 - B255 (50 planned, ~35 executed, ~15 merged/skipped after analysis)
 **Branch**: main
 
+> Historical note / 历史快照：this summary preserves the Phase 6 milestone view as of 2026-02-11. 当前工作树中的测试数量、文件分布和 release status may differ from the phase snapshot below.
+
 ---
 
 ## Objectives

@@ -1,4 +1,19 @@
-# FPDev - Windows 动态加载 libgit2 使用说明
+# FPDev - Windows 动态加载 libgit2 使用说明（历史快照）
+
+> 2026-04-05 更新：本文记录一轮历史性的 Windows 动态加载 libgit2 方案草稿。
+> 当前工作树中 `src/libgit2.dynamic.pas`、`scripts/test_dynamic_loader.bat` 与 `scripts/build_libgit2_windows.bat` 并不是现行交付物，请以 `src/libgit2.pas`、`src/git2.modern.pas`、`docs/GIT2_USAGE.md` 和 `docs/FAQ.md` 为当前边界。
+
+## 2026-04-05 当前工作树补充
+
+- `src/fpdev.config.inc` 仍保留 `LIBGIT2_DYNAMIC` 宏定义，但当前 `src/` 下没有配套的 `src/libgit2.dynamic.pas` 实现文件。
+- 当前仓库中也没有本文历史正文提到的 `scripts/test_dynamic_loader.bat` 或 `scripts/build_libgit2_windows.bat`。
+- 当前公开运行时说明以 `src/libgit2.pas` 为准：
+  - Windows：`git2.dll`
+  - Linux：`libgit2.so`
+  - macOS：`libgit2.1.dylib`
+- 若需要当前的 Git/libgit2 使用与排障入口，请优先阅读 `docs/GIT2_USAGE.md` 和 `docs/FAQ.md`。
+
+## 历史快照正文
 
 ## 目标
 - 提升可用性：支持多种 DLL 命名（git2.dll, libgit2-1.dll, libgit2.dll）
@@ -40,5 +55,4 @@
 2) 版本不兼容
    - 升级/重建 libgit2（scripts/build_libgit2_windows.bat / mingw 版本）
    - 确保 64/32 位与编译目标一致
-
 
