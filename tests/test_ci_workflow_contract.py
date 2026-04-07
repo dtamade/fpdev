@@ -125,6 +125,10 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('Select-Object -First 1', section)
         self.assertIn('$env:GITHUB_ENV', section)
         self.assertIn('FPC_EXE=$($FpcExe.FullName)', section)
+        self.assertIn("Join-Path $FpcExe.DirectoryName 'fpcmkcfg.exe'", section)
+        self.assertIn("Join-Path $FpcExe.DirectoryName 'fpc.cfg'", section)
+        self.assertIn('& $FpcMkCfg -d "basepath=$InstallationPath" -o $FpcCfg', section)
+        self.assertIn('FPC_CFG_PATH=$FpcCfg', section)
         self.assertIn('$env:GITHUB_PATH', section)
         self.assertIn('win64 fpjson unit not found', section)
         self.assertIn('FPC_TARGET=win64', section)
@@ -148,9 +152,10 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn("if: runner.os == 'Windows'", build_windows)
         self.assertIn('shell: pwsh', build_windows)
         self.assertIn("$TargetFlags = @()", build_windows)
+        self.assertIn("$ConfigFlags = @('-n', \"@$($env:FPC_CFG_PATH)\")", build_windows)
         self.assertIn("$env:FPC_TARGET -eq 'win64'", build_windows)
         self.assertIn("@('-Px86_64', '-Twin64')", build_windows)
-        self.assertIn('& $env:FPC_EXE @TargetFlags ${{ matrix.build_flags }}', build_windows)
+        self.assertIn('& $env:FPC_EXE @ConfigFlags @TargetFlags ${{ matrix.build_flags }}', build_windows)
 
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()

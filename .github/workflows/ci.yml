@@ -219,7 +219,17 @@ jobs:
         if ($null -eq $Win64Fpjson) {
           throw "win64 fpjson unit not found under $InstallationPath"
         }
+        $FpcMkCfg = Join-Path $FpcExe.DirectoryName 'fpcmkcfg.exe'
+        $FpcCfg = Join-Path $FpcExe.DirectoryName 'fpc.cfg'
+        if (-not (Test-Path $FpcMkCfg)) {
+          throw "fpcmkcfg.exe not found under $($FpcExe.DirectoryName)"
+        }
+        & $FpcMkCfg -d "basepath=$InstallationPath" -o $FpcCfg
+        if (-not (Test-Path $FpcCfg)) {
+          throw "fpc.cfg not found at $FpcCfg"
+        }
         "FPC_EXE=$($FpcExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "FPC_CFG_PATH=$FpcCfg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         "FPC_TARGET=win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         $X64Compiler.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -262,10 +272,11 @@ jobs:
         if (Test-Path lib) { Remove-Item lib -Recurse -Force }
         New-Item -ItemType Directory -Force -Path bin, lib | Out-Null
         $TargetFlags = @()
+        $ConfigFlags = @('-n', "@$($env:FPC_CFG_PATH)")
         if ($env:FPC_TARGET -eq 'win64') {
           $TargetFlags = @('-Px86_64', '-Twin64')
         }
-        & $env:FPC_EXE @TargetFlags ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        & $env:FPC_EXE @ConfigFlags @TargetFlags ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
