@@ -112,6 +112,20 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('curl.exe -L --fail --retry 3 --output $InstallerPath $Installer.Url', section)
         self.assertIn('/verysilent /norestart /LoadInf=', section)
 
+    def test_ci_installs_and_stages_windows_libgit2_runtime(self):
+        install_section = self._smoke_step_block('Install libgit2 runtime on Windows')
+        self.assertIn("if: runner.os == 'Windows'", install_section)
+        self.assertIn('shell: pwsh', install_section)
+        self.assertIn('choco install libgit2 --no-progress -y', install_section)
+
+        stage_section = self._smoke_step_block('Stage Windows libgit2 runtime')
+        self.assertIn("if: runner.os == 'Windows'", stage_section)
+        self.assertIn('shell: pwsh', stage_section)
+        self.assertIn('Get-ChildItem $env:ChocolateyInstall -Recurse -File -Filter libgit2.dll', stage_section)
+        self.assertIn('Get-ChildItem $LibGit2Dll.DirectoryName -File -Filter *.dll', stage_section)
+        self.assertIn("Copy-Item $LibGit2Dll.FullName (Join-Path $BinDir 'git2.dll') -Force", stage_section)
+        self.assertIn('libgit2.dll not found under $env:ChocolateyInstall', stage_section)
+
     def test_ci_exports_windows_fpc_path_from_win32_cross_layout(self):
         section = self._smoke_step_block('Export Windows x64 FPC path')
         self.assertIn("if: runner.os == 'Windows'", section)

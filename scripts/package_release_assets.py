@@ -17,6 +17,14 @@ PLANNED_ASSETS = {
 }
 
 
+def iter_windows_runtime_files(binary: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in binary.parent.iterdir()
+        if path.is_file() and path.suffix.lower() == '.dll'
+    )
+
+
 def copy_tree(src: Path, dst: Path) -> None:
     for path in src.rglob('*'):
         rel = path.relative_to(src)
@@ -40,9 +48,18 @@ def package_tar_gz(binary: Path, data_dir: Path, output_path: Path, binary_name:
             archive.add(staging / 'data', arcname='data')
 
 
-def package_zip(binary: Path, data_dir: Path, output_path: Path, binary_name: str) -> None:
+def package_zip(
+    binary: Path,
+    data_dir: Path,
+    output_path: Path,
+    binary_name: str,
+    runtime_files: list[Path] | None = None,
+) -> None:
+    runtime_files = runtime_files or []
     with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(binary, arcname=binary_name)
+        for path in runtime_files:
+            archive.write(path, arcname=path.name)
         for path in sorted(data_dir.rglob('*')):
             if path.is_file():
                 archive.write(path, arcname=str(Path('data') / path.relative_to(data_dir)))
@@ -52,7 +69,8 @@ def build_asset(binary: Path, data_dir: Path, output_dir: Path, asset_name: str,
     output_path = output_dir / asset_name
     output_dir.mkdir(parents=True, exist_ok=True)
     if asset_name.endswith('.zip'):
-        package_zip(binary, data_dir, output_path, binary_name)
+        runtime_files = iter_windows_runtime_files(binary) if binary_name.endswith('.exe') else []
+        package_zip(binary, data_dir, output_path, binary_name, runtime_files)
     else:
         package_tar_gz(binary, data_dir, output_path, binary_name)
     return output_path

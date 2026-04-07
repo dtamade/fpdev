@@ -25,6 +25,8 @@ class PackageReleaseAssetsTests(unittest.TestCase):
 
             windows_bin = root / 'fpdev.exe'
             windows_bin.write_text('windows-binary', encoding='utf-8')
+            (root / 'git2.dll').write_text('git2-runtime', encoding='utf-8')
+            (root / 'zlib1.dll').write_text('zlib-runtime', encoding='utf-8')
 
             completed = subprocess.run(
                 [
@@ -58,6 +60,8 @@ class PackageReleaseAssetsTests(unittest.TestCase):
             with zipfile.ZipFile(windows_asset) as archive:
                 names = archive.namelist()
                 self.assertIn('fpdev.exe', names)
+                self.assertIn('git2.dll', names)
+                self.assertIn('zlib1.dll', names)
                 self.assertIn('data/catalog.json', names)
 
             self.assertIn('fpdev-linux-x64.tar.gz', completed.stdout)

@@ -192,6 +192,11 @@ jobs:
           Start-Process -FilePath $InstallerPath -ArgumentList $Installer.Arguments -Wait -NoNewWindow
         }
 
+    - name: Install libgit2 runtime on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: choco install libgit2 --no-progress -y
+
     - name: Install FPC toolchain
       if: runner.os != 'Windows'
       shell: bash
@@ -277,6 +282,21 @@ jobs:
           $TargetFlags = @('-Px86_64', '-Twin64')
         }
         & $env:FPC_EXE @ConfigFlags @TargetFlags ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Stage Windows libgit2 runtime
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $LibGit2Dll = Get-ChildItem $env:ChocolateyInstall -Recurse -File -Filter libgit2.dll -ErrorAction SilentlyContinue |
+          Select-Object -First 1
+        if ($null -eq $LibGit2Dll) {
+          throw "libgit2.dll not found under $env:ChocolateyInstall"
+        }
+        $BinDir = (Resolve-Path bin).Path
+        Get-ChildItem $LibGit2Dll.DirectoryName -File -Filter *.dll | ForEach-Object {
+          Copy-Item $_.FullName (Join-Path $BinDir $_.Name) -Force
+        }
+        Copy-Item $LibGit2Dll.FullName (Join-Path $BinDir 'git2.dll') -Force
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
