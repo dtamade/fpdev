@@ -91,6 +91,14 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
 
+    def test_ci_uses_manual_cross_platform_smoke_checkout(self):
+        section = self._smoke_step_block('Checkout repository')
+        self.assertIn('shell: bash', section)
+        self.assertIn('git init .', section)
+        self.assertIn('git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"', section)
+        self.assertIn('git -c protocol.version=2 fetch --no-tags --depth=1 origin "$GITHUB_REF"', section)
+        self.assertIn('git checkout --force FETCH_HEAD', section)
+
     def test_ci_exports_windows_fpc_path_after_chocolatey_install(self):
         section = self._smoke_step_block('Export Windows x64 FPC path')
         self.assertIn("if: runner.os == 'Windows'", section)

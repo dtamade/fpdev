@@ -69,8 +69,8 @@ def render_readme_md(text: str, count: int) -> str:
     )
     text = replace_once(
         text,
-        r'^\[OK\] (?:Test coverage: .*|Discoverable test programs: .*)$',
-        f'[OK] Discoverable test programs: {count} (same inventory rules as CI)',
+        r'^\[(?:OK|INFO)\] (?:Test coverage: .*|Discoverable test programs: .*)$',
+        f'[INFO] Discoverable test programs: {count} (same inventory rules as CI)',
         README_MD,
     )
     text = replace_marker_block(
@@ -91,8 +91,8 @@ def render_readme_en(text: str, count: int) -> str:
     )
     text = replace_once(
         text,
-        r'^✅ (?:Test Coverage: .*|Discoverable test programs: .*)$',
-        f'✅ Discoverable test programs: {count} (same inventory rules as CI)',
+        r'^(?:✅ (?:Test Coverage: .*|Discoverable test programs: .*)|\[INFO\] Discoverable test programs: .*)$',
+        f'[INFO] Discoverable test programs: {count} (same inventory rules as CI)',
         README_EN,
     )
     text = replace_marker_block(

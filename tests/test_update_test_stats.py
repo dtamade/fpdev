@@ -91,8 +91,48 @@ class UpdateTestStatsTests(unittest.TestCase):
         )
         updated = self.mod.render_readme_md(sample, 216)
         self.assertIn('tests-216%20discoverable', updated)
-        self.assertIn('[OK] Discoverable test programs: 216 (same inventory rules as CI)', updated)
+        self.assertIn('[INFO] Discoverable test programs: 216 (same inventory rules as CI)', updated)
         self.assertIn('总计: 216 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）', updated)
+
+    def test_render_readme_md_updates_info_status_line_used_by_current_readme(self):
+        sample = (
+            '### 📊 项目状态\n\n'
+            '```\n'
+            '[INFO] Feature checklist: closed for v2.1.0 scope\n'
+            '[INFO] Discoverable test programs: 111 (same inventory rules as CI)\n'
+            '[INFO] Release sign-off: pending Windows/macOS owner evidence\n'
+            '```\n\n'
+            '<!-- TEST-INVENTORY-BADGE:BEGIN -->\n'
+            'old badge\n'
+            '<!-- TEST-INVENTORY-BADGE:END -->\n\n'
+            '<!-- TEST-INVENTORY-SUMMARY:BEGIN -->\n'
+            'old summary\n'
+            '<!-- TEST-INVENTORY-SUMMARY:END -->\n'
+        )
+        updated = self.mod.render_readme_md(sample, 216)
+        self.assertIn('[INFO] Discoverable test programs: 216 (same inventory rules as CI)', updated)
+        self.assertIn('tests-216%20discoverable', updated)
+        self.assertIn('总计: 216 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）', updated)
+
+    def test_render_readme_en_updates_info_status_line_used_by_current_readme(self):
+        sample = (
+            '### 📊 Project Status\n\n'
+            '```\n'
+            '[INFO] Feature checklist: closed for v2.1.0 scope\n'
+            '[INFO] Discoverable test programs: 111 (same inventory rules as CI)\n'
+            '[INFO] Release sign-off: pending Windows/macOS owner evidence\n'
+            '```\n\n'
+            '<!-- TEST-INVENTORY-BADGE:BEGIN -->\n'
+            'old badge\n'
+            '<!-- TEST-INVENTORY-BADGE:END -->\n\n'
+            '<!-- TEST-INVENTORY-SUMMARY:BEGIN -->\n'
+            'old summary\n'
+            '<!-- TEST-INVENTORY-SUMMARY:END -->\n'
+        )
+        updated = self.mod.render_readme_en(sample, 216)
+        self.assertIn('[INFO] Discoverable test programs: 216 (same inventory rules as CI)', updated)
+        self.assertIn('tests-216%20discoverable', updated)
+        self.assertIn('✅ 216 discoverable test_*.lpr programs (same rules as CI)', updated)
 
     def test_render_roadmap_updates_public_test_count_lines(self):
         sample = (

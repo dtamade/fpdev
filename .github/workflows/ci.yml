@@ -148,9 +148,13 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        persist-credentials: false
+      shell: bash
+      run: |
+        git init .
+        git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git -c protocol.version=2 fetch --no-tags --depth=1 origin "$GITHUB_REF"
+        git checkout --force FETCH_HEAD
 
     - name: Install FPC toolchain
       run: ${{ matrix.install_step }}
