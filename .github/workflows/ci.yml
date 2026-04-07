@@ -35,6 +35,8 @@ jobs:
           tests.test_fusion_audit_report_contract \
           tests.test_contributor_docs_contract \
           tests.test_official_docs_cli_contract \
+          tests.test_build_manager_callback_contract \
+          tests.test_lazarus_callback_contract \
           tests.test_release_docs_contract \
           tests.test_release_scripts_contract \
           tests.test_package_release_assets \
@@ -151,15 +153,42 @@ jobs:
     - name: Install FPC toolchain
       run: ${{ matrix.install_step }}
 
+    - name: Export Windows FPC path
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $FpcExe = Get-ChildItem 'C:\tools\freepascal\bin' -Recurse -Filter fpc.exe -ErrorAction Stop |
+          Select-Object -First 1
+        if ($null -eq $FpcExe) {
+          throw 'fpc.exe not found under C:\tools\freepascal\bin'
+        }
+        $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
     - name: Show FPC version
+      if: runner.os != 'Windows'
       shell: bash
       run: fpc -iV
 
+    - name: Show FPC version on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: fpc -iV
+
     - name: Build CLI smoke binary
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         rm -rf bin lib
         mkdir -p bin lib
+        fpc ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Build CLI smoke binary on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (Test-Path bin) { Remove-Item bin -Recurse -Force }
+        if (Test-Path lib) { Remove-Item lib -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path bin, lib | Out-Null
         fpc ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
@@ -199,7 +228,7 @@ jobs:
         retention-days: 7
 
     - name: Upload owner proof artifact
-      if: always()
+      if: always() && hashFiles('owner-proof/**') != ''
       uses: actions/upload-artifact@v4
       with:
         name: owner-proof-${{ matrix.lane }}
