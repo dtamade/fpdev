@@ -20,8 +20,8 @@ uses
   fpdev.utils.process;
 
 const
-  LEGACY_HTTP_GET_MAX_ATTEMPTS = 4;
-  LEGACY_HTTP_GET_RETRY_DELAY_MS = 250;
+  LEGACY_HTTP_GET_MAX_ATTEMPTS = 6;
+  LEGACY_HTTP_GET_RETRY_DELAY_MS = 500;
   LEGACY_HTTP_GET_DEFAULT_ERROR = 'HTTP download failed';
 
 procedure CleanupLegacyHTTPBridgeTempFile(const ATempFile: string);
@@ -36,6 +36,14 @@ var
 begin
   NormalizedError := LowerCase(Trim(AError));
   if NormalizedError = '' then
+    Exit(True);
+
+  if (Pos(' 408 ', ' ' + NormalizedError + ' ') > 0) or
+     (Pos(' 429 ', ' ' + NormalizedError + ' ') > 0) or
+     (Pos(' 500 ', ' ' + NormalizedError + ' ') > 0) or
+     (Pos(' 502 ', ' ' + NormalizedError + ' ') > 0) or
+     (Pos(' 503 ', ' ' + NormalizedError + ' ') > 0) or
+     (Pos(' 504 ', ' ' + NormalizedError + ' ') > 0) then
     Exit(True);
 
   if (Pos(' 400 ', ' ' + NormalizedError + ' ') > 0) or

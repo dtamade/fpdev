@@ -6,7 +6,7 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, Classes, Process, zipper,
+  SysUtils, Classes, Process, Sockets, zipper,
   fpdev.fpc.installer.iobridge,
   fpdev.utils.process, test_temp_paths;
 
@@ -41,15 +41,48 @@ type
     FProcess: TProcess;
     FPort: Integer;
     FRootDir: string;
+    function ReadReadyPort(out APort: Integer): Boolean;
+    function StartServer(const APythonScript: string;
+      const AExtraArgs: array of string): Boolean;
   public
     constructor Create(const ARootDir: string);
     destructor Destroy; override;
     function Start: Boolean;
-    function StartDelayed(ADelayMs: Integer): Boolean;
-    function WaitUntilReady(ATimeoutMs: Integer): Boolean;
+    function StartWithInitial503Responses(AFailureCount: Integer;
+      const ATargetPath: string): Boolean;
     procedure Stop;
     property Port: Integer read FPort;
   end;
+
+function AllocateUnusedLocalPort: Integer;
+var
+  Sock: LongInt;
+  Addr: TInetSockAddr;
+  AddrLen: TSockLen;
+begin
+  Result := 0;
+  Sock := fpSocket(AF_INET, SOCK_STREAM, 0);
+  if Sock < 0 then
+    Exit;
+
+  try
+    FillChar(Addr, SizeOf(Addr), 0);
+    Addr.sin_family := AF_INET;
+    Addr.sin_port := htons(0);
+    Addr.sin_addr := StrToNetAddr('127.0.0.1');
+
+    if fpBind(Sock, @Addr, SizeOf(Addr)) <> 0 then
+      Exit;
+
+    AddrLen := SizeOf(Addr);
+    if fpGetSockName(Sock, @Addr, @AddrLen) <> 0 then
+      Exit;
+
+    Result := ntohs(Addr.sin_port);
+  finally
+    CloseSocket(Sock);
+  end;
+end;
 
 constructor TLocalHTTPServer.Create(const ARootDir: string);
 begin
@@ -65,94 +98,124 @@ begin
   inherited Destroy;
 end;
 
-function TLocalHTTPServer.WaitUntilReady(ATimeoutMs: Integer): Boolean;
+function TLocalHTTPServer.ReadReadyPort(out APort: Integer): Boolean;
 var
   Deadline: QWord;
-  Probe: fpdev.utils.process.TProcessResult;
+  NextChar: Char;
+  BytesRead: LongInt;
+  PortLine: string;
 begin
   Result := False;
-  Deadline := GetTickCount64 + QWord(ATimeoutMs);
+  APort := 0;
+  PortLine := '';
+  Deadline := GetTickCount64 + 3000;
 
-  repeat
-    if (not Assigned(FProcess)) or (not FProcess.Running) then
-      Exit(False);
-
-    Probe := TProcessExecutor.ExecuteWithTimeout(
-      'python3',
-      ['-c',
-       'import socket, sys; s = socket.socket(); s.settimeout(0.2); s.connect(("127.0.0.1", int(sys.argv[1]))); s.close()',
-       IntToStr(FPort)],
-      '',
-      1000);
-    if Probe.Success then
-      Exit(True);
-
-    Sleep(50);
-  until GetTickCount64 >= Deadline;
-end;
-
-function TLocalHTTPServer.Start: Boolean;
-var
-  Attempt: Integer;
-begin
-  Result := False;
-  Randomize;
-
-  for Attempt := 0 to 15 do
+  while GetTickCount64 < Deadline do
   begin
-    Stop;
+    if Assigned(FProcess) and Assigned(FProcess.Output) and
+       (FProcess.Output.NumBytesAvailable > 0) then
+    begin
+      BytesRead := FProcess.Output.Read(NextChar, 1);
+      if BytesRead = 1 then
+      begin
+        if NextChar = #10 then
+        begin
+          APort := StrToIntDef(Trim(PortLine), 0);
+          Exit(APort > 0);
+        end;
 
-    FPort := 38000 + Random(2000);
-    FProcess := TProcess.Create(nil);
-    try
-      FProcess.Executable := 'python3';
-      FProcess.Parameters.Add('-m');
-      FProcess.Parameters.Add('http.server');
-      FProcess.Parameters.Add(IntToStr(FPort));
-      FProcess.Parameters.Add('--bind');
-      FProcess.Parameters.Add('127.0.0.1');
-      FProcess.CurrentDirectory := FRootDir;
-      FProcess.Options := [poNoConsole];
-      FProcess.Execute;
-      if WaitUntilReady(2000) then
-        Exit(True);
-    except
-      Stop;
+        if NextChar <> #13 then
+          PortLine := PortLine + NextChar;
+      end;
+      Continue;
     end;
-    Stop;
+
+    if (not Assigned(FProcess)) or (not FProcess.Running) then
+      Break;
+
+    Sleep(10);
+  end;
+
+  if PortLine <> '' then
+  begin
+    APort := StrToIntDef(Trim(PortLine), 0);
+    Result := APort > 0;
   end;
 end;
 
-function TLocalHTTPServer.StartDelayed(ADelayMs: Integer): Boolean;
+function TLocalHTTPServer.StartServer(const APythonScript: string;
+  const AExtraArgs: array of string): Boolean;
+var
+  ArgIndex: Integer;
+  ReadyPort: Integer;
 begin
   Result := False;
-  Randomize;
-
   Stop;
-
-  FPort := 38000 + Random(2000);
+  FPort := 0;
   FProcess := TProcess.Create(nil);
   try
     FProcess.Executable := 'python3';
+    FProcess.Parameters.Add('-u');
     FProcess.Parameters.Add('-c');
-    FProcess.Parameters.Add(
-      'import http.server, os, socketserver, sys, time; ' +
-      'time.sleep(float(sys.argv[1])); ' +
-      'os.chdir(sys.argv[2]); ' +
-      'socketserver.TCPServer.allow_reuse_address = True; ' +
-      'handler = http.server.SimpleHTTPRequestHandler; ' +
-      'httpd = socketserver.TCPServer(("127.0.0.1", int(sys.argv[3])), handler); ' +
-      'httpd.serve_forever()');
-    FProcess.Parameters.Add(Format('%.3f', [ADelayMs / 1000.0]));
+    FProcess.Parameters.Add(APythonScript);
     FProcess.Parameters.Add(FRootDir);
-    FProcess.Parameters.Add(IntToStr(FPort));
-    FProcess.Options := [poNoConsole];
+    for ArgIndex := 0 to High(AExtraArgs) do
+      FProcess.Parameters.Add(AExtraArgs[ArgIndex]);
+    FProcess.CurrentDirectory := FRootDir;
+    FProcess.Options := [poUsePipes, poNoConsole];
     FProcess.Execute;
-    Sleep(100);
-    Result := FProcess.Running;
+    if not ReadReadyPort(ReadyPort) then
+      Exit(False);
+    FPort := ReadyPort;
+    Result := FPort > 0;
   except
     Stop;
   end;
+
+  if not Result then
+    Stop;
+end;
+
+function TLocalHTTPServer.Start: Boolean;
+const
+  PYTHON_HTTP_SERVER =
+    'import http.server, os, socketserver, sys' + LineEnding +
+    'os.chdir(sys.argv[1])' + LineEnding +
+    'socketserver.TCPServer.allow_reuse_address = True' + LineEnding +
+    'handler = http.server.SimpleHTTPRequestHandler' + LineEnding +
+    'httpd = socketserver.TCPServer(("127.0.0.1", 0), handler)' + LineEnding +
+    'print(httpd.server_address[1], flush=True)' + LineEnding +
+    'httpd.serve_forever()';
+begin
+  Result := StartServer(PYTHON_HTTP_SERVER, []);
+end;
+
+function TLocalHTTPServer.StartWithInitial503Responses(AFailureCount: Integer;
+  const ATargetPath: string): Boolean;
+const
+  PYTHON_HTTP_503_SERVER =
+    'import http.server, os, socketserver, sys' + LineEnding +
+    'os.chdir(sys.argv[1])' + LineEnding +
+    'FAILURES = int(sys.argv[2])' + LineEnding +
+    'TARGET = sys.argv[3]' + LineEnding +
+    'class Handler(http.server.SimpleHTTPRequestHandler):' + LineEnding +
+    '    def do_GET(self):' + LineEnding +
+    '        global FAILURES' + LineEnding +
+    '        if self.path == TARGET and FAILURES > 0:' + LineEnding +
+    '            FAILURES -= 1' + LineEnding +
+    '            self.send_response(503)' + LineEnding +
+    '            self.send_header("Content-Type", "text/plain")' + LineEnding +
+    '            self.end_headers()' + LineEnding +
+    '            self.wfile.write(b"retry later")' + LineEnding +
+    '            return' + LineEnding +
+    '        return super().do_GET()' + LineEnding +
+    'socketserver.TCPServer.allow_reuse_address = True' + LineEnding +
+    'httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)' + LineEnding +
+    'print(httpd.server_address[1], flush=True)' + LineEnding +
+    'httpd.serve_forever()';
+begin
+  Result := StartServer(PYTHON_HTTP_503_SERVER,
+    [IntToStr(AFailureCount), ATargetPath]);
 end;
 
 procedure TLocalHTTPServer.Stop;
@@ -232,7 +295,7 @@ begin
   end;
 end;
 
-procedure TestLegacyHTTPDownloadBridgeRetryWhenServerBecomesReady;
+procedure TestLegacyHTTPDownloadBridgeRetriesHTTP503UntilSuccess;
 var
   RootDir: string;
   SourceFile: string;
@@ -247,11 +310,12 @@ begin
   Server := TLocalHTTPServer.Create(RootDir);
   try
     CreateTextFile(SourceFile, 'hello delayed bridge');
-    Check('delayed http server process starts', Server.StartDelayed(600),
-      'failed to launch delayed http server');
+    Check('retrying http server starts',
+      Server.StartWithInitial503Responses(2, '/payload.txt'),
+      'failed to launch retrying local python http server');
     Err := '';
     Bytes := 0;
-    Check('legacy http bridge retries until server ready',
+    Check('legacy http bridge retries after http 503',
       ExecuteFPCLegacyBinaryHTTPGetBridge(
         'http://127.0.0.1:' + IntToStr(Server.Port) + '/payload.txt',
         TempFile, Bytes, Err),
@@ -272,17 +336,21 @@ procedure TestLegacyHTTPDownloadBridgeFailure;
 var
   RootDir: string;
   TempFile: string;
+  UnusedPort: Integer;
   Bytes: Int64;
   Err: string;
 begin
   RootDir := CreateUniqueTempDir('test_iobridge_http_fail_root');
   TempFile := RootDir + PathDelim + 'downloaded.txt';
   try
+    UnusedPort := AllocateUnusedLocalPort;
+    Check('unused local port is allocated', UnusedPort > 0, 'expected an ephemeral port');
     Err := '';
     Bytes := 0;
     Check('legacy http bridge failure returns false',
       not ExecuteFPCLegacyBinaryHTTPGetBridge(
-        'http://127.0.0.1:39999/never-there.txt', TempFile, Bytes, Err),
+        'http://127.0.0.1:' + IntToStr(UnusedPort) + '/never-there.txt',
+        TempFile, Bytes, Err),
       'expected failure');
     Check('legacy http bridge failure sets error', Err <> '', 'error should not be empty');
     Check('legacy http bridge failure cleans temp file', not FileExists(TempFile),
@@ -382,7 +450,7 @@ begin
   GTempRoot := CreateUniqueTempDir('test_iobridge_root');
   try
     TestLegacyHTTPDownloadBridgeSuccess;
-    TestLegacyHTTPDownloadBridgeRetryWhenServerBecomesReady;
+    TestLegacyHTTPDownloadBridgeRetriesHTTP503UntilSuccess;
     TestLegacyHTTPDownloadBridgeFailure;
     TestZipExtractBridge;
     TestTarExtractBridge;
