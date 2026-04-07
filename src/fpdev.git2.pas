@@ -401,6 +401,7 @@ var
   HeadTarget: Pgit_oid;
   LookupRC: cint;
   CreateLocalBranchFromRemote: Boolean;
+  AllowForceRefresh: Boolean;
 begin
   Result := False;
   TargetRef := nil;
@@ -412,6 +413,7 @@ begin
     try
       if Trim(ABranch) = '' then Exit(False);
       CreateLocalBranchFromRemote := False;
+      AllowForceRefresh := Force or IsClean;
       if Pos('refs/', ABranch) = 1 then
       begin
         LRefName := ABranch
@@ -460,7 +462,7 @@ begin
 
       CheckoutOpts := Default(git_checkout_options);
       CheckGitResult(git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION), 'Init checkout options');
-      if Force then
+      if AllowForceRefresh then
         CheckoutOpts.checkout_strategy := GIT_CHECKOUT_FORCE or GIT_CHECKOUT_RECREATE_MISSING
       else
         CheckoutOpts.checkout_strategy := GIT_CHECKOUT_SAFE or GIT_CHECKOUT_RECREATE_MISSING;
