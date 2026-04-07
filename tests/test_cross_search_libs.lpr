@@ -247,10 +247,13 @@ var
   Lines: TStringArray;
   I: Integer;
   HasLibStatus: Boolean;
+  TempLibDir: string;
 begin
   S := TCrossToolchainSearch.Create;
   try
+    TempLibDir := CreateUniqueTempDir('cross-search-diagnose-libs');
     T := MakeTarget('arm', 'linux');
+    T.LibrariesPath := TempLibDir;
     Lines := S.DiagnoseTarget(T);
     HasLibStatus := False;
     for I := 0 to High(Lines) do
@@ -258,6 +261,7 @@ begin
         HasLibStatus := True;
     Check(HasLibStatus, 'Diagnose: has libraries status line');
   finally
+    CleanupTempDir(TempLibDir);
     S.Free;
   end;
 end;

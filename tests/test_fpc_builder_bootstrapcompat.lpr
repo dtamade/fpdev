@@ -5,7 +5,7 @@ program test_fpc_builder_bootstrapcompat;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
-  fpdev.utils.process,
+  fpdev.utils.process, fpdev.utils,
   test_config_isolation,
   test_temp_paths,
   fpdev.fpc.builder;
@@ -298,6 +298,14 @@ begin
   end;
 end;
 
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
 procedure TestBuildFromSourceUsesSourceVersionForCustomPrefixBootstrap;
 var
   Config: IConfigManager;
@@ -316,6 +324,9 @@ var
   OutBuf: IOutput;
   ErrBuf: IOutput;
   BuildOK: Boolean;
+  SavedPath: string;
+  SystemStubDir: string;
+  SystemStubExe: string;
 begin
   TempRoot := CreateUniqueTempDir('fpdev-custom-prefix-bootstrap');
 
@@ -341,6 +352,14 @@ begin
 
   WriteBootstrapStub(TargetBootstrapExe, '3.2.2');
   WriteBootstrapStub(RequiredBootstrapExe, '3.2.0');
+  SystemStubDir := TempRoot + PathDelim + 'system-fpc-stub';
+  SystemStubExe := SystemStubDir + PathDelim + 'fpc';
+  WriteBootstrapStub(SystemStubExe, '3.3.1');
+  SavedPath := GetEnvironmentVariable('PATH');
+  if SavedPath <> '' then
+    set_env('PATH', SystemStubDir + PathSeparator + SavedPath)
+  else
+    set_env('PATH', SystemStubDir);
 
   WriteBuildHarnessMakefile(MakefilePath);
 
@@ -388,6 +407,7 @@ begin
     );
   finally
     Builder.Free;
+    RestoreEnv('PATH', SavedPath);
     CleanupTempDir(TempRoot);
   end;
 end;

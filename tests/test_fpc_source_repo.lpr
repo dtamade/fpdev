@@ -1845,6 +1845,12 @@ begin
     AssertTrue(RunCommandInDir('git', ['clone', '-b', 'main', OriginDir, SourceDir], TestRootDir),
       'Valid source repo clone succeeds for ff-only update test setup',
       'Expected git clone -b main to succeed into ' + SourceDir);
+    AssertTrue(RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], SourceDir),
+      'Local clone configures git email for ff-only update test',
+      'Expected git config user.email to succeed in ' + SourceDir);
+    AssertTrue(RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], SourceDir),
+      'Local clone configures git user for ff-only update test',
+      'Expected git config user.name to succeed in ' + SourceDir);
 
     with TStringList.Create do
     try

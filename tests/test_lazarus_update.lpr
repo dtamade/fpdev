@@ -7,7 +7,7 @@ uses
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
-  fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2,
+  fpdev.lazarus.manager, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2,
   fpdev.utils, fpdev.utils.git, fpdev.constants, fpdev.version.registry, fpdev.lazarus.source,
   fpdev.lazarus.config, fpdev.lazarus.commandflow, fpdev.output.intf,
   fpdev.i18n, fpdev.i18n.strings,
@@ -16,7 +16,7 @@ uses
 var
   TestRootDir: string;
   ConfigManager: IConfigManager;
-  LazarusManager: fpdev.cmd.lazarus.TLazarusManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
@@ -45,7 +45,7 @@ type
     function Text: string;
   end;
 
-  TProbeLazarusGitClient = class(TInterfacedObject, ILazarusGitClient, ILazarusSourceGitClient)
+  TProbeLazarusGitClient = class(TInterfacedObject, fpdev.lazarus.manager.ILazarusGitClient, ILazarusSourceGitClient)
   public
     BackendValue: TGitBackend;
     CloneResult: Boolean;
@@ -74,11 +74,11 @@ type
     function GetLastError: string;
   end;
 
-  TTestLazarusManager = class(fpdev.cmd.lazarus.TLazarusManager)
+  TTestLazarusManager = class(fpdev.lazarus.manager.TLazarusManager)
   public
     LastCliOnly: Boolean;
-    DownloadClient: ILazarusGitClient;
-    function CreateGitClient(const ACliOnly: Boolean): ILazarusGitClient; override;
+    DownloadClient: fpdev.lazarus.manager.ILazarusGitClient;
+    function CreateGitClient(const ACliOnly: Boolean): fpdev.lazarus.manager.ILazarusGitClient; override;
     function InvokeDownloadSource(const AVersion, ATargetDir: string): Boolean;
   end;
 
@@ -281,7 +281,7 @@ begin
 end;
 
 function TTestLazarusManager.CreateGitClient(
-  const ACliOnly: Boolean): ILazarusGitClient;
+  const ACliOnly: Boolean): fpdev.lazarus.manager.ILazarusGitClient;
 begin
   LastCliOnly := ACliOnly;
   Result := DownloadClient;
@@ -323,7 +323,7 @@ begin
   SettingsMgr.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := fpdev.cmd.lazarus.TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;
@@ -1815,6 +1815,12 @@ begin
     AssertTrue(RunCommandInDir('git', ['clone', '-b', 'main', OriginDir, SourceDir], TestRootDir),
       'Legacy ff-only update setup clones source repo',
       'Expected git clone -b main to succeed into ' + SourceDir);
+    AssertTrue(RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], SourceDir),
+      'Legacy ff-only update setup configures local clone email',
+      'Expected git config user.email to succeed in ' + SourceDir);
+    AssertTrue(RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], SourceDir),
+      'Legacy ff-only update setup configures local clone user',
+      'Expected git config user.name to succeed in ' + SourceDir);
 
     with TStringList.Create do
     try
