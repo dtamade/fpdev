@@ -423,8 +423,8 @@ jobs:
     - name: Generate release evidence
       shell: bash
       run: |
-        BASELINE_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 0$' \"$path\" && printf '%s\n' \"$path\" && break; done)"
-        INSTALL_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 1$' \"$path\" && printf '%s\n' \"$path\" && break; done)"
+        BASELINE_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 0$' "$path" && printf '%s\n' "$path" && break; done)"
+        INSTALL_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 1$' "$path" && printf '%s\n' "$path" && break; done)"
         if [[ -z "${BASELINE_SUMMARY}" ]]; then
           echo "::error::Missing baseline summary in release acceptance logs"
           exit 1

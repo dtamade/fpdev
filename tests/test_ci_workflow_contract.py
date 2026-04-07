@@ -195,6 +195,13 @@ class CIWorkflowContractTests(unittest.TestCase):
         upload_header = upload_step.split('with:', 1)[0]
         self.assertNotIn('if: always()', upload_header)
 
+    def test_release_ready_bundle_discovers_summary_paths_without_escaped_quotes(self):
+        section = self._assemble_release_ready_bundle_section()
+        self.assertIn('grep -q \'^with_install: 0$\' "$path"', section)
+        self.assertIn("printf '%s\\n' \"$path\"", section)
+        self.assertIn('grep -q \'^with_install: 1$\' "$path"', section)
+        self.assertNotIn('\\"$path\\"', section)
+
     def test_ci_runs_public_doc_contract_suites(self):
         self.assertIn('tests.test_archive_docs_contract', self.text)
         self.assertIn('tests.test_contributor_docs_contract', self.text)
