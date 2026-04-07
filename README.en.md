@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-274%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-275%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
@@ -37,7 +37,7 @@
 ```
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 274 (same inventory rules as CI)
+[INFO] Discoverable test programs: 275 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs
 [INFO] Platform targets: Windows, Linux, macOS
 [INFO] Release sign-off: public CI release-proof bundle required before publish
@@ -183,7 +183,7 @@ autoload -Uz compinit && compinit
 FPDev follows **TDD (Test-Driven Development)** and keeps the test inventory aligned with repo docs and CI:
 
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-✅ 274 discoverable test_*.lpr programs (same rules as CI)
+✅ 275 discoverable test_*.lpr programs (same rules as CI)
 <!-- TEST-INVENTORY-SUMMARY:END -->
 
 Run tests:

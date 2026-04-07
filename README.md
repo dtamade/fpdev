@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-274%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-275%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
@@ -37,7 +37,7 @@
 ```
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 274 (same inventory rules as CI)
+[INFO] Discoverable test programs: 275 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs (20 English translations)
 [INFO] Platform targets: Windows, Linux, macOS
 [INFO] Release sign-off: public CI release-proof bundle required before publish
@@ -173,7 +173,7 @@ fpdev project clean                   # 清理构建产物
 FPDev 采用 **TDD（测试驱动开发）** 方法论，并把测试清单同步到仓库文档与 CI：
 
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-总计: 274 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
+总计: 275 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
 <!-- TEST-INVENTORY-SUMMARY:END -->
 
 运行完整测试：

@@ -32,7 +32,7 @@ This document replaces the older MVP-era checklist with a bounded release close-
 ## Mandatory Automated Gates
 
 - [x] Local toolchain baseline is green on Linux
-- [x] Test inventory is synchronized at `274` discoverable `test_*.lpr` programs
+- [x] Test inventory is synchronized at `275` discoverable `test_*.lpr` programs
 - [x] Python regression suite is green
 - [x] `tests/test_fpc_installer_iobridge.lpr` passes 5 repeated focused runs in the Linux acceptance lane
 - [x] Full Pascal regression suite is green
