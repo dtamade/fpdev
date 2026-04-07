@@ -114,11 +114,13 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('shell: pwsh', section)
         self.assertIn("$InstallationPath = 'C:\\tools\\freepascal'", section)
         self.assertIn('Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe', section)
+        self.assertIn('ppcx64.exe,ppcrossx64.exe', section)
         self.assertIn('x86_64-win64', section)
         self.assertIn('Select-Object -First 1', section)
         self.assertIn('$env:GITHUB_ENV', section)
         self.assertIn('FPC_EXE=$($FpcExe.FullName)', section)
         self.assertIn('$env:GITHUB_PATH', section)
+        self.assertIn('FPC_TARGET=win64', section)
 
     def test_ci_uses_windows_specific_steps_for_fpc_probe_and_build(self):
         show_unix = self._smoke_step_block('Show FPC version')
@@ -138,7 +140,10 @@ class CIWorkflowContractTests(unittest.TestCase):
 
         self.assertIn("if: runner.os == 'Windows'", build_windows)
         self.assertIn('shell: pwsh', build_windows)
-        self.assertIn('$env:FPC_EXE ${{ matrix.build_flags }}', build_windows)
+        self.assertIn("$TargetFlags = @()", build_windows)
+        self.assertIn("$env:FPC_TARGET -eq 'win64'", build_windows)
+        self.assertIn("@('-Px86_64', '-Twin64')", build_windows)
+        self.assertIn('& $env:FPC_EXE @TargetFlags ${{ matrix.build_flags }}', build_windows)
 
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()

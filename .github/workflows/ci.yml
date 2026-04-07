@@ -189,6 +189,8 @@ jobs:
       run: |
         $InstallationPath = 'C:\tools\freepascal'
         $FpcCandidates = Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe -ErrorAction SilentlyContinue
+        $X64Compiler = Get-ChildItem $InstallationPath -Recurse -File -Include ppcx64.exe,ppcrossx64.exe -ErrorAction SilentlyContinue |
+          Select-Object -First 1
         $FpcExe = $FpcCandidates |
           Where-Object { $_.FullName -match '[\\/]x86_64-win64[\\/]' } |
           Select-Object -First 1
@@ -200,6 +202,10 @@ jobs:
         }
         "FPC_EXE=$($FpcExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        if ($null -ne $X64Compiler) {
+          "FPC_TARGET=win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $X64Compiler.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        }
 
     - name: Export macOS libgit2 paths
       if: runner.os == 'macOS'
@@ -238,7 +244,11 @@ jobs:
         if (Test-Path bin) { Remove-Item bin -Recurse -Force }
         if (Test-Path lib) { Remove-Item lib -Recurse -Force }
         New-Item -ItemType Directory -Force -Path bin, lib | Out-Null
-        & $env:FPC_EXE ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        $TargetFlags = @()
+        if ($env:FPC_TARGET -eq 'win64') {
+          $TargetFlags = @('-Px86_64', '-Twin64')
+        }
+        & $env:FPC_EXE @TargetFlags ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
