@@ -60,3 +60,8 @@ test_full_pipeline_*/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Local release/install artifacts
+dist/
+$install_unix/
+.codex
