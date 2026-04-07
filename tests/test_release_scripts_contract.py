@@ -100,6 +100,8 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('iobridge_stability', text)
         self.assertIn('run_repeated_focused_test iobridge_stability 5 tests/test_fpc_installer_iobridge.lpr', text)
         self.assertIn('scripts/run_single_test.sh', text)
+        self.assertIn('FPDEV_TEST_LOG_ROOT', text)
+        self.assertIn('pascal_regression_logs', text)
 
     def test_linux_release_acceptance_uses_shared_release_build_entrypoint(self):
         text = RELEASE_ACCEPTANCE_SCRIPT.read_text(encoding='utf-8')

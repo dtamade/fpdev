@@ -108,12 +108,14 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('curl.exe -L --fail --retry 3 --output $InstallerPath $InstallerUrl', section)
         self.assertIn('/verysilent /norestart /LoadInf=', section)
 
-    def test_ci_exports_windows_fpc_path_after_chocolatey_install(self):
+    def test_ci_exports_windows_fpc_path_from_combined_installer_layout(self):
         section = self._smoke_step_block('Export Windows x64 FPC path')
         self.assertIn("if: runner.os == 'Windows'", section)
         self.assertIn('shell: pwsh', section)
-        self.assertIn("Get-ChildItem 'C:\\tools\\freepascal\\bin' -Recurse -Filter fpc.exe", section)
+        self.assertIn("$InstallationPath = 'C:\\tools\\freepascal'", section)
+        self.assertIn('Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe', section)
         self.assertIn('x86_64-win64', section)
+        self.assertIn('Select-Object -First 1', section)
         self.assertIn('$env:GITHUB_ENV', section)
         self.assertIn('FPC_EXE=$($FpcExe.FullName)', section)
         self.assertIn('$env:GITHUB_PATH', section)

@@ -478,6 +478,115 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 'fpc fallback should isolate unit output under the per-test bin directory',
             )
 
+    def test_resolve_test_binary_path_does_not_emit_broken_pipe_for_existing_preferred_binary(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            test_dir = tmp_path / 'tests'
+            test_dir.mkdir()
+            preferred_bin = test_dir / 'bin' / 'test_demo'
+            preferred_bin.parent.mkdir(parents=True)
+            preferred_bin.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
+            preferred_bin.chmod(0o755)
+
+            result = self.run_bash(
+                textwrap.dedent(
+                    f'''\
+                    source "{SCRIPT_PATH}"
+                    resolved="$(resolve_test_binary_path "{preferred_bin}" "{test_dir}" "test_demo" "{test_dir / "test_demo.lpi"}")"
+                    printf '%s\\n' "$resolved"
+                    '''
+                ),
+                cwd=tmp_path,
+            )
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            self.assertEqual(str(preferred_bin), result.stdout.strip())
+            self.assertEqual('', result.stderr)
+
+    def test_run_single_test_isolates_runtime_env_and_writes_logs_to_configured_root(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            tests_dir = tmp_path / 'tests'
+            tests_dir.mkdir()
+            custom_tmp = tmp_path / 'custom-temp-root'
+            custom_log_root = tmp_path / 'persisted-logs'
+            test_file = tests_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            build_env_file = tmp_path / 'build-env.txt'
+            run_env_file = tmp_path / 'run-env.txt'
+
+            env = {
+                'FPDEV_TEST_TMPDIR': str(custom_tmp),
+                'FPDEV_TEST_LOG_ROOT': str(custom_log_root),
+            }
+            command = textwrap.dedent(
+                f'''\
+                source "{SCRIPT_PATH}"
+                init_test_environment
+                saved_tmpdir="$TMPDIR"
+                saved_tmp="$TMP"
+                saved_temp="$TEMP"
+                saved_data_root="$FPDEV_DATA_ROOT"
+                saved_lazarus_config_root="$FPDEV_LAZARUS_CONFIG_ROOT"
+
+                build_test_with_recovery() {{
+                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\n' \\
+                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" > "{build_env_file}"
+                  mkdir -p "$(dirname "$3")"
+                  printf '#!/bin/sh\\nexit 0\\n' > "$3"
+                  chmod +x "$3"
+                  return 0
+                }}
+
+                run_test_binary() {{
+                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\nLOG=%s\\n' \\
+                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" "$2" > "{run_env_file}"
+                  return 0
+                }}
+
+                run_single_test "{test_file}"
+
+                test "$TMPDIR" = "$saved_tmpdir"
+                test "$TMP" = "$saved_tmp"
+                test "$TEMP" = "$saved_temp"
+                test "$FPDEV_DATA_ROOT" = "$saved_data_root"
+                test "$FPDEV_LAZARUS_CONFIG_ROOT" = "$saved_lazarus_config_root"
+                cleanup
+                '''
+            )
+
+            result = self.run_bash(command, cwd=tmp_path, env=env)
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            self.assertIn('PASSED', result.stdout)
+            build_env = dict(
+                line.split('=', 1)
+                for line in build_env_file.read_text(encoding='utf-8').splitlines()
+            )
+            run_env = dict(
+                line.split('=', 1)
+                for line in run_env_file.read_text(encoding='utf-8').splitlines()
+            )
+            self.assertTrue(build_env['TMPDIR'].startswith(f'{custom_tmp}/fpdev-tests.'))
+            self.assertIn('/runtime/test_demo.', build_env['TMPDIR'])
+            self.assertEqual(
+                f"{build_env['TMPDIR']}/fpdev-data",
+                build_env['FPDEV_DATA_ROOT'],
+            )
+            self.assertEqual(
+                f"{build_env['TMPDIR']}/lazarus-config",
+                build_env['FPDEV_LAZARUS_CONFIG_ROOT'],
+            )
+            self.assertEqual(str(custom_log_root / 'test_demo.log'), run_env['LOG'])
+
     def test_run_single_test_requires_exact_test_file_path(self):
         with tempfile.TemporaryDirectory(prefix='run-single-test-') as tmp:
             tmp_path = Path(tmp)

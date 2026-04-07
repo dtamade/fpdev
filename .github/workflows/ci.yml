@@ -187,13 +187,16 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        $FpcExe = Get-ChildItem 'C:\tools\freepascal\bin' -Recurse -Filter fpc.exe -ErrorAction Stop |
+        $InstallationPath = 'C:\tools\freepascal'
+        $FpcCandidates = Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe -ErrorAction SilentlyContinue
+        $FpcExe = $FpcCandidates |
           Where-Object { $_.FullName -match '[\\/]x86_64-win64[\\/]' } |
           Select-Object -First 1
         if ($null -eq $FpcExe) {
-          $KnownBins = Get-ChildItem 'C:\tools\freepascal\bin' -Recurse -Filter fpc.exe -ErrorAction SilentlyContinue |
-            ForEach-Object { $_.FullName }
-          throw "x64 fpc.exe not found under C:\tools\freepascal\bin. Found: $($KnownBins -join '; ')"
+          $FpcExe = $FpcCandidates | Select-Object -First 1
+        }
+        if ($null -eq $FpcExe) {
+          throw "fpc.exe not found under $InstallationPath"
         }
         "FPC_EXE=$($FpcExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append

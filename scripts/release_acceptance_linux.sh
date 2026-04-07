@@ -71,6 +71,7 @@ export TMP="${TMP_ROOT}"
 export TEMP="${TMP_ROOT}"
 export FPDEV_DATA_ROOT="${DATA_ROOT}"
 export FPDEV_LAZARUS_CONFIG_ROOT="${LAZARUS_CONFIG_ROOT}"
+export FPDEV_TEST_LOG_ROOT="${RUN_DIR}/pascal_regression_logs"
 export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8

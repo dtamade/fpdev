@@ -18,6 +18,7 @@ SKIPPED=0
 TEST_TMP_ROOT=""
 TEST_DATA_ROOT=""
 TEST_LAZARUS_CONFIG_ROOT=""
+TEST_LOG_ROOT=""
 
 # Arrays to store results
 declare -a FAILED_TESTS
@@ -49,7 +50,8 @@ init_test_environment() {
   TEST_TMP_ROOT="$(create_test_tmp_root)"
   TEST_DATA_ROOT="${TEST_TMP_ROOT}/fpdev-data"
   TEST_LAZARUS_CONFIG_ROOT="${TEST_TMP_ROOT}/lazarus-config"
-  mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}"
+  TEST_LOG_ROOT="${FPDEV_TEST_LOG_ROOT:-${TEST_TMP_ROOT}}"
+  mkdir -p "${TEST_DATA_ROOT}" "${TEST_LAZARUS_CONFIG_ROOT}" "${TEST_LOG_ROOT}"
 
   export TMPDIR="${TEST_TMP_ROOT}"
   export TMP="${TEST_TMP_ROOT}"
@@ -57,6 +59,27 @@ init_test_environment() {
   export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
   export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
   export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
+}
+
+create_per_test_runtime_root() {
+  local test_name="$1"
+  local runtime_parent="${TEST_TMP_ROOT}/runtime"
+
+  mkdir -p "${runtime_parent}"
+  mktemp -d "${runtime_parent}/${test_name}.XXXXXX"
+}
+
+restore_env_var() {
+  local name="$1"
+  local had_value="$2"
+  local saved_value="$3"
+
+  if [ "$had_value" = "1" ]; then
+    printf -v "$name" '%s' "$saved_value"
+    export "$name"
+  else
+    unset "$name"
+  fi
 }
 
 cleanup() {
@@ -223,13 +246,16 @@ resolve_test_binary_path() {
   local test_name="$3"
   local test_lpi="$4"
   local candidate=""
+  local -a candidates=()
 
-  while IFS= read -r candidate; do
+  mapfile -t candidates < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+
+  for candidate in "${candidates[@]}"; do
     if [ -f "$candidate" ]; then
       printf '%s\n' "$candidate"
       return 0
     fi
-  done < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
+  done
 
   return 1
 }
@@ -311,13 +337,28 @@ run_single_test() {
   local test_bin=""
   local test_bin_dir=""
   local run_bin=""
+  local log_root=""
+  local test_runtime_root=""
+  local test_data_root=""
+  local test_lazarus_config_root=""
+  local saved_tmpdir=""
+  local saved_tmp=""
+  local saved_temp=""
+  local saved_data_root=""
+  local saved_lazarus_config_root=""
+  local had_tmpdir=0
+  local had_tmp=0
+  local had_temp=0
+  local had_data_root=0
+  local had_lazarus_config_root=0
 
   TOTAL=$((TOTAL + 1))
   test_name="$(basename "$test_file" .lpr)"
   test_dir="$(dirname "$test_file")"
   test_lpi="${test_file%.lpr}.lpi"
-  test_log="${TEST_TMP_ROOT}/${test_name}.log"
-  build_log="${TEST_TMP_ROOT}/${test_name}.build.log"
+  log_root="${TEST_LOG_ROOT:-${TEST_TMP_ROOT}}"
+  test_log="${log_root}/${test_name}.log"
+  build_log="${log_root}/${test_name}.build.log"
 
   if [ "$test_dir" != "tests" ]; then
     test_bin="${test_dir}/bin/${test_name}"
@@ -328,6 +369,39 @@ run_single_test() {
   fi
 
   mkdir -p "$test_bin_dir"
+  mkdir -p "$log_root"
+
+  if [ "${TMPDIR+x}" = x ]; then
+    had_tmpdir=1
+    saved_tmpdir="$TMPDIR"
+  fi
+  if [ "${TMP+x}" = x ]; then
+    had_tmp=1
+    saved_tmp="$TMP"
+  fi
+  if [ "${TEMP+x}" = x ]; then
+    had_temp=1
+    saved_temp="$TEMP"
+  fi
+  if [ "${FPDEV_DATA_ROOT+x}" = x ]; then
+    had_data_root=1
+    saved_data_root="$FPDEV_DATA_ROOT"
+  fi
+  if [ "${FPDEV_LAZARUS_CONFIG_ROOT+x}" = x ]; then
+    had_lazarus_config_root=1
+    saved_lazarus_config_root="$FPDEV_LAZARUS_CONFIG_ROOT"
+  fi
+
+  test_runtime_root="$(create_per_test_runtime_root "$test_name")"
+  test_data_root="${test_runtime_root}/fpdev-data"
+  test_lazarus_config_root="${test_runtime_root}/lazarus-config"
+  mkdir -p "$test_data_root" "$test_lazarus_config_root"
+
+  export TMPDIR="$test_runtime_root"
+  export TMP="$test_runtime_root"
+  export TEMP="$test_runtime_root"
+  export FPDEV_DATA_ROOT="$test_data_root"
+  export FPDEV_LAZARUS_CONFIG_ROOT="$test_lazarus_config_root"
 
   echo -n "[$TOTAL] Testing $test_name... "
 
@@ -349,6 +423,12 @@ run_single_test() {
     FAILED_TESTS+=("$test_name")
     echo -e "${YELLOW}  build log: ${build_log}${NC}"
   fi
+
+  restore_env_var TMPDIR "$had_tmpdir" "$saved_tmpdir"
+  restore_env_var TMP "$had_tmp" "$saved_tmp"
+  restore_env_var TEMP "$had_temp" "$saved_temp"
+  restore_env_var FPDEV_DATA_ROOT "$had_data_root" "$saved_data_root"
+  restore_env_var FPDEV_LAZARUS_CONFIG_ROOT "$had_lazarus_config_root" "$saved_lazarus_config_root"
 }
 
 print_summary() {
