@@ -396,7 +396,6 @@ var
   TargetObj: git_object;
   CheckoutCommit: git_object;
   CheckoutTree: git_tree;
-  IndexHandle: git_index;
   CheckoutOpts: git_checkout_options;
   TargetOID: Pgit_oid;
   HeadTarget: Pgit_oid;
@@ -409,7 +408,6 @@ begin
   TargetObj := nil;
   CheckoutCommit := nil;
   CheckoutTree := nil;
-  IndexHandle := nil;
   try
     try
       if Trim(ABranch) = '' then Exit(False);
@@ -469,9 +467,6 @@ begin
 
       CheckGitResult(git_checkout_tree(FHandle, git_object(CheckoutTree), @CheckoutOpts),
         'Checkout tree ' + LRefName);
-      CheckGitResult(git_repository_index(IndexHandle, FHandle), 'Open repository index');
-      CheckGitResult(git_index_read_tree(IndexHandle, CheckoutTree), 'Reset index to target tree');
-      CheckGitResult(git_index_write(IndexHandle), 'Write repository index');
 
       if CreateLocalBranchFromRemote then
       begin
@@ -502,8 +497,6 @@ begin
       Result := False;
     end;
   finally
-    if IndexHandle <> nil then
-      git_index_free(IndexHandle);
     if CreatedBranchRef <> nil then
       git_reference_free(CreatedBranchRef);
     if CheckoutTree <> nil then
