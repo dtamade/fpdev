@@ -27,6 +27,14 @@ begin
   end;
 end;
 
+procedure AssertFileDateSet(const APath: string; const ATime: TDateTime; const AMessage: string);
+var
+  FileDate: LongInt;
+begin
+  FileDate := DateTimeToFileDate(ATime);
+  Assert(FileSetDate(APath, FileDate) = 0, AMessage);
+end;
+
 function CreateTestContext(const ASource: string): TLogContext;
 begin
   FillChar(Result, SizeOf(Result), 0);
@@ -319,8 +327,6 @@ var
   Context: TLogContext;
   i: Integer;
   OldArchive: string;
-  Handle: THandle;
-  FileDate: LongInt;
 begin
   WriteLn('=== Test 5: Archive Cleanup ===');
 
@@ -363,13 +369,7 @@ begin
       Free;
 
     // Set file date to 2 days ago
-    Handle := FileOpen(OldArchive, fmOpenWrite);
-    if Handle <> THandle(-1) then
-    begin
-      FileDate := DateTimeToFileDate(Now - 2);
-      FileSetDate(Handle, FileDate);
-      FileClose(Handle);
-    end;
+    AssertFileDateSet(OldArchive, Now - 2, 'Old archive timestamp should be set');
 
     Assert(FileExists(OldArchive), 'Old archive should exist before cleanup');
 

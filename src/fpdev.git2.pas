@@ -494,6 +494,9 @@ begin
           'Detach HEAD at ' + LRefName);
       end;
 
+      CheckGitResult(git_checkout_head(FHandle, @CheckoutOpts),
+        'Refresh worktree for ' + LRefName);
+
       Result := True;
     except
       Result := False;
