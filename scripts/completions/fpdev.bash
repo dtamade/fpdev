@@ -9,7 +9,7 @@ _fpdev_completions() {
 
     local commands="fpc lazarus cross package project system"
 
-    local fpc_commands="install uninstall list use current show doctor test verify auto-install update update-manifest help cache policy"
+    local fpc_commands="install uninstall list use current status show doctor test verify auto-install update update-manifest help cache policy"
     local fpc_cache_commands="list stats clean path"
     local fpc_policy_commands="check"
 

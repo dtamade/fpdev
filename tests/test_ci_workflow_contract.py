@@ -54,7 +54,7 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('macos-15-intel', self.text)
         self.assertIn('macos-15', self.text)
         self.assertIn('brew install fpc', self.text)
-        self.assertIn('choco install freepascal', self.text)
+        self.assertIn('fpc-3.2.2.win32.and.win64.exe/download', self.text)
         self.assertIn('record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof', self.text)
         self.assertIn('owner-proof-macos-x64', self.text)
         self.assertIn('owner-proof-macos-arm64', self.text)
@@ -98,6 +98,14 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"', section)
         self.assertIn('git -c protocol.version=2 fetch --no-tags --depth=1 origin "$GITHUB_REF"', section)
         self.assertIn('git checkout --force FETCH_HEAD', section)
+
+    def test_ci_installs_combined_windows_fpc_toolchain(self):
+        section = self._smoke_step_block('Install FPC toolchain on Windows')
+        self.assertIn("if: runner.os == 'Windows'", section)
+        self.assertIn('shell: pwsh', section)
+        self.assertIn("$InstallationPath = 'C:\\tools\\freepascal'", section)
+        self.assertIn('fpc-3.2.2.win32.and.win64.exe/download', section)
+        self.assertIn('/verysilent /norestart /LoadInf=', section)
 
     def test_ci_exports_windows_fpc_path_after_chocolatey_install(self):
         section = self._smoke_step_block('Export Windows x64 FPC path')
