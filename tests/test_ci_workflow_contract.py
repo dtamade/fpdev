@@ -202,6 +202,13 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('grep -q \'^with_install: 1$\' "$path"', section)
         self.assertNotIn('\\"$path\\"', section)
 
+    def test_release_ready_bundle_tolerates_missing_optional_install_summary(self):
+        section = self._assemble_release_ready_bundle_section()
+        self.assertIn('BASELINE_SUMMARY="$(find', section)
+        self.assertIn('INSTALL_SUMMARY="$(find', section)
+        self.assertIn('done)" || true', section)
+        self.assertIn('Missing baseline summary in release acceptance logs', section)
+
     def test_ci_runs_public_doc_contract_suites(self):
         self.assertIn('tests.test_archive_docs_contract', self.text)
         self.assertIn('tests.test_contributor_docs_contract', self.text)
