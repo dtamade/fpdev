@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type

@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, test_pause_control, Classes,
-  fpdev.config, fpdev.cmd.lazarus, test_temp_paths;
+  fpdev.config, fpdev.lazarus.manager, test_temp_paths;
 
 type
   { TLazarusManagementTest }
@@ -287,7 +287,7 @@ var
   StaleConfigRoot: string;
   StaleConfigPath: string;
   ReloadedConfig: TFPDevConfigManager;
-  LazarusManager: TLazarusManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
 begin
   WriteLn('--- Testing stale default Lazarus reload cleanup ---');
 
@@ -329,7 +329,7 @@ begin
   try
     AssertTrue(ReloadedConfig.LoadConfig, 'Should load stale Lazarus config');
 
-    LazarusManager := TLazarusManager.Create(ReloadedConfig.AsConfigManager);
+    LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ReloadedConfig.AsConfigManager);
     try
       AssertEquals('', ReloadedConfig.GetDefaultLazarusVersion,
         'LoadConfig should clear missing default Lazarus version');

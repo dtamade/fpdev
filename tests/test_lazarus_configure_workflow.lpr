@@ -7,13 +7,13 @@ uses
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
-  fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.cmd.lazarus, fpdev.utils,
+  fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers, fpdev.lazarus.manager, fpdev.utils,
   fpdev.paths, fpdev.version.registry, fpdev.lazarus.config, test_temp_paths;
 
 var
   TestRootDir: string;
   ConfigManager: IConfigManager;
-  LazarusManager: TLazarusManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
   OriginalLazarusConfigRoot: string;
   TestsPassed: Integer;
   TestsFailed: Integer;
@@ -159,7 +159,7 @@ begin
   ConfigManager.GetSettingsManager.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;

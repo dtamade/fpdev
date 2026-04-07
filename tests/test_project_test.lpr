@@ -4,7 +4,7 @@ program test_project_test;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process, test_temp_paths, fpdev.cmd.project, fpdev.config;
+  SysUtils, Classes, Process, test_temp_paths, fpdev.project.manager, fpdev.config;
 
 var
   TempRootDir: string;

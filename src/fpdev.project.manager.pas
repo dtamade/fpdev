@@ -10,7 +10,7 @@ unit fpdev.project.manager;
     \/_/     \/_/\/_/   \/_/     \/_/\/_/   \/_/     \/_/\/_/  Studio
 
 ```
-# fpdev.cmd.project
+# fpdev.project.manager
 
 FreePascal project management and template system
 

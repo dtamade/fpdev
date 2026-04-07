@@ -24,7 +24,7 @@ uses
   fpdev.config.interfaces,
   fpdev.exitcodes,
   fpdev.i18n, fpdev.i18n.strings,
-  fpdev.cmd.lazarus,             // Register 'lazarus' root
+  fpdev.cmd.lazarus.root,        // Register 'lazarus' root
   fpdev.cmd.lazarus.install,
   fpdev.cmd.lazarus.list,
   fpdev.cmd.lazarus.use,

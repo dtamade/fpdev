@@ -3,7 +3,7 @@ program test_lazarus_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, test_config_isolation, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers,
+  SysUtils, test_config_isolation, Classes, fpdev.lazarus.manager, fpdev.config.interfaces, fpdev.config.managers,
   test_temp_paths
   {$IFDEF UNIX}
   , BaseUnix
@@ -13,7 +13,7 @@ var
   TestRootDir: string;
   TestSourceDir: string;
   ConfigManager: IConfigManager;
-  LazarusManager: fpdev.cmd.lazarus.TLazarusManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
@@ -37,7 +37,7 @@ begin
   SettingsMgr.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := fpdev.cmd.lazarus.TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;
