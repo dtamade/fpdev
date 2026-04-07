@@ -54,7 +54,7 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('macos-15-intel', self.text)
         self.assertIn('macos-15', self.text)
         self.assertIn('brew install fpc', self.text)
-        self.assertIn('fpc-3.2.2.win32.and.win64.exe', self.text)
+        self.assertIn('fpc-3.2.2.i386-win32.cross.x86_64-win64.exe', self.text)
         self.assertIn('record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof', self.text)
         self.assertIn('owner-proof-macos-x64', self.text)
         self.assertIn('owner-proof-macos-arm64', self.text)
@@ -99,27 +99,34 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('git -c protocol.version=2 fetch --no-tags --depth=1 origin "$GITHUB_REF"', section)
         self.assertIn('git checkout --force FETCH_HEAD', section)
 
-    def test_ci_installs_combined_windows_fpc_toolchain(self):
+    def test_ci_installs_win32_and_win64_cross_windows_fpc_toolchain(self):
         section = self._smoke_step_block('Install FPC toolchain on Windows')
         self.assertIn("if: runner.os == 'Windows'", section)
         self.assertIn('shell: pwsh', section)
         self.assertIn("$InstallationPath = 'C:\\tools\\freepascal'", section)
-        self.assertIn('https://downloads.sourceforge.net/project/freepascal/Win32/3.2.2/fpc-3.2.2.win32.and.win64.exe', section)
-        self.assertIn('curl.exe -L --fail --retry 3 --output $InstallerPath $InstallerUrl', section)
+        self.assertIn("$InstallerSpecs = @(", section)
+        self.assertIn('https://downloads.sourceforge.net/project/freepascal/Win32/3.2.2/fpc-3.2.2.i386-win32.exe', section)
+        self.assertIn('https://downloads.sourceforge.net/project/freepascal/Win32/3.2.2/fpc-3.2.2.i386-win32.cross.x86_64-win64.exe', section)
+        self.assertIn("Arguments = \"/verysilent /norestart /DIR=`\"$InstallationPath`\"\"", section)
+        self.assertIn('foreach ($Installer in $InstallerSpecs)', section)
+        self.assertIn('curl.exe -L --fail --retry 3 --output $InstallerPath $Installer.Url', section)
         self.assertIn('/verysilent /norestart /LoadInf=', section)
 
-    def test_ci_exports_windows_fpc_path_from_combined_installer_layout(self):
+    def test_ci_exports_windows_fpc_path_from_win32_cross_layout(self):
         section = self._smoke_step_block('Export Windows x64 FPC path')
         self.assertIn("if: runner.os == 'Windows'", section)
         self.assertIn('shell: pwsh', section)
         self.assertIn("$InstallationPath = 'C:\\tools\\freepascal'", section)
         self.assertIn('Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe', section)
+        self.assertIn('i386-win32', section)
         self.assertIn('ppcx64.exe,ppcrossx64.exe', section)
+        self.assertIn('fpjson.ppu', section)
         self.assertIn('x86_64-win64', section)
         self.assertIn('Select-Object -First 1', section)
         self.assertIn('$env:GITHUB_ENV', section)
         self.assertIn('FPC_EXE=$($FpcExe.FullName)', section)
         self.assertIn('$env:GITHUB_PATH', section)
+        self.assertIn('win64 fpjson unit not found', section)
         self.assertIn('FPC_TARGET=win64', section)
 
     def test_ci_uses_windows_specific_steps_for_fpc_probe_and_build(self):
