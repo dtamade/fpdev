@@ -27,6 +27,7 @@ type
     FPackageRegistry: string;
 
     function SanitizeFileName(const S: string): string;
+    function IsGitRepositoryURL(const AUrl: string): Boolean;
     function ReadIndexFromURL(const AUrl: string; out AText: string): Boolean;
 
   public
@@ -73,6 +74,17 @@ begin
       R := R + '_';
   end;
   Result := R;
+end;
+
+function TPackageRepositoryService.IsGitRepositoryURL(const AUrl: string): Boolean;
+var
+  NormalizedURL: string;
+begin
+  NormalizedURL := LowerCase(Trim(AUrl));
+  Result :=
+    (RightStr(NormalizedURL, 4) = '.git') or
+    (Pos('git://', NormalizedURL) = 1) or
+    (Pos('ssh://', NormalizedURL) = 1);
 end;
 
 function TPackageRepositoryService.ReadIndexFromURL(const AUrl: string; out AText: string): Boolean;
@@ -199,76 +211,91 @@ begin
         if RepoURL = '' then
           Continue;
 
+        if IsGitRepositoryURL(RepoURL) then
+          Continue;
+
         // Assume repository URL points directly to JSON index
         if (RightStr(RepoURL, 5) <> '.json') then
           RepoURL := IncludeTrailingPathDelimiter(RepoURL) + 'index.json';
 
         // Support file:// local index; otherwise use HTTP(S) download
         IsFileURL := (LeftStr(LowerCase(RepoURL), 7) = 'file://');
+        JSONData := nil;
         SL := TStringList.Create;
         try
-          if IsFileURL then
-          begin
-            LocalFile := Copy(RepoURL, 8, MaxInt);
-            {$IFDEF MSWINDOWS}
-            // Windows: file:///C:/... -> C:/...
-            while (Length(LocalFile) > 0) and
-              ((LocalFile[1] = CHAR_FORWARD_SLASH) or (LocalFile[1] = '\')) do
-              Delete(LocalFile, 1, 1);
-            {$ELSE}
-            // Unix: file:///home/... -> /home/... (keep one leading slash)
-            while (Length(LocalFile) > 1) and
-              (LocalFile[1] = CHAR_FORWARD_SLASH) and
-              (LocalFile[2] = CHAR_FORWARD_SLASH) do
-              Delete(LocalFile, 1, 1);
-            {$ENDIF}
-            LocalFile := StringReplace(
-              LocalFile, CHAR_FORWARD_SLASH, PathDelim, [rfReplaceAll]
-            );
-            if FileExists(LocalFile) then
-              SL.LoadFromFile(LocalFile)
+          try
+            if IsFileURL then
+            begin
+              LocalFile := Copy(RepoURL, 8, MaxInt);
+              {$IFDEF MSWINDOWS}
+              // Windows: file:///C:/... -> C:/...
+              while (Length(LocalFile) > 0) and
+                ((LocalFile[1] = CHAR_FORWARD_SLASH) or (LocalFile[1] = '\')) do
+                Delete(LocalFile, 1, 1);
+              {$ELSE}
+              // Unix: file:///home/... -> /home/... (keep one leading slash)
+              while (Length(LocalFile) > 1) and
+                (LocalFile[1] = CHAR_FORWARD_SLASH) and
+                (LocalFile[2] = CHAR_FORWARD_SLASH) do
+                Delete(LocalFile, 1, 1);
+              {$ENDIF}
+              LocalFile := StringReplace(
+                LocalFile, CHAR_FORWARD_SLASH, PathDelim, [rfReplaceAll]
+              );
+              if FileExists(LocalFile) then
+                SL.LoadFromFile(LocalFile)
+              else
+                Continue;
+            end
             else
-              Continue;
-          end
-          else
-          begin
-            // Download to temp file
-            SetLength(URLs, 1);
-            URLs[0] := RepoURL;
-            Opt.DestDir := CacheDir;
-            Opt.Hash := '';
-            Opt.HashAlgorithm := haUnknown;
-            Opt.HashDigest := '';
-            Opt.TimeoutMS := 15000;
-            Opt.ExpectedSize := 0;
-            if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
-              Continue;
-            SL.LoadFromFile(TmpPath);
-          end;
+            begin
+              // Download to temp file
+              SetLength(URLs, 1);
+              URLs[0] := RepoURL;
+              Opt.DestDir := CacheDir;
+              Opt.Hash := '';
+              Opt.HashAlgorithm := haUnknown;
+              Opt.HashDigest := '';
+              Opt.TimeoutMS := 15000;
+              Opt.ExpectedSize := 0;
+              if not EnsureDownloadedCached(URLs, TmpPath, Opt, Err) then
+                Continue;
+              SL.LoadFromFile(TmpPath);
+            end;
 
-          // Read and merge packages array
-          JSONData := GetJSON(SL.Text);
-          Arr := nil;
-          if JSONData.JSONType = jtArray then
-            Arr := TJSONArray(JSONData)
-          else if (JSONData.JSONType = jtObject) and Assigned(TJSONObject(JSONData).Arrays['packages']) then
-            Arr := TJSONObject(JSONData).Arrays['packages'];
+            // Invalid or non-package repositories should not abort the full refresh.
+            JSONData := GetJSON(SL.Text);
+            Arr := nil;
+            if JSONData.JSONType = jtArray then
+              Arr := TJSONArray(JSONData)
+            else if (JSONData.JSONType = jtObject) and Assigned(TJSONObject(JSONData).Arrays['packages']) then
+              Arr := TJSONObject(JSONData).Arrays['packages'];
 
-          if Arr <> nil then
-          begin
-            // Merge into Combined: clone each element
-            for j := 0 to Arr.Count - 1 do
-              Combined.Add(Arr.Items[j].Clone as TJSONData);
-          end
-          else
-          begin
-            // If object without packages array, try treating object as single package info
-            if JSONData.JSONType = jtObject then
-              Combined.Add(JSONData.Clone as TJSONData);
+            if Arr <> nil then
+            begin
+              // Merge into Combined: clone each element
+              for j := 0 to Arr.Count - 1 do
+                Combined.Add(Arr.Items[j].Clone as TJSONData);
+            end
+            else
+            begin
+              // If object without packages array, try treating object as single package info
+              if JSONData.JSONType = jtObject then
+                Combined.Add(JSONData.Clone as TJSONData);
+            end;
+          except
+            on E: Exception do
+            begin
+              if Errp <> nil then
+                Errp.WriteLn('Skipping repository "' + Names[i] + '": ' + E.Message);
+            end;
           end;
         finally
           if Assigned(JSONData) then
+          begin
             JSONData.Free;
+            JSONData := nil;
+          end;
           SL.Free;
         end;
       end;
