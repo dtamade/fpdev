@@ -1,4 +1,5 @@
 import unittest
+import re
 from pathlib import Path
 
 
@@ -79,6 +80,58 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('fpc ${{ matrix.build_flags }}', self.text)
         self.assertIn('-B -O3 -CX -XX', self.text)
 
+    def test_ci_exports_windows_fpc_path_after_chocolatey_install(self):
+        self.assertRegex(
+            self.text,
+            re.compile(
+                r"- name: Export Windows FPC path\s+"
+                r"if: runner\.os == 'Windows'\s+"
+                r"shell: pwsh\s+"
+                r"run:\s+\|\s+"
+                r".*Get-ChildItem 'C:\\tools\\freepascal\\bin' -Recurse -Filter fpc\.exe.*"
+                r".*\$env:GITHUB_PATH.*",
+                re.S,
+            ),
+        )
+
+    def test_ci_uses_windows_specific_steps_for_fpc_probe_and_build(self):
+        self.assertRegex(
+            self.text,
+            re.compile(
+                r"- name: Show FPC version\s+"
+                r"if: runner\.os != 'Windows'\s+"
+                r"shell: bash",
+                re.S,
+            ),
+        )
+        self.assertRegex(
+            self.text,
+            re.compile(
+                r"- name: Show FPC version on Windows\s+"
+                r"if: runner\.os == 'Windows'\s+"
+                r"shell: pwsh",
+                re.S,
+            ),
+        )
+        self.assertRegex(
+            self.text,
+            re.compile(
+                r"- name: Build CLI smoke binary\s+"
+                r"if: runner\.os != 'Windows'\s+"
+                r"shell: bash",
+                re.S,
+            ),
+        )
+        self.assertRegex(
+            self.text,
+            re.compile(
+                r"- name: Build CLI smoke binary on Windows\s+"
+                r"if: runner\.os == 'Windows'\s+"
+                r"shell: pwsh",
+                re.S,
+            ),
+        )
+
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()
         self.assertIn('release-ready-bundle', section)
@@ -107,6 +160,8 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('tests.test_archive_docs_contract', self.text)
         self.assertIn('tests.test_contributor_docs_contract', self.text)
         self.assertIn('tests.test_official_docs_cli_contract', self.text)
+        self.assertIn('tests.test_build_manager_callback_contract', self.text)
+        self.assertIn('tests.test_lazarus_callback_contract', self.text)
         self.assertIn('tests.test_fusion_status_artifacts_contract', self.text)
         self.assertIn('tests.test_fusion_task_analysis_contract', self.text)
         self.assertIn('tests.test_fusion_code_review_report_contract', self.text)
