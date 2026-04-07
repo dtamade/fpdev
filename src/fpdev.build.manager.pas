@@ -63,6 +63,7 @@ type
     function RunPreflightPolicyCheck(const AVersion: string; out AStatus, AReason,
       AMin, ARecommended, ACurrentFpcVersion: string): Boolean;
     function BuildToolchainReportJSONValue: string;
+    function RunVersionedPreflight(const AVersion: string): Boolean;
   public
     constructor Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
     destructor Destroy; override;
@@ -828,7 +829,7 @@ function TBuildManager.FullBuild(const AVersion: string): Boolean;
 begin
   Result := RunFullBuildCore(
     AVersion,
-    @Preflight,
+    @RunVersionedPreflight,
     @BuildCompiler,
     @BuildRTL,
     @BuildPackages,
@@ -839,6 +840,12 @@ begin
     @Log,
     @LogTestSummary
   );
+end;
+
+function TBuildManager.RunVersionedPreflight(const AVersion: string): Boolean;
+begin
+  // Keep FullBuild off the overloaded @Preflight method pointer for FPC 3.2.2.
+  Result := Preflight(AVersion);
 end;
 
 procedure TBuildManager.CreateBuildStamp(const AVersion: string);
