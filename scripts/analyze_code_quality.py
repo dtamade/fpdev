@@ -544,6 +544,10 @@ def main():
     
     for issue_type, count in issue_types.items():
         print(f"{issue_type}: {count} 个问题")
+
+    if not all_issues:
+        print("\n✅ 未发现代码质量问题。")
+        return 0
     
     # 详细报告
     print(f"\n⚠️  问题详情:")

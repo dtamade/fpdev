@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / 'scripts' / 'analyze_code_quality.py'
@@ -131,6 +133,28 @@ class AnalyzeCodeQualityTests(unittest.TestCase):
                 os.chdir(prev_cwd)
 
             return issues
+
+    def run_main_in_repo(self, repo_files):
+        with tempfile.TemporaryDirectory(prefix='acq-main-') as tmp:
+            tmp_path = Path(tmp)
+            for relative_name, content in repo_files.items():
+                file_path = tmp_path / relative_name
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                if isinstance(content, bytes):
+                    file_path.write_bytes(content)
+                else:
+                    file_path.write_text(content, encoding='utf-8')
+
+            prev_cwd = Path.cwd()
+            stdout = io.StringIO()
+            try:
+                os.chdir(tmp_path)
+                with redirect_stdout(stdout):
+                    exit_code = self.analyzer.main()
+            finally:
+                os.chdir(prev_cwd)
+
+            return exit_code, stdout.getvalue()
 
     @staticmethod
     def debug_flagged_files(issues):
@@ -521,6 +545,14 @@ end.
             'fpdev.config.pas.old',
             self.legacy_backup_flagged_files(issues)
         )
+
+    def test_main_skips_issue_detail_sections_when_no_issues_exist(self):
+        exit_code, output = self.run_main_in_repo({})
+        self.assertEqual(0, exit_code)
+        self.assertIn('总问题数: 0', output)
+        self.assertIn('未发现代码质量问题', output)
+        self.assertNotIn('⚠️  问题详情', output)
+        self.assertNotIn('🔧 优化建议', output)
 
 
 if __name__ == '__main__':
