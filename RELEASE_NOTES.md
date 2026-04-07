@@ -2,7 +2,7 @@
 
 ## 发布摘要
 
-`v2.1.0` 是 FPDev 的收口版本：功能路线图已经完成，这一版把发布验收、文档同步和跨平台 owner checkpoint 固化成可执行流程，方便一次性完成发布落地。
+`v2.1.0` 是 FPDev 的收口版本：当前范围内的功能清单已经关闭，这一版把发布验收、文档同步和跨平台 public CI release proof 固化成可执行流程，方便一次性完成发布落地。
 
 ## 本版重点
 
@@ -26,16 +26,17 @@
 ### 4. 发布收口文件已经补齐
 
 - Linux 自动发布验收入口：`bash scripts/release_acceptance_linux.sh`
-- Windows/macOS owner checkpoint：`docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+- Cross-platform release-proof workflow：`docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 - 安装文档、README、ROADMAP、CHANGELOG 已同步到 `v2.1.0`
 
 ## 当前发布基线
 
 ```text
-Roadmap checklist: 121/121 complete
-Test inventory: 271 discoverable test_*.lpr programs
-Primary release gate: Linux automated acceptance passed
-Remaining publish-time proof: Windows/macOS owner checkpoints + SHA256SUMS
+[INFO] Feature checklist: closed for v2.1.0 scope
+[INFO] Linux release evidence: recorded
+[INFO] Discoverable test programs: 274 (same inventory rules as CI)
+[INFO] Planned release assets: linux/windows/macos archives + SHA256SUMS
+[INFO] Release sign-off: public CI release-proof bundle required before publish
 ```
 
 ## 计划发布资产
@@ -61,16 +62,15 @@ bash scripts/release_acceptance_linux.sh --with-install
 ```bash
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B --build-mode=Release fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system version
 ```
 
-## 发布前仍需 owner 执行的动作
+## 发布前仍需确认的发布证明
 
-1. 解压 Windows x64 资产并运行 `system version/help`、`fpc --help`、`fpc list --all`
-2. 解压 macOS x64 和 arm64 资产并运行同样的 smoke commands
-3. 生成并上传 `SHA256SUMS.txt`
-4. 在 owner checkpoint ledger 中填写 owner、日期和证据
+1. 确认 GitHub Actions 已产出 `release-ready-bundle`
+2. 核对 `RELEASE_EVIDENCE.md`、`SHA256SUMS.txt` 与四个计划发布资产
+3. 如公共 CI 工件缺失或需要重录，再使用本地 fallback recorder 补录 owner-proof transcript
 
 ## 参考文档
 

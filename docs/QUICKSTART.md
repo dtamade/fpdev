@@ -29,7 +29,7 @@ fpdev lazarus list --all
 ### 安装 FPC (FreePascal 编译器)
 
 ```bash
-# 安装推荐版本 FPC 3.2.2
+# 安装文档示例基线 FPC 3.2.2
 fpdev fpc install 3.2.2 --from-source
 
 # 设置为默认版本

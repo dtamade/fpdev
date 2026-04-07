@@ -6,9 +6,11 @@
 
 [![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-273%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-274%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
+
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
 [快速开始](QUICKSTART.md) • [安装指南](docs/INSTALLATION.md) • [常见问题](FAQ.md) • [完整文档](docs/QUICKSTART.md)
@@ -35,10 +37,10 @@
 ```
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 273 (same inventory rules as CI)
+[INFO] Discoverable test programs: 274 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs (20 English translations)
 [INFO] Platform targets: Windows, Linux, macOS
-[INFO] Release sign-off: pending Windows/macOS owner evidence
+[INFO] Release sign-off: public CI release-proof bundle required before publish
 ```
 
 ---
@@ -51,7 +53,7 @@
 # 从源码构建（推荐）
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B --build-mode=Release fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system version
 ```
 
@@ -89,18 +91,18 @@ hello-world.exe      # Windows
 
 ## 📚 文档导航
 
-| 文档 | 描述 |
-|------|------|
-| [快速开始](QUICKSTART.md) | 5 分钟上手指南（精简版） |
-| [完整文档](docs/QUICKSTART.md) | 详细的功能说明和示例 |
-| [常见问题](FAQ.md) | 最常见的 15 个问题 |
-| [安装指南](docs/INSTALLATION.md) | 详细的安装步骤 |
-| [架构文档](docs/ARCHITECTURE.md) | 内部设计和架构 |
-| [开发者指南](CLAUDE.md) | 贡献代码的指南 |
-| [测试指南](docs/testing.md) | fpcunit 测试框架使用说明 |
+| 文档                                       | 描述                      |
+| ------------------------------------------ | ------------------------- |
+| [快速开始](QUICKSTART.md)                  | 5 分钟上手指南（精简版）  |
+| [完整文档](docs/QUICKSTART.md)             | 详细的功能说明和示例      |
+| [常见问题](FAQ.md)                         | 最常见的 15 个问题        |
+| [安装指南](docs/INSTALLATION.md)           | 详细的安装步骤            |
+| [架构文档](docs/ARCHITECTURE.md)           | 内部设计和架构            |
+| [开发者指南](CLAUDE.md)                    | 贡献代码的指南            |
+| [测试指南](docs/testing.md)                | fpcunit 测试框架使用说明  |
 | [BuildManager 指南](docs/build-manager.md) | 构建管理器使用和 API 参考 |
-| [Git2 使用指南](docs/GIT2_USAGE.md) | libgit2 集成技术细节 |
-| [路线图](docs/ROADMAP.md) | 功能规划和进度 |
+| [Git2 使用指南](docs/GIT2_USAGE.md)        | libgit2 集成技术细节      |
+| [路线图](docs/ROADMAP.md)                  | 功能规划和进度            |
 
 ---
 
@@ -113,6 +115,7 @@ fpdev fpc install 3.2.2              # 安装版本
 fpdev fpc list                       # 列出已安装版本
 fpdev fpc use 3.2.2                  # 切换版本
 fpdev fpc current                    # 查看当前版本
+fpdev fpc status                     # 查看受管状态
 fpdev fpc verify 3.2.2               # 验证安装
 ```
 
@@ -154,34 +157,34 @@ fpdev project clean                   # 清理构建产物
 
 ## 🎯 为什么选择 FPDev？
 
-| 特性 | FPDev | 传统方式 |
-|------|-------|---------|
-| **多版本管理** | ✅ 一键切换 | ❌ 手动配置环境变量 |
-| **源码构建** | ✅ 自动下载和编译 | ❌ 手动下载、解压、编译 |
-| **交叉编译** | ✅ 自动配置工具链 | ❌ 手动安装 binutils 和库 |
-| **包管理** | ✅ 类似 npm/cargo | ❌ 手动下载和配置 |
-| **项目模板** | ✅ 7 种内置模板 | ❌ 从零开始 |
-| **配置管理** | ✅ JSON 格式，类型安全 | ❌ 分散的配置文件 |
+| 特性           | FPDev                  | 传统方式                  |
+| -------------- | ---------------------- | ------------------------- |
+| **多版本管理** | ✅ 一键切换            | ❌ 手动配置环境变量       |
+| **源码构建**   | ✅ 自动下载和编译      | ❌ 手动下载、解压、编译   |
+| **交叉编译**   | ✅ 自动配置工具链      | ❌ 手动安装 binutils 和库 |
+| **包管理**     | ✅ 类似 npm/cargo      | ❌ 手动下载和配置         |
+| **项目模板**   | ✅ 7 种内置模板        | ❌ 从零开始               |
+| **配置管理**   | ✅ JSON 格式，类型安全 | ❌ 分散的配置文件         |
 
 ---
 
 ## 🧪 测试覆盖
 
-FPDev 采用 **TDD（测试驱动开发）** 方法论，所有功能都有完整的测试覆盖：
-
-```
-✅ Phase 1: 核心工作流 (17/17 测试通过)
-✅ Phase 2: 安装灵活性 (20+ 测试通过)
-✅ Phase 3.1: 包依赖解析 (测试通过)
-✅ Phase 3.2: 交叉编译工具链 (11/11 测试通过)
-✅ Phase 3.4: Lazarus IDE 集成 (15/15 测试通过)
-✅ Phase 4.2: Bootstrap 管理 (14/14 测试通过)
-✅ Phase 4.3: FPC 包构建 (14/14 测试通过)
+FPDev 采用 **TDD（测试驱动开发）** 方法论，并把测试清单同步到仓库文档与 CI：
 
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-总计: 273 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
+总计: 274 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
 <!-- TEST-INVENTORY-SUMMARY:END -->
+
+运行完整测试：
+
+```bash
+bash scripts/run_all_tests.sh
 ```
+
+查看测试布局、约定和同步脚本： [测试指南](docs/testing.md)
+
+查看 release gate、owner checkpoint 和收口状态： [Release Acceptance Criteria](docs/MVP_ACCEPTANCE_CRITERIA.md)
 
 ---
 

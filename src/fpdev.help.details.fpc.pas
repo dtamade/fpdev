@@ -67,6 +67,16 @@ begin
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_HELP));
   end
+  else if LSubcmd = 'status' then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPTIONS));
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPT_JSON));
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPT_HELP));
+  end
   else if LSubcmd = 'show' then
   begin
     Ctx.Out.WriteLn(_(HELP_FPC_SHOW_USAGE));

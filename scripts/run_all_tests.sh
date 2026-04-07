@@ -154,7 +154,7 @@ build_test_with_fallback() {
 
   echo "[run_all_tests] lazbuild failed, trying direct fpc fallback" >>"$build_log"
   mkdir -p "$test_unit_dir"
-  if fpc -Fusrc -Fisrc -FE"$test_bin_dir" -FU"$test_unit_dir" "$test_file" >>"$build_log" 2>&1; then
+  if fpc -B -Fusrc -Fisrc -FE"$test_bin_dir" -FU"$test_unit_dir" "$test_file" >>"$build_log" 2>&1; then
     return 0
   fi
 

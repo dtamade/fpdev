@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the complete libgit2 integration solution in the FPDev project, including native C API bindings, modern interface wrappers, the build system, and usage examples.
+This document describes the current libgit2 integration state in FPDev, including native C API bindings, modern interface wrappers, active test paths, and runtime library layout expectations.
 
 ## Architecture Design
 
@@ -25,8 +25,8 @@ This document describes the complete libgit2 integration solution in the FPDev p
 
 1. **libgit2.pas** - Complete C API bindings
 2. **git2.modern.pas** - Modern Pascal interface wrappers
-3. **Build scripts** - Cross-platform libgit2 builds
-4. **Test suite** - Functional verification and examples
+3. **Runtime/build layout expectations** - documents where the current worktree expects libgit2 artifacts
+4. **Test suite** - functional verification and historical manual samples
 
 ## File Structure
 
@@ -40,17 +40,18 @@ fpdev/
 │   └── libgit2/              # libgit2 source and build
 │       ├── build/            # Build directory
 │       └── install/          # Installation directory
-├── scripts/
-│   ├── build_libgit2_simple.bat    # Windows build script
-│   ├── build_libgit2_linux.sh      # Linux build script
-│   └── get_git2_dll.bat            # DLL acquisition script
 ├── tests/
-│   ├── test_libgit2_complete.lpr   # Complete functionality tests
-│   ├── test_git_real.lpr           # Real Git operation tests
-│   └── test_fpc_source.lpr         # FPC source management tests
+│   ├── fpdev.libgit2.base/
+│   │   └── test_libgit2_complete.lpr   # libgit2 base/complete functionality tests
+│   ├── fpdev.git2.adapter/
+│   │   └── test_git_real.lpr           # Real Git operation tests
+│   └── migrated/root-lpr/
+│       └── test_fpc_source.lpr         # FPC source historical manual sample
 └── docs/
     └── LIBGIT2_INTEGRATION.md      # This document
 ```
+
+No dedicated libgit2 helper build scripts are tracked in the current worktree; use standard platform CMake or package-manager flows instead of relying on historical helper script names.
 
 ## API Binding Details
 
@@ -144,34 +145,25 @@ TGitCommit = class
 end;
 ```
 
-## Build System
+## Build and Runtime Layout
 
-### Windows Build (MinGW)
+If you need to build libgit2 locally, use the standard CMake or package-manager workflow for your platform and place the resulting artifacts into the layout expected by the current worktree. No dedicated libgit2 helper build scripts are tracked in the current worktree.
 
-**Script**: `scripts/build_libgit2_simple.bat`
+### Windows Artifact Layout
 
 **Dependencies**:
 - CMake 3.16+
 - MinGW-w64 GCC
 - Git
 
-**Build Steps**:
+**Expected Artifacts**:
 ```bash
-# 1. Clone source code
-git clone https://github.com/libgit2/libgit2.git 3rd/libgit2
-
-# 2. Run build script
-scripts\build_libgit2_simple.bat
-
-# 3. Output files
-3rd\libgit2\install\bin\libgit2.dll      # Dynamic library
-3rd\libgit2\install\lib\libgit2.dll.a    # Import library
+3rd\libgit2\install\bin\git2.dll         # Dynamic library (matches src/libgit2.pas on Windows)
+3rd\libgit2\install\lib\git2.lib         # Import library
 3rd\libgit2\install\include\git2.h       # Header file
 ```
 
-### Linux Build
-
-**Script**: `scripts/build_libgit2_linux.sh`
+### Linux Artifact Layout
 
 **Dependencies**:
 ```bash
@@ -182,50 +174,52 @@ sudo apt install cmake build-essential libssl-dev zlib1g-dev
 sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 ```
 
-**Build Steps**:
+**Expected Artifacts**:
 ```bash
-# 1. Run build script
-./scripts/build_libgit2_linux.sh
-
-# 2. Output files
 3rd/libgit2/install/lib/libgit2.so       # Dynamic library
 3rd/libgit2/install/lib/libgit2.a        # Static library
 3rd/libgit2/install/include/git2.h       # Header file
 ```
 
+### Runtime Loader Expectations
+
+- Windows: `src/libgit2.pas` expects the runtime library name `git2.dll`
+- Linux: `src/libgit2.pas` expects the runtime library name `libgit2.so`
+- macOS: `src/libgit2.pas` expects the runtime library name `libgit2.1.dylib`
+- If you build libgit2 yourself, place the matching artifact next to the executable or in a loader-visible location for your platform
+
 ## Test Suite
 
 ### Test Programs
 
-1. **test_libgit2_complete.lpr** - Complete functionality tests
+1. **tests/fpdev.libgit2.base/test_libgit2_complete.lpr** - Complete functionality tests
    - libgit2 initialization tests
    - Repository operation tests
    - Commit information tests
    - Remote operation tests
    - OID operation tests
+   - Excluded from the default discoverable test inventory; mainly used for manual compatibility checks
 
-2. **test_git_real.lpr** - Real Git operation tests
+2. **tests/fpdev.git2.adapter/test_git_real.lpr** - Real Git operation tests
    - Git environment checks
    - Actual repository cloning
    - Network connectivity tests
+   - Excluded from the default discoverable test inventory; mainly used for manual compatibility checks
 
-3. **test_fpc_source.lpr** - FPC source management tests
+3. **tests/migrated/root-lpr/test_fpc_source.lpr** - FPC source historical manual sample
    - FPC version management
    - Source path management
    - Branch information display
+   - Not part of the current automated regression suite; kept only as a reference sample
+   - excluded from the default discoverable test inventory
 
 ### Running Tests
 
 ```bash
-# Compile test programs
-fpc -Fusrc test_libgit2_complete.lpr
-fpc -Fusrc test_git_real.lpr
-fpc -Fusrc test_fpc_source.lpr
-
-# Run tests
-.\test_libgit2_complete.exe
-.\test_git_real.exe
-.\test_fpc_source.exe
+# Manual verification samples (excluded from the default discoverable test inventory)
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/fpdev.libgit2.base/test_libgit2_complete.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/fpdev.git2.adapter/test_git_real.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 ```
 
 ## Performance Characteristics
@@ -365,8 +359,12 @@ end;
 
 ### Common Issues
 
-1. **libgit2.dll not found**
-   - Ensure git2.dll is in the program directory or in PATH
+1. **Failed to load the libgit2 shared library**
+   - `src/libgit2.pas` expects different runtime library names on each platform:
+     - Windows: `git2.dll`
+     - Linux: `libgit2.so`
+     - macOS: `libgit2.1.dylib`
+   - Ensure the matching shared library is next to the executable or otherwise visible to the platform loader
    - Verify architecture match (32-bit/64-bit)
 
 2. **Compilation errors**
@@ -402,6 +400,6 @@ This integration follows these licenses:
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: 2025-01-12
+**Document Version**: 1.0.0  
+**Last Updated**: 2026-04-06  
 **Author**: FPDev Team

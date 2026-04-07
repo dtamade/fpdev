@@ -118,6 +118,7 @@ begin
 
   FpcCommands := GlobalCommandRegistry.ListChildren(['fpc']);
   AssertTrue(Contains(FpcCommands, 'install'), 'fpc install command registered');
+  AssertTrue(Contains(FpcCommands, 'status'), 'fpc status command registered');
   AssertTrue(Contains(FpcCommands, 'cache'), 'fpc cache namespace registered');
   AssertTrue(Contains(FpcCommands, 'policy'), 'fpc policy namespace registered');
 

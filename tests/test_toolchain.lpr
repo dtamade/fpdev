@@ -52,6 +52,16 @@ begin
   end;
 end;
 
+procedure AssertContains(const AExpected, AText, AMsg: string);
+begin
+  if Pos(AExpected, AText) <= 0 then
+  begin
+    WriteLn(PREFIX_FAIL, ' ', AMsg);
+    WriteLn('  Missing: ', AExpected);
+    Halt(1);
+  end;
+end;
+
 procedure RestoreEnv(const AName, ASavedValue: string);
 begin
   if ASavedValue <> '' then
@@ -269,6 +279,72 @@ begin
   end;
 end;
 
+{ Test 9: fpdev.toolchain - BuildToolchainReportJSON should expose lazarus_root from FPDEV_LAZARUSDIR }
+procedure TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot;
+var
+  JSONStr: string;
+  LazarusRoot: string;
+  SavedLazarusDir: string;
+begin
+  LazarusRoot := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_lazarus_root_' + IntToStr(GetTickCount64);
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  ForceDirectories(LazarusRoot + PathDelim + 'lcl');
+
+  try
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set FPDEV_LAZARUSDIR for toolchain report test');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"lazarus_root"', JSONStr,
+      'Toolchain report should include lazarus_root entry');
+    AssertContains('"name":"lazarus_root","found":true', JSONStr,
+      'Toolchain report should mark configured lazarus_root as found');
+    AssertContains('"path":"' + JsonEscape(LazarusRoot) + '"', JSONStr,
+      'Toolchain report should expose configured lazarus_root path');
+  finally
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot + PathDelim + 'lcl');
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot);
+  end;
+end;
+
+{ Test 10: fpdev.toolchain - BuildToolchainReportJSON should fail invalid FPDEV_LAZARUSDIR }
+procedure TestBuildToolchainReportJSONRejectsInvalidLazarusRoot;
+var
+  JSONStr: string;
+  LazarusRoot: string;
+  SavedLazarusDir: string;
+begin
+  LazarusRoot := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_lazarus_root_invalid_' + IntToStr(GetTickCount64);
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  ForceDirectories(LazarusRoot);
+
+  try
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set invalid FPDEV_LAZARUSDIR for toolchain report test');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"lazarus_root"', JSONStr,
+      'Toolchain report should include lazarus_root entry for invalid override');
+    AssertContains('"name":"lazarus_root","found":false', JSONStr,
+      'Toolchain report should reject FPDEV_LAZARUSDIR without lcl/');
+    AssertContains('missing lazarus_root', JSONStr,
+      'Toolchain report should report missing lazarus_root');
+    AssertContains('"level":"FAIL"', JSONStr,
+      'Toolchain report should fail when lazarus_root is missing');
+  finally
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot);
+  end;
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('TDD: Toolchain Module Tests');
@@ -283,10 +359,14 @@ begin
   RunTest('TestSHA256Functions', @TestSHA256Functions);
   RunTest('TestPathFunctions', @TestPathFunctions);
   RunTest('TestBuildToolchainReportJSON', @TestBuildToolchainReportJSON);
+  RunTest('TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot',
+    @TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot);
+  RunTest('TestBuildToolchainReportJSONRejectsInvalidLazarusRoot',
+    @TestBuildToolchainReportJSONRejectsInvalidLazarusRoot);
   
   WriteLn;
   WriteLn('========================================');
-  WriteLn('SUCCESS: All 7 tests passed!');
+  WriteLn('SUCCESS: All 10 tests passed!');
   WriteLn('========================================');
   
   Halt(0);

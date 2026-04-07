@@ -29,7 +29,7 @@ fpdev lazarus list --all
 ### Install FPC (FreePascal Compiler)
 
 ```bash
-# Install recommended version FPC 3.2.2
+# Install the documented example baseline FPC 3.2.2
 fpdev fpc install 3.2.2 --from-source
 
 # Set as default version

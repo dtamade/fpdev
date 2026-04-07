@@ -50,12 +50,14 @@ buildOrTest.fpcunit.bat
 ### Run All Tests
 
 ```bash
-# Windows
-scripts\run_all_tests.bat
+# Windows (Git Bash / WSL)
+bash scripts/run_all_tests.sh
 
 # Linux/macOS
 scripts/run_all_tests.sh
 ```
+
+No dedicated `scripts\run_all_tests.bat` wrapper is tracked in this repository.
 
 ## Test-Driven Development (TDD)
 
@@ -219,7 +221,7 @@ end;
 <!-- TEST-INVENTORY-COVERAGE:BEGIN -->
 Current discoverable test-program inventory:
 
-- Discoverable `test_*.lpr` programs: 273
+- Discoverable `test_*.lpr` programs: 274
 - Shared discovery rules: CI and `scripts/run_all_tests.sh` use the same inventory source
 - Default exclusions: `examples`, `fpdev.git2.adapter`, `fpdev.libgit2.base`, `fpdev.core.misc`, `migrated`
 - Sync command: `python3 scripts/update_test_stats.py --write`
@@ -228,10 +230,15 @@ Current discoverable test-program inventory:
 
 ## Continuous Integration
 
-Tests are automatically run on:
-- Every commit (pre-commit hook)
-- Every pull request (CI pipeline)
-- Nightly builds (full test suite)
+Verification entrypoints include:
+- Pushes to `main` / `develop`
+- Pull requests targeting `main`
+- Manual/local release verification before publishing
+
+Tracked workflow entrypoints:
+- `.github/workflows/ci.yml` `release-acceptance-linux`
+- `.github/workflows/ci.yml` `compile-check`
+- `.github/workflows/ci.yml` `cross-platform-cli-smoke`
 
 ## Troubleshooting
 
@@ -251,9 +258,9 @@ WriteLn('Error: Test failed');
 
 ### Test Fails with "make not found"
 
-**Cause**: BuildManager test requires `make` in PATH.
+**Cause**: Real integration/build-oriented flows may invoke `make`/`gmake`, even though the default mock-based BuildManager unit tests avoid that dependency.
 
-**Solution**: Use mock toolchain checker or install `make`:
+**Solution**: Prefer the existing mock toolchain checkers for unit tests, or install `make` when you intentionally run real build-oriented flows:
 
 ```bash
 # Windows (MinGW)
@@ -266,19 +273,17 @@ sudo apt-get install build-essential
 xcode-select --install
 ```
 
-### Test Fails with "git2.dll not found"
+### Test Fails to Load libgit2 at Runtime
 
-**Cause**: libgit2 library not in PATH.
+**Cause**: The platform-specific libgit2 shared library is not discoverable at runtime.
 
-**Solution**: Copy `git2.dll` to executable directory or add to PATH:
+**Solution**: Match the runtime library name used by `src/libgit2.pas` and make that artifact visible to the platform loader:
 
-```bash
-# Windows
-copy 3rd\libgit2\git2.dll bin\
+- **Windows**: ensure `git2.dll` is next to the executable or in `PATH`. A typical local bundle path is `3rd\libgit2\install\bin\git2.dll`.
+- **Linux**: ensure `libgit2.so` is installed or expose your local build output, for example `LD_LIBRARY_PATH=3rd/libgit2/install/lib:$LD_LIBRARY_PATH`.
+- **macOS**: ensure `libgit2.1.dylib` is installed or expose your local build output, for example `DYLD_LIBRARY_PATH=3rd/libgit2/install/lib:$DYLD_LIBRARY_PATH`.
 
-# Linux/macOS
-export LD_LIBRARY_PATH=3rd/libgit2:$LD_LIBRARY_PATH
-```
+If you prefer system packages, that is also fine; the important part is that the platform-specific shared library name expected by `src/libgit2.pas` is discoverable when the test executable starts.
 
 ## Best Practices
 
@@ -299,8 +304,8 @@ export LD_LIBRARY_PATH=3rd/libgit2:$LD_LIBRARY_PATH
 
 ---
 
-**Last Updated**: 2026-03-08
+**Last Updated**: 2026-04-05
 **Test Framework**: fpcunit
 <!-- TEST-INVENTORY-FOOTER:BEGIN -->
-**Test Inventory**: 273 discoverable test programs (same rules as CI)
+**Test Inventory**: 274 discoverable test programs (same rules as CI)
 <!-- TEST-INVENTORY-FOOTER:END -->

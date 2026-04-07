@@ -70,10 +70,12 @@ The following version aliases are supported:
 
 | Alias | Description |
 |-------|-------------|
-| `stable` | Latest stable release (currently 3.2.2) |
-| `lts` | Long-term support release (currently 3.2.0) |
+| `stable` | Stable-channel alias; Example baseline in this spec is 3.2.2 |
+| `lts` | Long-term-support alias; Example baseline in this spec is 3.2.0 |
 | `trunk` | Development version (main branch) |
 | `latest` | Same as stable |
+
+Note: the exact version resolved by `stable` / `lts` at runtime depends on the active manifest and configuration source; the numeric versions above are only the examples used in this spec.
 
 Example:
 ```toml

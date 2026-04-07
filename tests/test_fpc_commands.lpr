@@ -16,6 +16,7 @@ uses
   fpdev.cmd.fpc.use,
   fpdev.cmd.fpc.doctor,
   fpdev.cmd.fpc.current,
+  fpdev.cmd.fpc.status,
   fpdev.cmd.fpc.show,
   fpdev.cmd.fpc.test,
   fpdev.cmd.fpc.verify,
@@ -103,6 +104,11 @@ begin
   Check(HasSubcommand(['fpc'], 'current'), 'fpc current: registered');
 end;
 
+procedure TestFpcStatusRegistered;
+begin
+  Check(HasSubcommand(['fpc'], 'status'), 'fpc status: registered');
+end;
+
 procedure TestFpcShowRegistered;
 begin
   Check(HasSubcommand(['fpc'], 'show'), 'fpc show: registered');
@@ -172,7 +178,7 @@ var
   Children: TStringArray;
 begin
   Children := GlobalCommandRegistry.ListChildren(['fpc']);
-  Check(Length(Children) >= 14, 'fpc: at least 14 subcommands');
+  Check(Length(Children) >= 15, 'fpc: at least 15 subcommands');
 end;
 
 procedure TestFpcCacheSubcommandCount;
@@ -198,6 +204,7 @@ begin
   TestFpcDefaultAliasRegistered;
   TestFpcDoctorRegistered;
   TestFpcCurrentRegistered;
+  TestFpcStatusRegistered;
   TestFpcShowRegistered;
   TestFpcTestRegistered;
   TestFpcVerifyRegistered;

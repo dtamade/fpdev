@@ -25,7 +25,7 @@ FPDev's FPC version management provides complete FreePascal compiler lifecycle m
 
 | Version | Status | Release Date | Git Branch | Notes |
 |---------|--------|-------------|------------|-------|
-| 3.2.2 | Stable | 2021-05-19 | fixes_3_2 | Current recommended version |
+| 3.2.2 | Stable | 2021-05-19 | fixes_3_2 | Documented baseline for examples |
 | 3.2.0 | Stable | 2020-06-08 | fixes_3_2 | Long-term support version |
 | 3.0.4 | Stable | 2017-11-30 | fixes_3_0 | Legacy support |
 | 3.0.2 | Stable | 2017-01-15 | fixes_3_0 | Legacy support |
@@ -47,6 +47,9 @@ fpdev fpc list --all
 
 # Show current default version
 fpdev fpc current
+
+# Show current managed status
+fpdev fpc status
 ```
 
 ### Installation Management
@@ -73,6 +76,9 @@ fpdev fpc use 3.2.2
 
 # View version information
 fpdev fpc show 3.2.2
+
+# View current installation status
+fpdev fpc status
 
 # Test installation
 fpdev fpc test 3.2.2

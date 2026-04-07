@@ -161,6 +161,11 @@ const
   HELP_FPC_CURRENT_DESC = 'help.fpc.current.desc';
   HELP_FPC_CURRENT_OPT_JSON = 'help.fpc.current.opt.json';
   HELP_FPC_CURRENT_OPT_HELP = 'help.fpc.current.opt.help';
+  HELP_FPC_STATUS_USAGE = 'help.fpc.status.usage';
+  HELP_FPC_STATUS_DESC = 'help.fpc.status.desc';
+  HELP_FPC_STATUS_OPTIONS = 'help.fpc.status.options';
+  HELP_FPC_STATUS_OPT_JSON = 'help.fpc.status.opt.json';
+  HELP_FPC_STATUS_OPT_HELP = 'help.fpc.status.opt.help';
   HELP_FPC_SHOW_USAGE = 'help.fpc.show.usage';
   HELP_FPC_SHOW_DESC = 'help.fpc.show.desc';
   HELP_FPC_SHOW_OPT_HELP = 'help.fpc.show.opt.help';
@@ -1050,6 +1055,11 @@ begin
   T(HELP_FPC_CURRENT_DESC,      'Show the currently active FPC version.',                                      '显示当前激活的 FPC 版本。');
   T(HELP_FPC_CURRENT_OPT_JSON,  '  --json           Output in JSON format',                                    '  --json           以 JSON 格式输出');
   T(HELP_FPC_CURRENT_OPT_HELP,  '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
+  T(HELP_FPC_STATUS_USAGE,      'Usage: fpdev fpc status [--json]',                                            '用法: fpdev fpc status [--json]');
+  T(HELP_FPC_STATUS_DESC,       'Show the managed FPC status for the current workspace or user context.',      '显示当前工作区或用户上下文中的受管 FPC 状态。');
+  T(HELP_FPC_STATUS_OPTIONS,    'Options:',                                                                    '选项:');
+  T(HELP_FPC_STATUS_OPT_JSON,   '  --json           Output in JSON format',                                    '  --json           以 JSON 格式输出');
+  T(HELP_FPC_STATUS_OPT_HELP,   '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');
   T(HELP_FPC_SHOW_USAGE,        'Usage: fpdev fpc show <version>',                                             '用法: fpdev fpc show <版本>');
   T(HELP_FPC_SHOW_DESC,         'Show detailed information about a specific FPC version.',                     '显示指定 FPC 版本的详细信息。');
   T(HELP_FPC_SHOW_OPT_HELP,     '  --help, -h       Show this help message',                                   '  --help, -h       显示此帮助信息');

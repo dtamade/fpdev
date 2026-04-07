@@ -413,7 +413,7 @@ procedure TestFPCSubcommandsRegistered;
 var
   Children: TStringArray;
   i: Integer;
-  HasInstall, HasList, HasUse, HasCurrent, HasShow, HasDoctor: Boolean;
+  HasInstall, HasList, HasUse, HasCurrent, HasStatus, HasShow, HasDoctor: Boolean;
   HasVerify, HasAutoInstall, HasUninstall, HasCache: Boolean;
 begin
   WriteLn('[TEST] TestFPCSubcommandsRegistered');
@@ -424,6 +424,7 @@ begin
   HasList := False;
   HasUse := False;
   HasCurrent := False;
+  HasStatus := False;
   HasShow := False;
   HasDoctor := False;
   HasVerify := False;
@@ -438,6 +439,7 @@ begin
       'list': HasList := True;
       'use', 'default': HasUse := True;
       'current': HasCurrent := True;
+      'status': HasStatus := True;
       'show': HasShow := True;
       'doctor': HasDoctor := True;
       'verify': HasVerify := True;
@@ -451,6 +453,7 @@ begin
   AssertTrue(HasList, 'fpc list registered');
   AssertTrue(HasUse, 'fpc use registered');
   AssertTrue(HasCurrent, 'fpc current registered');
+  AssertTrue(HasStatus, 'fpc status registered');
   AssertTrue(HasShow, 'fpc show registered');
   AssertTrue(HasDoctor, 'fpc doctor registered');
   AssertTrue(HasVerify, 'fpc verify registered');
@@ -899,6 +902,8 @@ var
   OutBufObj, ErrBufObj: TBufferOutput;
   Ctx: IContext;
   Code: Integer;
+  SavedLazarusDir: string;
+  LazarusRootDir: string;
 begin
   WriteLn('[TEST] TestSystemMaintenanceCommands');
 
@@ -931,6 +936,28 @@ begin
   Code := GlobalCommandRegistry.DispatchPath(['system', 'toolchain', 'check'], Ctx);
   AssertEquals(EXIT_OK, Code, 'system toolchain check exits 0');
   AssertTrue(Pos('"level"', OutBufObj.Text) > 0, 'system toolchain check prints report json');
+
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  LazarusRootDir := CreateUniqueTempDir('fpdev-command-registry-lazarus-root');
+  ForceDirectories(LazarusRootDir + PathDelim + 'lcl');
+  try
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRootDir),
+      'system toolchain check test sets FPDEV_LAZARUSDIR');
+    OutBufObj.Clear;
+    ErrBufObj.Clear;
+    Code := GlobalCommandRegistry.DispatchPath(['system', 'toolchain', 'check'], Ctx);
+    AssertEquals(EXIT_OK, Code, 'system toolchain check with Lazarus root exits 0');
+    AssertTrue(Pos('"name":"lazarus_root"', OutBufObj.Text) > 0,
+      'system toolchain check reports lazarus_root');
+    AssertTrue(Pos('"path":"' + JsonEscape(LazarusRootDir) + '"', OutBufObj.Text) > 0,
+      'system toolchain check reports configured lazarus_root path');
+  finally
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if DirectoryExists(LazarusRootDir + PathDelim + 'lcl') then
+      RemoveDir(LazarusRootDir + PathDelim + 'lcl');
+    if DirectoryExists(LazarusRootDir) then
+      RemoveDir(LazarusRootDir);
+  end;
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -992,6 +1019,8 @@ begin
   Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help'], Ctx);
   AssertEquals(EXIT_OK, Code, 'fpc help exits 0');
   AssertTrue(Pos('use, default', LowerCase(OutBufObj.Text)) = 0, 'fpc help should not mention default alias');
+  AssertTrue(Pos('  status', LowerCase(OutBufObj.Text)) > 0,
+    'fpc help overview lists status command');
   AssertTrue(Pos('  policy', LowerCase(OutBufObj.Text)) > 0,
     'fpc help overview lists policy namespace');
 
@@ -1012,6 +1041,15 @@ begin
     'fpc help current prints json-aware usage');
   AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
     'fpc help current lists json option details');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'help', 'status'], Ctx);
+  AssertEquals(EXIT_OK, Code, 'fpc help status exits 0');
+  AssertTrue(Pos('Usage: fpdev fpc status [--json]', OutBufObj.Text) > 0,
+    'fpc help status prints json-aware usage');
+  AssertTrue(Pos('  --json           Output in JSON format', OutBufObj.Text) > 0,
+    'fpc help status lists json option details');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -1658,6 +1696,16 @@ begin
   ErrBufObj.Clear;
   Code := GlobalCommandRegistry.DispatchPath(['fpc', 'current', '--unknown'], Ctx);
   AssertEquals(EXIT_USAGE_ERROR, Code, 'fpc current unknown option exits usage error');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'status', 'extra'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'fpc status extra arg exits usage error');
+
+  OutBufObj.Clear;
+  ErrBufObj.Clear;
+  Code := GlobalCommandRegistry.DispatchPath(['fpc', 'status', '--unknown'], Ctx);
+  AssertEquals(EXIT_USAGE_ERROR, Code, 'fpc status unknown option exits usage error');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;

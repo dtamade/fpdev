@@ -28,6 +28,7 @@ jobs:
     - name: Run release contract unit tests
       run: |
         python3 -m unittest \
+          tests.test_archive_docs_contract \
           tests.test_fusion_task_analysis_contract \
           tests.test_fusion_status_artifacts_contract \
           tests.test_fusion_code_review_report_contract \
@@ -171,6 +172,16 @@ jobs:
       shell: pwsh
       run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe
 
+    - name: Record owner smoke transcript
+      if: runner.os != 'Windows'
+      shell: bash
+      run: bash scripts/record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof
+
+    - name: Record owner smoke transcript on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: ./scripts/record_owner_smoke.ps1 -Lane ${{ matrix.lane }} -ExecutablePath .\bin\fpdev.exe -OutputDir owner-proof
+
     - name: Package release asset
       shell: bash
       run: |
@@ -185,4 +196,117 @@ jobs:
       with:
         name: ${{ matrix.artifact_name }}
         path: release-assets/${{ matrix.asset_file }}
+        retention-days: 7
+
+    - name: Upload owner proof artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: owner-proof-${{ matrix.lane }}
+        path: owner-proof/
+        retention-days: 7
+
+  assemble-release-ready-bundle:
+    name: Assemble release-ready bundle
+    needs:
+      - compile-check
+      - release-acceptance-linux
+      - cross-platform-cli-smoke
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Linux release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-linux-x64
+        path: bundle/downloads/release-asset-linux-x64
+
+    - name: Download Windows release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-windows-x64
+        path: bundle/downloads/release-asset-windows-x64
+
+    - name: Download macOS x64 release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-macos-x64
+        path: bundle/downloads/release-asset-macos-x64
+
+    - name: Download macOS arm64 release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-macos-arm64
+        path: bundle/downloads/release-asset-macos-arm64
+
+    - name: Download release acceptance logs
+      uses: actions/download-artifact@v4
+      with:
+        name: release-acceptance-logs
+        path: bundle/downloads/release-acceptance-logs
+
+    - name: Download Windows owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-windows-x64
+        path: bundle/downloads/owner-proof-windows-x64
+
+    - name: Download macOS x64 owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-macos-x64
+        path: bundle/downloads/owner-proof-macos-x64
+
+    - name: Download macOS arm64 owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-macos-arm64
+        path: bundle/downloads/owner-proof-macos-arm64
+
+    - name: Assemble release-ready bundle
+      shell: bash
+      run: |
+        rm -rf release-ready-bundle
+        mkdir -p release-ready-bundle/release-assets release-ready-bundle/owner-proof release-ready-bundle/release-acceptance-logs
+        cp bundle/downloads/release-asset-linux-x64/fpdev-linux-x64.tar.gz release-ready-bundle/release-assets/
+        cp bundle/downloads/release-asset-windows-x64/fpdev-windows-x64.zip release-ready-bundle/release-assets/
+        cp bundle/downloads/release-asset-macos-x64/fpdev-macos-x64.tar.gz release-ready-bundle/release-assets/
+        cp bundle/downloads/release-asset-macos-arm64/fpdev-macos-arm64.tar.gz release-ready-bundle/release-assets/
+        cp -R bundle/downloads/release-acceptance-logs/. release-ready-bundle/release-acceptance-logs/
+        cp -R bundle/downloads/owner-proof-windows-x64/. release-ready-bundle/owner-proof/
+        cp -R bundle/downloads/owner-proof-macos-x64/. release-ready-bundle/owner-proof/
+        cp -R bundle/downloads/owner-proof-macos-arm64/. release-ready-bundle/owner-proof/
+
+    - name: Generate release checksums
+      shell: bash
+      run: python3 scripts/generate_release_checksums.py release-ready-bundle/release-assets --require-planned-assets
+
+    - name: Generate release evidence
+      shell: bash
+      run: |
+        BASELINE_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 0$' \"$path\" && printf '%s\n' \"$path\" && break; done)"
+        INSTALL_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 1$' \"$path\" && printf '%s\n' \"$path\" && break; done)"
+        if [[ -z "${BASELINE_SUMMARY}" ]]; then
+          echo "::error::Missing baseline summary in release acceptance logs"
+          exit 1
+        fi
+        args=(
+          --baseline-summary "${BASELINE_SUMMARY}"
+          --asset-dir release-ready-bundle/release-assets
+          --owner-proof-dir release-ready-bundle/owner-proof
+          --output release-ready-bundle/release-assets/RELEASE_EVIDENCE.md
+        )
+        if [[ -n "${INSTALL_SUMMARY}" ]]; then
+          args+=(--install-summary "${INSTALL_SUMMARY}")
+        fi
+        python3 scripts/generate_release_evidence.py "${args[@]}"
+
+    - name: Upload release-ready bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-ready-bundle
+        path: release-ready-bundle/
         retention-days: 7

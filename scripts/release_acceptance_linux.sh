@@ -11,8 +11,9 @@ This script verifies:
   - local toolchain prerequisites
   - test inventory sync
   - Python regression suite
+  - focused IO bridge stability gate
   - full Pascal regression suite
-  - Release-mode Lazarus build
+  - shared Release build entrypoint
   - CLI smoke commands with isolated FPDEV data roots
 
 Options:
@@ -105,6 +106,24 @@ run_logged() {
   )
 }
 
+run_repeated_focused_test() {
+  local name="$1"
+  local repeat_count="$2"
+  local test_file="$3"
+  local log_file="${RUN_DIR}/${name}.log"
+  local attempt=0
+
+  : >"${log_file}"
+
+  for attempt in $(seq 1 "${repeat_count}"); do
+    echo "+ attempt ${attempt}/${repeat_count}: bash scripts/run_single_test.sh ${test_file}" | tee -a "${log_file}"
+    (
+      cd "${REPO_ROOT}"
+      bash scripts/run_single_test.sh "${test_file}" 2>&1 | tee -a "${log_file}"
+    )
+  done
+}
+
 run_cli_smoke() {
   local name="$1"
   local expected_exit="$2"
@@ -167,12 +186,16 @@ step "Python regression suite"
 run_logged python_regression python3 -m unittest discover -s tests -p 'test_*.py'
 append_summary "python_regression: pass"
 
+step "IO bridge stability gate"
+run_repeated_focused_test iobridge_stability 5 tests/test_fpc_installer_iobridge.lpr
+append_summary "iobridge_stability: pass"
+
 step "Full Pascal regression suite"
 run_logged pascal_regression bash scripts/run_all_tests.sh
 append_summary "pascal_regression: pass"
 
 step "Release build"
-run_logged release_build lazbuild -B --build-mode=Release fpdev.lpi
+run_logged release_build bash scripts/build_release.sh
 append_summary "release_build: pass"
 
 step "CLI smoke"

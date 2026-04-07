@@ -125,7 +125,7 @@ git clone https://github.com/fpdev/fpdev.git
 cd fpdev
 
 # Build
-lazbuild -B --build-mode=Release fpdev.lpi
+bash scripts/build_release.sh
 
 # Verify
 ./bin/fpdev system version

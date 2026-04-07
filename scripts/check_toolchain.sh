@@ -18,6 +18,7 @@ Options:
 
 Notes:
   - For cross-compilation readiness, prefer: fpdev cross doctor
+  - Set FPDEV_LAZARUSDIR to override the Lazarus root used by release builds
 EOF
 }
 
@@ -42,6 +43,8 @@ OPTIONAL_TOOLS=(mingw32-make ppcx64 ppc386 ppcarm)
 OK=0
 REQ_MISS=0
 OPT_MISS=0
+LAZARUS_ROOT_STATUS="MISSING"
+LAZARUS_ROOT_PATH=""
 
 check() {
   local tool="$1"
@@ -50,6 +53,49 @@ check() {
     return 0
   fi
   echo "[MISS] $tool"
+  return 1
+}
+
+resolve_realpath() {
+  local input_path="$1"
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$input_path" <<'PY'
+from pathlib import Path
+import sys
+
+print(Path(sys.argv[1]).resolve())
+PY
+    return 0
+  fi
+
+  printf '%s\n' "$input_path"
+}
+
+detect_lazarus_root() {
+  local candidate=""
+  local lazbuild_bin=""
+
+  if [[ -n "${FPDEV_LAZARUSDIR:-}" ]]; then
+    candidate="${FPDEV_LAZARUSDIR}"
+    if [[ -d "${candidate}/lcl" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+    return 1
+  fi
+
+  lazbuild_bin="$(command -v lazbuild || true)"
+  if [[ -z "${lazbuild_bin}" ]]; then
+    return 1
+  fi
+
+  candidate="$(dirname "$(resolve_realpath "${lazbuild_bin}")")"
+  if [[ -d "${candidate}/lcl" ]]; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+
   return 1
 }
 
@@ -72,6 +118,19 @@ fi
 for t in "${REQUIRED_TOOLS[@]}"; do
   if check "$t"; then OK=$((OK + 1)); else REQ_MISS=$((REQ_MISS + 1)); fi
 done
+
+if LAZARUS_ROOT_PATH="$(detect_lazarus_root)"; then
+  LAZARUS_ROOT_STATUS="found"
+  echo "[ OK ] lazarus_root: ${LAZARUS_ROOT_PATH}"
+  OK=$((OK + 1))
+else
+  if [[ -n "${FPDEV_LAZARUSDIR:-}" ]]; then
+    echo "[MISS] lazarus_root (FPDEV_LAZARUSDIR does not contain lcl/)"
+  else
+    echo "[MISS] lazarus_root (set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/)"
+  fi
+  REQ_MISS=$((REQ_MISS + 1))
+fi
 
 for t in "${OPTIONAL_TOOLS[@]}"; do
   if check "$t"; then OK=$((OK + 1)); else OPT_MISS=$((OPT_MISS + 1)); fi
@@ -103,6 +162,13 @@ OUT="$OUTDIR/toolchain_$TS.txt"
       echo "  $t : MISSING"
     fi
   done
+  if [[ "${LAZARUS_ROOT_STATUS}" == "found" ]]; then
+    echo "  lazarus_root : ${LAZARUS_ROOT_PATH}"
+  elif [[ -n "${FPDEV_LAZARUSDIR:-}" ]]; then
+    echo "  lazarus_root : MISSING (FPDEV_LAZARUSDIR does not contain lcl/)"
+  else
+    echo "  lazarus_root : MISSING (set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/)"
+  fi
   echo ""
 
   echo "Optional:"

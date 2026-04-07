@@ -96,6 +96,21 @@ type
     ErrorMessage: string;
   end;
 
+  { TFPCStatusScope - Reported scope for `fpdev fpc status` }
+  TFPCStatusScope = (
+    fssNone,
+    fssProject,
+    fssUser,
+    fssSystem
+  );
+
+  { TFPCVerifyStatus - Reported verification state for `fpdev fpc status` }
+  TFPCVerifyStatus = (
+    fvsUnknown,
+    fvsOk,
+    fvsFail
+  );
+
   { TVerifyInfo - Verification info for metadata }
   TVerifyInfo = record
     Timestamp: TDateTime;
@@ -121,6 +136,18 @@ type
     Verify: TVerifyInfo;
     Origin: TOriginInfo;
     InstalledAt: TDateTime;
+  end;
+
+  { TFPCStatusInfo - Aggregated FPC status data for CLI and tests }
+  TFPCStatusInfo = record
+    EffectiveVersion: string;
+    ConfiguredDefault: string;
+    ActiveScope: TFPCStatusScope;
+    ManagedPrefix: string;
+    SourceMode: TSourceMode;
+    HasSourceMode: Boolean;
+    VerifyStatus: TFPCVerifyStatus;
+    ConfiguredDefaultInstalled: Boolean;
   end;
 
   { TBinaryDownloadInfo - Binary download info }
@@ -155,6 +182,9 @@ function OperationSuccess: TOperationResult;
 function OperationError(AErrorCode: TFPCErrorCode; const AMessage: string): TOperationResult;
 function OperationWarning(var AResult: TOperationResult; ACode: Integer; const AMessage: string): TOperationResult;
 function ErrorCodeToString(ACode: TFPCErrorCode): string;
+function FPCStatusScopeToString(const AScope: TFPCStatusScope): string;
+function FPCVerifyStatusToString(const AStatus: TFPCVerifyStatus): string;
+function FPCSourceModeToString(const AMode: TSourceMode): string;
 
 { Version parsing and comparison utilities }
 procedure ParseVersion(const AVer: string; out AMajor, AMinor, APatch: Integer);
@@ -224,6 +254,37 @@ begin
     ecTimeout: Result := 'Operation timed out';
   else
     Result := 'Error code: ' + IntToStr(Ord(ACode));
+  end;
+end;
+
+function FPCStatusScopeToString(const AScope: TFPCStatusScope): string;
+begin
+  case AScope of
+    fssProject: Result := 'project';
+    fssUser: Result := 'user';
+    fssSystem: Result := 'system';
+  else
+    Result := 'none';
+  end;
+end;
+
+function FPCVerifyStatusToString(const AStatus: TFPCVerifyStatus): string;
+begin
+  case AStatus of
+    fvsOk: Result := 'ok';
+    fvsFail: Result := 'fail';
+  else
+    Result := 'unknown';
+  end;
+end;
+
+function FPCSourceModeToString(const AMode: TSourceMode): string;
+begin
+  case AMode of
+    smBinary: Result := 'binary';
+    smSource: Result := 'source';
+  else
+    Result := 'auto';
   end;
 end;
 

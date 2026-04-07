@@ -13,7 +13,7 @@ This document answers common questions about using FPDev.
 ```bash
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system help
 ```
 

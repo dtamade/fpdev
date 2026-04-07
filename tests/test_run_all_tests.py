@@ -468,6 +468,7 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 msg=f'stdout={result.stdout}\nstderr={result.stderr}\nlog={build_log.read_text(encoding="utf-8") if build_log.exists() else ""}',
             )
             args = args_file.read_text(encoding='utf-8').splitlines()
+            self.assertIn('-B', args, 'fpc fallback should force a rebuild to avoid stale unit reuse')
             fu_args = [arg for arg in args if arg.startswith('-FU')]
             self.assertEqual(1, len(fu_args), f'expected one -FU arg, got {fu_args!r}')
             self.assertNotEqual('-FUlib', fu_args[0], 'fpc fallback should not write units into the shared lib directory')
