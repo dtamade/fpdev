@@ -162,6 +162,14 @@ uses
 var
   GI18nManager: TI18nManager = nil;
 
+{$IFDEF MSWINDOWS}
+type
+  TFPDevLangId = Word;
+
+function FPDevGetUserDefaultUILanguage: TFPDevLangId; stdcall;
+  external 'kernel32.dll' name 'GetUserDefaultUILanguage';
+{$ENDIF}
+
 function I18n: TI18nManager;
 begin
   if GI18nManager = nil then
@@ -232,14 +240,14 @@ function TI18nManager.DetectSystemLanguage: TLanguage;
 var
   LangCode: string;
   {$IFDEF MSWINDOWS}
-  LangID: LANGID;
+  LangID: TFPDevLangId;
   PrimaryLang: Word;
   {$ENDIF}
 begin
   Result := langEnglish;
 
   {$IFDEF MSWINDOWS}
-  LangID := GetUserDefaultUILanguage;
+  LangID := FPDevGetUserDefaultUILanguage;
   PrimaryLang := LangID and $3FF;
 
   case PrimaryLang of

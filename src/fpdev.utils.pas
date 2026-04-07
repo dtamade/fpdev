@@ -127,6 +127,25 @@ begin
 end;
 {$ENDIF}
 
+{$IFDEF MSWINDOWS}
+type
+  TFPDevMemoryStatusEx = record
+    dwLength: DWORD;
+    dwMemoryLoad: DWORD;
+    ullTotalPhys: QWord;
+    ullAvailPhys: QWord;
+    ullTotalPageFile: QWord;
+    ullAvailPageFile: QWord;
+    ullTotalVirtual: QWord;
+    ullAvailVirtual: QWord;
+    ullAvailExtendedVirtual: QWord;
+  end;
+  PFPDevMemoryStatusEx = ^TFPDevMemoryStatusEx;
+
+function FPDevGlobalMemoryStatusEx(lpBuffer: PFPDevMemoryStatusEx): BOOL; stdcall;
+  external 'kernel32.dll' name 'GlobalMemoryStatusEx';
+{$ENDIF}
+
 // Essential implementations
 function cwd: string;
 begin
@@ -316,7 +335,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -357,7 +376,7 @@ begin
   {$ELSE}
     {$IFDEF MSWINDOWS}
   MemStatus.dwLength := SizeOf(MemStatus);
-  if GlobalMemoryStatusEx(MemStatus) then
+  if FPDevGlobalMemoryStatusEx(@MemStatus) then
     Result := MemStatus.ullAvailPhys
   else
     Result := 0;
@@ -377,7 +396,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -413,7 +432,7 @@ begin
   {$ELSE}
     {$IFDEF MSWINDOWS}
   MemStatus.dwLength := SizeOf(MemStatus);
-  if GlobalMemoryStatusEx(MemStatus) then
+  if FPDevGlobalMemoryStatusEx(@MemStatus) then
     Result := MemStatus.ullTotalPhys
   else
     Result := 0;

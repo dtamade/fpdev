@@ -66,7 +66,7 @@ begin
   Result := False;
 
   // Windows Terminal sets WT_SESSION environment variable
-  EnvWT := GetEnvironmentVariable('WT_SESSION');
+  EnvWT := SysUtils.GetEnvironmentVariable('WT_SESSION');
   if EnvWT <> '' then
   begin
     Result := True;
@@ -74,7 +74,7 @@ begin
   end;
 
   // VSCode integrated terminal sets TERM_PROGRAM
-  EnvVSCode := GetEnvironmentVariable('TERM_PROGRAM');
+  EnvVSCode := SysUtils.GetEnvironmentVariable('TERM_PROGRAM');
   if (EnvVSCode = 'vscode') or (Pos('vscode', LowerCase(EnvVSCode)) > 0) then
   begin
     Result := True;
@@ -82,7 +82,7 @@ begin
   end;
 
   // Check for other modern terminal indicators
-  EnvTerm := GetEnvironmentVariable('TERM');
+  EnvTerm := SysUtils.GetEnvironmentVariable('TERM');
   if (EnvTerm = 'xterm-256color') or (EnvTerm = 'xterm') then
   begin
     Result := True;
@@ -90,7 +90,7 @@ begin
   end;
 
   // ConEmu/Cmder sets ConEmuANSI
-  if GetEnvironmentVariable('ConEmuANSI') = 'ON' then
+  if SysUtils.GetEnvironmentVariable('ConEmuANSI') = 'ON' then
   begin
     Result := True;
     Exit;
@@ -164,9 +164,9 @@ begin
     FColorEnabled := IsTerminal(1); // stdout
 
   // Also check TERM and NO_COLOR environment variables
-  if GetEnvironmentVariable('NO_COLOR') <> '' then
+  if SysUtils.GetEnvironmentVariable('NO_COLOR') <> '' then
     FColorEnabled := False
-  else if GetEnvironmentVariable('TERM') = 'dumb' then
+  else if SysUtils.GetEnvironmentVariable('TERM') = 'dumb' then
     FColorEnabled := False;
   {$ENDIF}
 end;
