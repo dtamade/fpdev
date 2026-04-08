@@ -6,7 +6,7 @@
 **Methodology**: Test-Driven Development (TDD)
 
 > Canonical status note: this is the current public roadmap/status document for FPDev.
-> Historical planning snapshots such as `docs/DEVELOPMENT_ROADMAP.md` are retained for reference only.
+> Historical planning snapshots such as `docs/history/DEVELOPMENT_ROADMAP.md` are retained for reference only.
 
 ---
 
@@ -36,7 +36,7 @@
 
 ## Development Philosophy
 
-Following the TODO-FPC-v1.md philosophy:
+Following the `docs/history/TODO-FPC-v1.md` philosophy:
 
 > **Purpose**: Prepare a verifiable, switchable, reproducible FPC toolchain with smart reuse (cache/repos), without touching the system environment by default.
 
@@ -275,7 +275,7 @@ Following the TODO-FPC-v1.md philosophy:
   - **Priority**: 🟢 MEDIUM
 
 ### Phase 2: Installation Flexibility (v1.0 → v1.5) ✅ COMPLETE
-**Goal**: Implement TODO-FPC-v1.md roadmap features
+**Goal**: Implement `docs/history/TODO-FPC-v1.md` roadmap features
 
 **Duration**: 4-6 weeks
 **Impact**: HIGH - Advanced toolchain management

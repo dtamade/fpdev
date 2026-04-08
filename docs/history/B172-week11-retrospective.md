@@ -14,7 +14,7 @@ B162-B172 (2026-02-10)
 | B162 | API.en.md | 英文 API 文档 (~230 行) |
 | B163 | FAQ.en.md | 英文 FAQ 文档 (~200 行) |
 | B164 | ARCHITECTURE.en.md | 英文架构文档 (~200 行) |
-| B165 | 国际化复盘 | docs/B165-i18n-retrospective.md |
+| B165 | 国际化复盘 | docs/history/B165-i18n-retrospective.md |
 
 **英文文档总计**: 5 个 (README.en.md + 4 个新增)
 
@@ -32,7 +32,7 @@ B162-B172 (2026-02-10)
 | B168 | cross.platform 测试 | 新增 62 个测试用例 |
 | B169 | 周报归档 | 23 个 WEEK*.md → docs/archive/ |
 | B170 | 文档清理 | 15 个历史文档 → docs/archive/ |
-| B171 | 大文件监控 | docs/B171-large-files-report.md |
+| B171 | 大文件监控 | docs/history/B171-large-files-report.md |
 
 ## 指标变化
 
@@ -58,10 +58,10 @@ B162-B172 (2026-02-10)
 - `docs/API.en.md`
 - `docs/FAQ.en.md`
 - `docs/ARCHITECTURE.en.md`
-- `docs/B165-i18n-retrospective.md`
-- `docs/B166-deprecated-cleanup.md`
-- `docs/B167-cross-split-analysis.md`
-- `docs/B171-large-files-report.md`
+- `docs/history/B165-i18n-retrospective.md`
+- `docs/history/B166-deprecated-cleanup.md`
+- `docs/history/B167-cross-split-analysis.md`
+- `docs/history/B171-large-files-report.md`
 - `docs/archive/README.md`
 
 ## 代码质量

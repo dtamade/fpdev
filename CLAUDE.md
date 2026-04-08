@@ -188,8 +188,8 @@ Use these as the canonical detailed references:
 - `docs/ERROR_HANDLING_GUIDE.md`: logging, diagnostics, and recovery patterns
 - `docs/FPC_MANAGEMENT.md`: FPC lifecycle behavior and command reference
 - `docs/INSTALLATION.md`: environment setup, logging, and troubleshooting
-- `docs/PACKAGE_CREATION_DESIGN.md`: package authoring and metadata rules
-- `docs/PACKAGE_DEPENDENCY_SPEC.md`: dependency and lockfile-related behavior
+- `docs/history/PACKAGE_CREATION_DESIGN.md`: historical package authoring proposal and metadata rules
+- `docs/history/PACKAGE_DEPENDENCY_SPEC.md`: historical dependency and lockfile design reference
 - `docs/ROADMAP.md`: roadmap and release status
 
 ## Keep This File Small

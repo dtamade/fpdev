@@ -7,29 +7,34 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_MD = REPO_ROOT / 'CLAUDE.md'
 AGENTS_MD = REPO_ROOT / 'AGENTS.md'
 CHANGELOG_MD = REPO_ROOT / 'CHANGELOG.md'
-TESTING_MD = REPO_ROOT / 'docs' / 'testing.md'
-LIBGIT2_DYNAMIC_MD = REPO_ROOT / 'docs' / 'LIBGIT2_DYNAMIC.md'
-TEST_PLAN_GIT2_LOCAL_MD = REPO_ROOT / 'docs' / 'TEST_PLAN_GIT2_LOCAL.md'
-AGENT_TEAM_KICKOFF_MD = REPO_ROOT / 'docs' / 'AGENT_TEAM_KICKOFF.md'
-TODO_FPC_V1_MD = REPO_ROOT / 'docs' / 'TODO-FPC-v1.md'
-DEPRECATED_CODE_AUDIT_MD = REPO_ROOT / 'docs' / 'DEPRECATED_CODE_AUDIT.md'
-LARGE_FILES_REPORT = REPO_ROOT / 'docs' / 'B171-large-files-report.md'
+DOCS_DIR = REPO_ROOT / 'docs'
+HISTORY_DIR = DOCS_DIR / 'history'
+INTERNAL_DIR = DOCS_DIR / 'internal'
+TESTING_MD = DOCS_DIR / 'testing.md'
+HISTORY_README = HISTORY_DIR / 'README.md'
+INTERNAL_README = INTERNAL_DIR / 'README.md'
+LIBGIT2_DYNAMIC_MD = HISTORY_DIR / 'LIBGIT2_DYNAMIC.md'
+TEST_PLAN_GIT2_LOCAL_MD = HISTORY_DIR / 'TEST_PLAN_GIT2_LOCAL.md'
+AGENT_TEAM_KICKOFF_MD = INTERNAL_DIR / 'AGENT_TEAM_KICKOFF.md'
+TODO_FPC_V1_MD = HISTORY_DIR / 'TODO-FPC-v1.md'
+DEPRECATED_CODE_AUDIT_MD = HISTORY_DIR / 'DEPRECATED_CODE_AUDIT.md'
+LARGE_FILES_REPORT = HISTORY_DIR / 'B171-large-files-report.md'
 V11_TEST_REPORT = REPO_ROOT / 'TEST_REPORT_v1.1.md'
 V11_RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES_v1.1.md'
 SLEEP_MODE_SUMMARY = REPO_ROOT / 'SLEEP_MODE_SUMMARY.md'
 TODO_SLEEP = REPO_ROOT / 'TODO_SLEEP.md'
 DEVELOPMENT_ROADMAP_DOCS = [
-    REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.md',
-    REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.en.md',
+    HISTORY_DIR / 'DEVELOPMENT_ROADMAP.md',
+    HISTORY_DIR / 'DEVELOPMENT_ROADMAP.en.md',
 ]
-HISTORICAL_ROOT_DOCS = [
-    REPO_ROOT / 'docs' / 'B165-i18n-retrospective.md',
-    REPO_ROOT / 'docs' / 'B166-deprecated-cleanup.md',
-    REPO_ROOT / 'docs' / 'B167-cross-split-analysis.md',
-    REPO_ROOT / 'docs' / 'B172-week11-retrospective.md',
-    REPO_ROOT / 'docs' / 'PHASE5-SUMMARY.md',
-    REPO_ROOT / 'docs' / 'PHASE6-SUMMARY.md',
-    REPO_ROOT / 'docs' / 'M1_GIT_HARDENING.md',
+HISTORICAL_DOCS = [
+    HISTORY_DIR / 'B165-i18n-retrospective.md',
+    HISTORY_DIR / 'B166-deprecated-cleanup.md',
+    HISTORY_DIR / 'B167-cross-split-analysis.md',
+    HISTORY_DIR / 'B172-week11-retrospective.md',
+    HISTORY_DIR / 'PHASE5-SUMMARY.md',
+    HISTORY_DIR / 'PHASE6-SUMMARY.md',
+    HISTORY_DIR / 'M1_GIT_HARDENING.md',
 ]
 
 
@@ -127,10 +132,27 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertIn('未跟踪', text)
         self.assertIn('scripts/run_single_test.sh', text)
 
+    def test_history_readme_routes_snapshot_docs_to_current_public_sources(self):
+        text = HISTORY_README.read_text(encoding='utf-8')
+        self.assertIn('历史快照', text)
+        self.assertIn('docs/ROADMAP.md', text)
+        self.assertIn('docs/archive/', text)
+        self.assertIn('docs/plans/', text)
+        self.assertIn('DEVELOPMENT_ROADMAP.md', text)
+        self.assertIn('TODO-FPC-v1.md', text)
+
+    def test_internal_readme_marks_agent_docs_as_internal_coordination_artifacts(self):
+        text = INTERNAL_README.read_text(encoding='utf-8')
+        self.assertIn('内部协作', text)
+        self.assertIn('README.md', text)
+        self.assertIn('docs/ROADMAP.md', text)
+        self.assertIn('AGENT_TEAM_SETUP.md', text)
+        self.assertIn('AGENT_TEAM_KICKOFF.md', text)
+
     def test_historical_development_roadmaps_remap_fpc_owner_to_current_docs_and_units(self):
         expectations = {
-            REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.md': ('当前工作树', '兼容层'),
-            REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.en.md': ('current worktree', 'compatibility shim'),
+            HISTORY_DIR / 'DEVELOPMENT_ROADMAP.md': ('当前工作树', '兼容层'),
+            HISTORY_DIR / 'DEVELOPMENT_ROADMAP.en.md': ('current worktree', 'compatibility shim'),
         }
         for path, (worktree_note, shim_note) in expectations.items():
             text = path.read_text(encoding='utf-8')
@@ -141,13 +163,13 @@ class ContributorDocsContractTests(unittest.TestCase):
 
     def test_historical_development_roadmaps_mark_test_mvp_script_as_untracked_example(self):
         expectations = {
-            REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.md': (
+            HISTORY_DIR / 'DEVELOPMENT_ROADMAP.md': (
                 'scripts/test_mvp.sh',
                 '历史示例',
                 '当前工作树未跟踪',
                 'docs/MVP_ACCEPTANCE_CRITERIA.md',
             ),
-            REPO_ROOT / 'docs' / 'DEVELOPMENT_ROADMAP.en.md': (
+            HISTORY_DIR / 'DEVELOPMENT_ROADMAP.en.md': (
                 'scripts/test_mvp.sh',
                 'Historical example',
                 'not tracked in the current worktree',
@@ -159,19 +181,19 @@ class ContributorDocsContractTests(unittest.TestCase):
             for needle in required:
                 self.assertIn(needle, text, f'{path} should contain {needle!r}')
 
-    def test_historical_root_docs_mark_themselves_as_snapshots(self):
-        for path in HISTORICAL_ROOT_DOCS:
+    def test_historical_docs_mark_themselves_as_snapshots(self):
+        for path in HISTORICAL_DOCS:
             text = path.read_text(encoding='utf-8')
             self.assertIn('历史快照', text, f'{path} should mark itself as a historical snapshot')
             self.assertIn('当前工作树', text, f'{path} should warn that the current worktree may differ')
 
     def test_m1_git_hardening_marks_removed_dynamic_loader_smoke_artifacts_as_historical(self):
-        path = REPO_ROOT / 'docs' / 'M1_GIT_HARDENING.md'
+        path = HISTORY_DIR / 'M1_GIT_HARDENING.md'
         text = path.read_text(encoding='utf-8')
         self.assertIn('scripts/test_dynamic_loader.bat', text)
         self.assertIn('src/test_dyn_loader.lpr', text)
         self.assertIn('当前工作树', text)
-        self.assertIn('docs/LIBGIT2_DYNAMIC.md', text)
+        self.assertIn('docs/history/LIBGIT2_DYNAMIC.md', text)
         self.assertIn('src/libgit2.pas', text)
         self.assertIn('已不在当前工作树', text)
 

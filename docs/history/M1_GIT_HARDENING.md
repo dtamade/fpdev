@@ -3,13 +3,13 @@
 本文件汇总本里程碑对 Git 集成的硬化改动，包括动态加载、初始化错误信息增强、最小网络选项接线、CLI 对齐，以及后续步骤与测试脚本。
 
 > 历史快照说明：本文记录 M1 里程碑当时的实施摘要。当前工作树中的 Git 架构、命令边界和兼容层状态可能已变化。
-> 当前工作树补充说明：文中提到的 `scripts/test_dynamic_loader.bat` 与 `src/test_dyn_loader.lpr` 已不在当前工作树；现行 libgit2 动态加载边界请以 `docs/LIBGIT2_DYNAMIC.md` 和 `src/libgit2.pas` 为准。
+> 当前工作树补充说明：文中提到的 `scripts/test_dynamic_loader.bat` 与 `src/test_dyn_loader.lpr` 已不在当前工作树；现行 libgit2 动态加载边界请以 `docs/history/LIBGIT2_DYNAMIC.md` 和 `src/libgit2.pas` 为准。
 
 ## 1. 动态加载与 DLL 探测
 - 新增 `src/libgit2.dynamic.pas`：Windows 下按顺序探测 `git2.dll` → `libgit2-1.dll` → `libgit2.dll`
 - 默认启用 `LIBGIT2_DYNAMIC`（`src/fpdev.config.inc`），可用 `-dNO_LIBGIT2_DYNAMIC` 退回 external 方式
 - 初始化失败时提供清晰错误：找不到 DLL 或版本/依赖不兼容
-- 相关文档：`docs/LIBGIT2_DYNAMIC.md`
+- 相关文档：`docs/history/LIBGIT2_DYNAMIC.md`
 
 ## 2. 初始化/版本信息与错误改进
 - `TGitManager.Initialize`：在动态加载失败/不兼容时抛出 `EGitError` 提示措施
@@ -43,8 +43,8 @@
   - `src/fpdev.config.inc`
   - `src/libgit2.network.pas`
   - `src/test_dyn_loader.lpr`
-  - `docs/LIBGIT2_DYNAMIC.md`
-  - `docs/M1_GIT_HARDENING.md`
+  - `docs/history/LIBGIT2_DYNAMIC.md`
+  - `docs/history/M1_GIT_HARDENING.md`
   - `scripts/test_dynamic_loader.bat`
 - 修改：
   - `src/git2.modern.pas`（接入动态加载、最小网络选项；初始化/版本/SSL 配置强化；隐藏/弃用说明）

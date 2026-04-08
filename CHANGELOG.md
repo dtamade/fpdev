@@ -325,7 +325,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Automatic dependency installation before main package
 
 - **Documentation**
-  - docs/PACKAGE_DEPENDENCY_SPEC.md: Complete dependency metadata specification
+  - docs/history/PACKAGE_DEPENDENCY_SPEC.md: Complete dependency metadata specification
   - .fpdev-package.json schema definition
   - Version constraint syntax and examples
   - Dependency resolution strategy documentation
