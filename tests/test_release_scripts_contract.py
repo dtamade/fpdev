@@ -10,6 +10,7 @@ OWNER_SMOKE_PS1 = REPO_ROOT / 'scripts' / 'record_owner_smoke.ps1'
 CHECKSUM_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_checksums.py'
 PACKAGE_SCRIPT = REPO_ROOT / 'scripts' / 'package_release_assets.py'
 EVIDENCE_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_evidence.py'
+ASSEMBLE_BUNDLE_SCRIPT = REPO_ROOT / 'scripts' / 'assemble_release_ready_bundle.sh'
 RELEASE_ACCEPTANCE_SCRIPT = REPO_ROOT / 'scripts' / 'release_acceptance_linux.sh'
 BUILD_RELEASE_SCRIPT = REPO_ROOT / 'scripts' / 'build_release.sh'
 CHECK_TOOLCHAIN_SCRIPT = REPO_ROOT / 'scripts' / 'check_toolchain.sh'
@@ -71,6 +72,18 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('SHA256SUMS.txt', text)
         self.assertIn('Windows x64 asset smoke', text)
         self.assertIn('windows-x64-owner-smoke.txt', text)
+
+    def test_release_bundle_assembly_script_exists_and_uses_shared_packaging_tools(self):
+        self.assertTrue(ASSEMBLE_BUNDLE_SCRIPT.exists(), f'Missing {ASSEMBLE_BUNDLE_SCRIPT}')
+        text = ASSEMBLE_BUNDLE_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('release-ready-bundle', text)
+        self.assertIn('release-asset-linux-x64', text)
+        self.assertIn('release-asset-windows-x64', text)
+        self.assertIn('release-asset-macos-x64', text)
+        self.assertIn('release-asset-macos-arm64', text)
+        self.assertIn('scripts/generate_release_checksums.py', text)
+        self.assertIn('scripts/generate_release_evidence.py', text)
+        self.assertIn("grep -q '^with_install: 0$' \"$path\"", text)
 
     def test_release_build_script_exists_and_supports_explicit_lazarus_dir_override(self):
         self.assertTrue(BUILD_RELEASE_SCRIPT.exists(), f'Missing {BUILD_RELEASE_SCRIPT}')

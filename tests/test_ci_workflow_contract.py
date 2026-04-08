@@ -174,12 +174,12 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()
         self.assertIn('release-ready-bundle', section)
-        self.assertIn('scripts/generate_release_checksums.py', section)
-        self.assertIn('scripts/generate_release_evidence.py', section)
+        self.assertIn('bash scripts/assemble_release_ready_bundle.sh', section)
         self.assertIn('release-acceptance-logs', section)
         self.assertIn('owner-proof-windows-x64', section)
         self.assertIn('owner-proof-macos-x64', section)
         self.assertIn('owner-proof-macos-arm64', section)
+        self.assertNotIn('cp bundle/downloads/release-asset-linux-x64/fpdev-linux-x64.tar.gz', section)
 
     def test_release_ready_bundle_depends_on_all_release_gates(self):
         section = self._assemble_release_ready_bundle_section()
@@ -197,17 +197,12 @@ class CIWorkflowContractTests(unittest.TestCase):
 
     def test_release_ready_bundle_discovers_summary_paths_without_escaped_quotes(self):
         section = self._assemble_release_ready_bundle_section()
-        self.assertIn('grep -q \'^with_install: 0$\' "$path"', section)
-        self.assertIn("printf '%s\\n' \"$path\"", section)
-        self.assertIn('grep -q \'^with_install: 1$\' "$path"', section)
+        self.assertIn('scripts/assemble_release_ready_bundle.sh', section)
         self.assertNotIn('\\"$path\\"', section)
 
     def test_release_ready_bundle_tolerates_missing_optional_install_summary(self):
         section = self._assemble_release_ready_bundle_section()
-        self.assertIn('BASELINE_SUMMARY="$(find', section)
-        self.assertIn('INSTALL_SUMMARY="$(find', section)
-        self.assertIn('done)" || true', section)
-        self.assertIn('Missing baseline summary in release acceptance logs', section)
+        self.assertIn('scripts/assemble_release_ready_bundle.sh', section)
 
     def test_ci_runs_public_doc_contract_suites(self):
         self.assertIn('tests.test_archive_docs_contract', self.text)

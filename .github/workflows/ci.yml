@@ -404,41 +404,7 @@ jobs:
 
     - name: Assemble release-ready bundle
       shell: bash
-      run: |
-        rm -rf release-ready-bundle
-        mkdir -p release-ready-bundle/release-assets release-ready-bundle/owner-proof release-ready-bundle/release-acceptance-logs
-        cp bundle/downloads/release-asset-linux-x64/fpdev-linux-x64.tar.gz release-ready-bundle/release-assets/
-        cp bundle/downloads/release-asset-windows-x64/fpdev-windows-x64.zip release-ready-bundle/release-assets/
-        cp bundle/downloads/release-asset-macos-x64/fpdev-macos-x64.tar.gz release-ready-bundle/release-assets/
-        cp bundle/downloads/release-asset-macos-arm64/fpdev-macos-arm64.tar.gz release-ready-bundle/release-assets/
-        cp -R bundle/downloads/release-acceptance-logs/. release-ready-bundle/release-acceptance-logs/
-        cp -R bundle/downloads/owner-proof-windows-x64/. release-ready-bundle/owner-proof/
-        cp -R bundle/downloads/owner-proof-macos-x64/. release-ready-bundle/owner-proof/
-        cp -R bundle/downloads/owner-proof-macos-arm64/. release-ready-bundle/owner-proof/
-
-    - name: Generate release checksums
-      shell: bash
-      run: python3 scripts/generate_release_checksums.py release-ready-bundle/release-assets --require-planned-assets
-
-    - name: Generate release evidence
-      shell: bash
-      run: |
-        BASELINE_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 0$' "$path" && printf '%s\n' "$path" && break; done)" || true
-        INSTALL_SUMMARY="$(find release-ready-bundle/release-acceptance-logs -name summary.txt -print | while read -r path; do grep -q '^with_install: 1$' "$path" && printf '%s\n' "$path" && break; done)" || true
-        if [[ -z "${BASELINE_SUMMARY}" ]]; then
-          echo "::error::Missing baseline summary in release acceptance logs"
-          exit 1
-        fi
-        args=(
-          --baseline-summary "${BASELINE_SUMMARY}"
-          --asset-dir release-ready-bundle/release-assets
-          --owner-proof-dir release-ready-bundle/owner-proof
-          --output release-ready-bundle/release-assets/RELEASE_EVIDENCE.md
-        )
-        if [[ -n "${INSTALL_SUMMARY}" ]]; then
-          args+=(--install-summary "${INSTALL_SUMMARY}")
-        fi
-        python3 scripts/generate_release_evidence.py "${args[@]}"
+      run: bash scripts/assemble_release_ready_bundle.sh
 
     - name: Upload release-ready bundle
       uses: actions/upload-artifact@v4
