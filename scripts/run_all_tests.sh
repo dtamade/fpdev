@@ -58,6 +58,7 @@ init_test_environment() {
   export TEMP="${TEST_TMP_ROOT}"
   export FPDEV_DATA_ROOT="${TEST_DATA_ROOT}"
   export FPDEV_LAZARUS_CONFIG_ROOT="${TEST_LAZARUS_CONFIG_ROOT}"
+  export FPDEV_TEST_PROJECT_ROOT="${REPO_ROOT}"
   export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
 }
 
@@ -67,6 +68,63 @@ create_per_test_runtime_root() {
 
   mkdir -p "${runtime_parent}"
   mktemp -d "${runtime_parent}/${test_name}.XXXXXX"
+}
+
+prepare_test_runtime_workspace() {
+  local runtime_root="$1"
+  local shared_name=""
+
+  for shared_name in tests examples docs src .git; do
+    if [ -e "${REPO_ROOT}/${shared_name}" ] && [ ! -e "${runtime_root}/${shared_name}" ]; then
+      ln -s "${REPO_ROOT}/${shared_name}" "${runtime_root}/${shared_name}" 2>/dev/null || true
+    fi
+  done
+}
+
+select_test_bin_dir() {
+  local preferred_dir="$1"
+  local runtime_root="$2"
+  local fallback_dir="${runtime_root}/bin"
+  local absolute_dir=""
+
+  if mkdir -p "$preferred_dir" 2>/dev/null && [ -w "$preferred_dir" ]; then
+    if absolute_dir="$(to_absolute_existing_path "$preferred_dir")"; then
+      printf '%s\n' "$absolute_dir"
+    else
+      printf '%s\n' "$preferred_dir"
+    fi
+    return 0
+  fi
+
+  mkdir -p "$fallback_dir"
+  if absolute_dir="$(to_absolute_existing_path "$fallback_dir")"; then
+    printf '%s\n' "$absolute_dir"
+  else
+    printf '%s\n' "$fallback_dir"
+  fi
+}
+
+to_absolute_existing_path() {
+  local path="$1"
+  local path_dir=""
+  local path_name=""
+
+  case "$path" in
+    /*|[A-Za-z]:[\\/]* )
+      printf '%s\n' "$path"
+      return 0
+      ;;
+  esac
+
+  path_dir="$(dirname "$path")"
+  path_name="$(basename "$path")"
+
+  if abs_dir="$(cd "$path_dir" 2>/dev/null && pwd)"; then
+    printf '%s/%s\n' "$abs_dir" "$path_name"
+    return 0
+  fi
+
+  return 1
 }
 
 restore_env_var() {
@@ -107,12 +165,19 @@ load_test_inventory() {
 run_test_binary() {
   local bin_path="$1"
   local log_path="$2"
+  local run_cwd="${3:-$REPO_ROOT}"
 
-  if "${bin_path}" --all >"${log_path}" 2>&1; then
+  if (
+    cd "$run_cwd" &&
+    "${bin_path}" --all >"${log_path}" 2>&1
+  ); then
     return 0
   fi
 
-  if "${bin_path}" >"${log_path}" 2>&1; then
+  if (
+    cd "$run_cwd" &&
+    "${bin_path}" >"${log_path}" 2>&1
+  ); then
     return 0
   fi
 
@@ -246,13 +311,18 @@ resolve_test_binary_path() {
   local test_name="$3"
   local test_lpi="$4"
   local candidate=""
+  local absolute_candidate=""
   local -a candidates=()
 
   mapfile -t candidates < <(get_test_binary_candidates "$preferred_bin" "$test_dir" "$test_name" "$test_lpi")
 
   for candidate in "${candidates[@]}"; do
     if [ -f "$candidate" ]; then
-      printf '%s\n' "$candidate"
+      if absolute_candidate="$(to_absolute_existing_path "$candidate")"; then
+        printf '%s\n' "$absolute_candidate"
+      else
+        printf '%s\n' "$candidate"
+      fi
       return 0
     fi
   done
@@ -335,10 +405,12 @@ run_single_test() {
   local test_log=""
   local build_log=""
   local test_bin=""
+  local preferred_test_bin_dir=""
   local test_bin_dir=""
   local run_bin=""
   local log_root=""
   local test_runtime_root=""
+  local test_workspace_root=""
   local test_data_root=""
   local test_lazarus_config_root=""
   local saved_tmpdir=""
@@ -359,17 +431,6 @@ run_single_test() {
   log_root="${TEST_LOG_ROOT:-${TEST_TMP_ROOT}}"
   test_log="${log_root}/${test_name}.log"
   build_log="${log_root}/${test_name}.build.log"
-
-  if [ "$test_dir" != "tests" ]; then
-    test_bin="${test_dir}/bin/${test_name}"
-    test_bin_dir="${test_dir}/bin"
-  else
-    test_bin="bin/${test_name}"
-    test_bin_dir="bin"
-  fi
-
-  mkdir -p "$test_bin_dir"
-  mkdir -p "$log_root"
 
   if [ "${TMPDIR+x}" = x ]; then
     had_tmpdir=1
@@ -393,9 +454,21 @@ run_single_test() {
   fi
 
   test_runtime_root="$(create_per_test_runtime_root "$test_name")"
+  test_workspace_root="${test_runtime_root}/workspace"
   test_data_root="${test_runtime_root}/fpdev-data"
   test_lazarus_config_root="${test_runtime_root}/lazarus-config"
-  mkdir -p "$test_data_root" "$test_lazarus_config_root"
+  mkdir -p "$test_workspace_root" "$test_data_root" "$test_lazarus_config_root"
+  prepare_test_runtime_workspace "$test_workspace_root"
+
+  if [ "$test_dir" != "tests" ]; then
+    preferred_test_bin_dir="${test_dir}/bin"
+  else
+    preferred_test_bin_dir="bin"
+  fi
+  test_bin_dir="$(select_test_bin_dir "$preferred_test_bin_dir" "$test_workspace_root")"
+  test_bin="${test_bin_dir}/${test_name}"
+
+  mkdir -p "$log_root"
 
   export TMPDIR="$test_runtime_root"
   export TMP="$test_runtime_root"
@@ -407,7 +480,7 @@ run_single_test() {
 
   if build_test_with_recovery "$test_lpi" "$test_file" "$test_bin" "$test_dir" "$test_name" "$build_log"; then
     if run_bin="$(resolve_test_binary_path "$test_bin" "$test_dir" "$test_name" "$test_lpi")" \
-      && run_test_binary "$run_bin" "$test_log"; then
+      && run_test_binary "$run_bin" "$test_log" "$test_workspace_root"; then
       echo -e "${GREEN}PASSED${NC}"
       PASSED=$((PASSED + 1))
       PASSED_TESTS+=("$test_name")

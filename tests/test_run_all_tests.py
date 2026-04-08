@@ -534,8 +534,8 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 saved_lazarus_config_root="$FPDEV_LAZARUS_CONFIG_ROOT"
 
                 build_test_with_recovery() {{
-                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\n' \\
-                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" > "{build_env_file}"
+                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\nFPDEV_TEST_PROJECT_ROOT=%s\\n' \\
+                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" "$FPDEV_TEST_PROJECT_ROOT" > "{build_env_file}"
                   mkdir -p "$(dirname "$3")"
                   printf '#!/bin/sh\\nexit 0\\n' > "$3"
                   chmod +x "$3"
@@ -543,8 +543,8 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 }}
 
                 run_test_binary() {{
-                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\nLOG=%s\\n' \\
-                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" "$2" > "{run_env_file}"
+                  printf 'TMPDIR=%s\\nFPDEV_DATA_ROOT=%s\\nFPDEV_LAZARUS_CONFIG_ROOT=%s\\nFPDEV_TEST_PROJECT_ROOT=%s\\nLOG=%s\\n' \\
+                    "$TMPDIR" "$FPDEV_DATA_ROOT" "$FPDEV_LAZARUS_CONFIG_ROOT" "$FPDEV_TEST_PROJECT_ROOT" "$2" > "{run_env_file}"
                   return 0
                 }}
 
@@ -585,7 +585,131 @@ class RunAllTestsScriptTests(unittest.TestCase):
                 f"{build_env['TMPDIR']}/lazarus-config",
                 build_env['FPDEV_LAZARUS_CONFIG_ROOT'],
             )
+            self.assertEqual(str(REPO_ROOT), build_env['FPDEV_TEST_PROJECT_ROOT'])
+            self.assertEqual(str(REPO_ROOT), run_env['FPDEV_TEST_PROJECT_ROOT'])
             self.assertEqual(str(custom_log_root / 'test_demo.log'), run_env['LOG'])
+
+    def test_run_single_test_falls_back_to_runtime_bin_with_runtime_workspace_when_repo_root_bin_is_not_writable(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            scripts_dir = tmp_path / 'scripts'
+            tests_dir = tmp_path / 'tests'
+            examples_dir = tmp_path / 'examples'
+            git_dir = tmp_path / '.git'
+            scripts_dir.mkdir()
+            tests_dir.mkdir()
+            examples_dir.mkdir()
+            git_dir.mkdir()
+            repo_bin = tmp_path / 'bin'
+            repo_bin.mkdir()
+            repo_bin.chmod(0o555)
+            test_file = tests_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            (examples_dir / 'fixture.txt').write_text('fixture\n', encoding='utf-8')
+            build_target_file = tmp_path / 'build-target.txt'
+            run_cwd_file = tmp_path / 'run-cwd.txt'
+            script_copy = self.write_script_copy(SCRIPT_PATH, scripts_dir / 'run_all_tests.sh')
+
+            command = textwrap.dedent(
+                f'''\
+                source "{script_copy}"
+                init_test_environment
+
+                build_test_with_recovery() {{
+                  printf '%s\\n' "$3" > "{build_target_file}"
+                  case "$3" in
+                    "$TEST_TMP_ROOT"/runtime/test_demo.*/workspace/bin/test_demo)
+                      mkdir -p "$(dirname "$3")"
+                      printf '#!/bin/sh\\nexit 0\\n' > "$3"
+                      chmod +x "$3"
+                      return 0
+                      ;;
+                    *)
+                      echo "unexpected build target: $3" >&2
+                      return 41
+                      ;;
+                  esac
+                }}
+
+                run_test_binary() {{
+                  (
+                    cd "${{3:-$PWD}}" || exit 1
+                    pwd > "{run_cwd_file}"
+                    test -d .git
+                    test -f tests/test_demo.lpr
+                    test -f examples/fixture.txt
+                    "$1" > /dev/null 2>&1
+                  )
+                }}
+
+                run_single_test "tests/test_demo.lpr"
+                cleanup
+                '''
+            )
+
+            result = self.run_bash(command, cwd=tmp_path)
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
+            build_target = build_target_file.read_text(encoding='utf-8').strip()
+            self.assertIn('/runtime/test_demo.', build_target)
+            self.assertTrue(build_target.endswith('/workspace/bin/test_demo'))
+            run_cwd = run_cwd_file.read_text(encoding='utf-8').strip()
+            self.assertIn('/runtime/test_demo.', run_cwd)
+            self.assertTrue(run_cwd.endswith('/workspace'))
+
+    def test_run_single_test_runtime_workspace_links_git_metadata_for_repo_root_assumptions(self):
+        with tempfile.TemporaryDirectory(prefix='run-all-tests-') as tmp:
+            tmp_path = Path(tmp)
+            scripts_dir = tmp_path / 'scripts'
+            tests_dir = tmp_path / 'tests'
+            git_dir = tmp_path / '.git'
+            scripts_dir.mkdir()
+            tests_dir.mkdir()
+            git_dir.mkdir()
+            (git_dir / 'HEAD').write_text('ref: refs/heads/main\n', encoding='utf-8')
+            repo_bin = tmp_path / 'bin'
+            repo_bin.mkdir()
+            repo_bin.chmod(0o555)
+            test_file = tests_dir / 'test_demo.lpr'
+            test_file.write_text('program test_demo;\nbegin\nend.\n', encoding='utf-8')
+            script_copy = self.write_script_copy(SCRIPT_PATH, scripts_dir / 'run_all_tests.sh')
+
+            command = textwrap.dedent(
+                f'''\
+                source "{script_copy}"
+                init_test_environment
+
+                build_test_with_recovery() {{
+                  mkdir -p "$(dirname "$3")"
+                  printf '#!/bin/sh\\nexit 0\\n' > "$3"
+                  chmod +x "$3"
+                  return 0
+                }}
+
+                run_test_binary() {{
+                  (
+                    cd "${{3:-$PWD}}" || exit 1
+                    test -f .git/HEAD &&
+                    "$1" > /dev/null 2>&1
+                  )
+                }}
+
+                run_single_test "tests/test_demo.lpr"
+                cleanup
+                '''
+            )
+
+            result = self.run_bash(command, cwd=tmp_path)
+
+            self.assertEqual(
+                0,
+                result.returncode,
+                msg=f'stdout={result.stdout}\nstderr={result.stderr}',
+            )
 
     def test_run_single_test_requires_exact_test_file_path(self):
         with tempfile.TemporaryDirectory(prefix='run-single-test-') as tmp:

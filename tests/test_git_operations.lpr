@@ -29,6 +29,18 @@ var
 
 procedure EnsureRepoUserConfig(const ARepoDir: string); forward;
 
+function ResolveProjectRootForSelfTests: string;
+var
+  EnvRoot: string;
+begin
+  EnvRoot := Trim(GetEnvironmentVariable('FPDEV_TEST_PROJECT_ROOT'));
+  if EnvRoot <> '' then
+    Exit(ExpandFileName(EnvRoot));
+
+  Result := ExtractFilePath(ParamStr(0));
+  Result := ExpandFileName(Result + '..');
+end;
+
 constructor TMockGitCliRunner.Create;
 begin
   inherited Create;
@@ -305,10 +317,8 @@ begin
 
   Git := TGitOperations.Create;
   try
-    // Test with current project (should be a git repo)
-    // bin/test_git_operations -> go up one level to project root
-    ProjectRoot := ExtractFilePath(ParamStr(0));
-    ProjectRoot := ExpandFileName(ProjectRoot + '..');
+    // Prefer the explicit project-root hint exported by the test runner.
+    ProjectRoot := ResolveProjectRootForSelfTests;
 
     WriteLn('  Testing path: ', ProjectRoot);
 
@@ -339,10 +349,8 @@ begin
 
   Git := TGitOperations.Create;
   try
-    // Test with current project
-    // bin/test_git_operations -> go up one level to project root
-    ProjectRoot := ExtractFilePath(ParamStr(0));
-    ProjectRoot := ExpandFileName(ProjectRoot + '..');
+    // Prefer the explicit project-root hint exported by the test runner.
+    ProjectRoot := ResolveProjectRootForSelfTests;
 
     WriteLn('  Testing path: ', ProjectRoot);
 

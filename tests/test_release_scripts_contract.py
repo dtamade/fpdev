@@ -80,6 +80,11 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('--build-mode=Release', text)
         self.assertIn('fpdev.lpi', text)
 
+    def test_release_build_script_reports_actual_release_binary_path_when_requested(self):
+        text = BUILD_RELEASE_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('FPDEV_RELEASE_BIN_PATH_FILE', text)
+        self.assertIn('FPDEV_RELEASE_BUILD_ROOT', text)
+
     def test_toolchain_check_script_validates_lazarus_root_for_release_builds(self):
         self.assertTrue(CHECK_TOOLCHAIN_SCRIPT.exists(), f'Missing {CHECK_TOOLCHAIN_SCRIPT}')
         text = CHECK_TOOLCHAIN_SCRIPT.read_text(encoding='utf-8')
@@ -107,6 +112,13 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         text = RELEASE_ACCEPTANCE_SCRIPT.read_text(encoding='utf-8')
         self.assertIn('bash scripts/build_release.sh', text)
         self.assertNotIn('lazbuild -B --build-mode=Release fpdev.lpi', text)
+
+    def test_linux_release_acceptance_consumes_reported_release_binary_path(self):
+        text = RELEASE_ACCEPTANCE_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('FPDEV_RELEASE_BIN_PATH_FILE', text)
+        self.assertIn('RELEASE_BIN=', text)
+        self.assertIn('"${RELEASE_BIN}" system help', text)
+        self.assertNotIn('run_cli_smoke system_help 0 ./bin/fpdev system help', text)
 
 
 if __name__ == '__main__':
