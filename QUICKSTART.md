@@ -147,7 +147,7 @@ fpdev lazarus run               # 启动 IDE
 - 📖 阅读 [完整文档](docs/QUICKSTART.md) 了解所有功能
 - 🏗️ 查看 [架构文档](docs/ARCHITECTURE.md) 了解内部设计
 - ❓ 查看 [常见问题](FAQ.md) 解决疑问
-- 🐛 [报告问题](https://github.com/fpdev/fpdev/issues) 或提出建议
+- 🐛 [报告问题](https://github.com/dtamade/fpdev/issues) 或提出建议
 
 ---
 

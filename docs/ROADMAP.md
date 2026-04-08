@@ -1,8 +1,8 @@
 # FPDev Development Roadmap
 
 **Version**: 1.0.0 → 2.1.0
-**Status**: Feature Checklist Closed, Linux Release Evidence Recorded, Public CI Release Proof Pending
-**Last Updated**: 2026-03-25 (current public roadmap/status document)
+**Status**: Feature Checklist Closed, Release Proof Published, v2.1.0 Released
+**Last Updated**: 2026-04-09 (release publish status update)
 **Methodology**: Test-Driven Development (TDD)
 
 > Canonical status note: this is the current public roadmap/status document for FPDev.
@@ -12,7 +12,7 @@
 
 ## Final Delivery Route
 
-- Release finish line: merge the green release branch, keep the public `release-ready-bundle` as the release handoff, and publish `SHA256SUMS.txt` plus `RELEASE_EVIDENCE.md` with the `v2.1.0` release.
+- Release close-out: the green release branch is merged, the public `release-ready-bundle` is retained as the release handoff, and `SHA256SUMS.txt` plus `RELEASE_EVIDENCE.md` are published with the `v2.1.0` release.
 - Detailed maintainer runbook: `docs/plans/2026-04-08-final-delivery-route.md`
 - Active release exit criteria remain defined by `docs/MVP_ACCEPTANCE_CRITERIA.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 
@@ -33,12 +33,12 @@
 - ✅ **Project Templates**: 7 builtin templates are available
 
 ### Production Readiness
-- Release baseline: Linux automated lane passed; cross-platform proof is produced by public CI release-proof artifacts
+- Release baseline: Linux automated lane passed; cross-platform proof is published through public CI release-proof artifacts
 - Platform Support: Windows, Linux, macOS
 - Test Coverage: 275 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
-- Release sign-off: public CI release-proof bundle required before publish
+- Release sign-off: public CI release-proof bundle verified and published with v2.1.0
 - Feature checklist: closed for v2.1.0 scope
-- Status source of truth: public CI release-proof bundle + release evidence artifacts
+- Status source of truth: published GitHub release assets + public CI release-proof bundle
 
 ---
 

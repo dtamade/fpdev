@@ -11,7 +11,7 @@
 **A**: 从源码构建：
 
 ```bash
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
 ./bin/fpdev system help
@@ -247,8 +247,8 @@ fpdev fpc update 3.2.2
 - [快速开始指南](QUICKSTART.md)
 - [完整文档](../README.md)
 - [架构文档](ARCHITECTURE.md)
-- [GitHub Issues](https://github.com/fpdev/fpdev/issues)
-- [社区讨论](https://github.com/fpdev/fpdev/discussions)
+- [GitHub Issues](https://github.com/dtamade/fpdev/issues)
+- [社区讨论](https://github.com/dtamade/fpdev/discussions)
 
 ---
 
@@ -256,8 +256,8 @@ fpdev fpc update 3.2.2
 
 如果您的问题没有在这里找到答案：
 
-1. 查看 [GitHub Issues](https://github.com/fpdev/fpdev/issues)
-2. 搜索 [社区讨论](https://github.com/fpdev/fpdev/discussions)
+1. 查看 [GitHub Issues](https://github.com/dtamade/fpdev/issues)
+2. 搜索 [社区讨论](https://github.com/dtamade/fpdev/discussions)
 3. 提交新的 Issue 或讨论
 
 ---

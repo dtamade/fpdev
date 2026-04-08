@@ -29,17 +29,17 @@
 - Cross-platform release-proof workflow：`docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 - 安装文档、README、ROADMAP、CHANGELOG 已同步到 `v2.1.0`
 
-## 当前发布基线
+## 已发布基线
 
 ```text
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 274 (same inventory rules as CI)
-[INFO] Planned release assets: linux/windows/macos archives + SHA256SUMS
-[INFO] Release sign-off: public CI release-proof bundle required before publish
+[INFO] Discoverable test programs: 275 (same inventory rules as CI)
+[INFO] Published release assets: linux/windows/macos archives + SHA256SUMS
+[INFO] Release sign-off: public CI release-proof bundle and RELEASE_EVIDENCE.md published with v2.1.0
 ```
 
-## 计划发布资产
+## 已发布资产
 
 - `fpdev-linux-x64.tar.gz`
 - `fpdev-windows-x64.zip`
@@ -60,17 +60,17 @@ bash scripts/release_acceptance_linux.sh --with-install
 ## 从源码构建
 
 ```bash
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
 ./bin/fpdev system version
 ```
 
-## 发布前仍需确认的发布证明
+## 已发布的发布证明
 
-1. 确认 GitHub Actions 已产出 `release-ready-bundle`
-2. 核对 `RELEASE_EVIDENCE.md`、`SHA256SUMS.txt` 与四个计划发布资产
-3. 如公共 CI 工件缺失或需要重录，再使用本地 fallback recorder 补录 owner-proof transcript
+1. GitHub Actions 已产出并验证 `release-ready-bundle`
+2. GitHub Release 已发布 `RELEASE_EVIDENCE.md`、`SHA256SUMS.txt` 与四个计划发布资产
+3. owner-proof transcript 由 public CI 工件保留，若后续需要补录可继续使用本地 fallback recorder
 
 ## 参考文档
 

@@ -4,7 +4,7 @@
 
 **Modern FreePascal and Lazarus Development Environment Manager**
 
-[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/fpdev/fpdev/releases)
+[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/dtamade/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
@@ -40,7 +40,7 @@
 [INFO] Discoverable test programs: 275 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs
 [INFO] Platform targets: Windows, Linux, macOS
-[INFO] Release sign-off: public CI release-proof bundle required before publish
+[INFO] Release sign-off: public CI release-proof bundle published with v2.1.0
 ```
 
 ---
@@ -51,7 +51,7 @@
 
 ```bash
 # Build from source (recommended)
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
 ./bin/fpdev system version
@@ -231,6 +231,6 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 
 **FPDev** - Making FreePascal Development Simpler and More Modern
 
-[⭐ Star](https://github.com/fpdev/fpdev) • [🐛 Report Bug](https://github.com/fpdev/fpdev/issues) • [💡 Request Feature](https://github.com/fpdev/fpdev/issues)
+[⭐ Star](https://github.com/dtamade/fpdev) • [🐛 Report Bug](https://github.com/dtamade/fpdev/issues) • [💡 Request Feature](https://github.com/dtamade/fpdev/issues)
 
 </div>

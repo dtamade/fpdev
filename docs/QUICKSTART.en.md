@@ -294,7 +294,7 @@ Now that you've mastered the basics of FPDev, you can:
 1. 📖 Read [full documentation](API.md) to learn all features
 2. 🏗️ Check [architecture docs](ARCHITECTURE.md) to understand internal design
 3. 🤝 Join [community discussions](https://discord.gg/fpdev)
-4. 🐛 [Report issues](https://github.com/fpdev/fpdev/issues) or suggestions
+4. 🐛 [Report issues](https://github.com/dtamade/fpdev/issues) or suggestions
 
 ## 💡 Tips
 

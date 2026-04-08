@@ -56,7 +56,7 @@ brew install git wget
 1. Download the latest release:
    ```powershell
    # Using PowerShell
-   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
+   Invoke-WebRequest -Uri "https://github.com/dtamade/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
    Expand-Archive -Path "fpdev.zip" -DestinationPath "C:\fpdev"
    ```
 
@@ -78,7 +78,7 @@ brew install git wget
 1. Download and install:
    ```bash
    # Download
-   wget https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-linux-x64.tar.gz
+   wget https://github.com/dtamade/fpdev/releases/download/v2.1.0/fpdev-linux-x64.tar.gz
 
    # Extract
    tar -xzf fpdev-linux-x64.tar.gz
@@ -101,7 +101,7 @@ brew install git wget
 1. Download and install:
    ```bash
    # Download
-   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-x64.tar.gz
+   curl -L -o fpdev-macos.tar.gz https://github.com/dtamade/fpdev/releases/download/v2.1.0/fpdev-macos-x64.tar.gz
 
    # Extract
    tar -xzf fpdev-macos.tar.gz
@@ -121,7 +121,7 @@ brew install git wget
 #### Build Steps
 ```bash
 # Clone the repository
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 
 # Build
@@ -279,7 +279,7 @@ fpdev fpc install 3.2.2 --from-source
 If you encounter issues, you can get help through the following channels:
 
 1. **Documentation**: https://fpdev.github.io/docs
-2. **GitHub Issues**: https://github.com/fpdev/fpdev/issues
+2. **GitHub Issues**: https://github.com/dtamade/fpdev/issues
 3. **Community Forum**: https://discord.gg/fpdev
 4. **Email Support**: support@fpdev.org
 

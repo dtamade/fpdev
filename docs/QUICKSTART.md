@@ -294,7 +294,7 @@ A: 确保：
 1. 📖 阅读 [完整文档](API.md) 了解所有功能
 2. 🏗️ 查看 [架构文档](ARCHITECTURE.md) 了解内部设计
 3. 🤝 参与 [社区讨论](https://discord.gg/fpdev)
-4. 🐛 [报告问题](https://github.com/fpdev/fpdev/issues) 或提出建议
+4. 🐛 [报告问题](https://github.com/dtamade/fpdev/issues) 或提出建议
 
 ## 💡 小贴士
 

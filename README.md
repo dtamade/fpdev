@@ -4,7 +4,7 @@
 
 **现代化的 FreePascal 和 Lazarus 开发环境管理工具**
 
-[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/fpdev/fpdev/releases)
+[![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/dtamade/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
@@ -40,7 +40,7 @@
 [INFO] Discoverable test programs: 275 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs (20 English translations)
 [INFO] Platform targets: Windows, Linux, macOS
-[INFO] Release sign-off: public CI release-proof bundle required before publish
+[INFO] Release sign-off: public CI release-proof bundle published with v2.1.0
 ```
 
 ---
@@ -51,7 +51,7 @@
 
 ```bash
 # 从源码构建（推荐）
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
 ./bin/fpdev system version
@@ -219,8 +219,8 @@ bash scripts/run_all_tests.sh
 
 ## 📞 联系方式
 
-- **GitHub Issues**: [报告问题](https://github.com/fpdev/fpdev/issues)
-- **GitHub Discussions**: [社区讨论](https://github.com/fpdev/fpdev/discussions)
+- **GitHub Issues**: [报告问题](https://github.com/dtamade/fpdev/issues)
+- **GitHub Discussions**: [社区讨论](https://github.com/dtamade/fpdev/discussions)
 - **Email**: fpdev@example.com
 
 ---
@@ -229,6 +229,6 @@ bash scripts/run_all_tests.sh
 
 **FPDev** - 让 FreePascal 开发更简单、更现代化
 
-[⭐ Star](https://github.com/fpdev/fpdev) • [🐛 Report Bug](https://github.com/fpdev/fpdev/issues) • [💡 Request Feature](https://github.com/fpdev/fpdev/issues)
+[⭐ Star](https://github.com/dtamade/fpdev) • [🐛 Report Bug](https://github.com/dtamade/fpdev/issues) • [💡 Request Feature](https://github.com/dtamade/fpdev/issues)
 
 </div>

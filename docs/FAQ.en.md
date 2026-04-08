@@ -11,7 +11,7 @@ This document answers common questions about using FPDev.
 **A**: Build from source:
 
 ```bash
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
 ./bin/fpdev system help
@@ -247,8 +247,8 @@ If that source repository has no remote configured, the command reports it as lo
 - [Quick Start Guide](QUICKSTART.en.md)
 - [Full Documentation](../README.en.md)
 - [Architecture Documentation](ARCHITECTURE.en.md)
-- [GitHub Issues](https://github.com/fpdev/fpdev/issues)
-- [Community Discussions](https://github.com/fpdev/fpdev/discussions)
+- [GitHub Issues](https://github.com/dtamade/fpdev/issues)
+- [Community Discussions](https://github.com/dtamade/fpdev/discussions)
 
 ---
 
@@ -256,8 +256,8 @@ If that source repository has no remote configured, the command reports it as lo
 
 If your question isn't answered here:
 
-1. Check [GitHub Issues](https://github.com/fpdev/fpdev/issues)
-2. Search [Community Discussions](https://github.com/fpdev/fpdev/discussions)
+1. Check [GitHub Issues](https://github.com/dtamade/fpdev/issues)
+2. Search [Community Discussions](https://github.com/dtamade/fpdev/discussions)
 3. Submit a new Issue or Discussion
 
 ---
