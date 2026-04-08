@@ -4,9 +4,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OWNER_CHECKPOINTS = REPO_ROOT / 'docs' / 'plans' / '2026-03-25-v2.1.0-release-owner-checkpoints.md'
+FINAL_DELIVERY_ROUTE = REPO_ROOT / 'docs' / 'plans' / '2026-04-08-final-delivery-route.md'
 MVP_ACCEPTANCE_ZH = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.md'
 MVP_ACCEPTANCE_EN = REPO_ROOT / 'docs' / 'MVP_ACCEPTANCE_CRITERIA.en.md'
 RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES.md'
+ROADMAP = REPO_ROOT / 'docs' / 'ROADMAP.md'
 
 
 class ReleaseDocsContractTests(unittest.TestCase):
@@ -63,6 +65,21 @@ class ReleaseDocsContractTests(unittest.TestCase):
         text = RELEASE_NOTES.read_text(encoding='utf-8')
         self.assertIn('bash scripts/build_release.sh', text)
         self.assertNotIn('lazbuild -B --build-mode=Release fpdev.lpi', text)
+
+    def test_roadmap_points_to_final_delivery_route_and_owner_checkpoint_docs(self):
+        text = ROADMAP.read_text(encoding='utf-8')
+        self.assertIn('docs/plans/2026-04-08-final-delivery-route.md', text)
+        self.assertIn('release-ready-bundle', text)
+        self.assertIn('docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md', text)
+
+    def test_final_delivery_route_references_green_ci_handoff_and_publish_artifacts(self):
+        text = FINAL_DELIVERY_ROUTE.read_text(encoding='utf-8')
+        self.assertIn('24113915296', text)
+        self.assertIn('release-ready-bundle', text)
+        self.assertIn('SHA256SUMS.txt', text)
+        self.assertIn('RELEASE_EVIDENCE.md', text)
+        self.assertIn('docs/MVP_ACCEPTANCE_CRITERIA.md', text)
+        self.assertIn('docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md', text)
 
 
 if __name__ == '__main__':

@@ -10,6 +10,14 @@
 
 ---
 
+## Final Delivery Route
+
+- Release finish line: merge the green release branch, keep the public `release-ready-bundle` as the release handoff, and publish `SHA256SUMS.txt` plus `RELEASE_EVIDENCE.md` with the `v2.1.0` release.
+- Detailed maintainer runbook: `docs/plans/2026-04-08-final-delivery-route.md`
+- Active release exit criteria remain defined by `docs/MVP_ACCEPTANCE_CRITERIA.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
+
+---
+
 ## Project Status Summary
 
 ### Current State (v2.1.0)
