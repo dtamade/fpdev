@@ -1,12 +1,20 @@
 # FPDev Development Roadmap
 
 **Version**: 1.0.0 → 2.1.0
-**Status**: Feature Checklist Closed, Linux Release Evidence Recorded, Owner Sign-Off Pending
-**Last Updated**: 2026-03-25
+**Status**: Feature Checklist Closed, Linux Release Evidence Recorded, Public CI Release Proof Pending
+**Last Updated**: 2026-03-25 (current public roadmap/status document)
 **Methodology**: Test-Driven Development (TDD)
 
 > Canonical status note: this is the current public roadmap/status document for FPDev.
-> Historical planning snapshots such as `docs/DEVELOPMENT_ROADMAP.md` are retained for reference only.
+> Historical planning snapshots such as `docs/history/DEVELOPMENT_ROADMAP.md` are retained for reference only.
+
+---
+
+## Final Delivery Route
+
+- Release finish line: merge the green release branch, keep the public `release-ready-bundle` as the release handoff, and publish `SHA256SUMS.txt` plus `RELEASE_EVIDENCE.md` with the `v2.1.0` release.
+- Detailed maintainer runbook: `docs/plans/2026-04-08-final-delivery-route.md`
+- Active release exit criteria remain defined by `docs/MVP_ACCEPTANCE_CRITERIA.md` and `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 
 ---
 
@@ -17,7 +25,7 @@
 - ✅ **Git Integration**: libgit2-backed wrapper is active; migration cleanup is tracked separately
 - ✅ **Build System**: Linux release acceptance lane and CLI smoke evidence are available
 - ✅ **Configuration**: JSON-based config management is active in the current command surface
-- ✅ **Test Coverage**: 273 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- ✅ **Test Coverage**: 275 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
 - ✅ **Documentation**: User and developer docs are published; release evidence is maintained separately
 - ✅ **All Commands**: fpc, lazarus, project, package, cross, repo, config, perf, env are implemented
 - ✅ **Package Ecosystem**: create, test, validate, publish, search, install, dependencies are available
@@ -25,18 +33,18 @@
 - ✅ **Project Templates**: 7 builtin templates are available
 
 ### Production Readiness
-- Release baseline: Linux automated lane passed; owner evidence still required for Windows/macOS
+- Release baseline: Linux automated lane passed; cross-platform proof is produced by public CI release-proof artifacts
 - Platform Support: Windows, Linux, macOS
-- Test Coverage: 273 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
-- Release sign-off: pending Windows/macOS owner evidence
+- Test Coverage: 275 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- Release sign-off: public CI release-proof bundle required before publish
 - Feature checklist: closed for v2.1.0 scope
-- Status source of truth: release evidence artifacts + owner checkpoint ledger
+- Status source of truth: public CI release-proof bundle + release evidence artifacts
 
 ---
 
 ## Development Philosophy
 
-Following the TODO-FPC-v1.md philosophy:
+Following the `docs/history/TODO-FPC-v1.md` philosophy:
 
 > **Purpose**: Prepare a verifiable, switchable, reproducible FPC toolchain with smart reuse (cache/repos), without touching the system environment by default.
 
@@ -91,25 +99,25 @@ Following the TODO-FPC-v1.md philosophy:
   - **Tests**: 18/18 passing (test_build_cache_binary)
 
 #### 2. Lazarus Management (Priority: MEDIUM)
-- [x] **Source update functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:662`)
+- [x] **Source update functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.update.pas`, `fpdev.lazarus.manager.pas`)
   - Impact: HIGH - Users need to update IDE
   - Complexity: MEDIUM - Git fetch with libgit2 integration
   - Dependencies: None
   - **Implemented**: Phase 3.4 Week 1 (commits c9de2dc Red, 595e8bc Green)
   - **Tests**: 3/3 passing (test_lazarus_update.lpr)
 
-- [x] **Source cleanup functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:757`)
+- [x] **Source cleanup functionality** ✅ COMPLETE (`fpdev.lazarus.manager.pas`)
   - Impact: MEDIUM - Disk space management
   - Complexity: LOW - Recursive directory cleanup with extension filtering
   - Dependencies: None
   - **Implemented**: Phase 3.4 Week 1 (commits f830f4a Red, 00e09cd Green)
   - **Tests**: 15/15 passing (test_lazarus_clean.lpr, 3 test cases with 15 assertions)
 
-- [x] **IDE configuration functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.pas:890`)
+- [x] **IDE configuration functionality** ✅ COMPLETE (`fpdev.cmd.lazarus.configure.pas`, `fpdev.lazarus.manager.pas`, `fpdev.lazarus.config.pas`)
   - Impact: HIGH - User experience enhancement
   - Complexity: HIGH - XML/INI config manipulation
   - Dependencies: Lazarus installed
-  - **Implemented**: Already implemented in fpdev.cmd.lazarus.pas and fpdev.lazarus.config.pas
+  - **Implemented**: Already implemented in `fpdev.cmd.lazarus.configure.pas`, `fpdev.lazarus.manager.pas`, and `fpdev.lazarus.config.pas`
   - **Tests**: 15/15 passing (test_lazarus_ide_config.lpr: 11/11, test_lazarus_configure_workflow.lpr: 4/4)
   - **Features**: XML config parsing, backup/restore, path configuration, validation
 
@@ -181,21 +189,21 @@ Following the TODO-FPC-v1.md philosophy:
   - **Tests**: 26/26 passing (test_package_publish.lpr)
 
 #### 5. Project Management (Priority: HIGH)
-- [x] **Project cleanup functionality** ✅ COMPLETE (`fpdev.cmd.project.pas:549`)
+- [x] **Project cleanup functionality** ✅ COMPLETE (`fpdev.cmd.project.clean.pas`, `fpdev.project.manager.pas`)
   - Impact: HIGH - Development workflow
   - Complexity: LOW - Delete build artifacts
   - Dependencies: None
   - **Implemented**: Phase 1.1 (commits fd46a91, f781161)
   - **Tests**: 3/3 passing (test_project_clean.lpr)
 
-- [x] **Project test functionality** ✅ COMPLETE (`fpdev.cmd.project.pas:556`)
+- [x] **Project test functionality** ✅ COMPLETE (`fpdev.cmd.project.test.pas`, `fpdev.project.manager.pas`)
   - Impact: HIGH - Development workflow
   - Complexity: MEDIUM - Execute test runner
   - Dependencies: Project build
   - **Implemented**: Phase 1.1 (commits 4eb7e23, 3b8b989)
   - **Tests**: 4/4 passing (test_project_test.lpr)
 
-- [x] **Project run functionality** ✅ COMPLETE (`fpdev.cmd.project.pas:563`)
+- [x] **Project run functionality** ✅ COMPLETE (`fpdev.cmd.project.run.pas`, `fpdev.project.manager.pas`)
   - Impact: HIGH - Development workflow
   - Complexity: LOW - Execute built binary
   - Dependencies: Project build
@@ -275,7 +283,7 @@ Following the TODO-FPC-v1.md philosophy:
   - **Priority**: 🟢 MEDIUM
 
 ### Phase 2: Installation Flexibility (v1.0 → v1.5) ✅ COMPLETE
-**Goal**: Implement TODO-FPC-v1.md roadmap features
+**Goal**: Implement `docs/history/TODO-FPC-v1.md` roadmap features
 
 **Duration**: 4-6 weeks
 **Impact**: HIGH - Advanced toolchain management
@@ -472,7 +480,7 @@ lazbuild tests/test_project_clean.lpi
 ```
 
 ```pascal
-// Step 2: Green Phase (src/fpdev.cmd.project.pas)
+// Step 2: Green Phase (src/fpdev.project.manager.pas)
 function TProjectManager.CleanProject(const AProjectDir: string): Boolean;
 var
   SR: TSearchRec;
@@ -652,11 +660,13 @@ end;
 **Phase 2.1-2.4**: All installation flexibility features complete
 **Phase 4.2**: Bootstrap Compiler Management complete (14 tests passing)
 
-**Status**: ✅ ALL PHASES COMPLETE - Phase 7 quality improvements in progress
+**Status**: Feature checklist closed; public CI release proof remains the active finish line.
 
 ---
 
 ## Progress Tracking
+
+> Historical note: the milestone progress tables below are retained as phase snapshots.
 
 Use this checklist to track implementation progress:
 
@@ -707,6 +717,6 @@ Use this checklist to track implementation progress:
 
 ---
 
-**Last Updated**: 2026-02-11 (Phase 7 in progress: All ROADMAP features verified complete, code quality improvements ongoing)
+**Last Updated**: 2026-03-25 (current public roadmap/status document)
 **Maintained By**: FPDev Development Team
 **License**: MIT

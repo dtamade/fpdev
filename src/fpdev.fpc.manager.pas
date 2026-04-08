@@ -68,6 +68,7 @@ type
     function ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
     procedure EnsureManagedCompilerLayout(const AVersion, AInstallPath: string);
     function ResolveMetadataScope(const AVersion, AInstallPath: string): TInstallScope;
+    function InferStatusScope(const AVersion, AInstallPath: string): TFPCStatusScope;
     function WriteInstallMetadata(const AVersion, AInstallPath: string;
       AFromSource: Boolean): Boolean;
     function UpdateVerificationMetadata(const AVersion, AInstallPath: string;
@@ -127,6 +128,7 @@ type
     function TestInstallation(const Outp, Errp: IOutput; const AVersion: string): Boolean; overload;
     function VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
     function GetVersionInstallPath(const AVersion: string): string;
+    function GetStatus(out AStatus: TFPCStatusInfo; out AError: string): Boolean;
 
     // Metadata operations (public for testing)
     function WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
@@ -142,7 +144,8 @@ procedure FPC_UpdateIndex(const AConfigPath: string = '');
 implementation
 
 uses
-  fpdev.output.console, fpdev.version.registry, fpdev.fpc.installer.config;
+  fpdev.output.console, fpdev.version.registry, fpdev.fpc.installer.config,
+  fpdev.constants, fpdev.fpc.utils;
 
 type
   TFPCGitRuntimeAdapter = class(TInterfacedObject, IFPCGitRuntime)
@@ -579,6 +582,40 @@ begin
     Result := FActivationMgr.DetectInstallScope(GetCurrentDir);
 end;
 
+function TFPCManager.InferStatusScope(const AVersion, AInstallPath: string): TFPCStatusScope;
+var
+  ProjectRoot: string;
+  ProjectInstallPath: string;
+  UserInstallPath: string;
+  NormalizedInstallPath: string;
+begin
+  Result := fssNone;
+  if AInstallPath = '' then
+    Exit;
+
+  NormalizedInstallPath := ExcludeTrailingPathDelimiter(ExpandFileName(AInstallPath));
+  ProjectRoot := fpdev.fpc.utils.FindProjectRoot(GetCurrentDir);
+  if ProjectRoot <> '' then
+  begin
+    ProjectInstallPath := ExcludeTrailingPathDelimiter(
+      ExpandFileName(
+        ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim +
+        'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion
+      )
+    );
+    if SameText(NormalizedInstallPath, ProjectInstallPath) then
+      Exit(fssProject);
+  end;
+
+  UserInstallPath := ExcludeTrailingPathDelimiter(
+    ExpandFileName(BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion))
+  );
+  if SameText(NormalizedInstallPath, UserInstallPath) then
+    Exit(fssUser);
+
+  Result := fssUser;
+end;
+
 function TFPCManager.WriteInstallMetadata(const AVersion, AInstallPath: string;
   AFromSource: Boolean): Boolean;
 var
@@ -977,6 +1014,70 @@ function TFPCManager.GetCurrentVersion: string;
 begin
   // Delegate to version manager service
   Result := FVersionMgr.GetCurrentVersion;
+end;
+
+function TFPCManager.GetStatus(out AStatus: TFPCStatusInfo; out AError: string): Boolean;
+var
+  Version: string;
+  PreferredInstallPath: string;
+  InstallPath: string;
+  ToolchainInfo: TToolchainInfo;
+  Meta: TFPDevMetadata;
+begin
+  AStatus := Default(TFPCStatusInfo);
+  AStatus.ActiveScope := fssNone;
+  AStatus.VerifyStatus := fvsUnknown;
+  AStatus.SourceMode := smAuto;
+  AStatus.HasSourceMode := False;
+  AStatus.ConfiguredDefaultInstalled := False;
+  AError := '';
+
+  Version := GetCurrentVersion;
+  AStatus.ConfiguredDefault := Version;
+  if Version = '' then
+    Exit(True);
+
+  AStatus.EffectiveVersion := Version;
+  PreferredInstallPath := '';
+  if LookupToolchainInfo(Version, ToolchainInfo) then
+    PreferredInstallPath := Trim(ToolchainInfo.InstallPath);
+  if PreferredInstallPath = '' then
+    PreferredInstallPath := GetVersionInstallPath(Version);
+
+  InstallPath := ResolveInstalledFPCInstallPathCore(PreferredInstallPath, Version);
+  AStatus.ManagedPrefix := InstallPath;
+  AStatus.ConfiguredDefaultInstalled := FileExists(
+    BuildFPCInstalledExecutablePathCore(InstallPath)
+  );
+  if not AStatus.ConfiguredDefaultInstalled then
+  begin
+    AError := 'Configured default FPC ' + Version + ' is missing: ' + InstallPath;
+    Exit(False);
+  end;
+
+  if ReadFPCMetadata(InstallPath, Meta) then
+  begin
+    case Meta.Scope of
+      isProject: AStatus.ActiveScope := fssProject;
+      isUser: AStatus.ActiveScope := fssUser;
+      isSystem: AStatus.ActiveScope := fssSystem;
+    end;
+    AStatus.SourceMode := Meta.SourceMode;
+    AStatus.HasSourceMode := True;
+    if Meta.Verify.OK then
+      AStatus.VerifyStatus := fvsOk
+    else if Meta.Verify.Timestamp > 0 then
+      AStatus.VerifyStatus := fvsFail
+    else
+      AStatus.VerifyStatus := fvsUnknown;
+  end
+  else
+    AStatus.ActiveScope := InferStatusScope(Version, InstallPath);
+
+  if AStatus.ActiveScope = fssNone then
+    AStatus.ActiveScope := InferStatusScope(Version, InstallPath);
+
+  Result := True;
 end;
 
 function TFPCManager.ActivateVersion(const AVersion: string): TActivationResult;

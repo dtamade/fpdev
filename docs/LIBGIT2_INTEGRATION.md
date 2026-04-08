@@ -2,7 +2,7 @@
 
 ## 📋 概述
 
-本文档描述了FPDev项目中libgit2的完整集成方案，包括原生C API绑定、现代接口封装、构建系统和使用示例。
+本文档描述了 FPDev 项目中 libgit2 的集成现状，包括原生 C API 绑定、现代接口封装、当前测试路径和运行时库布局约定。
 
 ## 🏗️ 架构设计
 
@@ -16,7 +16,9 @@
 ├─────────────────────────────────────┤
 │     C API绑定层 (libgit2.pas)       │
 ├─────────────────────────────────────┤
-│      libgit2 动态库 (git2.dll)      │
+│      libgit2 共享库                  │
+│   (git2.dll / libgit2.so /          │
+│    libgit2.1.dylib)                 │
 └─────────────────────────────────────┘
 ```
 
@@ -24,8 +26,8 @@
 
 1. **libgit2.pas** - 完整的C API绑定
 2. **git2.modern.pas** - 现代Pascal接口封装
-3. **构建脚本** - 跨平台libgit2构建
-4. **测试套件** - 功能验证和示例
+3. **运行时/构建布局约定** - 说明当前工作树期望的 libgit2 产物位置
+4. **测试套件** - 功能验证和历史手动样例
 
 ## 📁 文件结构
 
@@ -39,17 +41,18 @@ fpdev/
 │   └── libgit2/              # libgit2源码和构建
 │       ├── build/            # 构建目录
 │       └── install/          # 安装目录
-├── scripts/
-│   ├── build_libgit2_simple.bat    # Windows构建脚本
-│   ├── build_libgit2_linux.sh      # Linux构建脚本
-│   └── get_git2_dll.bat            # DLL获取脚本
 ├── tests/
-│   ├── test_libgit2_complete.lpr   # 完整功能测试
-│   ├── test_git_real.lpr           # 实际Git操作测试
-│   └── test_fpc_source.lpr         # FPC源码管理测试
+│   ├── fpdev.libgit2.base/
+│   │   └── test_libgit2_complete.lpr   # libgit2 基础/完整功能测试
+│   ├── fpdev.git2.adapter/
+│   │   └── test_git_real.lpr           # 实际 Git 操作测试
+│   └── migrated/root-lpr/
+│       └── test_fpc_source.lpr         # FPC源码管理历史遗留手动样例
 └── docs/
     └── LIBGIT2_INTEGRATION.md      # 本文档
 ```
+
+当前工作树未跟踪专用的 libgit2 构建辅助脚本；请使用平台标准的 CMake / 包管理流程，而不要依赖历史 helper script 名称。
 
 ## 🔧 API绑定详情
 
@@ -143,34 +146,25 @@ TGitCommit = class
 end;
 ```
 
-## 🔨 构建系统
+## 🔨 构建与运行时布局
 
-### Windows构建 (MinGW)
+如需在本地构建 libgit2，请使用你当前平台的标准 CMake/包管理工作流，并把产物整理到仓库当前约定的布局中。当前工作树未跟踪专用的 libgit2 构建辅助脚本。
 
-**脚本**: `scripts/build_libgit2_simple.bat`
+### Windows 产物布局
 
 **依赖**:
 - CMake 3.16+
 - MinGW-w64 GCC
 - Git
 
-**构建步骤**:
+**期望产物**:
 ```bash
-# 1. 克隆源码
-git clone https://github.com/libgit2/libgit2.git 3rd/libgit2
-
-# 2. 运行构建脚本
-scripts\build_libgit2_simple.bat
-
-# 3. 输出文件
-3rd\libgit2\install\bin\libgit2.dll      # 动态库
-3rd\libgit2\install\lib\libgit2.dll.a    # 导入库
+3rd\libgit2\install\bin\git2.dll         # 动态库（与 src/libgit2.pas 的 Windows 名称一致）
+3rd\libgit2\install\lib\git2.lib         # 导入库
 3rd\libgit2\install\include\git2.h       # 头文件
 ```
 
-### Linux构建
-
-**脚本**: `scripts/build_libgit2_linux.sh`
+### Linux 产物布局
 
 **依赖**:
 ```bash
@@ -181,50 +175,52 @@ sudo apt install cmake build-essential libssl-dev zlib1g-dev
 sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 ```
 
-**构建步骤**:
+**期望产物**:
 ```bash
-# 1. 运行构建脚本
-./scripts/build_libgit2_linux.sh
-
-# 2. 输出文件
 3rd/libgit2/install/lib/libgit2.so       # 动态库
 3rd/libgit2/install/lib/libgit2.a        # 静态库
 3rd/libgit2/install/include/git2.h       # 头文件
 ```
 
+### 运行时装载约定
+
+- Windows: `src/libgit2.pas` 期望运行时库名为 `git2.dll`
+- Linux: `src/libgit2.pas` 期望运行时库名为 `libgit2.so`
+- macOS: `src/libgit2.pas` 期望运行时库名为 `libgit2.1.dylib`
+- 若你自行构建 libgit2，请按平台把对应文件放到可执行文件相邻目录或系统 loader 可见的位置
+
 ## 🧪 测试套件
 
 ### 测试程序
 
-1. **test_libgit2_complete.lpr** - 完整功能测试
+1. **tests/fpdev.libgit2.base/test_libgit2_complete.lpr** - 完整功能测试
    - libgit2初始化测试
    - 仓库操作测试
    - 提交信息测试
    - 远程操作测试
    - OID操作测试
+   - 位于默认 discoverable 测试清单之外，主要用于手工/兼容性检查
 
-2. **test_git_real.lpr** - 实际Git操作测试
+2. **tests/fpdev.git2.adapter/test_git_real.lpr** - 实际Git操作测试
    - Git环境检查
    - 实际仓库克隆
    - 网络连接测试
+   - 位于默认 discoverable 测试清单之外，主要用于手工/兼容性检查
 
-3. **test_fpc_source.lpr** - FPC源码管理测试
+3. **tests/migrated/root-lpr/test_fpc_source.lpr** - FPC源码管理历史遗留手动样例
    - FPC版本管理
    - 源码路径管理
    - 分支信息显示
+   - 不属于当前自动回归测试套件，仅保留作参考
+   - 位于默认 discoverable 测试清单之外
 
 ### 运行测试
 
 ```bash
-# 编译测试程序
-fpc -Fusrc test_libgit2_complete.lpr
-fpc -Fusrc test_git_real.lpr
-fpc -Fusrc test_fpc_source.lpr
-
-# 运行测试
-.\test_libgit2_complete.exe
-.\test_git_real.exe
-.\test_fpc_source.exe
+# 手动验证样例（默认 discoverable 测试清单之外）
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/fpdev.libgit2.base/test_libgit2_complete.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/fpdev.git2.adapter/test_git_real.lpr
+fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 ```
 
 ## 📊 性能特性
@@ -364,8 +360,12 @@ end;
 
 ### 常见问题
 
-1. **libgit2.dll未找到**
-   - 确保git2.dll在程序目录或PATH中
+1. **libgit2 共享库装载失败**
+   - `src/libgit2.pas` 在不同平台期望的运行时库名不同：
+     - Windows: `git2.dll`
+     - Linux: `libgit2.so`
+     - macOS: `libgit2.1.dylib`
+   - 确保对应平台的共享库位于可执行文件相邻目录，或位于系统 loader 可见的位置
    - 检查架构匹配 (32位/64位)
 
 2. **编译错误**
@@ -402,5 +402,5 @@ end;
 ---
 
 **文档版本**: 1.0.0  
-**最后更新**: 2025-01-12  
+**最后更新**: 2026-04-06  
 **作者**: FPDev Team

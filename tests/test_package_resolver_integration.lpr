@@ -10,7 +10,8 @@ uses
   SysUtils, Classes,
   fpjson, jsonparser,
   fpdev.package.metadata,
-  fpdev.package.resolver, fpdev.utils.fs;
+  fpdev.package.resolver, fpdev.utils.fs,
+  test_temp_paths;
 
 type
   { TPackageResolverIntegrationTest }
@@ -57,17 +58,13 @@ begin
   FTestsPassed := 0;
   FTestsFailed := 0;
 
-  FTestRootDir := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + 'fpdev-package-resolver-' + IntToStr(GetTickCount64);
+  FTestRootDir := CreateUniqueTempDir('fpdev-package-resolver');
   FTestDataDir := IncludeTrailingPathDelimiter(FTestRootDir) + 'packages';
   FLockFilePath := IncludeTrailingPathDelimiter(FTestRootDir) + 'fpdev-lock.json';
   FOriginalDir := GetCurrentDir;
 
-  AssertTrue(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(FTestDataDir)) = 1,
-    'Test data dir should live under system temp'
-  );
+  AssertTrue(PathUsesSystemTempRoot(FTestDataDir),
+    'Test data dir should live under system temp');
 
   ForceDirectories(FTestDataDir);
   if not SetCurrentDir(FTestRootDir) then
@@ -152,11 +149,7 @@ end;
 
 procedure TPackageResolverIntegrationTest.CleanupTestFiles;
 begin
-  if (FLockFilePath <> '') and FileExists(FLockFilePath) then
-    DeleteFile(FLockFilePath);
-
-  if (FTestRootDir <> '') and DirectoryExists(FTestRootDir) then
-    DeleteDirRecursive(FTestRootDir);
+  CleanupTempDir(FTestRootDir);
 end;
 
 procedure TPackageResolverIntegrationTest.TestResolveSimplePackage;
@@ -349,11 +342,8 @@ begin
     Resolver.Free;
   end;
 
-  AssertTrue(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(FLockFilePath)) = 1,
-    'Lock file should live under system temp'
-  );
+  AssertTrue(PathUsesSystemTempRoot(FLockFilePath),
+    'Lock file should live under system temp');
   AssertTrue(FileExists(FLockFilePath), 'Lock file should be generated');
 
   with TStringList.Create do

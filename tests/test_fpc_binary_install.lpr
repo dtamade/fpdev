@@ -205,6 +205,7 @@ begin
     Exit;
   end;
 
+  TempFile := '';
   try
     SettingsMgr := ConfigManager.GetSettingsManager;
     Settings := SettingsMgr.GetSettings;
@@ -229,6 +230,11 @@ begin
     on E: Exception do
       AssertTrue(False, 'Download test succeeded', 'Exception: ' + E.Message);
   end;
+
+  if (TempFile <> '') and FileExists(TempFile) then
+    DeleteFile(TempFile);
+  if TempFile <> '' then
+    CleanupTempDir(ExtractFileDir(TempFile));
 end;
 
 // ============================================================================
@@ -253,6 +259,7 @@ begin
     Exit;
   end;
 
+  TempFile := '';
   try
     SettingsMgr := ConfigManager.GetSettingsManager;
     Settings := SettingsMgr.GetSettings;
@@ -280,6 +287,11 @@ begin
     on E: Exception do
       AssertTrue(False, 'Checksum verification succeeded', 'Exception: ' + E.Message);
   end;
+
+  if (TempFile <> '') and FileExists(TempFile) then
+    DeleteFile(TempFile);
+  if TempFile <> '' then
+    CleanupTempDir(ExtractFileDir(TempFile));
 end;
 
 // ============================================================================

@@ -34,11 +34,13 @@ type
     function Text: string;
   end;
 
-  TLazarusRuntimeProbe = class
+  TLazarusRuntimeProbe = class(TInterfacedObject, ILazarusGitRuntime)
   public
+    GitBackendAvailable: Boolean;
     GitRepoResult: Boolean;
     GitRemoteResult: Boolean;
     GitPullResult: Boolean;
+    GitLastError: string;
     InstallCheckResult: Boolean;
     LaunchResult: Boolean;
     CleanRaises: Boolean;
@@ -51,9 +53,11 @@ type
     CleanCalls: Integer;
     LastRepoPath: string;
     LastLaunchExecutable: string;
+    function BackendAvailable: Boolean;
     function IsRepository(const APath: string): Boolean;
     function HasRemote(const APath: string): Boolean;
     function Pull(const APath: string): Boolean;
+    function GetLastError: string;
     function IsInstalled(const AVersion: string): Boolean;
     function Launch(const AExecutable: string): Boolean;
     function Clean(const ASourceDir: string): Integer;
@@ -152,6 +156,11 @@ begin
   Result := GitRepoResult;
 end;
 
+function TLazarusRuntimeProbe.BackendAvailable: Boolean;
+begin
+  Result := GitBackendAvailable;
+end;
+
 function TLazarusRuntimeProbe.HasRemote(const APath: string): Boolean;
 begin
   Inc(RemoteCalls);
@@ -164,6 +173,11 @@ begin
   Inc(PullCalls);
   LastRepoPath := APath;
   Result := GitPullResult;
+end;
+
+function TLazarusRuntimeProbe.GetLastError: string;
+begin
+  Result := GitLastError;
 end;
 
 function TLazarusRuntimeProbe.IsInstalled(const AVersion: string): Boolean;
@@ -222,17 +236,26 @@ procedure TestExecuteLazarusUpdatePlanCoreReturnsFalseWithoutGitBackend;
 var
   Plan: TLazarusSourcePlan;
   Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
 begin
   Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.0', '');
   Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
   try
+    Probe.GitBackendAvailable := False;
     Probe.GitRepoResult := True;
     Probe.GitRemoteResult := True;
     Probe.GitPullResult := True;
     Check('update core returns false without git backend',
-      not ExecuteLazarusUpdatePlanCore(Plan, False, @Probe.IsRepository, @Probe.HasRemote, @Probe.Pull));
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
     Check('update core skips repo checks when backend missing', Probe.RepoCalls = 0);
+    Check('update core emits backend error',
+      Errp.Contains(_(CMD_LAZARUS_NO_GIT_BACKEND)),
+      Errp.Text);
   finally
+    Outp.Free;
+    Errp.Free;
     Probe.Free;
   end;
 end;
@@ -241,36 +264,168 @@ procedure TestExecuteLazarusUpdatePlanCoreTreatsNoRemoteAsSuccess;
 var
   Plan: TLazarusSourcePlan;
   Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
 begin
   Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.1', '');
   Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
   try
+    Probe.GitBackendAvailable := True;
     Probe.GitRepoResult := True;
     Probe.GitRemoteResult := False;
     Probe.GitPullResult := False;
     Check('update core treats local-only repo as success',
-      ExecuteLazarusUpdatePlanCore(Plan, True, @Probe.IsRepository, @Probe.HasRemote, @Probe.Pull));
+      ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
     Check('update core skips pull when no remote', Probe.PullCalls = 0);
+    Check('update core emits local-only message',
+      Outp.Contains(_(MSG_LAZARUS_SOURCE_LOCAL_ONLY)),
+      Outp.Text);
   finally
+    Outp.Free;
+    Errp.Free;
     Probe.Free;
   end;
 end;
 
-procedure TestExecuteLazarusUpdatePlanCoreTreatsPullFailureAsNonFatal;
+procedure TestExecuteLazarusUpdatePlanCoreFailsOnPullFailure;
 var
   Plan: TLazarusSourcePlan;
   Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
 begin
   Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.3', '');
   Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
   try
+    Probe.GitBackendAvailable := True;
     Probe.GitRepoResult := True;
     Probe.GitRemoteResult := True;
     Probe.GitPullResult := False;
-    Check('update core treats pull failure as non-fatal',
-      ExecuteLazarusUpdatePlanCore(Plan, True, @Probe.IsRepository, @Probe.HasRemote, @Probe.Pull));
+    Probe.GitLastError := 'merge failed';
+    Check('update core fails on pull failure',
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
     Check('update core runs pull once', Probe.PullCalls = 1);
+    Check('update core emits pull error detail',
+      Errp.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, ['merge failed'])),
+      Errp.Text);
   finally
+    Outp.Free;
+    Errp.Free;
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteLazarusUpdatePlanCoreNormalizesDirtyPullFailure;
+var
+  Plan: TLazarusSourcePlan;
+  Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
+begin
+  Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.3', '');
+  Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Probe.GitBackendAvailable := True;
+    Probe.GitRepoResult := True;
+    Probe.GitRemoteResult := True;
+    Probe.GitPullResult := False;
+    Probe.GitLastError := 'Working tree has local changes';
+    Check('update core fails on dirty pull failure',
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
+    Check('update core normalizes dirty pull failure',
+      Errp.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIRTY_WORKTREE)])),
+      Errp.Text);
+  finally
+    Outp.Free;
+    Errp.Free;
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteLazarusUpdatePlanCoreNormalizesDetachedHeadPullFailure;
+var
+  Plan: TLazarusSourcePlan;
+  Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
+begin
+  Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.3', '');
+  Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Probe.GitBackendAvailable := True;
+    Probe.GitRepoResult := True;
+    Probe.GitRemoteResult := True;
+    Probe.GitPullResult := False;
+    Probe.GitLastError :=
+      'You are not currently on a branch.' + LineEnding +
+      'Please specify which branch you want to merge with.';
+    Check('update core fails on detached pull failure',
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
+    Check('update core normalizes detached pull failure',
+      Errp.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DETACHED_HEAD)])),
+      Errp.Text);
+  finally
+    Outp.Free;
+    Errp.Free;
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteLazarusUpdatePlanCoreNormalizesDivergedPullFailure;
+var
+  Plan: TLazarusSourcePlan;
+  Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
+begin
+  Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.3', '');
+  Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Probe.GitBackendAvailable := True;
+    Probe.GitRepoResult := True;
+    Probe.GitRemoteResult := True;
+    Probe.GitPullResult := False;
+    Probe.GitLastError :=
+      'CONFLICT (content): Merge conflict in README.txt' + LineEnding +
+      'Automatic merge failed; fix conflicts and then commit the result.';
+    Check('update core fails on diverged pull failure',
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
+    Check('update core normalizes diverged pull failure',
+      Errp.Contains(_Fmt(CMD_LAZARUS_GIT_PULL_FAILED, [_(MSG_GIT_UPDATE_DIVERGED_HISTORY)])),
+      Errp.Text);
+  finally
+    Outp.Free;
+    Errp.Free;
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteLazarusUpdatePlanCoreFailsWhenNotRepository;
+var
+  Plan: TLazarusSourcePlan;
+  Probe: TLazarusRuntimeProbe;
+  Outp, Errp: TStringOutput;
+begin
+  Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '3.2', '');
+  Probe := TLazarusRuntimeProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Probe.GitBackendAvailable := True;
+    Probe.GitRepoResult := False;
+    Check('update core fails when source dir is not repository',
+      not ExecuteLazarusUpdatePlanCore(Plan, Outp, Errp, Probe));
+    Check('update core emits not-repo error',
+      Errp.Contains(_Fmt(CMD_LAZARUS_NOT_GIT_REPO, [Plan.SourceDir])),
+      Errp.Text);
+  finally
+    Outp.Free;
+    Errp.Free;
     Probe.Free;
   end;
 end;
@@ -302,6 +457,11 @@ begin
   Plan := CreateLazarusLaunchPlanCore('/tmp/fpdev-data', '', '3.5');
   Check('launch plan uses current version fallback', Plan.Version = '3.5', 'got=' + Plan.Version);
   Check('launch plan executable path contains lazarus', Pos('lazarus', Plan.ExecutablePath) > 0, 'path=' + Plan.ExecutablePath);
+  {$IFNDEF MSWINDOWS}
+  Check('launch plan uses installed launcher path',
+    Pos(PathDelim + 'bin' + PathDelim + 'lazarus-ide', Plan.ExecutablePath) > 0,
+    'path=' + Plan.ExecutablePath);
+  {$ENDIF}
 end;
 
 procedure TestExecuteLazarusLaunchPlanCoreReportsMissingVersion;
@@ -379,8 +539,12 @@ begin
 
   TestCreateLazarusSourcePlanCoreFallsBackToCurrentVersion;
   TestExecuteLazarusUpdatePlanCoreReturnsFalseWithoutGitBackend;
+  TestExecuteLazarusUpdatePlanCoreFailsWhenNotRepository;
   TestExecuteLazarusUpdatePlanCoreTreatsNoRemoteAsSuccess;
-  TestExecuteLazarusUpdatePlanCoreTreatsPullFailureAsNonFatal;
+  TestExecuteLazarusUpdatePlanCoreFailsOnPullFailure;
+  TestExecuteLazarusUpdatePlanCoreNormalizesDirtyPullFailure;
+  TestExecuteLazarusUpdatePlanCoreNormalizesDetachedHeadPullFailure;
+  TestExecuteLazarusUpdatePlanCoreNormalizesDivergedPullFailure;
   TestExecuteLazarusCleanPlanCoreHandlesCleanerException;
   TestCreateLazarusLaunchPlanCoreFallsBackToCurrentVersion;
   TestExecuteLazarusLaunchPlanCoreReportsMissingVersion;

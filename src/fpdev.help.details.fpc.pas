@@ -45,6 +45,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_ALL));
+    Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_FPC_LIST_OPT_HELP));
   end
   else if LSubcmd = 'use' then
@@ -63,7 +64,18 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_DESC));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_FPC_CURRENT_OPT_HELP));
+  end
+  else if LSubcmd = 'status' then
+  begin
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_USAGE));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_DESC));
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPTIONS));
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPT_JSON));
+    Ctx.Out.WriteLn(_(HELP_FPC_STATUS_OPT_HELP));
   end
   else if LSubcmd = 'show' then
   begin
@@ -124,6 +136,17 @@ begin
     Ctx.Out.WriteLn('  path          Show cache directory path');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Use "fpdev fpc cache <subcommand> --help" for details.');
+  end
+  else if LSubcmd = 'policy' then
+  begin
+    Ctx.Out.WriteLn('Usage: fpdev fpc policy <subcommand>');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Check source-version policy against the current FPC.');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Subcommands:');
+    Ctx.Out.WriteLn('  check         Check whether current FPC satisfies source policy');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Use "fpdev fpc policy check --help" for details.');
   end
   else if LSubcmd = 'update' then
   begin

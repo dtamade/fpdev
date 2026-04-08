@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -69,12 +69,8 @@ begin
 
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
-    if LMgr.UpdateSources(LVer) then
-    begin
-      Ctx.Out.WriteLn('Lazarus sources updated successfully.');
+    if LMgr.UpdateSources(Ctx.Out, Ctx.Err, LVer) then
       Exit(EXIT_OK);
-    end;
-    Ctx.Err.WriteLn(_(MSG_FAILED));
     Result := EXIT_ERROR;
   finally
     LMgr.Free;

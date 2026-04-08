@@ -3,8 +3,8 @@ program test_cache_ttl;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
+  SysUtils, Classes, DateUtils, test_temp_paths,
+  fpdev.build.cache, fpdev.build.cache.types;
 
 var
   TestsPassed: Integer = 0;
@@ -24,28 +24,6 @@ begin
   end;
 end;
 
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
-  ForceDirectories(Result);
-end;
-
-procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
-begin
-  Assert(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ATestName
-  );
-end;
-
-procedure CleanupTestDir(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
 procedure TestCleanupRemovesNestedDirectories;
 var
   CacheDir: string;
@@ -55,8 +33,8 @@ var
 begin
   WriteLn('=== TestCleanupRemovesNestedDirectories ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-cleanup');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-cleanup');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Cleanup temp directory should live under system temp');
 
   NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
   NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'artifact.txt';
@@ -70,7 +48,7 @@ begin
     TestData.Free;
   end;
 
-  CleanupTestDir(CacheDir);
+  CleanupTempDir(CacheDir);
   Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache TTL test directory');
 end;
 
@@ -82,8 +60,8 @@ var
 begin
   WriteLn('=== TestTTLExpiration ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-ttl');
-  AssertPathIsUnderSystemTemp(CacheDir, 'TTL expiration temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-ttl');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'TTL expiration temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -107,7 +85,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -118,8 +96,8 @@ var
 begin
   WriteLn('=== TestTTLConfiguration ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-ttl-config');
-  AssertPathIsUnderSystemTemp(CacheDir, 'TTL config temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-ttl-config');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'TTL config temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -135,7 +113,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -148,8 +126,8 @@ var
 begin
   WriteLn('=== TestCleanExpired ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-clean');
-  AssertPathIsUnderSystemTemp(CacheDir, 'CleanExpired temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-clean');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'CleanExpired temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -179,12 +157,11 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
 begin
-  Randomize;
   WriteLn('Running Cache TTL Tests...');
   WriteLn;
 

@@ -87,7 +87,7 @@ uses
   {$IFDEF WINDOWS}
   Windows,
   {$ENDIF}
-  fpdev.config;
+  fpdev.config, fpdev.utils;
 
 function GetTickCount64: QWord;
 {$IFDEF UNIX}
@@ -106,8 +106,8 @@ end;
 function CreateProgressBar: IProgressBar;
 begin
   // Check if in non-interactive mode (CI/CD)
-  if (GetEnvironmentVariable('FPDEV_NONINTERACTIVE') = '1') or
-     (GetEnvironmentVariable('CI') = 'true') then
+  if (get_env('FPDEV_NONINTERACTIVE') = '1') or
+     (get_env('CI') = 'true') then
     Result := TSilentProgressBar.Create
   else
     Result := TConsoleProgressBar.Create;

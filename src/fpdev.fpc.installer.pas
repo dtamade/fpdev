@@ -192,6 +192,7 @@ type
     FFileSystem: IFileSystem;
     FProcessRunner: IProcessRunner;
 
+    function GetResolvedInstallRoot: string;
     function GetInstallDir(const AVersion: string): string;
   public
     constructor Create(AVersionManager: TFPCVersionManager;
@@ -449,6 +450,7 @@ function TFPCBinaryInstaller.InstallFromBinary(const AVersion: string; const APr
 var
   InstallPath: string;
   Platform: string;
+  PostInstallActions: TFPCBinaryPostInstallActions;
 begin
   Result := False;
 
@@ -464,8 +466,14 @@ begin
       @InstallFromManifest, @TryInstallFromRepo, @InstallFromSourceForge) then
       Exit;
 
-    ExecuteFPCBinaryPostInstall(AVersion, InstallPath, FOut, FErr,
+    PostInstallActions := ExecuteFPCBinaryPostInstall(AVersion, InstallPath, FOut, FErr,
       FConfigGen, @SetupEnvironment, FCache, FNoCache);
+
+    if not PostInstallActions.ConfigGenerated then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': InstallFromBinary failed - managed install layout incomplete');
+      Exit(False);
+    end;
 
     Result := True;
 
@@ -507,17 +515,24 @@ begin
 end;
 
 function TFPCInstaller.GetInstallDir(const AVersion: string): string;
+begin
+  Result := GetResolvedInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+end;
+
+function TFPCInstaller.GetResolvedInstallRoot: string;
 var
   Settings: TFPDevSettings;
 begin
   Settings := FConfigManager.GetSettings;
-  Result := Settings.InstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  Result := Settings.InstallRoot;
+  if Result = '' then
+    Result := GetDataRoot;
 end;
 
 function TFPCInstaller.InstallVersion(const AVersion: string; AFromSource: Boolean;
   const APrefix: string; AEnsure: Boolean): TOperationResult;
 var
-  InstallDir, SourceDir: string;
+  InstallDir, SourceDir, InstallRoot: string;
   BuildResult: TOperationResult;
 begin
   // Validate version
@@ -557,7 +572,8 @@ begin
   end;
 
   // Install from source (explicit source mode or binary-mode fallback)
-  SourceDir := FConfigManager.GetSettings.InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
+  InstallRoot := GetResolvedInstallRoot;
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
 
   // Download source if not exists
   if not FFileSystem.DirectoryExists(SourceDir) then

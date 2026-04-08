@@ -36,20 +36,15 @@ function ExecuteFPCBinaryPostInstall(const AVersion, AInstallPath: string;
   const AOut, AErr: IOutput; AConfigGen: TFPCConfigGenerator;
   ASetupEnvironment: TFPCSetupEnvironmentHandler; ACache: TBuildCache;
   ANoCache: Boolean): TFPCBinaryPostInstallActions;
-var
-  BinDir: string;
 begin
   Result := Default(TFPCBinaryPostInstallActions);
-  BinDir := AInstallPath + PathDelim + 'bin';
+  if AConfigGen <> nil then;
 
-  if DirectoryExists(BinDir) then
+  Result.ConfigGenerated := EnsureManagedFPCInstallLayout(AInstallPath, AVersion, AOut);
+  if not Result.ConfigGenerated then
   begin
-    if AConfigGen <> nil then
-    begin
-      AConfigGen.CreateLinuxCompilerWrapper(AInstallPath, AVersion);
-      AConfigGen.GenerateFpcConfig(AInstallPath, AVersion);
-    end;
-    Result.ConfigGenerated := True;
+    WriteLine(AErr, '  Warning: Managed install layout incomplete');
+    Exit;
   end;
 
   WriteLine(AOut, 'Setting up environment...');

@@ -192,6 +192,25 @@ begin
   WriteTextFile(AInstallDir + PathDelim + 'README.txt', 'fixture');
 end;
 
+procedure PrepareBrokenInstallTreeMissingDriver(const AInstallDir, AVersion: string);
+var
+  CompilerName: string;
+  BinDir: string;
+  LibDir: string;
+begin
+  ForceDirectories(AInstallDir);
+
+  BinDir := AInstallDir + PathDelim + 'bin';
+  ForceDirectories(BinDir);
+
+  LibDir := AInstallDir + PathDelim + 'lib' + PathDelim + 'fpc' + PathDelim + AVersion;
+  ForceDirectories(LibDir);
+
+  CompilerName := GetNativeCompilerName;
+  WriteTextFile(LibDir + PathDelim + CompilerName, 'fake compiler');
+  WriteTextFile(AInstallDir + PathDelim + 'README.txt', 'broken fixture');
+end;
+
 procedure TestExecutePostInstallGeneratesConfigAndCaches;
 var
   InstallDir: string;
@@ -277,15 +296,21 @@ begin
 
     Check('config generation skipped without bin', not Actions.ConfigGenerated,
       'config generation should be skipped');
-    Check('environment still called without bin', Probe.CalledCount = 1,
+    Check('environment setup skipped without bin', Probe.CalledCount = 0,
       'called count=' + IntToStr(Probe.CalledCount));
-    Check('no-cache disables cache attempt', not Actions.CacheAttempted,
+    Check('no-cache keeps cache attempt disabled when layout invalid', not Actions.CacheAttempted,
       'cache attempt should be disabled');
     Check('no-cache leaves cache empty', not Cache.HasArtifacts('3.2.3'),
       'cache should remain empty');
     Check('no fpc.cfg created when bin missing',
       not FileExists(InstallDir + PathDelim + 'bin' + PathDelim + 'fpc.cfg'),
       'unexpected fpc.cfg found');
+    Check('layout warning emitted when bin missing',
+      ErrBuf.Contains('Managed install layout incomplete'),
+      'expected managed layout warning');
+    Check('completion summary omitted when layout invalid',
+      not OutBuf.Contains('Installation completed!'),
+      'unexpected completion summary');
     Check('output omits cache save section', not OutBuf.Contains('[CACHE] Saving installation to cache'),
       'cache section should be absent');
   finally
@@ -293,6 +318,49 @@ begin
     Probe.Free;
     ConfigGen.Free;
     CleanupTempDir(CacheDir);
+    CleanupTempDir(InstallDir);
+  end;
+end;
+
+procedure TestExecutePostInstallSkipsEnvironmentWhenManagedLayoutRepairFails;
+var
+  InstallDir: string;
+  OutBuf: TStringOutput;
+  ErrBuf: TStringOutput;
+  ConfigGen: TFPCConfigGenerator;
+  Probe: TSetupProbe;
+  Actions: TFPCBinaryPostInstallActions;
+begin
+  InstallDir := CreateUniqueTempDir('test_fpc_postinstall_broken_driver');
+  PrepareBrokenInstallTreeMissingDriver(InstallDir, '3.2.5');
+
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  ConfigGen := TFPCConfigGenerator.Create(OutBuf);
+  Probe := TSetupProbe.Create;
+  try
+    Probe.NextResult := True;
+    Actions := ExecuteFPCBinaryPostInstall('3.2.5', InstallDir, OutBuf, ErrBuf,
+      ConfigGen, @Probe.Run, nil, False);
+
+    Check('broken layout does not report config generated', not Actions.ConfigGenerated,
+      'config generation should fail for broken layout');
+    Check('broken layout skips environment setup', Probe.CalledCount = 0,
+      'called count=' + IntToStr(Probe.CalledCount));
+    Check('broken layout does not mark environment configured',
+      not Actions.EnvironmentConfigured, 'environment should stay false');
+    Check('broken layout does not create fpc.cfg',
+      not FileExists(InstallDir + PathDelim + 'bin' + PathDelim + 'fpc.cfg'),
+      'unexpected fpc.cfg found');
+    Check('broken layout warns on stderr',
+      ErrBuf.Contains('Managed install layout incomplete'),
+      'expected managed layout warning');
+    Check('broken layout omits completion summary',
+      not OutBuf.Contains('Installation completed!'),
+      'unexpected completion summary');
+  finally
+    Probe.Free;
+    ConfigGen.Free;
     CleanupTempDir(InstallDir);
   end;
 end;
@@ -337,6 +405,7 @@ begin
 
   TestExecutePostInstallGeneratesConfigAndCaches;
   TestExecutePostInstallSkipsConfigWhenBinMissingAndRespectsNoCache;
+  TestExecutePostInstallSkipsEnvironmentWhenManagedLayoutRepairFails;
   TestExecutePostInstallWarnsWhenEnvironmentSetupFails;
 
   WriteLn;

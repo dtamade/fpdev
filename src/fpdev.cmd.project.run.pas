@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
+  fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type

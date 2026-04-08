@@ -4,7 +4,7 @@ program test_cache_metadata;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
+  fpdev.build.cache, fpdev.build.cache.types, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -24,28 +24,6 @@ begin
   end;
 end;
 
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
-  ForceDirectories(Result);
-end;
-
-procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
-begin
-  Assert(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ATestName
-  );
-end;
-
-procedure CleanupTestDir(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
 procedure TestCleanupRemovesNestedDirectories;
 var
   CacheDir: string;
@@ -55,8 +33,8 @@ var
 begin
   WriteLn('=== TestCleanupRemovesNestedDirectories ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-metadata-cleanup');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Cache metadata cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-metadata-cleanup');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Cache metadata cleanup temp directory should live under system temp');
 
   NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
   NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'metadata.json';
@@ -70,7 +48,7 @@ begin
     TestData.Free;
   end;
 
-  CleanupTestDir(CacheDir);
+  CleanupTempDir(CacheDir);
   Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache metadata test directory');
 end;
 
@@ -83,8 +61,8 @@ var
 begin
   WriteLn('=== TestJSONMetadataWrite ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-json-write');
-  AssertPathIsUnderSystemTemp(CacheDir, 'JSON write temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-json-write');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'JSON write temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -123,7 +101,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -137,8 +115,8 @@ var
 begin
   WriteLn('=== TestJSONMetadataRead ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-json-read');
-  AssertPathIsUnderSystemTemp(CacheDir, 'JSON read temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-json-read');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'JSON read temp directory should live under system temp');
 
   try
     MetaPath := CacheDir + PathDelim + 'fpc-3.2.2-x86_64-linux.json';
@@ -179,7 +157,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -192,8 +170,8 @@ var
 begin
   WriteLn('=== TestBackwardCompatibility ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-compat');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Backward compatibility temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-compat');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Backward compatibility temp directory should live under system temp');
 
   try
     OldMetaPath := CacheDir + PathDelim + 'fpc-3.2.0-x86_64-linux.meta';
@@ -220,7 +198,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -233,8 +211,8 @@ var
 begin
   WriteLn('=== TestMetadataMigration ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-migrate');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Metadata migration temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-migrate');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Metadata migration temp directory should live under system temp');
 
   try
     OldMetaPath := CacheDir + PathDelim + 'fpc-3.2.1-x86_64-linux.meta';
@@ -265,7 +243,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -278,8 +256,8 @@ var
 begin
   WriteLn('=== TestJSONRoundTrip ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-roundtrip');
-  AssertPathIsUnderSystemTemp(CacheDir, 'JSON round-trip temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-roundtrip');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'JSON round-trip temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -311,12 +289,11 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
 begin
-  Randomize;
   WriteLn('Running Cache JSON Metadata Tests...');
   WriteLn;
 

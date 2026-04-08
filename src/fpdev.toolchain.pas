@@ -5,7 +5,11 @@ unit fpdev.toolchain;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, fpdev.utils, fpdev.utils.process;
+  SysUtils, Classes, fpjson, jsonparser, fpdev.utils, fpdev.utils.process
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF}
+  ;
 
 type
   TStringDynArray = array of string;
@@ -29,7 +33,8 @@ type
     Level: string; // OK|WARN|FAIL
   end;
 
-// Build a minimal health check report (HostReady scenario): fpc/make/lazbuild/git/openssl
+// Build a minimal health check report (HostReady scenario):
+// fpc/make/lazbuild/lazarus_root/git/openssl
 function BuildToolchainReportJSON: string;
 // Get the current FPC version (fpc -iV); returns True on success and fills the version string
 function GetFPCVersion(out AFPCVersion: string): boolean;
@@ -124,7 +129,7 @@ var P: string;
 begin
   Result := False;
   // Environment variable takes priority
-  P := GetEnvironmentVariable('FPDEV_POLICY_FILE');
+  P := get_env('FPDEV_POLICY_FILE');
   if (P<>'') and LoadPolicyFromFile(P) then Exit(True);
   // Common locations
   if LoadPolicyFromFile('src'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
@@ -216,6 +221,88 @@ begin
   Result := TProcessExecutor.FindExecutable(ACmd);
 end;
 
+function ResolveRealPath(const APath: string): string;
+{$IFDEF UNIX}
+var
+  CurrentPath: string;
+  LinkTarget: string;
+  ParentDir: string;
+  Hop: Integer;
+begin
+  CurrentPath := ExcludeTrailingPathDelimiter(ExpandFileName(APath));
+  for Hop := 0 to 7 do
+  begin
+    LinkTarget := fpReadLink(CurrentPath);
+    if LinkTarget = '' then
+      Break;
+
+    if ExtractFileDrive(LinkTarget) = '' then
+    begin
+      ParentDir := ExtractFileDir(CurrentPath);
+      LinkTarget := ExpandFileName(
+        IncludeTrailingPathDelimiter(ParentDir) + LinkTarget
+      );
+    end;
+    CurrentPath := ExcludeTrailingPathDelimiter(ExpandFileName(LinkTarget));
+  end;
+  Result := CurrentPath;
+end;
+{$ELSE}
+begin
+  Result := ExcludeTrailingPathDelimiter(ExpandFileName(APath));
+end;
+{$ENDIF}
+
+function IsLazarusRootDir(const APath: string): Boolean;
+var
+  NormalizedPath: string;
+begin
+  NormalizedPath := ExcludeTrailingPathDelimiter(ExpandFileName(Trim(APath)));
+  Result := (NormalizedPath <> '') and
+    DirectoryExists(IncludeTrailingPathDelimiter(NormalizedPath) + 'lcl');
+end;
+
+function ProbeLazarusRoot: TToolStatus;
+var
+  Candidate: string;
+  LazbuildPath: string;
+begin
+  Result.Name := 'lazarus_root';
+  Result.Found := False;
+  Result.Version := '';
+  Result.Path := '';
+  Result.Notes := '';
+
+  Candidate := Trim(get_env('FPDEV_LAZARUSDIR'));
+  if Candidate <> '' then
+  begin
+    Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Candidate));
+    if IsLazarusRootDir(Candidate) then
+    begin
+      Result.Found := True;
+      Result.Path := Candidate;
+    end
+    else
+      Result.Notes := 'FPDEV_LAZARUSDIR does not contain lcl/';
+    Exit;
+  end;
+
+  LazbuildPath := ResolvePathOf('lazbuild');
+  if LazbuildPath <> '' then
+  begin
+    Candidate := ExtractFileDir(ResolveRealPath(LazbuildPath));
+    Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Candidate));
+    if IsLazarusRootDir(Candidate) then
+    begin
+      Result.Found := True;
+      Result.Path := Candidate;
+      Exit;
+    end;
+  end;
+
+  Result.Notes := 'set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/';
+end;
+
 procedure AddTool(var AArr: TToolStatusArray; const ATool: TToolStatus);
 var
   N: Integer;
@@ -229,6 +316,18 @@ procedure AddIssue(var AArr: TStringDynArray; const AItem: string);
 var N: Integer;
 begin
   N := Length(AArr); SetLength(AArr, N+1); AArr[N] := AItem;
+end;
+
+function HasIssueContaining(const AArr: TStringDynArray; const ANeedle: string): Boolean;
+var
+  I: Integer;
+  LowerNeedle: string;
+begin
+  LowerNeedle := LowerCase(Trim(ANeedle));
+  for I := 0 to High(AArr) do
+    if Pos(LowerNeedle, LowerCase(Trim(AArr[I]))) > 0 then
+      Exit(True);
+  Result := False;
 end;
 
 function ProbeOne(const AName: string; const AArgs: array of string): TToolStatus;
@@ -421,7 +520,7 @@ begin
   {$elseif defined(CPUARM)} R.HostCPU := 'arm'
   {$else} R.HostCPU := 'unknown' {$endif};
 
-  PathStr := GetEnvironmentVariable('PATH');
+  PathStr := get_env('PATH');
   R.PathHead := SplitPathHead(PathStr, 5);
 
   // fpc
@@ -442,6 +541,11 @@ begin
   if not T.Found then T.Notes := 'optional';
   AddTool(R.Tools, T);
 
+  // lazarus_root (required for release-grade Lazarus builds)
+  T := ProbeLazarusRoot;
+  if not T.Found then AddIssue(R.Issues, 'missing lazarus_root');
+  AddTool(R.Tools, T);
+
   // git (recommended)
   T := ProbeOne('git', ['--version']); if not T.Found then T.Notes := 'optional';
   AddTool(R.Tools, T);
@@ -450,9 +554,14 @@ begin
   T := ProbeOne('openssl', ['version']); if not T.Found then T.Notes := 'optional for HTTPS';
   AddTool(R.Tools, T);
 
-  if Length(R.Issues)=0 then R.Level := 'OK'
-  else if (Length(R.Issues)>0) and (Pos('missing fpc', LowerCase(Trim(R.Issues[0])))=0) then R.Level := 'WARN'
-  else R.Level := 'FAIL';
+  if Length(R.Issues) = 0 then
+    R.Level := 'OK'
+  else if HasIssueContaining(R.Issues, 'missing fpc') or
+          HasIssueContaining(R.Issues, 'missing make-family') or
+          HasIssueContaining(R.Issues, 'missing lazarus_root') then
+    R.Level := 'FAIL'
+  else
+    R.Level := 'WARN';
 
   Result := ReportToJSON(R);
 end;

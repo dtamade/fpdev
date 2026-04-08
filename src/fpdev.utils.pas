@@ -117,6 +117,33 @@ implementation
 function c_setenv(name, value: PChar; overwrite: cint): cint; cdecl; external 'c' name 'setenv';
 function c_unsetenv(name: PChar): cint; cdecl; external 'c' name 'unsetenv';
 function c_getenv(name: PChar): PChar; cdecl; external 'c' name 'getenv';
+var
+  environ: PPAnsiChar; cvar; external;
+
+procedure SyncUnixEnvSnapshot;
+begin
+  if environ <> nil then
+    envp := environ;
+end;
+{$ENDIF}
+
+{$IFDEF MSWINDOWS}
+type
+  TFPDevMemoryStatusEx = record
+    dwLength: DWORD;
+    dwMemoryLoad: DWORD;
+    ullTotalPhys: QWord;
+    ullAvailPhys: QWord;
+    ullTotalPageFile: QWord;
+    ullAvailPageFile: QWord;
+    ullTotalVirtual: QWord;
+    ullAvailVirtual: QWord;
+    ullAvailExtendedVirtual: QWord;
+  end;
+  PFPDevMemoryStatusEx = ^TFPDevMemoryStatusEx;
+
+function FPDevGlobalMemoryStatusEx(lpBuffer: PFPDevMemoryStatusEx): BOOL; stdcall;
+  external 'kernel32.dll' name 'GlobalMemoryStatusEx';
 {$ENDIF}
 
 // Essential implementations
@@ -187,6 +214,8 @@ function unset_env(const aName: string): Boolean;
 begin
   {$IFDEF UNIX}
   Result := c_unsetenv(PChar(aName)) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   Result := SetEnvironmentVariableW(PWideChar(UTF8Decode(aName)), nil);
@@ -203,6 +232,8 @@ begin
     Result := c_unsetenv(PChar(aName)) = 0
   else
     Result := c_setenv(PChar(aName), PChar(aValue), 1) = 0;
+  if Result then
+    SyncUnixEnvSnapshot;
   {$ELSE}
     {$IFDEF MSWINDOWS}
   if aValue = '' then
@@ -243,7 +274,7 @@ begin
   if Result = '' then
     Result := 'localhost';
   {$ELSE}
-  Result := GetEnvironmentVariable('COMPUTERNAME');
+  Result := SysUtils.GetEnvironmentVariable('COMPUTERNAME');
   if Result = '' then
     Result := 'localhost';
   {$ENDIF}
@@ -302,6 +333,10 @@ var
   MemFree: Int64;
   Code: Integer;
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  MemStatus: TFPDevMemoryStatusEx;
+{$ENDIF}
 begin
   Result := 0;
   {$IFDEF UNIX}
@@ -340,15 +375,11 @@ begin
   end;
   {$ELSE}
     {$IFDEF MSWINDOWS}
-  var
-    MemStatus: TMemoryStatusEx;
-  begin
-    MemStatus.dwLength := SizeOf(MemStatus);
-    if GlobalMemoryStatusEx(MemStatus) then
-      Result := MemStatus.ullAvailPhys
-    else
-      Result := 0;
-  end;
+  MemStatus.dwLength := SizeOf(MemStatus);
+  if FPDevGlobalMemoryStatusEx(@MemStatus) then
+    Result := MemStatus.ullAvailPhys
+  else
+    Result := 0;
     {$ELSE}
   Result := 0;
     {$ENDIF}
@@ -365,7 +396,7 @@ var
 {$ENDIF}
 {$IFDEF MSWINDOWS}
 var
-  MemStatus: TMemoryStatusEx;
+  MemStatus: TFPDevMemoryStatusEx;
 {$ENDIF}
 begin
   Result := 0;
@@ -401,7 +432,7 @@ begin
   {$ELSE}
     {$IFDEF MSWINDOWS}
   MemStatus.dwLength := SizeOf(MemStatus);
-  if GlobalMemoryStatusEx(MemStatus) then
+  if FPDevGlobalMemoryStatusEx(@MemStatus) then
     Result := MemStatus.ullTotalPhys
   else
     Result := 0;

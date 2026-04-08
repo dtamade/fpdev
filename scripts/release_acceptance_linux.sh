@@ -11,8 +11,9 @@ This script verifies:
   - local toolchain prerequisites
   - test inventory sync
   - Python regression suite
+  - focused IO bridge stability gate
   - full Pascal regression suite
-  - Release-mode Lazarus build
+  - shared Release build entrypoint
   - CLI smoke commands with isolated FPDEV data roots
 
 Options:
@@ -52,6 +53,8 @@ TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/fpdev-release-XXXXXX")"
 DATA_ROOT="${TMP_ROOT}/fpdev-data"
 LAZARUS_CONFIG_ROOT="${TMP_ROOT}/lazarus-config"
 SUMMARY_FILE="${RUN_DIR}/summary.txt"
+RELEASE_BIN_PATH_FILE="${RUN_DIR}/release-bin-path.txt"
+RELEASE_BIN="${REPO_ROOT}/bin/fpdev"
 
 mkdir -p "${RUN_DIR}" "${DATA_ROOT}" "${LAZARUS_CONFIG_ROOT}"
 
@@ -70,7 +73,10 @@ export TMP="${TMP_ROOT}"
 export TEMP="${TMP_ROOT}"
 export FPDEV_DATA_ROOT="${DATA_ROOT}"
 export FPDEV_LAZARUS_CONFIG_ROOT="${LAZARUS_CONFIG_ROOT}"
+export FPDEV_TEST_LOG_ROOT="${RUN_DIR}/pascal_regression_logs"
 export FPDEV_SKIP_NETWORK_TESTS="${FPDEV_SKIP_NETWORK_TESTS:-1}"
+export FPDEV_RELEASE_BUILD_ROOT="${TMP_ROOT}/release-build"
+export FPDEV_RELEASE_BIN_PATH_FILE="${RELEASE_BIN_PATH_FILE}"
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
@@ -103,6 +109,24 @@ run_logged() {
     cd "${REPO_ROOT}"
     "$@" 2>&1 | tee -a "${log_file}"
   )
+}
+
+run_repeated_focused_test() {
+  local name="$1"
+  local repeat_count="$2"
+  local test_file="$3"
+  local log_file="${RUN_DIR}/${name}.log"
+  local attempt=0
+
+  : >"${log_file}"
+
+  for attempt in $(seq 1 "${repeat_count}"); do
+    echo "+ attempt ${attempt}/${repeat_count}: bash scripts/run_single_test.sh ${test_file}" | tee -a "${log_file}"
+    (
+      cd "${REPO_ROOT}"
+      bash scripts/run_single_test.sh "${test_file}" 2>&1 | tee -a "${log_file}"
+    )
+  done
 }
 
 run_cli_smoke() {
@@ -167,47 +191,58 @@ step "Python regression suite"
 run_logged python_regression python3 -m unittest discover -s tests -p 'test_*.py'
 append_summary "python_regression: pass"
 
+step "IO bridge stability gate"
+run_repeated_focused_test iobridge_stability 5 tests/test_fpc_installer_iobridge.lpr
+append_summary "iobridge_stability: pass"
+
 step "Full Pascal regression suite"
 run_logged pascal_regression bash scripts/run_all_tests.sh
 append_summary "pascal_regression: pass"
 
 step "Release build"
-run_logged release_build lazbuild -B --build-mode=Release fpdev.lpi
+run_logged release_build bash scripts/build_release.sh
+if [[ -s "${RELEASE_BIN_PATH_FILE}" ]]; then
+  RELEASE_BIN="$(head -n 1 "${RELEASE_BIN_PATH_FILE}")"
+fi
+if [[ ! -x "${RELEASE_BIN}" ]]; then
+  echo "[FAIL] release binary missing or not executable: ${RELEASE_BIN}" >&2
+  exit 1
+fi
 append_summary "release_build: pass"
 
 step "CLI smoke"
-run_cli_smoke system_help 0 ./bin/fpdev system help
+run_cli_smoke system_help 0 "${RELEASE_BIN}" system help
 assert_log_contains system_help "Available subcommands"
 append_summary "system_help: pass"
 
-run_cli_smoke system_version 0 ./bin/fpdev system version
+run_cli_smoke system_version 0 "${RELEASE_BIN}" system version
 assert_log_contains system_version "fpdev version 2.1.0"
 append_summary "system_version: pass"
 
-run_cli_smoke fpc_help 0 ./bin/fpdev fpc --help
+run_cli_smoke fpc_help 0 "${RELEASE_BIN}" fpc --help
 assert_log_contains fpc_help "install"
 assert_log_contains fpc_help "list"
 append_summary "fpc_help: pass"
 
-run_cli_smoke fpc_list_all 0 ./bin/fpdev fpc list --all
+run_cli_smoke fpc_list_all 0 "${RELEASE_BIN}" fpc list --all
 assert_log_contains fpc_list_all "3.2.2"
 append_summary "fpc_list_all: pass"
 
-run_cli_smoke system_toolchain_check 0 ./bin/fpdev system toolchain check
+run_cli_smoke system_toolchain_check 0 "${RELEASE_BIN}" system toolchain check
 append_summary "system_toolchain_check: pass"
 
-run_cli_smoke fpc_test 0 ./bin/fpdev fpc test
+run_cli_smoke fpc_test 0 "${RELEASE_BIN}" fpc test
 append_summary "fpc_test: pass"
 
 if [[ "${WITH_INSTALL}" == "1" ]]; then
   step "Network-gated isolated install lane"
   unset FPDEV_SKIP_NETWORK_TESTS || true
 
-  run_cli_smoke fpc_install_322 0 ./bin/fpdev fpc install 3.2.2
-  run_cli_smoke fpc_use_322 0 ./bin/fpdev fpc use 3.2.2
-  run_cli_smoke fpc_current_322 0 ./bin/fpdev fpc current
+  run_cli_smoke fpc_install_322 0 "${RELEASE_BIN}" fpc install 3.2.2
+  run_cli_smoke fpc_use_322 0 "${RELEASE_BIN}" fpc use 3.2.2
+  run_cli_smoke fpc_current_322 0 "${RELEASE_BIN}" fpc current
   assert_log_contains fpc_current_322 "3.2.2"
-  run_cli_smoke fpc_verify_322 0 ./bin/fpdev fpc verify 3.2.2
+  run_cli_smoke fpc_verify_322 0 "${RELEASE_BIN}" fpc verify 3.2.2
 
   append_summary "fpc_install_322: pass"
   append_summary "fpc_use_322: pass"

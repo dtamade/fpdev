@@ -48,8 +48,21 @@ begin
 end;
 
 function TSystemHelpCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
+var
+  HelpParams: TStringArray;
+  Index: Integer;
 begin
-  ExecuteHelpCore(AParams, Ctx.Out);
+  HelpParams := nil;
+  if Length(AParams) = 0 then
+    ExecuteHelpCore(AParams, Ctx.Out)
+  else
+  begin
+    SetLength(HelpParams, Length(AParams) + 1);
+    HelpParams[0] := 'system';
+    for Index := 0 to High(AParams) do
+      HelpParams[Index + 1] := AParams[Index];
+    ExecuteHelpCore(HelpParams, Ctx.Out);
+  end;
   Result := EXIT_OK;
 end;
 

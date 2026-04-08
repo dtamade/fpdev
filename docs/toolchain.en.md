@@ -17,7 +17,7 @@ This module provides "pure code, zero side-effect" toolchain health checks and F
 ## Main API (For Code Usage)
 
 - `function BuildToolchainReportJSON: string;`
-  - Builds a HostReady health check report (fpc/make/lazbuild/git/openssl), returns a JSON string; no disk writes, no system modifications
+  - Builds a HostReady health check report (fpc/make/lazbuild/lazarus_root/git/openssl), returns a JSON string; no disk writes, no system modifications
 
 - `function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;`
@@ -51,6 +51,7 @@ Example:
     {"name":"fpc","found":true,"version":"3.2.2","path":"C:\\...\\fpc.exe","notes":""},
     {"name":"mingw32-make","found":true,"version":"GNU Make 4.4","path":"C:\\...\\mingw32-make.exe","notes":""},
     {"name":"lazbuild","found":false,"version":"","path":"","notes":"optional"},
+    {"name":"lazarus_root","found":true,"version":"","path":"C:\\lazarus","notes":""},
     {"name":"git","found":true,"version":"git version 2.x","path":"C:\\...\\git.exe","notes":""},
     {"name":"openssl","found":false,"version":"","path":"","notes":"optional for HTTPS"}
   ],
@@ -63,8 +64,8 @@ Field descriptions:
 - hostOS/hostCPU: Host system information
 - pathHead: First few segments of PATH (for diagnostics)
 - tools: Detection results for key tools
-- issues: List of missing items (e.g., missing fpc/make)
-- level: OK/WARN/FAIL (missing fpc/make -> FAIL; missing optional items -> WARN)
+- issues: List of missing items (e.g., missing fpc/make/lazarus_root)
+- level: OK/WARN/FAIL (missing fpc/make/lazarus_root -> FAIL; missing optional items -> WARN)
 
 ## Policy JSON (External Override)
 
@@ -93,6 +94,7 @@ Notes:
 ## Common Issues and Recommendations
 
 - On Windows, prefer `mingw32-make`; on Unix/BSD, prefer `gmake`
+- `lazarus_root` first honors `FPDEV_LAZARUSDIR`, otherwise it tries to infer the root from the `lazbuild` directory; the root must contain `lcl/`
 - HTTPS downloads should include OpenSSL dynamic libraries; a warning or degraded mode is triggered if missing
 - The health check JSON is not written to disk; if persistence is needed, the calling program can write it to a file
 

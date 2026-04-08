@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -74,7 +74,6 @@ begin
   try
     if LMgr.ConfigureIDE(Ctx.Out, Ctx.Err, LVer) then
       Exit(EXIT_OK);
-    Ctx.Err.WriteLn(_(CMD_LAZARUS_CONFIG_FAILED));
     Result := EXIT_ERROR;
   finally
     LMgr.Free;

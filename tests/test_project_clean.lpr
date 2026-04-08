@@ -4,7 +4,7 @@ program test_project_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, test_temp_paths, fpdev.cmd.project, fpdev.config
+  SysUtils, Classes, test_temp_paths, fpdev.project.manager, fpdev.config
   {$IFDEF UNIX}
   , BaseUnix
   {$ENDIF};

@@ -9,9 +9,9 @@ from pathlib import Path
 DEFAULT_OUTPUT_NAME = 'RELEASE_EVIDENCE.md'
 CHECKSUM_FILE_NAME = 'SHA256SUMS.txt'
 OWNER_EVIDENCE_FILES = [
-    ('Windows x64 asset smoke', 'windows-x64-owner-smoke.txt'),
-    ('macOS x64 asset smoke', 'macos-x64-owner-smoke.txt'),
-    ('macOS arm64 asset smoke', 'macos-arm64-owner-smoke.txt'),
+    ('Windows x64 asset smoke', 'windows-x64-owner-smoke.txt', 'fpdev-windows-x64.zip'),
+    ('macOS x64 asset smoke', 'macos-x64-owner-smoke.txt', 'fpdev-macos-x64.tar.gz'),
+    ('macOS arm64 asset smoke', 'macos-arm64-owner-smoke.txt', 'fpdev-macos-arm64.tar.gz'),
 ]
 
 
@@ -40,16 +40,45 @@ def read_checksum_lines(asset_dir: Path) -> list[str]:
     return [line.strip() for line in checksum_path.read_text(encoding='utf-8').splitlines() if line.strip()]
 
 
-def collect_owner_evidence(owner_proof_dir: Path) -> list[tuple[str, str, str]]:
-    rows: list[tuple[str, str, str]] = []
-    for lane, filename in OWNER_EVIDENCE_FILES:
+def parse_checksum_assets(checksum_lines: list[str]) -> set[str]:
+    assets: set[str] = set()
+    for line in checksum_lines:
+        parts = line.split()
+        if len(parts) >= 2:
+            assets.add(parts[-1].lstrip('*'))
+    return assets
+
+
+def collect_owner_evidence(
+    owner_proof_dir: Path,
+    checksum_lines: list[str],
+) -> list[tuple[str, str, str, str, str]]:
+    checksum_assets = parse_checksum_assets(checksum_lines)
+    rows: list[tuple[str, str, str, str, str]] = []
+    for lane, filename, asset_name in OWNER_EVIDENCE_FILES:
         evidence_path = owner_proof_dir / filename
-        status = 'found' if evidence_path.is_file() else 'missing'
-        rows.append((lane, filename, status))
+        transcript_status = 'found' if evidence_path.is_file() else 'missing'
+        ledger_status = 'pass' if transcript_status == 'found' and asset_name in checksum_assets else 'pending'
+        rows.append((lane, filename, transcript_status, ledger_status, asset_name))
     return rows
 
 
-def render_lane(title: str, summary_path: Path, summary: dict[str, str]) -> list[str]:
+def render_lane(
+    title: str,
+    summary_path: Path | None,
+    summary: dict[str, str] | None,
+) -> list[str]:
+    if summary_path is None or summary is None:
+        return [
+            f'### {title}',
+            '',
+            '- status: not recorded (optional)',
+            '- summary: `not provided`',
+            '- timestamp: `not recorded`',
+            '- run_dir: `not recorded`',
+            '',
+        ]
+
     return [
         f'### {title}',
         '',
@@ -64,12 +93,12 @@ def render_lane(title: str, summary_path: Path, summary: dict[str, str]) -> list
 def render_markdown(
     baseline_path: Path,
     baseline_summary: dict[str, str],
-    install_path: Path,
-    install_summary: dict[str, str],
+    install_path: Path | None,
+    install_summary: dict[str, str] | None,
     asset_dir: Path,
     checksum_lines: list[str],
     owner_proof_dir: Path,
-    owner_evidence_rows: list[tuple[str, str, str]],
+    owner_evidence_rows: list[tuple[str, str, str, str, str]],
 ) -> str:
     lines = [
         '# FPDev Release Evidence',
@@ -103,9 +132,12 @@ def render_markdown(
         '',
         '| Lane | Status | Evidence expectation |',
         '|------|--------|----------------------|',
-        '| Windows x64 asset smoke | pending | command transcript + asset checksum |',
-        '| macOS x64 asset smoke | pending | command transcript + asset checksum |',
-        '| macOS arm64 asset smoke | pending | command transcript + asset checksum |',
+    ])
+
+    for lane, filename, _transcript_status, ledger_status, asset_name in owner_evidence_rows:
+        lines.append(f'| {lane} | {ledger_status} | `{filename}` + `{asset_name}` checksum |')
+
+    lines.extend([
         '',
         '## Owner Evidence Files',
         '',
@@ -115,8 +147,8 @@ def render_markdown(
         '|------|------------|--------|',
     ])
 
-    for lane, filename, status in owner_evidence_rows:
-        lines.append(f'| {lane} | `{filename}` | {status} |')
+    for lane, filename, transcript_status, _ledger_status, _asset_name in owner_evidence_rows:
+        lines.append(f'| {lane} | `{filename}` | {transcript_status} |')
 
     lines.append('')
     return '\n'.join(lines)
@@ -127,7 +159,7 @@ def main() -> int:
         description='Generate a markdown release evidence summary from acceptance logs and packaged assets.'
     )
     parser.add_argument('--baseline-summary', required=True, help='Path to the Linux baseline summary.txt')
-    parser.add_argument('--install-summary', required=True, help='Path to the Linux isolated install summary.txt')
+    parser.add_argument('--install-summary', help='Path to the optional Linux isolated install summary.txt')
     parser.add_argument('--asset-dir', required=True, help='Directory containing packaged release assets')
     parser.add_argument(
         '--owner-proof-dir',
@@ -142,13 +174,13 @@ def main() -> int:
     args = parser.parse_args()
 
     baseline_path = Path(args.baseline_summary).resolve()
-    install_path = Path(args.install_summary).resolve()
+    install_path = Path(args.install_summary).resolve() if args.install_summary else None
     asset_dir = Path(args.asset_dir).resolve()
     owner_proof_dir = Path(args.owner_proof_dir).resolve()
     output_path = Path(args.output).resolve()
 
     for summary_path in (baseline_path, install_path):
-        if not summary_path.is_file():
+        if summary_path is not None and not summary_path.is_file():
             print(f'Summary file does not exist: {summary_path}', file=sys.stderr)
             return 2
 
@@ -157,9 +189,9 @@ def main() -> int:
         return 2
 
     baseline_summary = parse_summary(baseline_path)
-    install_summary = parse_summary(install_path)
+    install_summary = parse_summary(install_path) if install_path is not None else None
     checksum_lines = read_checksum_lines(asset_dir)
-    owner_evidence_rows = collect_owner_evidence(owner_proof_dir)
+    owner_evidence_rows = collect_owner_evidence(owner_proof_dir, checksum_lines)
     markdown = render_markdown(
         baseline_path,
         baseline_summary,

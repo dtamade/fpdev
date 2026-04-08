@@ -13,7 +13,7 @@
 ```bash
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system help
 ```
 
@@ -40,10 +40,13 @@ fpdev fpc install 3.2.2 --from-source
 
 ### Q: 如何安装 FPC？
 
-**A**: 推荐使用源码安装：
+**A**: 默认先使用二进制安装，速度更快；需要源码构建或二进制安装不可用时再使用源码安装：
 
 ```bash
-# 从源码安装（推荐）
+# 优先：二进制安装
+fpdev fpc install 3.2.2
+
+# 需要源码构建时
 fpdev fpc install 3.2.2 --from-source
 
 # 激活版本
@@ -134,7 +137,7 @@ fpc myapp.lpr
 # 或使用 lazbuild
 lazbuild myapp.lpi
 
-# 或使用 fpdev（未来版本）
+# 或使用 fpdev
 fpdev project build
 ```
 

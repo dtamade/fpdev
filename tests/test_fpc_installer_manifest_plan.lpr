@@ -99,37 +99,44 @@ var
   Platform: string;
   DownloadDir: string;
 begin
-  Platform := GetCurrentPlatform;
-  CacheDir := BuildManifestCacheDirFromInstallRoot(TestRoot);
-  CacheFile := CacheDir + PathDelim + 'fpc.json';
-  ForceDirectories(CacheDir);
-  WriteTextFile(CacheFile,
-    BuildManifestJSON('3.2.2', Platform, 'https://example.com/fpc-3.2.2.tar.gz'));
+  Plan := Default(TFPCManifestInstallPlan);
+  DownloadDir := '';
+  try
+    Platform := GetCurrentPlatform;
+    CacheDir := BuildManifestCacheDirFromInstallRoot(TestRoot);
+    CacheFile := CacheDir + PathDelim + 'fpc.json';
+    ForceDirectories(CacheDir);
+    WriteTextFile(CacheFile,
+      BuildManifestJSON('3.2.2', Platform, 'https://example.com/fpc-3.2.2.tar.gz'));
 
-  if not PrepareFPCManifestInstallPlan(ConfigManager, '3.2.2', Plan, Err) then
-  begin
-    Fail('prepare plan succeeds', Err);
-    Exit;
+    if not PrepareFPCManifestInstallPlan(ConfigManager, '3.2.2', Plan, Err) then
+    begin
+      Fail('prepare plan succeeds', Err);
+      Exit;
+    end;
+
+    DownloadDir := ExtractFileDir(Plan.DownloadFile);
+    Check('plan uses scoped cache dir', Plan.ManifestCacheDir = CacheDir,
+      'expected ' + CacheDir + ', got ' + Plan.ManifestCacheDir);
+    Check('plan keeps current platform', Plan.Platform = Platform,
+      'expected ' + Platform + ', got ' + Plan.Platform);
+    Check('plan exposes target url', (Length(Plan.Target.URLs) = 1) and
+      (Plan.Target.URLs[0] = 'https://example.com/fpc-3.2.2.tar.gz'),
+      'target urls mismatch');
+    Check('download file uses system temp root', PathUsesSystemTempRoot(Plan.DownloadFile),
+      'download file should live under system temp root');
+    Check('extract dir uses system temp root', PathUsesSystemTempRoot(Plan.ExtractDir),
+      'extract dir should live under system temp root');
+    Check('download file keeps extension', ExtractFileExt(Plan.DownloadFile) = '.gz',
+      'expected .gz extension, got ' + ExtractFileExt(Plan.DownloadFile));
+    Check('download dir is fpdev_downloads', Pos('fpdev_downloads', DownloadDir) > 0,
+      'expected fpdev_downloads in ' + DownloadDir);
+    Check('extract dir is prefixed', Pos('fpdev_extract_', ExtractFileName(Plan.ExtractDir)) = 1,
+      'expected fpdev_extract_ prefix');
+  finally
+    if (DownloadDir <> '') and DirectoryExists(DownloadDir) then
+      CleanupTempDir(DownloadDir);
   end;
-
-  DownloadDir := ExtractFileDir(Plan.DownloadFile);
-  Check('plan uses scoped cache dir', Plan.ManifestCacheDir = CacheDir,
-    'expected ' + CacheDir + ', got ' + Plan.ManifestCacheDir);
-  Check('plan keeps current platform', Plan.Platform = Platform,
-    'expected ' + Platform + ', got ' + Plan.Platform);
-  Check('plan exposes target url', (Length(Plan.Target.URLs) = 1) and
-    (Plan.Target.URLs[0] = 'https://example.com/fpc-3.2.2.tar.gz'),
-    'target urls mismatch');
-  Check('download file uses system temp root', PathUsesSystemTempRoot(Plan.DownloadFile),
-    'download file should live under system temp root');
-  Check('extract dir uses system temp root', PathUsesSystemTempRoot(Plan.ExtractDir),
-    'extract dir should live under system temp root');
-  Check('download file keeps extension', ExtractFileExt(Plan.DownloadFile) = '.gz',
-    'expected .gz extension, got ' + ExtractFileExt(Plan.DownloadFile));
-  Check('download dir is fpdev_downloads', Pos('fpdev_downloads', DownloadDir) > 0,
-    'expected fpdev_downloads in ' + DownloadDir);
-  Check('extract dir is prefixed', Pos('fpdev_extract_', ExtractFileName(Plan.ExtractDir)) = 1,
-    'expected fpdev_extract_ prefix');
 end;
 
 procedure TestPreparePlanFallsBackToTarGzExtension;
@@ -138,21 +145,30 @@ var
   CacheDir: string;
   Err: string;
   Platform: string;
+  DownloadDir: string;
 begin
-  Platform := GetCurrentPlatform;
-  CacheDir := BuildManifestCacheDirFromInstallRoot(TestRoot);
-  ForceDirectories(CacheDir);
-  WriteTextFile(CacheDir + PathDelim + 'fpc.json',
-    BuildManifestJSON('3.2.3', Platform, 'https://example.com/download'));
+  Plan := Default(TFPCManifestInstallPlan);
+  DownloadDir := '';
+  try
+    Platform := GetCurrentPlatform;
+    CacheDir := BuildManifestCacheDirFromInstallRoot(TestRoot);
+    ForceDirectories(CacheDir);
+    WriteTextFile(CacheDir + PathDelim + 'fpc.json',
+      BuildManifestJSON('3.2.3', Platform, 'https://example.com/download'));
 
-  if not PrepareFPCManifestInstallPlan(ConfigManager, '3.2.3', Plan, Err) then
-  begin
-    Fail('prepare plan fallback extension succeeds', Err);
-    Exit;
+    if not PrepareFPCManifestInstallPlan(ConfigManager, '3.2.3', Plan, Err) then
+    begin
+      Fail('prepare plan fallback extension succeeds', Err);
+      Exit;
+    end;
+
+    DownloadDir := ExtractFileDir(Plan.DownloadFile);
+    Check('fallback extension is tar.gz', Pos('.tar.gz', Plan.DownloadFile) > 0,
+      'expected .tar.gz fallback, got ' + Plan.DownloadFile);
+  finally
+    if (DownloadDir <> '') and DirectoryExists(DownloadDir) then
+      CleanupTempDir(DownloadDir);
   end;
-
-  Check('fallback extension is tar.gz', Pos('.tar.gz', Plan.DownloadFile) > 0,
-    'expected .tar.gz fallback, got ' + Plan.DownloadFile);
 end;
 
 procedure TestPreparePlanFailsForMissingTarget;

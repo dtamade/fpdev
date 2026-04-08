@@ -40,12 +40,19 @@ function TFPCShowCommand.Execute(const AParams: array of string; const Ctx: ICon
 var
   LVer: string;
   LMgr: TFPCManager;
+  LUnknownOption: string;
+  LPositionalCount: Integer;
 begin
   Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_SHOW_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_SHOW_DESC));
@@ -54,13 +61,27 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if FindUnknownOption(AParams, [], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LPositionalCount := CountPositionalArgs(AParams);
+  if LPositionalCount < 1 then
   begin
     Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
     Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
     Exit(EXIT_USAGE_ERROR);
   end;
-  LVer := AParams[0];
+
+  if LPositionalCount > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_SHOW_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LVer := GetPositionalArg(AParams, 0);
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     if not TVersionRegistry.Instance.IsFPCVersionValid(LVer) then

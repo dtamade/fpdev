@@ -6,6 +6,10 @@ unit libgit2;
 
 interface
 
+{$IFDEF DARWIN}
+{$linklib git2}
+{$ENDIF}
+
 uses
   SysUtils, ctypes;
 
@@ -324,6 +328,7 @@ function git_repository_is_empty(repo: git_repository): cint; cdecl; external LI
 function git_repository_path(repo: git_repository): PChar; cdecl; external LIBGIT2_LIB;
 function git_repository_workdir(repo: git_repository): PChar; cdecl; external LIBGIT2_LIB;
 function git_repository_set_head(repo: git_repository; const refname: PChar): cint; cdecl; external LIBGIT2_LIB;
+function git_repository_set_head_detached(repo: git_repository; const commitish: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 procedure git_repository_free(repo: git_repository); cdecl; external LIBGIT2_LIB;
 
 // Clone operations
@@ -366,6 +371,7 @@ procedure git_branch_iterator_free(iter: git_branch_iterator); cdecl; external L
 function git_object_lookup(out obj: git_object; repo: git_repository; const id: Pgit_oid; obj_type: git_object_t): cint; cdecl; external LIBGIT2_LIB;
 function git_object_id(obj: git_object): Pgit_oid; cdecl; external LIBGIT2_LIB;
 function git_object_type(obj: git_object): git_object_t; cdecl; external LIBGIT2_LIB;
+function git_object_peel(out peeled: git_object; obj: git_object; target_type: git_object_t): cint; cdecl; external LIBGIT2_LIB;
 procedure git_object_free(obj: git_object); cdecl; external LIBGIT2_LIB;
 function git_tree_lookup(out tree: git_tree; repo: git_repository; const id: Pgit_oid): cint; cdecl; external LIBGIT2_LIB;
 
@@ -410,6 +416,7 @@ const
   GIT_CHECKOUT_SAFE              = 0;        // Default safe checkout
   GIT_CHECKOUT_FORCE             = 1 shl 1;
   GIT_CHECKOUT_RECREATE_MISSING  = 1 shl 2;
+  GIT_CHECKOUT_REMOVE_UNTRACKED  = 1 shl 5;
   GIT_CHECKOUT_NONE              = 1 shl 30;
 
 

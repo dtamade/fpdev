@@ -4,7 +4,7 @@ program test_cache_stats;
 
 uses
   SysUtils, Classes, DateUtils,
-  fpdev.build.cache, fpdev.build.cache.types, fpdev.utils.fs;
+  fpdev.build.cache, fpdev.build.cache.types, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -24,28 +24,6 @@ begin
   end;
 end;
 
-function MakeTempDir(const APrefix: string): string;
-begin
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False))
-    + APrefix + '-' + IntToStr(GetTickCount64) + '-' + IntToStr(Random(10000));
-  ForceDirectories(Result);
-end;
-
-procedure AssertPathIsUnderSystemTemp(const APath, ATestName: string);
-begin
-  Assert(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(APath)) = 1,
-    ATestName
-  );
-end;
-
-procedure CleanupTestDir(const ADir: string);
-begin
-  if DirectoryExists(ADir) then
-    DeleteDirRecursive(ADir);
-end;
-
 procedure TestCleanupRemovesNestedDirectories;
 var
   CacheDir: string;
@@ -55,8 +33,8 @@ var
 begin
   WriteLn('=== TestCleanupRemovesNestedDirectories ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-cleanup');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Cache stats cleanup temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-cleanup');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Cache stats cleanup temp directory should live under system temp');
 
   NestedDir := IncludeTrailingPathDelimiter(CacheDir) + 'nested' + PathDelim + 'deep';
   NestedFile := IncludeTrailingPathDelimiter(NestedDir) + 'artifact.json';
@@ -70,7 +48,7 @@ begin
     TestData.Free;
   end;
 
-  CleanupTestDir(CacheDir);
+  CleanupTempDir(CacheDir);
   Assert(not DirectoryExists(CacheDir), 'Cleanup should remove nested cache stats test directory');
 end;
 
@@ -82,8 +60,8 @@ var
 begin
   WriteLn('=== TestAccessTracking ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-access');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Access tracking temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-access');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Access tracking temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -117,7 +95,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -129,8 +107,8 @@ var
 begin
   WriteLn('=== TestAccessPersistence ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-persist');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Access persistence temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-persist');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Access persistence temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -163,7 +141,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -176,8 +154,8 @@ var
 begin
   WriteLn('=== TestDetailedStats ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-detailed');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Detailed stats temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-detailed');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Detailed stats temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -233,7 +211,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -246,8 +224,8 @@ var
 begin
   WriteLn('=== TestLRUByAccess ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-lru');
-  AssertPathIsUnderSystemTemp(CacheDir, 'LRU temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-lru');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'LRU temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -299,7 +277,7 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
@@ -312,8 +290,8 @@ var
 begin
   WriteLn('=== TestStatsReport ===');
 
-  CacheDir := MakeTempDir('fpdev-test-cache-stats-report');
-  AssertPathIsUnderSystemTemp(CacheDir, 'Stats report temp directory should live under system temp');
+  CacheDir := CreateUniqueTempDir('fpdev-test-cache-stats-report');
+  Assert(PathUsesSystemTempRoot(CacheDir), 'Stats report temp directory should live under system temp');
 
   try
     Cache := TBuildCache.Create(CacheDir);
@@ -341,12 +319,11 @@ begin
       Cache.Free;
     end;
   finally
-    CleanupTestDir(CacheDir);
+    CleanupTempDir(CacheDir);
   end;
 end;
 
 begin
-  Randomize;
   WriteLn('Running Cache Statistics Tests...');
   WriteLn;
 

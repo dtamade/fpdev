@@ -6,8 +6,8 @@ uses
 {$IFDEF UNIX}
   cthreads,
 {$ENDIF}
-  SysUtils, test_pause_control, Classes,
-  fpdev.cross.cache, fpdev.hash, fpdev.utils.fs;
+  SysUtils, test_pause_control, Classes, test_temp_paths,
+  fpdev.cross.cache, fpdev.hash;
 
 type
   { TCrossCacheTest }
@@ -55,9 +55,7 @@ begin
   inherited Create;
   FTestsPassed := 0;
   FTestsFailed := 0;
-  FTestCacheDir := IncludeTrailingPathDelimiter(GetTempDir(False)) +
-    'fpdev_cache_test-' + IntToHex(PtrUInt(Self), SizeOf(Pointer) * 2) +
-    '-' + IntToStr(GetTickCount64) + PathDelim;
+  FTestCacheDir := IncludeTrailingPathDelimiter(CreateUniqueTempDir('fpdev_cache_test'));
   FTestDataDir := 'tests' + PathDelim + 'data' + PathDelim + 'cross' + PathDelim;
 end;
 
@@ -100,8 +98,7 @@ end;
 
 procedure TCrossCacheTest.CleanupTestEnvironment;
 begin
-  if DirectoryExists(FTestCacheDir) then
-    DeleteDirRecursive(FTestCacheDir);
+  CleanupTempDir(FTestCacheDir);
 end;
 
 function TCrossCacheTest.CreateTestFile(const APath, AContent: string): Boolean;
@@ -168,11 +165,8 @@ var
 begin
   WriteLn('TestCacheDirUsesSystemTempAndUniqueSuffix:');
 
-  AssertTrue(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(FTestCacheDir)) = 1,
-    'Cache directory should live under system temp'
-  );
+  AssertTrue(PathUsesSystemTempRoot(FTestCacheDir),
+    'Cache directory should live under system temp');
 
   Other := TCrossCacheTest.Create;
   try
@@ -218,8 +212,7 @@ begin
 
   AssertFalse(DirectoryExists(OtherDir), 'Cleanup should remove nested cache directories');
 
-  if DirectoryExists(OtherDir) then
-    DeleteDirRecursive(OtherDir);
+  CleanupTempDir(OtherDir);
   if not DirectoryExists(FTestCacheDir) then
     ForceDirectories(FTestCacheDir);
 

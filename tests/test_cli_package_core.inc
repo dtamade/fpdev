@@ -368,6 +368,19 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestSearchUnexpectedArg;
+var Cmd: TPackageSearchCmd; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TPackageSearchCmd.Create;
+  try
+    Ret := Cmd.Execute(['json', 'extra'], Ctx);
+    Check('search unexpected arg EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('search unexpected arg shows usage', StdErr.Contains('Usage: fpdev package search <query> [--json]'));
+    Check('search unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally Cmd.Free; end;
+end;
+
 procedure TestSearchNoResultsOutput;
 var Cmd: TPackageSearchCmd; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
@@ -378,6 +391,80 @@ begin
     Check('search no results EXIT_OK', Ret = EXIT_OK);
     Check('search no results shows message', StdOut.Contains('No packages found'));
   finally Cmd.Free; end;
+end;
+
+procedure TestSearchJsonUsesFPDEVDataRootRegistry;
+var
+  Cmd: TPackageSearchCmd;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ProbeRoot: string;
+  RegistryRoot: string;
+  IndexPath: string;
+  SavedDataRoot: string;
+  PackageName: string;
+  JSONData: TJSONData;
+  JSONObject: TJSONObject;
+  Results: TJSONArray;
+begin
+  ProbeRoot := CreateUniqueTempDir('fpdev_pkg_search_json_probe');
+  RegistryRoot := IncludeTrailingPathDelimiter(ProbeRoot) + 'registry';
+  IndexPath := RegistryRoot + PathDelim + 'index.json';
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  PackageName := 'pkg_search_json_fpdev_data_root_probe_zzx91';
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TPackageSearchCmd.Create;
+  JSONData := nil;
+  try
+    SetPortableMode(False);
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+    ForceDirectories(RegistryRoot);
+
+    SafeWriteAllText(
+      IndexPath,
+      '{' + LineEnding +
+      '  "version": "1.0",' + LineEnding +
+      '  "packages": {' + LineEnding +
+      '    "' + PackageName + '": {' + LineEnding +
+      '      "name": "' + PackageName + '",' + LineEnding +
+      '      "description": "FPDEV_DATA_ROOT registry probe",' + LineEnding +
+      '      "author": "fpdev-test",' + LineEnding +
+      '      "versions": ["1.0.0"],' + LineEnding +
+      '      "latest": "1.0.0"' + LineEnding +
+      '    }' + LineEnding +
+      '  }' + LineEnding +
+      '}'
+    );
+
+    Ret := Cmd.Execute([PackageName, '--json'], Ctx);
+    Check('search --json with FPDEV_DATA_ROOT registry EXIT_OK', Ret = EXIT_OK);
+
+    try
+      JSONData := GetJSON(StdOut.GetBuffer);
+      JSONObject := TJSONObject(JSONData);
+      Results := JSONObject.Arrays['results'];
+      Check('search --json uses FPDEV_DATA_ROOT registry query echo',
+        JSONObject.Get('query', '') = PackageName);
+      Check('search --json uses FPDEV_DATA_ROOT registry count',
+        JSONObject.Get('count', -1) = 1);
+      Check('search --json uses FPDEV_DATA_ROOT registry result item',
+        (Results <> nil) and (Results.Count = 1) and (Results.Strings[0] = PackageName));
+    except
+      on E: Exception do
+      begin
+        if JSONData <> nil then
+          FreeAndNil(JSONData);
+        Check('search --json returns valid JSON for FPDEV_DATA_ROOT registry probe', False);
+      end;
+    end;
+  finally
+    if JSONData <> nil then
+      JSONData.Free;
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+    Cmd.Free;
+  end;
 end;
 
 { ===== info ===== }

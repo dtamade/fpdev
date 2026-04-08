@@ -19,6 +19,7 @@ uses
   fpdev.help.details.system,
   fpdev.exitcodes,
   fpdev.index,
+  fpdev.paths,
   fpdev.system.view;
 
 procedure WriteIndexHelp(const Ctx: IContext);
@@ -35,13 +36,7 @@ var
   Line: string;
 begin
   Platform := GetPlatformIdentifier;
-  {$IFDEF MSWINDOWS}
-  CacheDir := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +
-              '.fpdev' + PathDelim + 'cache';
-  {$ELSE}
-  CacheDir := IncludeTrailingPathDelimiter(GetEnvironmentVariable('HOME')) +
-              '.fpdev' + PathDelim + 'cache';
-  {$ENDIF}
+  CacheDir := IncludeTrailingPathDelimiter(GetDataRoot) + 'cache';
   IndexFile := CacheDir + PathDelim + 'index.json';
   Lines := BuildSystemIndexStatusLinesCore(
     Platform,

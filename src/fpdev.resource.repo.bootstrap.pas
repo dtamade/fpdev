@@ -26,6 +26,9 @@ function SelectBestBootstrapVersionCore(
 
 implementation
 
+uses
+  fpdev.fpc.version;
+
 function GetHardcodedBootstrapMapping(const AFPCVersion: string): string;
 var
   NormVer: string;
@@ -213,6 +216,7 @@ var
   EffectiveRequiredVersion: string;
   ChainIdx: Integer;
   Index: Integer;
+  CompatibleVersion: string;
 begin
   Result := '';
   ALogLines := Default(SysUtils.TStringArray);
@@ -230,6 +234,30 @@ begin
      AHasBootstrapCompiler(EffectiveRequiredVersion, APlatform) then
     Exit(EffectiveRequiredVersion);
 
+  CompatibleVersion := '';
+  for Index := Low(AAvailableVersions) to High(AAvailableVersions) do
+  begin
+    if (not Assigned(AHasBootstrapCompiler)) or
+       (not AHasBootstrapCompiler(AAvailableVersions[Index], APlatform)) then
+      Continue;
+    if not SameMajorMinor(AAvailableVersions[Index], EffectiveRequiredVersion) then
+      Continue;
+    if CompareSemVer(AAvailableVersions[Index], EffectiveRequiredVersion) < 0 then
+      Continue;
+    if (CompatibleVersion = '') or
+       (CompareSemVer(AAvailableVersions[Index], CompatibleVersion) > 0) then
+      CompatibleVersion := AAvailableVersions[Index];
+  end;
+  if CompatibleVersion <> '' then
+  begin
+    AddBootstrapLogLine(ALogLines,
+      Format('Note: Using bootstrap %s instead of %s (compatible same-series alternative)', [
+        CompatibleVersion,
+        EffectiveRequiredVersion
+      ]));
+    Exit(CompatibleVersion);
+  end;
+
   ChainIdx := -1;
   for Index := Low(BOOTSTRAP_FALLBACK_CHAIN) to High(BOOTSTRAP_FALLBACK_CHAIN) do
   begin
@@ -242,7 +270,7 @@ begin
   if ChainIdx < 0 then
     ChainIdx := 0;
 
-  for Index := ChainIdx to High(BOOTSTRAP_FALLBACK_CHAIN) do
+  for Index := ChainIdx + 1 to High(BOOTSTRAP_FALLBACK_CHAIN) do
   begin
     if Assigned(AHasBootstrapCompiler) and
        AHasBootstrapCompiler(BOOTSTRAP_FALLBACK_CHAIN[Index], APlatform) then
@@ -257,22 +285,11 @@ begin
     end;
   end;
 
-  for Index := Low(AAvailableVersions) to High(AAvailableVersions) do
-  begin
-    if Assigned(AHasBootstrapCompiler) and
-       AHasBootstrapCompiler(AAvailableVersions[Index], APlatform) then
-    begin
-      AddBootstrapLogLine(ALogLines,
-        Format('Warning: Using bootstrap %s (only available version for platform %s)', [
-          AAvailableVersions[Index],
-          APlatform
-        ]));
-      Exit(AAvailableVersions[Index]);
-    end;
-  end;
-
   AddBootstrapLogLine(ALogLines,
-    Format('Error: No bootstrap compiler available for platform %s', [APlatform]));
+    Format('Error: No compatible bootstrap compiler available for platform %s (required %s)', [
+      APlatform,
+      EffectiveRequiredVersion
+    ]));
 end;
 
 end.

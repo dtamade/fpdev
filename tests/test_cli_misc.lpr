@@ -23,6 +23,7 @@ uses
   fpdev.cli.global,
   fpdev.exitcodes,
   fpdev.paths,
+  fpdev.utils,
   fpdev.cmd.config,
   fpdev.cmd.config.show,
   fpdev.cmd.config.get,
@@ -69,6 +70,14 @@ begin
   SetLength(Result, Length(AValues));
   for I := 0 to High(AValues) do
     Result[I] := AValues[I];
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 {$I test_cli_internal.inc}
@@ -186,6 +195,20 @@ begin
     Ret := Cmd.Execute(['--help'], Ctx);
     Check('config list --help EXIT_OK', Ret = EXIT_OK);
     Check('config list --help shows --fpc', StdOut.Contains('fpc'));
+  finally Cmd.Free; end;
+end;
+
+procedure TestConfigListHelpRejectsExtraOption;
+var Cmd: TConfigListCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TConfigListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', '--fpc'], Ctx);
+    Check('config list --help with extra option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('config list --help with extra option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+    Check('config list --help with extra option writes usage to stderr',
+      Pos('Usage: fpdev system config list [options]', StdErr.GetBuffer) > 0);
   finally Cmd.Free; end;
 end;
 
@@ -795,6 +818,20 @@ begin
   finally Cmd.Free; end;
 end;
 
+procedure TestDoctorHelpRejectsExtraOption;
+var Cmd: TDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TDoctorCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', '--quick'], Ctx);
+    Check('doctor --help with extra option EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('doctor --help with extra option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+    Check('doctor --help with extra option writes usage to stderr',
+      Pos('Usage: fpdev system doctor', StdErr.GetBuffer) > 0);
+  finally Cmd.Free; end;
+end;
+
 procedure TestDoctorNoArgs;
 var Cmd: TDoctorCommand; StdOut, StdErr: TStringOutput; Ctx: IContext; Ret: Integer;
 begin
@@ -804,6 +841,141 @@ begin
     Ret := Cmd.Execute([], Ctx);
     Check('doctor no args returns valid code', Ret >= 0);
   finally Cmd.Free; end;
+end;
+
+procedure TestDoctorUsesSameProcessEnvOverride;
+var
+  Cmd: TDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ProbeDir: string;
+  SavedFPCDir, SavedPP: string;
+begin
+  ProbeDir := CreateUniqueTempDir('fpdev_doctor_env_probe');
+  SavedFPCDir := get_env('FPCDIR');
+  SavedPP := get_env('PP');
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TDoctorCommand.Create;
+  try
+    set_env('FPCDIR', ProbeDir);
+    set_env('PP', 'ppc-same-process-probe');
+
+    Ret := Cmd.Execute(['--quick'], Ctx);
+    Check('doctor --quick with same-process env override returns valid code', Ret >= 0);
+    Check('doctor sees same-process FPCDIR override',
+      StdOut.Contains('FPCDIR: ' + ProbeDir));
+    Check('doctor sees same-process PP warning',
+      StdOut.Contains('PP environment variable is set'));
+  finally
+    RestoreEnv('FPCDIR', SavedFPCDir);
+    RestoreEnv('PP', SavedPP);
+    CleanupTempDir(ProbeDir);
+    Cmd.Free;
+  end;
+end;
+
+procedure TestDoctorUsesSameProcessHomeForConfigAndInstallPaths;
+var
+  Cmd: TDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ProbeBaseDir: string;
+  ProbeInstallRoot: string;
+  ProbeConfigPath: string;
+  SavedHome, SavedAppData: string;
+  SavedDataRoot, SavedXDGDataHome: string;
+  Settings: TFPDevSettings;
+begin
+  ProbeBaseDir := CreateUniqueTempDir('fpdev_doctor_home_probe');
+  SavedHome := get_env('HOME');
+  SavedAppData := get_env('APPDATA');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TDoctorCommand.Create;
+  try
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := '';
+    if not Ctx.Config.GetSettingsManager.SetSettings(Settings) then
+    begin
+      Check('doctor same-process HOME setup clears install root', False);
+      Exit;
+    end;
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+
+    {$IFDEF MSWINDOWS}
+    ProbeInstallRoot := ProbeBaseDir + PathDelim + '.fpdev';
+    ProbeConfigPath := ProbeInstallRoot + PathDelim + 'config.json';
+    set_env('APPDATA', ProbeBaseDir);
+    {$ELSE}
+    ProbeInstallRoot := ProbeBaseDir + PathDelim + '.fpdev';
+    ProbeConfigPath := ProbeInstallRoot + PathDelim + 'config.json';
+    set_env('HOME', ProbeBaseDir);
+    {$ENDIF}
+    ForceDirectories(ExtractFileDir(ProbeConfigPath));
+    SafeWriteAllText(ProbeConfigPath, '{}');
+
+    Ret := Cmd.Execute([], Ctx);
+    Check('doctor full run with same-process HOME/APPDATA override returns valid code', Ret >= 0);
+    Check('doctor sees same-process global config path override',
+      StdOut.Contains('Global config: ' + ProbeConfigPath));
+    Check('doctor sees same-process install root override',
+      StdOut.Contains('Install directory exists: ' + ProbeInstallRoot));
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    RestoreEnv('HOME', SavedHome);
+    RestoreEnv('APPDATA', SavedAppData);
+    CleanupTempDir(ProbeBaseDir);
+    Cmd.Free;
+  end;
+end;
+
+procedure TestDoctorUsesFPDEVDataRootForConfigAndInstallPaths;
+var
+  Cmd: TDoctorCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  ProbeRoot: string;
+  ProbeConfigPath: string;
+  SavedDataRoot: string;
+  Settings: TFPDevSettings;
+begin
+  ProbeRoot := CreateUniqueTempDir('fpdev_doctor_data_root_probe');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TDoctorCommand.Create;
+  try
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := '';
+    if not Ctx.Config.GetSettingsManager.SetSettings(Settings) then
+    begin
+      Check('doctor FPDEV_DATA_ROOT setup clears install root', False);
+      Exit;
+    end;
+
+    SetPortableMode(False);
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+    ProbeConfigPath := IncludeTrailingPathDelimiter(ProbeRoot) + 'config.json';
+    ForceDirectories(ProbeRoot);
+    SafeWriteAllText(ProbeConfigPath, '{}');
+
+    Ret := Cmd.Execute([], Ctx);
+    Check('doctor full run with FPDEV_DATA_ROOT override returns valid code', Ret >= 0);
+    Check('doctor sees FPDEV_DATA_ROOT global config path override',
+      StdOut.Contains('Global config: ' + ProbeConfigPath));
+    Check('doctor sees FPDEV_DATA_ROOT install root override',
+      StdOut.Contains('Install directory exists: ' + ProbeRoot));
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+    Cmd.Free;
+  end;
 end;
 
 { ===== index ===== }
@@ -1155,12 +1327,13 @@ begin
     TestConfigSetInvalidMirror;
 
     WriteLn('');
-    WriteLn('--- config list ---');
-    TestConfigListName;
-    TestConfigListAlias;
-    TestConfigListHelp;
-    TestConfigListNoArgs;
-    TestConfigListUnknownOption;
+  WriteLn('--- config list ---');
+  TestConfigListName;
+  TestConfigListAlias;
+  TestConfigListHelp;
+  TestConfigListHelpRejectsExtraOption;
+  TestConfigListNoArgs;
+  TestConfigListUnknownOption;
 
     WriteLn('');
     WriteLn('--- repo list ---');
@@ -1237,10 +1410,14 @@ begin
     TestSystemToolchainImportBundleUsageError;
 
     WriteLn('');
-    WriteLn('--- doctor ---');
-    TestDoctorName;
-    TestDoctorHelp;
-    TestDoctorNoArgs;
+  WriteLn('--- doctor ---');
+  TestDoctorName;
+  TestDoctorHelp;
+  TestDoctorHelpRejectsExtraOption;
+  TestDoctorNoArgs;
+  TestDoctorUsesSameProcessEnvOverride;
+    TestDoctorUsesSameProcessHomeForConfigAndInstallPaths;
+    TestDoctorUsesFPDEVDataRootForConfigAndInstallPaths;
 
     WriteLn('');
     WriteLn('--- index ---');

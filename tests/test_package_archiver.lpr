@@ -218,7 +218,7 @@ var
   Archiver: TPackageArchiver;
   Files: TStringList;
   I: Integer;
-  HasTmpFile: Boolean;
+  HasIgnoredSourceFile: Boolean;
 begin
   WriteLn;
   WriteLn('=== Test: Exclude Files With .fpdevignore ===');
@@ -229,25 +229,29 @@ begin
 
   // Create package files with .fpdevignore directly in root (non-recursive test)
   CreateTestFile('mylib.pas', 'unit mylib;');
-  CreateTestFile('test.tmp', 'temporary file');
-  CreateTestFile('.fpdevignore', '*.tmp' + LineEnding + 'bin/' + LineEnding + 'lib/');
+  CreateTestFile('test.tmp.pas', 'unit testtmp;');
+  CreateTestFile('.fpdevignore', '*.tmp.pas' + LineEnding + 'bin/' + LineEnding + 'lib/');
 
   Archiver := TPackageArchiver.Create(FTestDataDir);
   try
     Files := Archiver.DetectSourceFiles(False);
     try
-      // Check that .tmp file is not in the list
-      HasTmpFile := False;
+      HasIgnoredSourceFile := False;
       for I := 0 to Files.Count - 1 do
       begin
-        if Pos('.tmp', Files[I]) > 0 then
+        if SameText(ExtractFileName(Files[I]), 'test.tmp.pas') then
         begin
-          HasTmpFile := True;
+          HasIgnoredSourceFile := True;
           Break;
         end;
       end;
-      AssertTrue(not HasTmpFile, 'Should exclude .tmp files from file list');
-      AssertEqualsInt(1, Files.Count, 'Should only detect mylib.pas (not test.tmp)');
+      AssertTrue(not HasIgnoredSourceFile,
+        'Should exclude ignored Pascal source files from file list');
+      AssertEqualsInt(1, Files.Count,
+        'Should only detect mylib.pas (not test.tmp.pas)');
+      if Files.Count = 1 then
+        AssertEquals('mylib.pas', ExtractFileName(Files[0]),
+          'Remaining source file should be mylib.pas');
     finally
       Files.Free;
     end;

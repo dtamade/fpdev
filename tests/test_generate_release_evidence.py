@@ -20,16 +20,13 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
         ]
         path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-    def test_script_generates_markdown_evidence_summary(self):
+    def test_script_generates_markdown_evidence_summary_without_optional_install_lane(self):
         with tempfile.TemporaryDirectory(prefix='fpdev-release-evidence-') as tmp:
             root = Path(tmp)
             logs_root = root / 'logs' / 'release_acceptance'
             baseline_dir = logs_root / '20260325_204342'
-            install_dir = logs_root / '20260325_205542'
             baseline_dir.mkdir(parents=True)
-            install_dir.mkdir(parents=True)
             self.write_summary(baseline_dir / 'summary.txt', 0, ['toolchain_check: pass'])
-            self.write_summary(install_dir / 'summary.txt', 1, ['fpc_install_322: pass'])
 
             asset_dir = root / 'dist'
             asset_dir.mkdir()
@@ -56,8 +53,6 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
                     str(SCRIPT),
                     '--baseline-summary',
                     str(baseline_dir / 'summary.txt'),
-                    '--install-summary',
-                    str(install_dir / 'summary.txt'),
                     '--asset-dir',
                     str(asset_dir),
                     '--owner-proof-dir',
@@ -76,12 +71,15 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
             self.assertIn('Linux automated acceptance', text)
             self.assertIn('20260325_204342/summary.txt', text)
             self.assertIn('Linux isolated install lane', text)
-            self.assertIn('20260325_205542/summary.txt', text)
+            self.assertIn('status: not recorded (optional)', text)
+            self.assertIn('summary: `not provided`', text)
             self.assertIn('## Release Assets', text)
             self.assertIn('fpdev-linux-x64.tar.gz', text)
             self.assertIn('fpdev-windows-x64.zip', text)
             self.assertIn('## Owner Ledger', text)
-            self.assertIn('Windows x64 asset smoke | pending', text)
+            self.assertIn('Windows x64 asset smoke | pass |', text)
+            self.assertIn('macOS x64 asset smoke | pending |', text)
+            self.assertIn('macOS arm64 asset smoke | pending |', text)
             self.assertIn('## Owner Evidence Files', text)
             self.assertIn('windows-x64-owner-smoke.txt', text)
             self.assertIn('macos-x64-owner-smoke.txt', text)
@@ -89,6 +87,8 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
             self.assertIn('found', text)
             self.assertIn('missing', text)
             self.assertIn('SHA256SUMS.txt', completed.stdout)
+            self.assertIn('fpdev-windows-x64.zip', text)
+            self.assertIn('fpdev-macos-x64.tar.gz', text)
 
     def test_script_requires_existing_summary_inputs(self):
         with tempfile.TemporaryDirectory(prefix='fpdev-release-evidence-missing-') as tmp:
@@ -112,6 +112,60 @@ class GenerateReleaseEvidenceTests(unittest.TestCase):
 
             self.assertNotEqual(0, completed.returncode)
             self.assertIn('Summary file does not exist', completed.stderr)
+
+    def test_script_marks_owner_ledger_pass_when_transcript_and_checksum_are_both_present(self):
+        with tempfile.TemporaryDirectory(prefix='fpdev-release-evidence-install-') as tmp:
+            root = Path(tmp)
+            logs_root = root / 'logs' / 'release_acceptance'
+            baseline_dir = logs_root / '20260407_181536'
+            install_dir = logs_root / '20260407_190101'
+            baseline_dir.mkdir(parents=True)
+            install_dir.mkdir(parents=True)
+            self.write_summary(baseline_dir / 'summary.txt', 0, ['toolchain_check: pass'])
+            self.write_summary(install_dir / 'summary.txt', 1, ['fpc_install_322: pass'])
+
+            asset_dir = root / 'dist'
+            asset_dir.mkdir()
+            (asset_dir / 'SHA256SUMS.txt').write_text(
+                'aaa  fpdev-linux-x64.tar.gz\n'
+                'bbb  fpdev-windows-x64.zip\n'
+                'ccc  fpdev-macos-x64.tar.gz\n'
+                'ddd  fpdev-macos-arm64.tar.gz\n',
+                encoding='utf-8',
+            )
+            owner_proof_dir = root / 'owner-proof'
+            owner_proof_dir.mkdir()
+            (owner_proof_dir / 'windows-x64-owner-smoke.txt').write_text('ok\n', encoding='utf-8')
+            (owner_proof_dir / 'macos-x64-owner-smoke.txt').write_text('ok\n', encoding='utf-8')
+            (owner_proof_dir / 'macos-arm64-owner-smoke.txt').write_text('ok\n', encoding='utf-8')
+
+            output = root / 'RELEASE_EVIDENCE.md'
+            subprocess.run(
+                [
+                    'python3',
+                    str(SCRIPT),
+                    '--baseline-summary',
+                    str(baseline_dir / 'summary.txt'),
+                    '--install-summary',
+                    str(install_dir / 'summary.txt'),
+                    '--asset-dir',
+                    str(asset_dir),
+                    '--owner-proof-dir',
+                    str(owner_proof_dir),
+                    '--output',
+                    str(output),
+                ],
+                cwd=REPO_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+
+            text = output.read_text(encoding='utf-8')
+            self.assertIn('20260407_190101/summary.txt', text)
+            self.assertIn('Windows x64 asset smoke | pass |', text)
+            self.assertIn('macOS x64 asset smoke | pass |', text)
+            self.assertIn('macOS arm64 asset smoke | pass |', text)
 
 
 if __name__ == '__main__':

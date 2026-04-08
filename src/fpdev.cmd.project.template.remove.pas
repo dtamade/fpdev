@@ -8,7 +8,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
+  fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
   fpdev.exitcodes;
 
 type
@@ -41,6 +41,7 @@ function TProjectTemplateRemoveCommand.Execute(const AParams: array of string; c
 var
   LName: string;
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -58,10 +59,22 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev project template remove <name>');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) < 1 then
     Exit(MissingArgError(Ctx, 'name', 'Usage: fpdev project template remove <name>'));
 
-  LName := AParams[0];
+  if CountPositionalArgs(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev project template remove <name>');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LName := GetPositionalArg(AParams, 0);
   LMgr := TProjectManager.Create(Ctx.Config);
   try
     if LMgr.RemoveTemplate(Ctx.Out, Ctx.Err, LName) then

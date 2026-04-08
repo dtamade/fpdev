@@ -7,9 +7,12 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.cross.manager,
+  fpdev.cross.search,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
+  TCrossToolchainSearchFactory = function: TCrossToolchainSearch;
+
   TCrossConfigureCommand = class(TInterfacedObject, ICommand)
   public
     function Name: string;
@@ -18,11 +21,14 @@ type
     function Execute(const AParams: array of string; const Ctx: IContext): Integer;
   end;
 
+var
+  CrossToolchainSearchFactory: TCrossToolchainSearchFactory;
+
 implementation
 
 uses fpdev.command.utils,
-  fpdev.cross.search,
-  fpdev.config.interfaces;
+  fpdev.config.interfaces,
+  fpdev.cross.targets;
 
 function TCrossConfigureCommand.Name: string; begin Result := 'configure'; end;
 function TCrossConfigureCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -33,16 +39,27 @@ begin
   Result := TCrossConfigureCommand.Create;
 end;
 
-function ParseTargetForSearch(const ATarget: string; out ACPU, AOS: string): Boolean;
+function ResolveSearchTarget(const ATarget: string; out ASearchTarget: TCrossTarget): Boolean;
 var
-  P: Integer;
+  Registry: TCrossTargetRegistry;
+  TargetDef: TCrossTargetDef;
 begin
-  Result := False;
-  P := Pos('-', ATarget);
-  if P < 2 then Exit;
-  ACPU := Copy(ATarget, 1, P - 1);
-  AOS := Copy(ATarget, P + 1, Length(ATarget));
-  Result := (ACPU <> '') and (AOS <> '');
+  ASearchTarget := Default(TCrossTarget);
+  Registry := TCrossTargetRegistry.Create;
+  try
+    Registry.LoadBuiltinTargets;
+    Result := Registry.GetTarget(ATarget, TargetDef);
+    if Result then
+    begin
+      ASearchTarget.CPU := TargetDef.CPU;
+      ASearchTarget.OS := TargetDef.OS;
+      ASearchTarget.SubArch := TargetDef.SubArch;
+      ASearchTarget.ABI := TargetDef.ABI;
+      ASearchTarget.BinutilsPrefix := TargetDef.BinutilsPrefix;
+    end;
+  finally
+    Registry.Free;
+  end;
 end;
 
 function TCrossConfigureCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
@@ -50,12 +67,11 @@ var
   LTarget: string;
   LBinutils, LLibraries: string;
   LMgr: TCrossCompilerManager;
-  LAutoDetect: Boolean;
+  LAutoDetect, HasBinutils, HasLibraries: Boolean;
   Search: TCrossToolchainSearch;
   SearchTarget: TCrossTarget;
   BinResult: TCrossSearchResult;
   LibPaths: TStringArray;
-  CPU, OS: string;
   I, LPositionalCount: Integer;
   LParam, LParamLower: string;
 begin
@@ -115,60 +131,65 @@ begin
   if LPositionalCount < 1 then
     Exit(MissingArgError(Ctx, 'target', _(HELP_CROSS_CONFIGURE_USAGE)));
 
+  if not ResolveSearchTarget(LTarget, SearchTarget) then
+  begin
+    Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_CROSS_TARGET_UNSUPPORTED, [LTarget]));
+    Exit(EXIT_ERROR);
+  end;
+
   LBinutils := '';
   LLibraries := '';
-  GetFlagValue(AParams, 'binutils', LBinutils);
-  GetFlagValue(AParams, 'libraries', LLibraries);
+  HasBinutils := GetFlagValue(AParams, 'binutils', LBinutils);
+  if HasBinutils and (LBinutils = '') then
+    Exit(MissingArgError(Ctx, '--binutils', _(HELP_CROSS_CONFIGURE_USAGE)));
+  HasLibraries := GetFlagValue(AParams, 'libraries', LLibraries);
+  if HasLibraries and (LLibraries = '') then
+    Exit(MissingArgError(Ctx, '--libraries', _(HELP_CROSS_CONFIGURE_USAGE)));
   LAutoDetect := HasFlag(AParams, 'auto');
 
-  // Auto-detect missing paths using search engine
-  if LAutoDetect or (LBinutils = '') or (LLibraries = '') then
+  // Only explicit --auto may fill missing paths; otherwise missing args stay usage errors.
+  if LAutoDetect then
   begin
-    if ParseTargetForSearch(LTarget, CPU, OS) then
-    begin
+    if Assigned(CrossToolchainSearchFactory) then
+      Search := CrossToolchainSearchFactory()
+    else
       Search := TCrossToolchainSearch.Create;
-      try
-        SearchTarget := Default(TCrossTarget);
-        SearchTarget.CPU := CPU;
-        SearchTarget.OS := OS;
-
-        // Auto-detect binutils path
-        if LBinutils = '' then
+    try
+      // Search uses registry metadata so target support is decided before autodetect.
+      if LBinutils = '' then
+      begin
+        BinResult := Search.SearchBinutils(SearchTarget);
+        if BinResult.Found then
         begin
-          BinResult := Search.SearchBinutils(SearchTarget);
-          if BinResult.Found then
-          begin
-            LBinutils := BinResult.BinutilsPath;
-            Ctx.Out.WriteLn('Auto-detected binutils: ' + LBinutils +
-              ' (prefix: ' + BinResult.BinutilsPrefix + ', layer: ' + BinResult.LayerName + ')');
-          end
-          else if LAutoDetect then
-          begin
-            Ctx.Err.WriteLn('Error: could not auto-detect binutils for ' + LTarget);
-            Ctx.Err.WriteLn('Install cross-compilation tools or use --binutils=<path>');
-            Exit(EXIT_ERROR);
-          end;
-        end;
-
-        // Auto-detect libraries path
-        if LLibraries = '' then
+          LBinutils := BinResult.BinutilsPath;
+          Ctx.Out.WriteLn('Auto-detected binutils: ' + LBinutils +
+            ' (prefix: ' + BinResult.BinutilsPrefix + ', layer: ' + BinResult.LayerName + ')');
+        end
+        else if LAutoDetect then
         begin
-          LibPaths := Search.SearchLibraries(SearchTarget);
-          if Length(LibPaths) > 0 then
-          begin
-            LLibraries := LibPaths[0];
-            Ctx.Out.WriteLn('Auto-detected libraries: ' + LLibraries);
-          end
-          else if LAutoDetect then
-          begin
-            Ctx.Err.WriteLn('Error: could not auto-detect libraries for ' + LTarget);
-            Ctx.Err.WriteLn('Install target libraries or use --libraries=<path>');
-            Exit(EXIT_ERROR);
-          end;
+          Ctx.Err.WriteLn('Error: could not auto-detect binutils for ' + LTarget);
+          Ctx.Err.WriteLn('Install cross-compilation tools or use --binutils=<path>');
+          Exit(EXIT_ERROR);
         end;
-      finally
-        Search.Free;
       end;
+
+      if LLibraries = '' then
+      begin
+        LibPaths := Search.SearchLibraries(SearchTarget);
+        if Length(LibPaths) > 0 then
+        begin
+          LLibraries := LibPaths[0];
+          Ctx.Out.WriteLn('Auto-detected libraries: ' + LLibraries);
+        end
+        else if LAutoDetect then
+        begin
+          Ctx.Err.WriteLn('Error: could not auto-detect libraries for ' + LTarget);
+          Ctx.Err.WriteLn('Install target libraries or use --libraries=<path>');
+          Exit(EXIT_ERROR);
+        end;
+      end;
+    finally
+      Search.Free;
     end;
   end;
 

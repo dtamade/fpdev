@@ -5,7 +5,8 @@ program test_binary_installer_unit;
 { Unit tests for TBinaryInstaller class in fpdev.fpc.binary }
 
 uses
-  SysUtils, Classes, fpdev.fpc.binary, test_temp_paths;
+  SysUtils, Classes, fpdev.build.cache, fpdev.fpc.binary, fpdev.paths,
+  fpdev.platform, fpdev.utils, test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -23,6 +24,14 @@ begin
     WriteLn('[FAIL] ', ATestName);
     Inc(TestsFailed);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 procedure TestCreateDestroy;
@@ -116,6 +125,58 @@ begin
   end;
 end;
 
+procedure TestIsCachedUsesFPDEVDataRootCache;
+var
+  Installer: TBinaryInstaller;
+  Cache: TBuildCache;
+  ProbeRoot: string;
+  ArchivePath: string;
+  SavedDataRoot: string;
+  ProbeVersion: string;
+  CacheKey: string;
+  Platform: TPlatformInfo;
+  ArchiveContent: TStringList;
+begin
+  WriteLn('');
+  WriteLn('=== Test 5: IsCached Uses FPDEV_DATA_ROOT Cache ===');
+
+  ProbeRoot := CreateUniqueTempDir('test_binary_installer_data_root');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  ProbeVersion := '9.9.9-data-root-probe';
+  try
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    ArchivePath := ProbeRoot + PathDelim + 'probe-binary.tar.gz';
+    ArchiveContent := TStringList.Create;
+    try
+      ArchiveContent.Add('binary cache probe');
+      ArchiveContent.SaveToFile(ArchivePath);
+    finally
+      ArchiveContent.Free;
+    end;
+
+    Cache := TBuildCache.Create(GetCacheDir);
+    try
+      Platform := DetectPlatform;
+      CacheKey := 'fpc-' + ProbeVersion + '-' + Platform.ToString;
+      Cache.SaveBinaryArtifact(CacheKey, ArchivePath);
+    finally
+      Cache.Free;
+    end;
+
+    Installer := TBinaryInstaller.Create;
+    try
+      Check('Installer sees cached version under FPDEV_DATA_ROOT',
+        Installer.IsCached(ProbeVersion));
+    finally
+      Installer.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
 procedure TestOfflineModeBlocking;
 var
   Installer: TBinaryInstaller;
@@ -123,7 +184,7 @@ var
   TempRoot: string;
 begin
   WriteLn('');
-  WriteLn('=== Test 5: Offline Mode Blocking ===');
+  WriteLn('=== Test 6: Offline Mode Blocking ===');
 
   TempRoot := CreateUniqueTempDir('test_binary_installer_offline');
   Installer := TBinaryInstaller.Create;
@@ -146,7 +207,7 @@ var
   Inst1, Inst2: TBinaryInstaller;
 begin
   WriteLn('');
-  WriteLn('=== Test 6: Multiple Instances ===');
+  WriteLn('=== Test 7: Multiple Instances ===');
 
   Inst1 := TBinaryInstaller.Create;
   try
@@ -175,7 +236,7 @@ var
   Installer: TBinaryInstaller;
 begin
   WriteLn('');
-  WriteLn('=== Test 7: GetLastError ===');
+  WriteLn('=== Test 8: GetLastError ===');
 
   Installer := TBinaryInstaller.Create;
   try
@@ -201,6 +262,7 @@ begin
   TestDefaultProperties;
   TestPropertySetters;
   TestIsCached;
+  TestIsCachedUsesFPDEVDataRootCache;
   TestOfflineModeBlocking;
   TestMultipleInstances;
   TestGetLastError;

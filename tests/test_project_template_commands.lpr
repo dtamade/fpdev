@@ -10,16 +10,26 @@ uses
   SysUtils, Classes,
   fpdev.command.intf,
   fpdev.command.registry,
+  fpdev.config.interfaces,
+  fpdev.paths,
+  fpdev.exitcodes,
   fpdev.cmd.project.root,
   fpdev.cmd.project.template.root,
   fpdev.cmd.project.template.list,
   fpdev.cmd.project.template.install,
   fpdev.cmd.project.template.remove,
-  fpdev.cmd.project.template.update;
+  fpdev.cmd.project.template.update,
+  fpdev.utils,
+  fpdev.utils.process,
+  test_cli_helpers,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+  GTempDir: string = '';
+  GTemplateUpdateDataRoot: string = '';
+  GSavedDataRoot: string = '';
 
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
@@ -45,6 +55,91 @@ begin
   for i := Low(Children) to High(Children) do
     if LowerCase(Children[i]) = LowerCase(AName) then
       Exit(True);
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
+procedure WriteTextFile(const APath, AContent: string);
+var
+  Lines: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  Lines := TStringList.Create;
+  try
+    Lines.Text := AContent;
+    Lines.SaveToFile(APath);
+  finally
+    Lines.Free;
+  end;
+end;
+
+function RunCommandInDir(const AProgram: string; const AArgs: array of string;
+  const AWorkDir: string): Boolean;
+var
+  ProcResult: TProcessResult;
+begin
+  ProcResult := TProcessExecutor.Execute(AProgram, AArgs, AWorkDir);
+  Result := ProcResult.Success and (ProcResult.ExitCode = 0);
+  if not Result then
+  begin
+    WriteLn('[CMD FAIL] ', AProgram, ' in ', AWorkDir);
+    if ProcResult.StdOut <> '' then
+      WriteLn('stdout: ', ProcResult.StdOut);
+    if ProcResult.StdErr <> '' then
+      WriteLn('stderr: ', ProcResult.StdErr);
+    if ProcResult.ErrorMessage <> '' then
+      WriteLn('error: ', ProcResult.ErrorMessage);
+  end;
+end;
+
+function CommitAll(const ARepoDir, AMessage: string): Boolean;
+begin
+  Result :=
+    RunCommandInDir('git', ['add', '-A'], ARepoDir) and
+    RunCommandInDir('git', ['commit', '-m', AMessage], ARepoDir);
+end;
+
+function SetInstallRoot(const Ctx: IContext; const AInstallRoot: string): Boolean;
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := AInstallRoot;
+  Result := Ctx.Config.GetSettingsManager.SetSettings(Settings);
+end;
+
+procedure SetupLocalTemplateUpdateRepo;
+var
+  RepoDir, TemplatesDir: string;
+begin
+  GSavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  GTemplateUpdateDataRoot := CreateUniqueTempDir('fpdev_test_project_template_update_data');
+  SetPortableMode(False);
+  set_env('FPDEV_DATA_ROOT', GTemplateUpdateDataRoot);
+
+  RepoDir := IncludeTrailingPathDelimiter(GTemplateUpdateDataRoot) + 'resources';
+  TemplatesDir := RepoDir + PathDelim + 'templates';
+  ForceDirectories(TemplatesDir);
+  WriteTextFile(RepoDir + PathDelim + 'manifest.json', '{"version":"1.0.0"}');
+
+  if not RunCommandInDir('git', ['init'], RepoDir) then
+    raise Exception.Create('Failed to initialize local template update repo');
+  if not RunCommandInDir('git', ['config', 'user.email', 'test@example.invalid'], RepoDir) then
+    raise Exception.Create('Failed to configure template update repo email');
+  if not RunCommandInDir('git', ['config', 'user.name', 'FPDev Test'], RepoDir) then
+    raise Exception.Create('Failed to configure template update repo user');
+  if not RunCommandInDir('git', ['add', 'manifest.json'], RepoDir) then
+    raise Exception.Create('Failed to stage template update manifest');
+  if not RunCommandInDir('git', ['commit', '-m', 'initial'], RepoDir) then
+    raise Exception.Create('Failed to commit template update manifest');
+  if not RunCommandInDir('git', ['branch', '-M', 'main'], RepoDir) then
+    raise Exception.Create('Failed to rename template update branch');
 end;
 
 { --- Root Registration Tests --- }
@@ -158,9 +253,219 @@ begin
   Check(Cmd.FindSub('anything') = nil, 'template install: FindSub returns nil');
 end;
 
+{ --- Direct CLI Contract Tests --- }
+
+procedure TestListUnexpectedArg;
+var
+  Cmd: TProjectTemplateListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateListCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template list unexpected arg EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template list unexpected arg keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template list'),
+      'template list unexpected arg shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestListUnknownOption;
+var
+  Cmd: TProjectTemplateListCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateListCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template list unknown option EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template list unknown option keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template list'),
+      'template list unknown option shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallUnexpectedArg;
+var
+  Cmd: TProjectTemplateInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_template_path', 'extra'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template install unexpected arg EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template install unexpected arg keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template install <path>'),
+      'template install unexpected arg shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestInstallUnknownOption;
+var
+  Cmd: TProjectTemplateInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template install unknown option EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template install unknown option keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template install <path>'),
+      'template install unknown option shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestRemoveUnexpectedArg;
+var
+  Cmd: TProjectTemplateRemoveCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateRemoveCommand.Create;
+  try
+    Ret := Cmd.Execute(['missing_template_name', 'extra'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template remove unexpected arg EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template remove unexpected arg keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template remove <name>'),
+      'template remove unexpected arg shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestRemoveUnknownOption;
+var
+  Cmd: TProjectTemplateRemoveCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateRemoveCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template remove unknown option EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template remove unknown option keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template remove <name>'),
+      'template remove unknown option shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateUnexpectedArg;
+var
+  Cmd: TProjectTemplateUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['extra'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template update unexpected arg EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template update unexpected arg keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template update'),
+      'template update unexpected arg shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateUnknownOption;
+var
+  Cmd: TProjectTemplateUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TProjectTemplateUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute(['--unknown'], Ctx);
+    Check(Ret = EXIT_USAGE_ERROR, 'template update unknown option EXIT_USAGE_ERROR');
+    Check(Trim(StdOut.GetBuffer) = '', 'template update unknown option keeps stdout empty');
+    Check(StdErr.Contains('Usage: fpdev project template update'),
+      'template update unknown option shows usage');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestUpdateCopiesTemplatesFromLocalResourceRepo;
+var
+  Cmd: TProjectTemplateUpdateCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  RepoDir, TemplateDir, InstallRoot: string;
+  TemplateMetaDest, NestedDest: string;
+begin
+  RepoDir := IncludeTrailingPathDelimiter(GTemplateUpdateDataRoot) + 'resources';
+  TemplateDir := RepoDir + PathDelim + 'templates' + PathDelim + 'console';
+  WriteTextFile(TemplateDir + PathDelim + 'template.json',
+    '{"name":"console","version":"1.0.0"}');
+  WriteTextFile(TemplateDir + PathDelim + 'src' + PathDelim + 'main.pas',
+    'program generated;' + LineEnding);
+  if not CommitAll(RepoDir, 'add console template') then
+    raise Exception.Create('Failed to commit template update repo fixture');
+
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  InstallRoot := GTempDir + PathDelim + 'install-root';
+  Check(SetInstallRoot(Ctx, InstallRoot), 'template update local repo sets install root');
+
+  Cmd := TProjectTemplateUpdateCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+    Check(Ret = EXIT_OK, 'template update local repo EXIT_OK');
+    Check(Trim(StdErr.GetBuffer) = '', 'template update local repo keeps stderr empty');
+    Check(StdOut.Contains('Failed to update resource repository'),
+      'template update local repo reports cached-update warning');
+    Check(StdOut.Contains('Templates updated: 1 added, 0 updated'),
+      'template update local repo reports copied template count');
+
+    TemplateMetaDest := InstallRoot + PathDelim + 'templates' + PathDelim +
+      'console' + PathDelim + 'template.json';
+    NestedDest := InstallRoot + PathDelim + 'templates' + PathDelim +
+      'console' + PathDelim + 'src' + PathDelim + 'main.pas';
+    Check(FileExists(TemplateMetaDest),
+      'template update local repo copies template metadata');
+    Check(FileExists(NestedDest),
+      'template update local repo copies nested template files');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 begin
   WriteLn('=== Project Template Commands Unit Tests ===');
   WriteLn;
+
+  GTempDir := CreateUniqueTempDir('fpdev_test_project_template');
+  SetupLocalTemplateUpdateRepo;
 
   TestProjectRootRegistered;
   TestTemplateRootRegistered;
@@ -178,12 +483,25 @@ begin
   TestUpdateCommandName;
   TestListFindSubNil;
   TestInstallFindSubNil;
+  TestListUnexpectedArg;
+  TestListUnknownOption;
+  TestInstallUnexpectedArg;
+  TestInstallUnknownOption;
+  TestRemoveUnexpectedArg;
+  TestRemoveUnknownOption;
+  TestUpdateUnexpectedArg;
+  TestUpdateUnknownOption;
+  TestUpdateCopiesTemplatesFromLocalResourceRepo;
 
   WriteLn;
   WriteLn('=== Summary ===');
   WriteLn('Passed: ', TestsPassed);
   WriteLn('Failed: ', TestsFailed);
   WriteLn('Total:  ', TestsPassed + TestsFailed);
+
+  RestoreEnv('FPDEV_DATA_ROOT', GSavedDataRoot);
+  CleanupTempDir(GTemplateUpdateDataRoot);
+  CleanupTempDir(GTempDir);
 
   if TestsFailed > 0 then
     Halt(1);

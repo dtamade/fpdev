@@ -17,7 +17,7 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Show FPC version
       run: fpc -iV
@@ -28,15 +28,42 @@ jobs:
     - name: Run release contract unit tests
       run: |
         python3 -m unittest \
+          tests.test_archive_docs_contract \
+          tests.test_fusion_task_analysis_contract \
+          tests.test_fusion_status_artifacts_contract \
+          tests.test_fusion_code_review_report_contract \
+          tests.test_fusion_audit_report_contract \
+          tests.test_contributor_docs_contract \
+          tests.test_official_docs_cli_contract \
+          tests.test_build_manager_callback_contract \
+          tests.test_lazarus_callback_contract \
           tests.test_release_docs_contract \
           tests.test_release_scripts_contract \
+          tests.test_package_release_assets \
+          tests.test_generate_release_checksums \
           tests.test_generate_release_evidence \
           tests.test_record_owner_smoke_sh \
           tests.test_release_status_wording \
+          tests.test_ci_workflow_contract \
           tests.test_ci_release_contracts
 
     - name: Run Linux release acceptance lane
       run: bash scripts/release_acceptance_linux.sh
+
+    - name: Package Linux release asset
+      run: |
+        rm -rf release-assets
+        python3 scripts/package_release_assets.py \
+          --output-dir release-assets \
+          --data-dir src/data \
+          --linux-bin bin/fpdev
+
+    - name: Upload Linux release asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-asset-linux-x64
+        path: release-assets/fpdev-linux-x64.tar.gz
+        retention-days: 7
 
     - name: Upload release acceptance logs
       if: always()
@@ -56,7 +83,7 @@ jobs:
     - name: Install FPC and Lazarus
       run: |
         sudo apt-get update
-        sudo apt-get install -y fpc lazarus
+        sudo apt-get install -y fpc lazarus libgit2-dev
 
     - name: Check for warnings and hints
       run: |
@@ -95,27 +122,181 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            install_step: choco install freepascal --no-progress -y
-          - os: macos-13
-            install_step: brew install --cask fpc-laz
+            lane: windows-x64
+            install_step: ''
+            build_flags: -B -O3 -CX -XX
+            python_cmd: python
+            package_arg: --windows-bin bin/fpdev.exe
+            asset_file: fpdev-windows-x64.zip
+            artifact_name: release-asset-windows-x64
+          - os: macos-15-intel
+            lane: macos-x64
+            install_step: brew install fpc libgit2
+            build_flags: -B -O3 -CX -XX -Xs
+            python_cmd: python3
+            package_arg: --macos-x64-bin bin/fpdev
+            asset_file: fpdev-macos-x64.tar.gz
+            artifact_name: release-asset-macos-x64
+          - os: macos-15
+            lane: macos-arm64
+            install_step: brew install fpc libgit2
+            build_flags: -B -O3 -CX -XX -Xs
+            python_cmd: python3
+            package_arg: --macos-arm64-bin bin/fpdev
+            asset_file: fpdev-macos-arm64.tar.gz
+            artifact_name: release-asset-macos-arm64
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      shell: bash
+      run: |
+        git init .
+        git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git -c protocol.version=2 fetch --no-tags --depth=1 origin "$GITHUB_REF"
+        git checkout --force FETCH_HEAD
+
+    - name: Install FPC toolchain on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $InstallationPath = 'C:\tools\freepascal'
+        $SetupInfPath = Join-Path $env:RUNNER_TEMP 'fpc-setup.inf'
+        @(
+          '[Setup]'
+          'Lang=default'
+          "Dir=$InstallationPath"
+          'Group=Free Pascal'
+          'NoIcons=1'
+          'SetupType=full'
+          'Components=base,binutils,docs,ide,utils,make,demo,gdb,units,examples'
+          'Tasks='
+        ) | Set-Content -Path $SetupInfPath -Encoding ascii
+
+        $InstallerSpecs = @(
+          @{
+            Url = 'https://downloads.sourceforge.net/project/freepascal/Win32/3.2.2/fpc-3.2.2.i386-win32.exe'
+            Filename = 'fpc-3.2.2.i386-win32.exe'
+            Arguments = "/verysilent /norestart /LoadInf=`"$SetupInfPath`""
+          },
+          @{
+            Url = 'https://downloads.sourceforge.net/project/freepascal/Win32/3.2.2/fpc-3.2.2.i386-win32.cross.x86_64-win64.exe'
+            Filename = 'fpc-3.2.2.i386-win32.cross.x86_64-win64.exe'
+            Arguments = "/verysilent /norestart /DIR=`"$InstallationPath`""
+          }
+        )
+
+        foreach ($Installer in $InstallerSpecs) {
+          $InstallerPath = Join-Path $env:RUNNER_TEMP $Installer.Filename
+          curl.exe -L --fail --retry 3 --output $InstallerPath $Installer.Url
+          Start-Process -FilePath $InstallerPath -ArgumentList $Installer.Arguments -Wait -NoNewWindow
+        }
+
+    - name: Install libgit2 runtime on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: choco install libgit2 --no-progress -y
 
     - name: Install FPC toolchain
+      if: runner.os != 'Windows'
+      shell: bash
       run: ${{ matrix.install_step }}
 
+    - name: Export Windows x64 FPC path
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $InstallationPath = 'C:\tools\freepascal'
+        $FpcExe = Get-ChildItem $InstallationPath -Recurse -Filter fpc.exe -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -match '[\\/]i386-win32[\\/]' } |
+          Select-Object -First 1
+        $X64Compiler = Get-ChildItem $InstallationPath -Recurse -File -Include ppcx64.exe,ppcrossx64.exe -ErrorAction SilentlyContinue |
+          Select-Object -First 1
+        $Win64Fpjson = Get-ChildItem $InstallationPath -Recurse -File -Filter fpjson.ppu -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -match '[\\/]x86_64-win64[\\/]' } |
+          Select-Object -First 1
+        if ($null -eq $FpcExe) {
+          throw "fpc.exe not found under $InstallationPath"
+        }
+        if ($null -eq $X64Compiler) {
+          throw "ppcrossx64/ppcx64 not found under $InstallationPath"
+        }
+        if ($null -eq $Win64Fpjson) {
+          throw "win64 fpjson unit not found under $InstallationPath"
+        }
+        $FpcMkCfg = Join-Path $FpcExe.DirectoryName 'fpcmkcfg.exe'
+        $FpcCfg = Join-Path $FpcExe.DirectoryName 'fpc.cfg'
+        if (-not (Test-Path $FpcMkCfg)) {
+          throw "fpcmkcfg.exe not found under $($FpcExe.DirectoryName)"
+        }
+        & $FpcMkCfg -d "basepath=$InstallationPath" -o $FpcCfg
+        if (-not (Test-Path $FpcCfg)) {
+          throw "fpc.cfg not found at $FpcCfg"
+        }
+        "FPC_EXE=$($FpcExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "FPC_CFG_PATH=$FpcCfg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        $FpcExe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        "FPC_TARGET=win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        $X64Compiler.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Export macOS libgit2 paths
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        LIBGIT2_PREFIX="$(brew --prefix libgit2)"
+        {
+          echo "LIBRARY_PATH=${LIBGIT2_PREFIX}/lib:${LIBRARY_PATH:-}"
+          echo "DYLD_LIBRARY_PATH=${LIBGIT2_PREFIX}/lib:${DYLD_LIBRARY_PATH:-}"
+          echo "FPC_LIBGIT2_FLAGS=-Fl${LIBGIT2_PREFIX}/lib"
+        } >> "$GITHUB_ENV"
+
     - name: Show FPC version
+      if: runner.os != 'Windows'
       shell: bash
       run: fpc -iV
 
+    - name: Show FPC version on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        & $env:FPC_EXE -iV
+
     - name: Build CLI smoke binary
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         rm -rf bin lib
         mkdir -p bin lib
-        fpc -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+        fpc ${{ matrix.build_flags }} ${FPC_LIBGIT2_FLAGS:-} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Build CLI smoke binary on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (Test-Path bin) { Remove-Item bin -Recurse -Force }
+        if (Test-Path lib) { Remove-Item lib -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path bin, lib | Out-Null
+        $TargetFlags = @()
+        $ConfigFlags = @('-n', "@$($env:FPC_CFG_PATH)")
+        if ($env:FPC_TARGET -eq 'win64') {
+          $TargetFlags = @('-Px86_64', '-Twin64')
+        }
+        & $env:FPC_EXE @ConfigFlags @TargetFlags ${{ matrix.build_flags }} -Fusrc -Fisrc -FEbin -FUlib src/fpdev.lpr
+
+    - name: Stage Windows libgit2 runtime
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $LibGit2Dll = Get-ChildItem $env:ChocolateyInstall -Recurse -File -Filter libgit2.dll -ErrorAction SilentlyContinue |
+          Select-Object -First 1
+        if ($null -eq $LibGit2Dll) {
+          throw "libgit2.dll not found under $env:ChocolateyInstall"
+        }
+        $BinDir = (Resolve-Path bin).Path
+        Get-ChildItem $LibGit2Dll.DirectoryName -File -Filter *.dll | ForEach-Object {
+          Copy-Item $_.FullName (Join-Path $BinDir $_.Name) -Force
+        }
+        Copy-Item $LibGit2Dll.FullName (Join-Path $BinDir 'git2.dll') -Force
 
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
@@ -126,3 +307,108 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe
+
+    - name: Record owner smoke transcript
+      if: always() && runner.os != 'Windows' && hashFiles('bin/fpdev') != ''
+      shell: bash
+      run: bash scripts/record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof
+
+    - name: Record owner smoke transcript on Windows
+      if: always() && runner.os == 'Windows' && hashFiles('bin/fpdev.exe') != ''
+      shell: pwsh
+      run: ./scripts/record_owner_smoke.ps1 -Lane ${{ matrix.lane }} -ExecutablePath .\bin\fpdev.exe -OutputDir owner-proof
+
+    - name: Package release asset
+      shell: bash
+      run: |
+        rm -rf release-assets
+        ${{ matrix.python_cmd }} scripts/package_release_assets.py \
+          --output-dir release-assets \
+          --data-dir src/data \
+          ${{ matrix.package_arg }}
+
+    - name: Upload packaged release asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: release-assets/${{ matrix.asset_file }}
+        retention-days: 7
+
+    - name: Upload owner proof artifact
+      if: always() && hashFiles('owner-proof/**') != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: owner-proof-${{ matrix.lane }}
+        path: owner-proof/
+        retention-days: 7
+
+  assemble-release-ready-bundle:
+    name: Assemble release-ready bundle
+    needs:
+      - compile-check
+      - release-acceptance-linux
+      - cross-platform-cli-smoke
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Linux release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-linux-x64
+        path: bundle/downloads/release-asset-linux-x64
+
+    - name: Download Windows release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-windows-x64
+        path: bundle/downloads/release-asset-windows-x64
+
+    - name: Download macOS x64 release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-macos-x64
+        path: bundle/downloads/release-asset-macos-x64
+
+    - name: Download macOS arm64 release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-macos-arm64
+        path: bundle/downloads/release-asset-macos-arm64
+
+    - name: Download release acceptance logs
+      uses: actions/download-artifact@v4
+      with:
+        name: release-acceptance-logs
+        path: bundle/downloads/release-acceptance-logs
+
+    - name: Download Windows owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-windows-x64
+        path: bundle/downloads/owner-proof-windows-x64
+
+    - name: Download macOS x64 owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-macos-x64
+        path: bundle/downloads/owner-proof-macos-x64
+
+    - name: Download macOS arm64 owner proof
+      uses: actions/download-artifact@v4
+      with:
+        name: owner-proof-macos-arm64
+        path: bundle/downloads/owner-proof-macos-arm64
+
+    - name: Assemble release-ready bundle
+      shell: bash
+      run: bash scripts/assemble_release_ready_bundle.sh
+
+    - name: Upload release-ready bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-ready-bundle
+        path: release-ready-bundle/
+        retention-days: 7

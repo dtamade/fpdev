@@ -67,12 +67,19 @@ function TFPCCTestCommand.Execute(const AParams: array of string; const Ctx: ICo
 var
   LVer: string;
   LMgr: TFPCManager;
+  LUnknownOption: string;
+  LPositionalCount: Integer;
 begin
   Result := EXIT_OK;
 
   // Handle --help flag
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_TEST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn(_(HELP_FPC_TEST_USAGE));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_FPC_TEST_DESC));
@@ -81,7 +88,14 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) < 1 then
+  if FindUnknownOption(AParams, [], LUnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_FPC_TEST_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  LPositionalCount := CountPositionalArgs(AParams);
+  if LPositionalCount < 1 then
   begin
     // Use current default version if not specified
     LVer := Ctx.Config.GetToolchainManager.GetDefaultToolchain;
@@ -97,7 +111,14 @@ begin
     end;
   end
   else
-    LVer := AParams[0];
+  begin
+    if LPositionalCount > 1 then
+    begin
+      Ctx.Err.WriteLn(_(HELP_FPC_TEST_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+    LVer := GetPositionalArg(AParams, 0);
+  end;
   LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
     if LMgr.TestInstallation(Ctx.Out, Ctx.Err, LVer) then
@@ -117,4 +138,3 @@ initialization
   GlobalCommandRegistry.RegisterPath(['fpc','test'], @FPCTestFactory, []);
 
 end.
-

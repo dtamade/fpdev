@@ -18,9 +18,10 @@ program test_cmd_index;
 }
 
 uses
-  SysUtils, Classes, test_config_isolation,
+  SysUtils, Classes, test_config_isolation, test_temp_paths,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
+  fpdev.constants, fpdev.paths, fpdev.utils,
   fpdev.cmd.index, fpdev.cmd.index.status, fpdev.cmd.index.show, fpdev.cmd.index.update;
 
 var
@@ -41,6 +42,14 @@ begin
     Inc(GFailCount);
     WriteLn('[FAIL] ', AName);
   end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
 end;
 
 { Test output capture }
@@ -289,6 +298,100 @@ begin
   Test('Status shows Index File', Pos('Index File:', Output) > 0);
 end;
 
+procedure TestStatusOutputUsesSameProcessEnvOverride;
+var
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+  Args: TStringArray;
+  ProbeBase: string;
+  ExpectedCacheDir: string;
+  SavedEnv: string;
+  SavedDataRoot: string;
+  SavedXDGDataHome: string;
+begin
+  ProbeBase := IncludeTrailingPathDelimiter(GetTempDir(False)) + 'fpdev-index-status-probe';
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  SavedXDGDataHome := get_env('XDG_DATA_HOME');
+  {$IFDEF MSWINDOWS}
+  SavedEnv := get_env('APPDATA');
+  {$ELSE}
+  SavedEnv := get_env('HOME');
+  {$ENDIF}
+  try
+    SetPortableMode(False);
+    unset_env('FPDEV_DATA_ROOT');
+    unset_env('XDG_DATA_HOME');
+    {$IFDEF MSWINDOWS}
+    set_env('APPDATA', ProbeBase);
+    {$ELSE}
+    set_env('HOME', ProbeBase);
+    {$ENDIF}
+
+    OutBuf := TStringOutput.Create;
+    Ctx := TTestContext.Create(OutBuf, OutBuf);
+    SetLength(Args, 3);
+    Args[0] := 'system';
+    Args[1] := 'index';
+    Args[2] := 'status';
+
+    Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+    Output := OutBuf.GetBuffer;
+    ExpectedCacheDir := IncludeTrailingPathDelimiter(ProbeBase) + FPDEV_CONFIG_DIR + PathDelim + 'cache';
+
+    Test('Status with same-process env override returns exit code 0', Ret = 0);
+    Test('Status output uses same-process cache directory override',
+      Pos(ExpectedCacheDir, Output) > 0);
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    RestoreEnv('XDG_DATA_HOME', SavedXDGDataHome);
+    {$IFDEF MSWINDOWS}
+    RestoreEnv('APPDATA', SavedEnv);
+    {$ELSE}
+    RestoreEnv('HOME', SavedEnv);
+    {$ENDIF}
+  end;
+end;
+
+procedure TestStatusOutputUsesFPDEVDataRootOverride;
+var
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+  Args: TStringArray;
+  ProbeRoot: string;
+  ExpectedCacheDir: string;
+  SavedDataRoot: string;
+begin
+  ProbeRoot := CreateUniqueTempDir('fpdev-index-status-data-root-probe');
+  Test('Status data-root probe uses system temp root',
+    PathUsesSystemTempRoot(ProbeRoot));
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  try
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    OutBuf := TStringOutput.Create;
+    Ctx := TTestContext.Create(OutBuf, OutBuf);
+    SetLength(Args, 3);
+    Args[0] := 'system';
+    Args[1] := 'index';
+    Args[2] := 'status';
+
+    Ret := GlobalCommandRegistry.DispatchPath(Args, Ctx);
+    Output := OutBuf.GetBuffer;
+    ExpectedCacheDir := IncludeTrailingPathDelimiter(GetDataRoot) + 'cache';
+
+    Test('Status with FPDEV_DATA_ROOT override returns exit code 0', Ret = 0);
+    Test('Status output uses FPDEV_DATA_ROOT cache directory',
+      Pos(ExpectedCacheDir, Output) > 0);
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
 procedure TestNoArgsShowsHelp;
 var
   Cmd: ICommand;
@@ -370,6 +473,8 @@ begin
   TestFindSubReturnsNil;
   TestHelpOutput;
   TestStatusOutput;
+  TestStatusOutputUsesSameProcessEnvOverride;
+  TestStatusOutputUsesFPDEVDataRootOverride;
   TestNoArgsShowsHelp;
   TestUnknownSubcommand;
   TestRegisteredInGlobalRegistry;

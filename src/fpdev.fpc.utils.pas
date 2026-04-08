@@ -53,13 +53,14 @@ function VerifyFileSHA256(const AFilePath, AExpectedHash: string): Boolean;
 implementation
 
 uses
-  Process, zipper, fpdev.hash;
+  Process, zipper, fpdev.hash, fpdev.utils;
 
 { FindProjectRoot - Walk upward to find the .fpdev directory }
 function FindProjectRoot(const AStartDir: string): string;
 var
   Dir, PrevDir: string;
   UserConfigDir: string;
+  SystemUserConfigDir: string;
   Candidate: string;
 begin
   Result := '';
@@ -67,15 +68,21 @@ begin
 
   // Avoid mistaking user-level ~/.fpdev as a project marker when scanning upward.
   {$IFDEF MSWINDOWS}
-  UserConfigDir := GetEnvironmentVariable('APPDATA');
+  UserConfigDir := get_env('APPDATA');
   if UserConfigDir <> '' then
     UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(UserConfigDir + PathDelim + '.fpdev'))
   else
     UserConfigDir := ExcludeTrailingPathDelimiter(
-      ExpandFileName(GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev')
+      ExpandFileName(get_env('USERPROFILE') + PathDelim + '.fpdev')
     );
   {$ELSE}
-  UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(GetEnvironmentVariable('HOME') + PathDelim + '.fpdev'));
+  UserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(get_env('HOME') + PathDelim + '.fpdev'));
+  SystemUserConfigDir := ExcludeTrailingPathDelimiter(ExpandFileName(get_home_dir + PathDelim + '.fpdev'));
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  SystemUserConfigDir := ExcludeTrailingPathDelimiter(
+    ExpandFileName(get_home_dir + PathDelim + 'AppData' + PathDelim + 'Roaming' + PathDelim + '.fpdev')
+  );
   {$ENDIF}
 
   while Dir <> '' do
@@ -83,7 +90,8 @@ begin
     Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Dir + PathDelim + '.fpdev'));
     if DirectoryExists(Candidate) then
     begin
-      if (UserConfigDir = '') or (not SameText(Candidate, UserConfigDir)) then
+      if ((UserConfigDir = '') or (not SameText(Candidate, UserConfigDir))) and
+         ((SystemUserConfigDir = '') or (not SameText(Candidate, SystemUserConfigDir))) then
       begin
         Result := ExcludeTrailingPathDelimiter(Dir);
         Exit;

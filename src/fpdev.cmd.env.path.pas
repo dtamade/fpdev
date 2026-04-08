@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.exitcodes;
+  fpdev.exitcodes, fpdev.utils;
 
 type
   TEnvPathCommand = class(TInterfacedObject, ICommand)
@@ -56,7 +56,7 @@ begin
   Ctx.Out.WriteLn('==================');
   Ctx.Out.WriteLn('');
 
-  PathEnv := GetEnvironmentVariable('PATH');
+  PathEnv := get_env('PATH');
   if PathEnv = '' then
   begin
     Ctx.Out.WriteLn('PATH is empty');

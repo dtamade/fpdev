@@ -63,6 +63,7 @@ type
     function RunPreflightPolicyCheck(const AVersion: string; out AStatus, AReason,
       AMin, ARecommended, ACurrentFpcVersion: string): Boolean;
     function BuildToolchainReportJSONValue: string;
+    function RunVersionedPreflight(const AVersion: string): Boolean;
   public
     constructor Create(const ASourceRoot: string; AParallelJobs: Integer; AVerbose: Boolean);
     destructor Destroy; override;
@@ -120,7 +121,8 @@ implementation
 uses
   Process, DateUtils, fpdev.toolchain, fpdev.build.probe,
   fpdev.build.fullbuildflow, fpdev.build.preflight, fpdev.build.preflightflow,
-  fpdev.build.strict, fpdev.build.testresultsflow;
+  fpdev.build.strict, fpdev.build.testresultsflow, fpdev.utils.process,
+  fpdev.fpc.installer.config;
 
 function BuildManagerDirectoryExists(const APath: string): Boolean;
 begin
@@ -529,8 +531,9 @@ var
   i, LIdx: Integer;
   LJobs: string;
   LMake: string;
-  LMakeVer: Integer;
-  LExit: Integer;
+  LMakePath: string;
+  LMakeVersionResult: TProcessResult;
+  LRunResult: TProcessResult;
 begin
   Result := False;
   LArgs := nil;
@@ -547,6 +550,9 @@ begin
     FLastError := 'Make command not configured';
     Exit(False);
   end;
+  LMakePath := TProcessExecutor.FindExecutable(LMake);
+  if LMakePath = '' then
+    LMakePath := LMake;
   // Assemble arguments: -C <dir> -jN <targets>
   if FParallelJobs <= 0 then FParallelJobs := 1;
   if FParallelJobs > 16 then FParallelJobs := 16;
@@ -583,38 +589,29 @@ begin
   end;
 
   // Ensure make is runnable (and avoid unhandled EOSError crashes).
-  try
-    LMakeVer := ExecuteProcess(LMake, ['--version']);
-  except
-    on E: Exception do
-    begin
-      FLastError := 'Failed to execute make (' + LMake + '): ' + E.Message;
-      Log(FLastError);
-      Exit(False);
-    end;
-  end;
-  if LMakeVer <> 0 then
+  LMakeVersionResult := TProcessExecutor.RunDirect(LMakePath, ['--version'], '');
+  if not LMakeVersionResult.Success then
   begin
-    FLastError := 'Make not detected (' + LMake + '), exit=' + IntToStr(LMakeVer);
+    if LMakeVersionResult.ErrorMessage <> '' then
+      FLastError := 'Failed to execute make (' + LMakePath + '): ' +
+        LMakeVersionResult.ErrorMessage
+    else
+      FLastError := 'Make not detected (' + LMakePath + '), exit=' +
+        IntToStr(LMakeVersionResult.ExitCode);
     Log(FLastError);
     Exit(False);
   end;
 
-  try
-    LExit := ExecuteProcess(LMake, LArgs);
-  except
-    on E: Exception do
-    begin
-      FLastError := 'Failed to execute make (' + LMake + '): ' + E.Message;
-      Log(FLastError);
-      Exit(False);
-    end;
-  end;
-
-  Result := (LExit = 0);
+  LRunResult := TProcessExecutor.RunDirect(LMakePath, LArgs, '');
+  Result := LRunResult.Success;
   if not Result then
   begin
-    FLastError := 'make failed (' + LMake + '), exit=' + IntToStr(LExit) + ' (log: ' + FLogger.LogFileName + ')';
+    if LRunResult.ErrorMessage <> '' then
+      FLastError := 'Failed to execute make (' + LMakePath + '): ' +
+        LRunResult.ErrorMessage
+    else
+      FLastError := 'make failed (' + LMakePath + '), exit=' +
+        IntToStr(LRunResult.ExitCode) + ' (log: ' + FLogger.LogFileName + ')';
     Log(FLastError);
   end;
 end;
@@ -736,12 +733,25 @@ begin
   );
 end;
 
-function TBuildManager.Configure(const {%H-} AVersion: string): Boolean;
+function TBuildManager.Configure(const AVersion: string): Boolean;
+var
+  LDest: string;
 begin
-  // AVersion parameter reserved for future use
-  if AVersion <> '' then;
-  // Configuration typically writes fpc.cfg, not touching system directories at this stage
-  Result := True;
+  if not FAllowInstall then
+    Exit(True);
+
+  if Trim(AVersion) = '' then
+  begin
+    Log('Configure: missing version for install-mode configuration');
+    Exit(False);
+  end;
+
+  LDest := IncludeTrailingPathDelimiter(FSandboxRoot) + 'fpc-' + AVersion;
+  Result := EnsureManagedFPCInstallLayout(LDest, AVersion, nil);
+  if Result then
+    Log('Configure: managed layout ready at ' + LDest)
+  else
+    Log('Configure: managed layout incomplete at ' + LDest);
 end;
 
 function TBuildManager.TestResults(const AVersion: string): Boolean;
@@ -819,7 +829,7 @@ function TBuildManager.FullBuild(const AVersion: string): Boolean;
 begin
   Result := RunFullBuildCore(
     AVersion,
-    @Preflight,
+    @RunVersionedPreflight,
     @BuildCompiler,
     @BuildRTL,
     @BuildPackages,
@@ -830,6 +840,12 @@ begin
     @Log,
     @LogTestSummary
   );
+end;
+
+function TBuildManager.RunVersionedPreflight(const AVersion: string): Boolean;
+begin
+  // Keep FullBuild off the overloaded @Preflight method pointer for FPC 3.2.2.
+  Result := Preflight(AVersion);
 end;
 
 procedure TBuildManager.CreateBuildStamp(const AVersion: string);

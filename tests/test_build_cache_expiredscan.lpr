@@ -3,7 +3,7 @@ program test_build_cache_expiredscan;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, test_temp_paths,
   fpdev.build.cache.types,
   fpdev.build.cache.expiredscan;
 
@@ -16,6 +16,11 @@ type
 var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
+
+function BuildTempDir: string;
+begin
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir('fpdev-expiredscan'));
+end;
 
 function TStubExpiredLoader.Load(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
 begin
@@ -65,33 +70,31 @@ var
   Meta: TStringList;
   Versions: TStringArray;
 begin
-  Dir := IncludeTrailingPathDelimiter(GetTempDir(False)) +
-    'fpdev_expiredscan_' + IntToStr(Random(100000)) + PathDelim;
-  ForceDirectories(Dir);
-
-  Meta := TStringList.Create;
   try
-    Meta.Add('dummy');
-    Meta.SaveToFile(Dir + 'fpc-3.2.0-x86_64-linux.meta');
-    Meta.SaveToFile(Dir + 'fpc-3.2.2-x86_64-linux-binary.meta');
-    Meta.SaveToFile(Dir + 'notes.txt');
-  finally
-    Meta.Free;
-  end;
+    Dir := BuildTempDir;
+    AssertTrue(PathUsesSystemTempRoot(Dir), 'temp expiredscan dir uses system temp root');
 
-  Loader := TStubExpiredLoader.Create;
-  try
-    Versions := BuildCacheCollectExpiredVersions(Dir, @Loader.Load, @Loader.IsExpired);
-    AssertTrue(Length(Versions) = 1, 'only expired versions are collected');
-    AssertEquals('3.2.2', Versions[0], 'expired version keeps extracted version');
-  finally
-    Loader.Free;
-  end;
+    Meta := TStringList.Create;
+    try
+      Meta.Add('dummy');
+      Meta.SaveToFile(Dir + 'fpc-3.2.0-x86_64-linux.meta');
+      Meta.SaveToFile(Dir + 'fpc-3.2.2-x86_64-linux-binary.meta');
+      Meta.SaveToFile(Dir + 'notes.txt');
+    finally
+      Meta.Free;
+    end;
 
-  DeleteFile(Dir + 'fpc-3.2.0-x86_64-linux.meta');
-  DeleteFile(Dir + 'fpc-3.2.2-x86_64-linux-binary.meta');
-  DeleteFile(Dir + 'notes.txt');
-  RemoveDir(Dir);
+    Loader := TStubExpiredLoader.Create;
+    try
+      Versions := BuildCacheCollectExpiredVersions(Dir, @Loader.Load, @Loader.IsExpired);
+      AssertTrue(Length(Versions) = 1, 'only expired versions are collected');
+      AssertEquals('3.2.2', Versions[0], 'expired version keeps extracted version');
+    finally
+      Loader.Free;
+    end;
+  finally
+    CleanupTempDir(Dir);
+  end;
 end;
 
 procedure TestCollectExpiredVersionsSkipsMissingDirectory;

@@ -17,8 +17,7 @@ begin
   Config := TFPDevConfigManager.Create(ConfigPath);
   try
     WriteLn('Config manager created successfully');
-    if Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(Config.ConfigPath)) = 1 then
+    if PathUsesSystemTempRoot(Config.ConfigPath) then
       WriteLn('Config path uses system temp root')
     else
       WriteLn('Config path is not under system temp root: ', Config.ConfigPath);

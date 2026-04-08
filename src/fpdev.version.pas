@@ -17,13 +17,13 @@ interface
 const
   { Version components }
   FPDEV_VERSION_MAJOR = 2;
-  FPDEV_VERSION_MINOR = 0;
+  FPDEV_VERSION_MINOR = 1;
   FPDEV_VERSION_PATCH = 0;
   FPDEV_VERSION_SUFFIX = '';
 
   { Computed version strings }
-  FPDEV_VERSION = '2.0.0';
-  FPDEV_FULL_VERSION = '2.0.0';
+  FPDEV_VERSION = '2.1.0';
+  FPDEV_FULL_VERSION = '2.1.0';
 
   { Build information - populated at compile time }
   FPDEV_BUILD_DATE = {$I %DATE%};

@@ -29,7 +29,7 @@ fpdev lazarus list --all
 ### Install FPC (FreePascal Compiler)
 
 ```bash
-# Install recommended version FPC 3.2.2
+# Install the documented example baseline FPC 3.2.2
 fpdev fpc install 3.2.2 --from-source
 
 # Set as default version
@@ -165,10 +165,10 @@ fpdev package repo list
 fpdev cross list --all
 
 # Install Windows 64-bit target (on Linux/macOS)
-fpdev cross install win64
+fpdev cross install x86_64-win64
 
 # Configure toolchain paths (requires manual toolchain installation)
-fpdev cross configure win64 \
+fpdev cross configure x86_64-win64 \
   --binutils=/usr/x86_64-w64-mingw32/bin \
   --libraries=/usr/x86_64-w64-mingw32/lib
 ```

@@ -17,7 +17,7 @@
 ## 主 API（供代码使用）
 
 - `function BuildToolchainReportJSON: string;`
-  - 构建 HostReady 场景体检报告（fpc/make/lazbuild/git/openssl），返回 JSON 字符串；不落盘，不修改系统
+  - 构建 HostReady 场景体检报告（fpc/make/lazbuild/lazarus_root/git/openssl），返回 JSON 字符串；不落盘，不修改系统
 
 - `function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;`
@@ -51,6 +51,7 @@
     {"name":"fpc","found":true,"version":"3.2.2","path":"C:\\...\\fpc.exe","notes":""},
     {"name":"mingw32-make","found":true,"version":"GNU Make 4.4","path":"C:\\...\\mingw32-make.exe","notes":""},
     {"name":"lazbuild","found":false,"version":"","path":"","notes":"optional"},
+    {"name":"lazarus_root","found":true,"version":"","path":"C:\\lazarus","notes":""},
     {"name":"git","found":true,"version":"git version 2.x","path":"C:\\...\\git.exe","notes":""},
     {"name":"openssl","found":false,"version":"","path":"","notes":"optional for HTTPS"}
   ],
@@ -63,8 +64,8 @@
 - hostOS/hostCPU：宿主信息
 - pathHead：PATH 前若干段（便于诊断）
 - tools：关键工具的探测结果
-- issues：缺项列表（例如缺失 fpc/make）
-- level：OK/WARN/FAIL（缺 fpc/make → FAIL；建议项缺失 → WARN）
+- issues：缺项列表（例如缺失 fpc/make/lazarus_root）
+- level：OK/WARN/FAIL（缺 fpc/make/lazarus_root → FAIL；建议项缺失 → WARN）
 
 ## 策略 JSON（外部覆盖）
 
@@ -93,6 +94,7 @@
 ## 常见问题与建议
 
 - Windows 平台推荐优先使用 `mingw32-make`；Unix/BSD 推荐 `gmake`
+- `lazarus_root` 会优先读取 `FPDEV_LAZARUSDIR`，否则尝试从 `lazbuild` 所在目录反推；目录下必须存在 `lcl/`
 - HTTPS 下载建议携带 OpenSSL 动态库；缺失时将降级或提示
 - 体检 JSON 不落盘，若需保存，可在上层程序自行写入文件
 

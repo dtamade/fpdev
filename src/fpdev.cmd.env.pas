@@ -29,7 +29,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry,
-  fpdev.output.intf, fpdev.paths;
+  fpdev.output.intf, fpdev.paths, fpdev.utils;
 
 type
   { TEnvCommand - Development environment information }
@@ -80,7 +80,7 @@ end;
 
 function TEnvCommand.GetEnvVar(const AName: string): string;
 begin
-  Result := GetEnvironmentVariable(AName);
+  Result := get_env(AName);
   if Result = '' then
     Result := '(not set)';
 end;

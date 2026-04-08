@@ -35,7 +35,7 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.cross.downloader, fpdev.cross.platform,
   fpdev.resource.repo, fpdev.resource.repo.types,
-  fpdev.utils.fs, fpdev.utils.process,
+  fpdev.utils, fpdev.utils.fs, fpdev.utils.process, fpdev.paths,
   fpdev.i18n, fpdev.i18n.strings, fpdev.cross.tester, fpdev.cross.query;
 
 type
@@ -148,12 +148,7 @@ begin
 
   if FInstallRoot = '' then
   begin
-    {$IFDEF MSWINDOWS}
-    FInstallRoot := GetEnvironmentVariable('USERPROFILE') + PathDelim + '.fpdev';
-    {$ELSE}
-    FInstallRoot := GetEnvironmentVariable('HOME') + PathDelim + '.fpdev';
-    {$ENDIF}
-
+    FInstallRoot := GetDataRoot;
     Settings.InstallRoot := FInstallRoot;
     FConfigManager.GetSettingsManager.SetSettings(Settings);
   end;
@@ -172,7 +167,7 @@ begin
   FBuildTester := TCrossBuildTester.Create(FConfigManager, FInstallRoot);
 
   // Initialize modern toolchain downloader
-  ManifestURL := GetEnvironmentVariable('FPDEV_CROSS_MANIFEST_URL');
+  ManifestURL := get_env('FPDEV_CROSS_MANIFEST_URL');
   if ManifestURL = '' then
     ManifestURL := DEFAULT_CROSS_MANIFEST_URL;
 

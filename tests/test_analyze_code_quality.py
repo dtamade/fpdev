@@ -1,8 +1,10 @@
 import importlib.util
+import io
 import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / 'scripts' / 'analyze_code_quality.py'
@@ -132,6 +134,28 @@ class AnalyzeCodeQualityTests(unittest.TestCase):
 
             return issues
 
+    def run_main_in_repo(self, repo_files):
+        with tempfile.TemporaryDirectory(prefix='acq-main-') as tmp:
+            tmp_path = Path(tmp)
+            for relative_name, content in repo_files.items():
+                file_path = tmp_path / relative_name
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                if isinstance(content, bytes):
+                    file_path.write_bytes(content)
+                else:
+                    file_path.write_text(content, encoding='utf-8')
+
+            prev_cwd = Path.cwd()
+            stdout = io.StringIO()
+            try:
+                os.chdir(tmp_path)
+                with redirect_stdout(stdout):
+                    exit_code = self.analyzer.main()
+            finally:
+                os.chdir(prev_cwd)
+
+            return exit_code, stdout.getvalue()
+
     @staticmethod
     def debug_flagged_files(issues):
         names = set()
@@ -218,6 +242,34 @@ end.
 """
         })
         self.assertNotIn('fpdev.output.console.pas', self.debug_flagged_files(issues))
+
+    def test_ioutput_adapter_methods_are_not_flagged_as_debug(self):
+        issues = self.run_debug_analysis({
+            'fpdev.cmd.lazarus.run.pas': """
+unit fpdev.cmd.lazarus.run;
+{$mode objfpc}{$H+}
+interface
+uses fpdev.output.intf;
+type
+  TBufferedOutput = class(TInterfacedObject, IOutput)
+  public
+    procedure Write(const S: string);
+    procedure WriteLn(const S: string);
+  end;
+implementation
+procedure TBufferedOutput.Write(const S: string);
+begin
+  if S <> '' then;
+end;
+
+procedure TBufferedOutput.WriteLn(const S: string);
+begin
+  Write(S);
+end;
+end.
+"""
+        })
+        self.assertNotIn('fpdev.cmd.lazarus.run.pas', self.debug_flagged_files(issues))
 
     def test_real_debug_writeln_still_detected(self):
         issues = self.run_debug_analysis({
@@ -367,6 +419,22 @@ end.
         })
         self.assertNotIn('test_hardcoded_comment_line.pas', self.hardcoded_flagged_files(issues))
 
+    def test_single_slash_separator_literals_are_not_flagged_as_hardcoded(self):
+        issues = self.run_hardcoded_analysis({
+            'test_separator_literal.pas': """
+unit test_separator_literal;
+{$mode objfpc}{$H+}
+interface
+implementation
+function Normalize(const APath: string): string;
+begin
+  Result := StringReplace(APath, '/', PathDelim, [rfReplaceAll]);
+end;
+end.
+"""
+        })
+        self.assertNotIn('test_separator_literal.pas', self.hardcoded_flagged_files(issues))
+
     def test_block_comment_literals_are_not_flagged_as_hardcoded(self):
         issues = self.run_hardcoded_analysis({
             'test_hardcoded_comment_block.pas': """
@@ -403,16 +471,16 @@ end.
 
     def test_non_empty_line_trailing_space_is_still_flagged(self):
         issues = self.run_style_analysis({
-            'test_trailing_space.pas': """
-unit test_trailing_space;
-{$mode objfpc}{$H+}
-interface
-implementation
-procedure Run;
-begin
-end;
-end.
-"""
+            'test_trailing_space.pas': (
+                "unit test_trailing_space;\n"
+                "{$mode objfpc}{$H+}\n"
+                "interface\n"
+                "implementation\n"
+                "procedure Run;\n"
+                "begin\n"
+                "end;\n"
+                "end. \n"
+            )
         })
         self.assertIn('test_trailing_space.pas', self.style_flagged_files(issues))
 
@@ -477,6 +545,14 @@ end.
             'fpdev.config.pas.old',
             self.legacy_backup_flagged_files(issues)
         )
+
+    def test_main_skips_issue_detail_sections_when_no_issues_exist(self):
+        exit_code, output = self.run_main_in_repo({})
+        self.assertEqual(0, exit_code)
+        self.assertIn('总问题数: 0', output)
+        self.assertIn('未发现代码质量问题', output)
+        self.assertNotIn('⚠️  问题详情', output)
+        self.assertNotIn('🔧 优化建议', output)
 
 
 if __name__ == '__main__':

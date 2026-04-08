@@ -71,13 +71,14 @@ end;
 function TCrossBuildCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   TargetStr, SourceRoot, SandboxRoot, Version: string;
+  UnknownOption: string;
   CPU, OS: string;
-  DryRun: Boolean;
+  DryRun, HasSourceRoot, HasSandboxRoot, HasVersion: Boolean;
   Target: TCrossTarget;
   BM: TBuildManager;
   Engine: TCrossBuildEngine;
   Log: TStringArray;
-  I: Integer;
+  I, PositionalCount: Integer;
 begin
   Result := EXIT_OK;
 
@@ -85,6 +86,11 @@ begin
   if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') or
      ((Length(AParams) > 0) and (LowerCase(AParams[0]) = 'help')) then
   begin
+    if Length(AParams) > 1 then
+    begin
+      Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+      Exit(EXIT_USAGE_ERROR);
+    end;
     Ctx.Out.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn('Build a cross-compiler for the specified target.');
@@ -102,15 +108,32 @@ begin
     Exit(EXIT_OK);
   end;
 
+  if FindUnknownOption(
+    AParams,
+    ['--dry-run', '--source=', '--sandbox=', '--version='],
+    UnknownOption
+  ) then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
   // Parse target argument
-  if Length(AParams) < 1 then
+  PositionalCount := CountPositionalArgs(AParams);
+  if PositionalCount < 1 then
   begin
     Ctx.Err.WriteLn('Error: target not specified');
     Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [--dry-run]');
     Exit(EXIT_USAGE_ERROR);
   end;
 
-  TargetStr := AParams[0];
+  if PositionalCount > 1 then
+  begin
+    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  TargetStr := GetPositionalArg(AParams, 0);
   if not ParseTargetString(TargetStr, CPU, OS) then
   begin
     Ctx.Err.WriteLn('Error: invalid target format "' + TargetStr + '"');
@@ -120,14 +143,32 @@ begin
 
   // Parse options
   DryRun := HasFlag(AParams, 'dry-run');
-  GetFlagValue(AParams, 'source', SourceRoot);
-  if SourceRoot = '' then
+  HasSourceRoot := GetFlagValue(AParams, 'source', SourceRoot);
+  if HasSourceRoot and (SourceRoot = '') then
+  begin
+    Ctx.Err.WriteLn('Error: Missing --source value');
+    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if not HasSourceRoot then
     SourceRoot := 'sources' + PathDelim + 'fpc';
-  GetFlagValue(AParams, 'sandbox', SandboxRoot);
-  if SandboxRoot = '' then
+  HasSandboxRoot := GetFlagValue(AParams, 'sandbox', SandboxRoot);
+  if HasSandboxRoot and (SandboxRoot = '') then
+  begin
+    Ctx.Err.WriteLn('Error: Missing --sandbox value');
+    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if not HasSandboxRoot then
     SandboxRoot := 'sandbox';
-  GetFlagValue(AParams, 'version', Version);
-  if Version = '' then
+  HasVersion := GetFlagValue(AParams, 'version', Version);
+  if HasVersion and (Version = '') then
+  begin
+    Ctx.Err.WriteLn('Error: Missing --version value');
+    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
+    Exit(EXIT_USAGE_ERROR);
+  end;
+  if not HasVersion then
     Version := 'main';
 
   // Preflight: for real builds, require a populated FPC source tree.

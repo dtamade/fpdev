@@ -13,7 +13,7 @@ This document answers common questions about using FPDev.
 ```bash
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system help
 ```
 
@@ -40,10 +40,13 @@ Binary installation depends on the manifest system. If unavailable, source insta
 
 ### Q: How do I install FPC?
 
-**A**: Source installation is recommended:
+**A**: Prefer binary installation first for a faster setup. Fall back to source installation when you need a custom build or the binary path is unavailable:
 
 ```bash
-# Install from source (recommended)
+# Preferred: binary install
+fpdev fpc install 3.2.2
+
+# Use source build when needed
 fpdev fpc install 3.2.2 --from-source
 
 # Activate version
@@ -134,7 +137,7 @@ fpc myapp.lpr
 # Or use lazbuild
 lazbuild myapp.lpi
 
-# Or use fpdev (future version)
+# Or use fpdev
 fpdev project build
 ```
 

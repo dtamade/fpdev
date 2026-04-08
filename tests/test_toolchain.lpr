@@ -7,7 +7,8 @@ uses
   fpdev.toolchain,
   fpdev.toolchain.extract,
   fpdev.hash,
-  fpdev.paths;
+  fpdev.paths,
+  fpdev.utils;
 
 const
   // Test data constants
@@ -51,6 +52,24 @@ begin
   end;
 end;
 
+procedure AssertContains(const AExpected, AText, AMsg: string);
+begin
+  if Pos(AExpected, AText) <= 0 then
+  begin
+    WriteLn(PREFIX_FAIL, ' ', AMsg);
+    WriteLn('  Missing: ', AExpected);
+    Halt(1);
+  end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
 procedure RunTest(const TestName: string; TestProc: TProcedure);
 begin
   WriteLn(PREFIX_TEST, ' ', TestName);
@@ -86,7 +105,52 @@ begin
   end;
 end;
 
-{ Test 2: fpdev.toolchain - CheckFPCVersionPolicy with invalid source }
+{ Test 2: fpdev.toolchain - env policy file override should work in same process }
+procedure TestPolicyFileEnvOverride;
+var
+  PolicyDir, PolicyPath: string;
+  SavedPolicyPath: string;
+  Status, Reason, MinVer, RecVer, FPCVer: string;
+begin
+  PolicyDir := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_policy_' + IntToStr(GetTickCount64);
+  ForceDirectories(PolicyDir);
+  PolicyPath := IncludeTrailingPathDelimiter(PolicyDir) + 'policy.json';
+  SavedPolicyPath := get_env('FPDEV_POLICY_FILE');
+  try
+    with TStringList.Create do
+    try
+      Text :=
+        '{' + LineEnding +
+        '  "fpc": {' + LineEnding +
+        '    "custom-probe-version": {' + LineEnding +
+        '      "min": "1.2.3",' + LineEnding +
+        '      "rec": "4.5.6"' + LineEnding +
+        '    }' + LineEnding +
+        '  }' + LineEnding +
+        '}';
+      SaveToFile(PolicyPath);
+    finally
+      Free;
+    end;
+
+    AssertTrue(set_env('FPDEV_POLICY_FILE', PolicyPath),
+      'Should set FPDEV_POLICY_FILE for toolchain policy test');
+    CheckFPCVersionPolicy('custom-probe-version', Status, Reason, MinVer, RecVer, FPCVer);
+    AssertEquals('1.2.3', MinVer,
+      'env policy file should override min version in same process');
+    AssertEquals('4.5.6', RecVer,
+      'env policy file should override recommended version in same process');
+  finally
+    RestoreEnv('FPDEV_POLICY_FILE', SavedPolicyPath);
+    if FileExists(PolicyPath) then
+      DeleteFile(PolicyPath);
+    if DirectoryExists(PolicyDir) then
+      RemoveDir(PolicyDir);
+  end;
+end;
+
+{ Test 3: fpdev.toolchain - CheckFPCVersionPolicy with invalid source }
 procedure TestCheckFPCVersionPolicyInvalid;
 var
   Status, Reason, MinVer, RecVer, FPCVer: string;
@@ -104,7 +168,7 @@ begin
     WriteLn('  Policy check handled unknown version gracefully');
 end;
 
-{ Test 3: fpdev.toolchain.extract - ZipExtract with missing file }
+{ Test 4: fpdev.toolchain.extract - ZipExtract with missing file }
 procedure TestZipExtractMissingFile;
 var
   Err: string;
@@ -118,7 +182,7 @@ begin
   WriteLn('  Expected error: ', Err);
 end;
 
-{ Test 4: fpdev.toolchain.extract - ZipExtract with empty dest }
+{ Test 5: fpdev.toolchain.extract - ZipExtract with empty dest }
 procedure TestZipExtractEmptyDest;
 var
   Err: string;
@@ -132,7 +196,7 @@ begin
   WriteLn('  Expected error: ', Err);
 end;
 
-{ Test 5: fpdev.hash - SHA256 functions exist and work }
+{ Test 6: fpdev.hash - SHA256 functions exist and work }
 procedure TestSHA256Functions;
 var
   TestFile: string;
@@ -163,7 +227,7 @@ begin
   end;
 end;
 
-{ Test 6: fpdev.paths - Path functions return valid directories }
+{ Test 7: fpdev.paths - Path functions return valid directories }
 procedure TestPathFunctions;
 var
   DataRoot, CacheDir, SandboxDir, LogsDir: string;
@@ -185,18 +249,100 @@ begin
   WriteLn('  LogsDir: ', LogsDir);
 end;
 
-{ Test 7: fpdev.toolchain - BuildToolchainReportJSON returns valid JSON }
+{ Test 8: fpdev.toolchain - BuildToolchainReportJSON returns valid JSON }
 procedure TestBuildToolchainReportJSON;
 var
   JSONStr: string;
+  ProbePath: string;
+  SavedPath: string;
+  ExpectedHead: string;
 begin
-  JSONStr := BuildToolchainReportJSON;
-  
-  AssertTrue(JSONStr <> '', 'Toolchain report JSON should not be empty');
-  AssertTrue(Pos('hostOS', JSONStr) > 0, 'JSON should contain hostOS field');
-  AssertTrue(Pos('tools', JSONStr) > 0, 'JSON should contain tools field');
-  
-  WriteLn('  Generated JSON length: ', Length(JSONStr), ' chars');
+  ProbePath := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_path_probe_' + IntToStr(GetTickCount64);
+  SavedPath := get_env('PATH');
+  try
+    AssertTrue(set_env('PATH', ProbePath + PathSeparator + SavedPath),
+      'Should set same-process PATH override for toolchain report test');
+
+    JSONStr := BuildToolchainReportJSON;
+    ExpectedHead := '"pathHead":["' + JsonEscape(ProbePath) + '"';
+
+    AssertTrue(JSONStr <> '', 'Toolchain report JSON should not be empty');
+    AssertTrue(Pos('hostOS', JSONStr) > 0, 'JSON should contain hostOS field');
+    AssertTrue(Pos('tools', JSONStr) > 0, 'JSON should contain tools field');
+    AssertTrue(Pos(ExpectedHead, JSONStr) > 0,
+      'Toolchain report should use same-process PATH override at pathHead[0]');
+
+    WriteLn('  Generated JSON length: ', Length(JSONStr), ' chars');
+  finally
+    RestoreEnv('PATH', SavedPath);
+  end;
+end;
+
+{ Test 9: fpdev.toolchain - BuildToolchainReportJSON should expose lazarus_root from FPDEV_LAZARUSDIR }
+procedure TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot;
+var
+  JSONStr: string;
+  LazarusRoot: string;
+  SavedLazarusDir: string;
+begin
+  LazarusRoot := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_lazarus_root_' + IntToStr(GetTickCount64);
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  ForceDirectories(LazarusRoot + PathDelim + 'lcl');
+
+  try
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set FPDEV_LAZARUSDIR for toolchain report test');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"lazarus_root"', JSONStr,
+      'Toolchain report should include lazarus_root entry');
+    AssertContains('"name":"lazarus_root","found":true', JSONStr,
+      'Toolchain report should mark configured lazarus_root as found');
+    AssertContains('"path":"' + JsonEscape(LazarusRoot) + '"', JSONStr,
+      'Toolchain report should expose configured lazarus_root path');
+  finally
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot + PathDelim + 'lcl');
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot);
+  end;
+end;
+
+{ Test 10: fpdev.toolchain - BuildToolchainReportJSON should fail invalid FPDEV_LAZARUSDIR }
+procedure TestBuildToolchainReportJSONRejectsInvalidLazarusRoot;
+var
+  JSONStr: string;
+  LazarusRoot: string;
+  SavedLazarusDir: string;
+begin
+  LazarusRoot := IncludeTrailingPathDelimiter(GetTempRootDir) +
+    'toolchain_lazarus_root_invalid_' + IntToStr(GetTickCount64);
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  ForceDirectories(LazarusRoot);
+
+  try
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set invalid FPDEV_LAZARUSDIR for toolchain report test');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"lazarus_root"', JSONStr,
+      'Toolchain report should include lazarus_root entry for invalid override');
+    AssertContains('"name":"lazarus_root","found":false', JSONStr,
+      'Toolchain report should reject FPDEV_LAZARUSDIR without lcl/');
+    AssertContains('missing lazarus_root', JSONStr,
+      'Toolchain report should report missing lazarus_root');
+    AssertContains('"level":"FAIL"', JSONStr,
+      'Toolchain report should fail when lazarus_root is missing');
+  finally
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if DirectoryExists(LazarusRoot) then
+      RemoveDir(LazarusRoot);
+  end;
 end;
 
 begin
@@ -206,16 +352,21 @@ begin
   WriteLn;
   
   RunTest('TestGetFPCVersion', @TestGetFPCVersion);
+  RunTest('TestPolicyFileEnvOverride', @TestPolicyFileEnvOverride);
   RunTest('TestCheckFPCVersionPolicyInvalid', @TestCheckFPCVersionPolicyInvalid);
   RunTest('TestZipExtractMissingFile', @TestZipExtractMissingFile);
   RunTest('TestZipExtractEmptyDest', @TestZipExtractEmptyDest);
   RunTest('TestSHA256Functions', @TestSHA256Functions);
   RunTest('TestPathFunctions', @TestPathFunctions);
   RunTest('TestBuildToolchainReportJSON', @TestBuildToolchainReportJSON);
+  RunTest('TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot',
+    @TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot);
+  RunTest('TestBuildToolchainReportJSONRejectsInvalidLazarusRoot',
+    @TestBuildToolchainReportJSONRejectsInvalidLazarusRoot);
   
   WriteLn;
   WriteLn('========================================');
-  WriteLn('SUCCESS: All 7 tests passed!');
+  WriteLn('SUCCESS: All 10 tests passed!');
   WriteLn('========================================');
   
   Halt(0);

@@ -8,7 +8,7 @@ uses
   cthreads,
 {$ENDIF}
   SysUtils, test_pause_control, Classes,
-  fpdev.config, test_temp_paths;
+  fpdev.config, fpdev.lazarus.manager, test_temp_paths;
 
 type
   { TLazarusManagementTest }
@@ -34,6 +34,7 @@ type
     procedure TestLazarusFPCIntegration;
     procedure TestLazarusEnvironmentSetup;
     procedure TestLazarusCommandInterface;
+    procedure TestLoadConfigClearsMissingDefaultLazarusVersion;
     
     // 属性
     property TestsPassed: Integer read FTestsPassed;
@@ -94,6 +95,7 @@ begin
   TestLazarusFPCIntegration;
   TestLazarusEnvironmentSetup;
   TestLazarusCommandInterface;
+  TestLoadConfigClearsMissingDefaultLazarusVersion;
   
   WriteLn;
   WriteLn('=== Test Results ===');
@@ -280,6 +282,70 @@ begin
   WriteLn;
 end;
 
+procedure TLazarusManagementTest.TestLoadConfigClearsMissingDefaultLazarusVersion;
+var
+  StaleConfigRoot: string;
+  StaleConfigPath: string;
+  ReloadedConfig: TFPDevConfigManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
+begin
+  WriteLn('--- Testing stale default Lazarus reload cleanup ---');
+
+  StaleConfigRoot := CreateUniqueTempDir('test_lazarus_stale_reload');
+  StaleConfigPath := IncludeTrailingPathDelimiter(StaleConfigRoot) + 'config.json';
+
+  with TStringList.Create do
+  try
+    Add('{');
+    Add('  "version": "1.0",');
+    Add('  "default_toolchain": "",');
+    Add('  "toolchains": {},');
+    Add('  "lazarus": {');
+    Add('    "default_version": "lazarus-3.0",');
+    Add('    "versions": {}');
+    Add('  },');
+    Add('  "cross_targets": {},');
+    Add('  "repositories": {');
+    Add('    "official_fpc": "https://gitlab.com/freepascal.org/fpc/source.git",');
+    Add('    "official_lazarus": "https://gitlab.com/freepascal.org/lazarus/lazarus.git"');
+    Add('  },');
+    Add('  "settings": {');
+    Add('    "auto_update": false,');
+    Add('    "parallel_jobs": 4,');
+    Add('    "keep_sources": true,');
+    Add('    "install_root": "' + StringReplace(
+      IncludeTrailingPathDelimiter(StaleConfigRoot), '\', '\\', [rfReplaceAll]) + '",');
+    Add('    "default_repo": "",');
+    Add('    "mirror": "auto",');
+    Add('    "custom_repo_url": ""');
+    Add('  }');
+    Add('}');
+    SaveToFile(StaleConfigPath);
+  finally
+    Free;
+  end;
+
+  ReloadedConfig := TFPDevConfigManager.Create(StaleConfigPath);
+  try
+    AssertTrue(ReloadedConfig.LoadConfig, 'Should load stale Lazarus config');
+
+    LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ReloadedConfig.AsConfigManager);
+    try
+      AssertEquals('', ReloadedConfig.GetDefaultLazarusVersion,
+        'LoadConfig should clear missing default Lazarus version');
+      AssertEquals('', LazarusManager.GetCurrentVersion,
+        'GetCurrentVersion should ignore stale default Lazarus version after reload');
+    finally
+      LazarusManager.Free;
+    end;
+  finally
+    ReloadedConfig.Free;
+    CleanupTempDir(StaleConfigRoot);
+  end;
+
+  WriteLn;
+end;
+
 // 全局测试函数
 procedure RunLazarusManagementTests;
 var
@@ -288,6 +354,8 @@ begin
   Test := TLazarusManagementTest.Create;
   try
     Test.RunAllTests;
+    if Test.TestsFailed > 0 then
+      ExitCode := 1;
   finally
     Test.Free;
   end;

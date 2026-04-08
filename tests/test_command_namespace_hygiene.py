@@ -1,15 +1,25 @@
+import re
 import unittest
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC = REPO_ROOT / 'src'
+TESTS = REPO_ROOT / 'tests'
 
 
 class CommandNamespaceHygieneTests(unittest.TestCase):
     def assert_no_token(self, path: Path, token: str):
         text = path.read_text(encoding='utf-8')
         self.assertNotIn(token, text, f'{path} still references {token}')
+
+    def assert_no_unit_import(self, path: Path, unit_name: str):
+        text = path.read_text(encoding='utf-8')
+        pattern = rf'\b{re.escape(unit_name)}\b(?!\.)'
+        self.assertIsNone(
+            re.search(pattern, text),
+            f'{path} still depends on {unit_name}',
+        )
 
     def test_package_manager_unit_owns_real_manager_type(self):
         text = (SRC / 'fpdev.package.manager.pas').read_text(encoding='utf-8')
@@ -562,6 +572,39 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('type', manager_text)
         self.assertIn('TProjectManager = class', manager_text)
 
+    def test_project_manager_header_names_core_module(self):
+        text = (SRC / 'fpdev.project.manager.pas').read_text(encoding='utf-8')
+        self.assertIn('# fpdev.project.manager', text)
+        self.assertNotIn('# fpdev.cmd.project', text)
+
+    def test_cmd_project_unit_declares_compatibility_shim_role(self):
+        text = (SRC / 'fpdev.cmd.project.pas').read_text(encoding='utf-8')
+        self.assertIn('Compatibility shim for legacy fpdev.cmd.project imports.', text)
+        self.assertIn('New code should use fpdev.project.manager and fpdev.cmd.project.root.', text)
+
+    def test_cmd_project_unit_has_no_root_registration_side_effect(self):
+        text = (SRC / 'fpdev.cmd.project.pas').read_text(encoding='utf-8')
+        self.assertNotIn('fpdev.cmd.project.root,', text)
+
+    def test_project_action_units_use_core_manager_directly(self):
+        action_units = [
+            'fpdev.cmd.project.build.pas',
+            'fpdev.cmd.project.clean.pas',
+            'fpdev.cmd.project.info.pas',
+            'fpdev.cmd.project.list.pas',
+            'fpdev.cmd.project.new.pas',
+            'fpdev.cmd.project.run.pas',
+            'fpdev.cmd.project.test.pas',
+            'fpdev.cmd.project.template.install.pas',
+            'fpdev.cmd.project.template.list.pas',
+            'fpdev.cmd.project.template.remove.pas',
+            'fpdev.cmd.project.template.update.pas',
+        ]
+        for filename in action_units:
+            text = (SRC / filename).read_text(encoding='utf-8')
+            self.assertIn('fpdev.project.manager', text, f'{filename} should depend on fpdev.project.manager')
+            self.assertNotIn('fpdev.cmd.project,', text, f'{filename} still depends on fpdev.cmd.project')
+
     def test_lazarus_manager_moves_to_core_module(self):
         manager_path = SRC / 'fpdev.lazarus.manager.pas'
         self.assertTrue(manager_path.exists(), f'Missing {manager_path}')
@@ -570,6 +613,98 @@ class CommandNamespaceHygieneTests(unittest.TestCase):
         self.assertIn('TLazarusManager = fpdev.lazarus.manager.TLazarusManager;', shell_text)
         self.assertIn('type', manager_text)
         self.assertIn('TLazarusManager = class', manager_text)
+
+    def test_lazarus_manager_header_names_core_module(self):
+        text = (SRC / 'fpdev.lazarus.manager.pas').read_text(encoding='utf-8')
+        self.assertIn('# fpdev.lazarus.manager', text)
+        self.assertNotIn('# fpdev.cmd.lazarus', text)
+
+    def test_cmd_lazarus_unit_declares_compatibility_shim_role(self):
+        text = (SRC / 'fpdev.cmd.lazarus.pas').read_text(encoding='utf-8')
+        self.assertIn('Compatibility shim for legacy fpdev.cmd.lazarus imports.', text)
+        self.assertIn('New code should use fpdev.lazarus.manager and fpdev.cmd.lazarus.root.', text)
+
+    def test_cmd_lazarus_unit_has_no_root_registration_side_effect(self):
+        text = (SRC / 'fpdev.cmd.lazarus.pas').read_text(encoding='utf-8')
+        self.assertNotIn('fpdev.cmd.lazarus.root,', text)
+
+    def test_lazarus_action_units_use_core_manager_directly(self):
+        action_units = [
+            'fpdev.cmd.lazarus.configure.pas',
+            'fpdev.cmd.lazarus.current.pas',
+            'fpdev.cmd.lazarus.install.pas',
+            'fpdev.cmd.lazarus.list.pas',
+            'fpdev.cmd.lazarus.run.pas',
+            'fpdev.cmd.lazarus.show.pas',
+            'fpdev.cmd.lazarus.test.pas',
+            'fpdev.cmd.lazarus.uninstall.pas',
+            'fpdev.cmd.lazarus.update.pas',
+            'fpdev.cmd.lazarus.use.pas',
+        ]
+        for filename in action_units:
+            text = (SRC / filename).read_text(encoding='utf-8')
+            self.assertIn('fpdev.lazarus.manager', text, f'{filename} should depend on fpdev.lazarus.manager')
+            self.assertNotIn('fpdev.cmd.lazarus,', text, f'{filename} still depends on fpdev.cmd.lazarus')
+
+    def test_project_action_units_depend_on_core_manager_instead_of_compat_shell(self):
+        expected_shells = {
+            'fpdev.cmd.project.pas',
+            'fpdev.cmd.project.root.pas',
+        }
+        for path in SRC.glob('fpdev.cmd.project*.pas'):
+            if path.name in expected_shells:
+                continue
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('fpdev.cmd.project,', text, f'{path} still depends on compat shell')
+
+    def test_lazarus_action_units_depend_on_core_manager_instead_of_compat_shell(self):
+        expected_shells = {
+            'fpdev.cmd.lazarus.pas',
+            'fpdev.cmd.lazarus.root.pas',
+        }
+        for path in SRC.glob('fpdev.cmd.lazarus*.pas'):
+            if path.name in expected_shells:
+                continue
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('fpdev.cmd.lazarus,', text, f'{path} still depends on compat shell')
+
+    def test_active_project_tests_no_longer_depend_on_project_compat_shell(self):
+        filenames = [
+            'test_project_clean.lpr',
+            'test_project_run.lpr',
+            'test_project_test.lpr',
+        ]
+        for filename in filenames:
+            text = (TESTS / filename).read_text(encoding='utf-8')
+            self.assertNotIn('fpdev.cmd.project', text, f'{filename} still depends on fpdev.cmd.project')
+            self.assertIn('fpdev.project.manager', text, f'{filename} should depend on fpdev.project.manager')
+
+    def test_active_lazarus_tests_no_longer_depend_on_lazarus_compat_shell(self):
+        filenames = [
+            'test_cli_lazarus.lpr',
+            'test_lazarus_clean.lpr',
+            'test_lazarus_configure_workflow.lpr',
+            'test_lazarus_management.lpr',
+            'test_lazarus_update.lpr',
+        ]
+        for filename in filenames:
+            self.assert_no_unit_import(TESTS / filename, 'fpdev.cmd.lazarus')
+        self.assertIn('fpdev.cmd.lazarus.root', (TESTS / 'test_cli_lazarus.lpr').read_text(encoding='utf-8'))
+        self.assertIn('fpdev.lazarus.manager', (TESTS / 'test_lazarus_clean.lpr').read_text(encoding='utf-8'))
+        self.assertIn('fpdev.lazarus.manager', (TESTS / 'test_lazarus_configure_workflow.lpr').read_text(encoding='utf-8'))
+        self.assertIn('fpdev.lazarus.manager', (TESTS / 'test_lazarus_management.lpr').read_text(encoding='utf-8'))
+        self.assertIn('fpdev.lazarus.manager', (TESTS / 'test_lazarus_update.lpr').read_text(encoding='utf-8'))
+
+    def test_migrated_root_lpr_samples_avoid_compat_shells_and_legacy_execute_api(self):
+        migrated_root_lpr = TESTS / 'migrated' / 'root-lpr'
+        for path in migrated_root_lpr.glob('*.lpr'):
+            self.assert_no_unit_import(path, 'fpdev.cmd.project')
+            self.assert_no_unit_import(path, 'fpdev.cmd.lazarus')
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('.execute([])', text, f'{path} still uses the legacy module-level execute API')
+
+    def test_migrated_root_lpr_has_no_placeholder_main_stub(self):
+        self.assertFalse((TESTS / 'migrated' / 'root-lpr' / 'test_main.lpr').exists())
 
     def test_command_imports_unit_only_references_domain_aggregators(self):
         text = (SRC / 'fpdev.command.imports.pas').read_text(encoding='utf-8')

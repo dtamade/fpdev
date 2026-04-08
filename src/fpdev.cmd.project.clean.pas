@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.project,
+  fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -35,6 +35,7 @@ function TProjectCleanCommand.Execute(const AParams: array of string; const Ctx:
 var
   LDir: string;
   LMgr: TProjectManager;
+  UnknownOption: string;
 begin
   Result := 0;
 
@@ -49,8 +50,20 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if Length(AParams) > 0 then
-    LDir := AParams[0]
+  if FindUnknownOption(AParams, [], UnknownOption) then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_CLEAN_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) > 1 then
+  begin
+    Ctx.Err.WriteLn(_(HELP_PROJECT_CLEAN_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  if CountPositionalArgs(AParams) > 0 then
+    LDir := GetPositionalArg(AParams, 0)
   else
     LDir := '.';
 

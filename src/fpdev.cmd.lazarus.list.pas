@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -65,7 +65,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPTIONS));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_ALL));
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_LIST_OPT_HELP));
     Exit(EXIT_OK);
   end;
@@ -106,7 +106,16 @@ begin
         for I := 0 to High(LVersions) do
           LArr.Add(LazarusVersionToJson(LVersions[I]));
         LJson.Add('versions', LArr);
-        LJson.Add('default', LDefault);
+        if LDefault <> '' then
+        begin
+          LJson.Add('default', LDefault);
+          LJson.Add('has_default', True);
+        end
+        else
+        begin
+          LJson.Add('default', TJSONNull.Create);
+          LJson.Add('has_default', False);
+        end;
         LJson.Add('show_all', LAll);
         Ctx.Out.WriteLn(LJson.FormatJSON);
       finally

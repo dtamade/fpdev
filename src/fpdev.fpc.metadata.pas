@@ -34,7 +34,19 @@ function GetMetadataPath(const AInstallPath: string): string;
 implementation
 
 uses
-  fpdev.utils.fs;
+  DateUtils, fpdev.utils.fs;
+
+function ParseISO8601OrZero(const AValue: string): TDateTime;
+begin
+  Result := 0;
+  if Trim(AValue) = '' then
+    Exit;
+  try
+    Result := ISO8601ToDate(AValue);
+  except
+    Result := 0;
+  end;
+end;
 
 function GetMetadataPath(const AInstallPath: string): string;
 begin
@@ -165,10 +177,10 @@ begin
         // Read verify object
         if JSON.Find('verify', VerifyObj) then
         begin
+          AMeta.Verify.Timestamp := ParseISO8601OrZero(VerifyObj.Get('timestamp', ''));
           AMeta.Verify.OK := VerifyObj.Get('ok', False);
           AMeta.Verify.DetectedVersion := VerifyObj.Get('detected_version', '');
           AMeta.Verify.SmokeTestPassed := VerifyObj.Get('smoke_test_passed', False);
-          // Note: Timestamp parsing omitted for simplicity in v1
         end;
 
         // Read origin object
@@ -179,7 +191,7 @@ begin
           AMeta.Origin.BuiltFromSource := OriginObj.Get('built_from_source', False);
         end;
 
-        // Note: InstalledAt parsing omitted for simplicity in v1
+        AMeta.InstalledAt := ParseISO8601OrZero(JSON.Get('installed_at', ''));
 
         Result := True;
       finally

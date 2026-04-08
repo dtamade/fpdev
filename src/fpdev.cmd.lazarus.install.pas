@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.config.interfaces, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -96,18 +96,37 @@ begin
 
   LFromSource := HasFlag(AParams, 'from-source');
   if GetFlagValue(AParams, 'from', LFrom) then
-    LFromSource := LFromSource or SameText(LFrom, 'source');
+  begin
+    if SameText(LFrom, 'source') then
+      LFromSource := True
+    else if not SameText(LFrom, 'binary') then
+    begin
+      Ctx.Err.WriteLn('Error: Invalid --from mode: ' + LFrom);
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+  end;
 
   LNoConfigure := HasFlag(AParams, 'no-configure');
 
   LFPCVer := '';
-  GetFlagValue(AParams, 'fpc', LFPCVer);
+  if GetFlagValue(AParams, 'fpc', LFPCVer) and (LFPCVer = '') then
+  begin
+    Ctx.Err.WriteLn('Error: Missing --fpc value');
+    Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+    Exit(EXIT_USAGE_ERROR);
+  end;
 
   if GetFlagValue(AParams, 'jobs', LJobs) then
   begin
     LSettings := Ctx.Config.GetSettingsManager.GetSettings;
-    if TryStrToInt(LJobs, LSettings.ParallelJobs) then
-      Ctx.Config.GetSettingsManager.SetSettings(LSettings);
+    if not TryStrToInt(LJobs, LSettings.ParallelJobs) then
+    begin
+      Ctx.Err.WriteLn('Error: Invalid --jobs value: ' + LJobs);
+      Ctx.Err.WriteLn(_(HELP_LAZARUS_INSTALL_USAGE));
+      Exit(EXIT_USAGE_ERROR);
+    end;
+    Ctx.Config.GetSettingsManager.SetSettings(LSettings);
   end;
 
   Ctx.Out.WriteLn(_Fmt(CMD_LAZARUS_INSTALL_START, [LVer]));
@@ -116,7 +135,6 @@ begin
   try
     if LMgr.InstallVersion(Ctx.Out, Ctx.Err, LVer, LFPCVer, LFromSource, not LNoConfigure) then
       Exit(EXIT_OK);
-    Ctx.Err.WriteLn(_(CMD_LAZARUS_INSTALL_FAILED));
     Result := EXIT_ERROR;
   finally
     LMgr.Free;

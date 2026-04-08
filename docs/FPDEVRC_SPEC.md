@@ -53,7 +53,7 @@ channel = "stable"
 
 [cross]
 # 交叉编译目标（可选）
-targets = ["aarch64-linux", "x86_64-windows"]
+targets = ["aarch64-linux", "x86_64-win64"]
 
 [settings]
 # 镜像源（可选）
@@ -70,10 +70,12 @@ auto_install = false
 
 | 别名 | 说明 |
 |------|------|
-| `stable` | 最新稳定版（当前 3.2.2） |
-| `lts` | 长期支持版（当前 3.2.0） |
+| `stable` | 稳定通道别名；本规范中的示例基线为 3.2.2 |
+| `lts` | 长期支持通道别名；本规范中的示例基线为 3.2.0 |
 | `trunk` | 开发版（main 分支） |
 | `latest` | 等同于 stable |
+
+说明：`stable` / `lts` 在运行时实际解析到的版本取决于仓库清单与配置源；上面的数字只用于本规范示例。
 
 示例：
 ```toml

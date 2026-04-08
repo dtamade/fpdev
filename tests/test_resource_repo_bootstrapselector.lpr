@@ -124,7 +124,7 @@ begin
   end;
 end;
 
-procedure TestLastResortUsesAnyAvailableVersion;
+procedure TestCompatibleSameSeriesAlternativeWins;
 var
   Probe: TBootstrapProbe;
   Logs: TStringArray;
@@ -134,15 +134,39 @@ begin
   try
     Probe.Platform := 'linux-x86_64';
     SetLength(Probe.Available, 1);
-    Probe.Available[0] := '2.9.9';
+    Probe.Available[0] := '3.2.2';
 
     Selected := SelectBestBootstrapVersionCore('3.2.0', Probe.Platform,
-      ['2.9.9'], @Probe.HasBootstrapCompiler, Logs);
+      ['3.2.2'], @Probe.HasBootstrapCompiler, Logs);
 
-    Check('last resort selects any available version', Selected = '2.9.9', 'selected=' + Selected);
-    Check('last resort logs warning',
-      (Length(Logs) >= 1) and (Pos('only available version', Logs[High(Logs)]) > 0),
-      'last resort warning missing');
+    Check('same-series alternative selects newer patch', Selected = '3.2.2', 'selected=' + Selected);
+    Check('same-series alternative logs note',
+      (Length(Logs) >= 1) and (Pos('same-series alternative', Logs[High(Logs)]) > 0),
+      'same-series note missing');
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestRejectsIncompatibleOnlyAvailableVersion;
+var
+  Probe: TBootstrapProbe;
+  Logs: TStringArray;
+  Selected: string;
+begin
+  Probe := TBootstrapProbe.Create;
+  try
+    Probe.Platform := 'linux-x86_64';
+    SetLength(Probe.Available, 1);
+    Probe.Available[0] := '3.3.1';
+
+    Selected := SelectBestBootstrapVersionCore('3.2.0', Probe.Platform,
+      ['3.3.1'], @Probe.HasBootstrapCompiler, Logs);
+
+    Check('incompatible only-available version returns empty', Selected = '', 'selected=' + Selected);
+    Check('incompatible only-available version logs error',
+      (Length(Logs) >= 1) and (Pos('No compatible bootstrap compiler available', Logs[High(Logs)]) > 0),
+      'compatibility error missing');
   finally
     Probe.Free;
   end;
@@ -164,7 +188,7 @@ begin
 
     Check('no available bootstrap returns empty', Selected = '', 'selected=' + Selected);
     Check('no available bootstrap logs error',
-      (Length(Logs) >= 1) and (Pos('No bootstrap compiler available', Logs[High(Logs)]) > 0),
+      (Length(Logs) >= 1) and (Pos('No compatible bootstrap compiler available', Logs[High(Logs)]) > 0),
       'error log missing');
   finally
     Probe.Free;
@@ -175,7 +199,8 @@ begin
   TestExactRequiredVersionWins;
   TestMissingRequiredDefaultsAndWarns;
   TestFallbackChainChoosesOlderSupportedVersion;
-  TestLastResortUsesAnyAvailableVersion;
+  TestCompatibleSameSeriesAlternativeWins;
+  TestRejectsIncompatibleOnlyAvailableVersion;
   TestNoAvailableBootstrapLogsError;
 
   WriteLn;

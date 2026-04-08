@@ -8,12 +8,12 @@ uses
 {$ENDIF}
   SysUtils, Classes,
   fpdev.output.intf, fpdev.i18n, fpdev.i18n.strings,
-  fpdev.package.verification, fpdev.hash, fpdev.utils.fs;
+  fpdev.package.verification, fpdev.hash, fpdev.utils.fs,
+  test_temp_paths;
 
 var
   Passed, Failed: Integer;
   TempRoot: string;
-  TempRootSeq: Integer = 0;
 
 type
   TStringOutput = class(TInterfacedObject, IOutput)
@@ -172,9 +172,7 @@ end;
 
 function BuildTempRoot: string;
 begin
-  Inc(TempRootSeq);
-  Result := IncludeTrailingPathDelimiter(GetTempDir(False)) +
-    'fpdev_test_pkg_verify-' + IntToStr(GetTickCount64) + '-' + IntToStr(TempRootSeq) + PathDelim;
+  Result := IncludeTrailingPathDelimiter(CreateUniqueTempDir('fpdev_test_pkg_verify'));
 end;
 
 function MakeTempPkgDir(const AName: string): string;
@@ -188,17 +186,16 @@ var
   OtherTempRoot: string;
 begin
   WriteLn('-- TestTempRootUsesSystemTempAndUniqueSuffix --');
-  Check(
-    Pos(IncludeTrailingPathDelimiter(ExpandFileName(GetTempDir(False))),
-      ExpandFileName(TempRoot)) = 1,
-    'Temp root lives under system temp'
-  );
-
   OtherTempRoot := BuildTempRoot;
-  Check(
-    ExpandFileName(TempRoot) <> ExpandFileName(OtherTempRoot),
-    'Temp root is unique per run'
-  );
+  try
+    Check(PathUsesSystemTempRoot(TempRoot), 'Temp root lives under system temp');
+    Check(
+      ExpandFileName(TempRoot) <> ExpandFileName(OtherTempRoot),
+      'Temp root is unique per run'
+    );
+  finally
+    CleanupTempDir(OtherTempRoot);
+  end;
 end;
 
 // ---- VerifyInstalledPackageCore tests ----
@@ -573,15 +570,13 @@ end;
 // ---- Cleanup ----
 procedure Cleanup;
 begin
-  if (TempRoot <> '') and DirectoryExists(TempRoot) then
-    DeleteDirRecursive(TempRoot);
+  CleanupTempDir(TempRoot);
 end;
 
 begin
   Passed := 0;
   Failed := 0;
   TempRoot := BuildTempRoot;
-  ForceDirectories(TempRoot);
 
   WriteLn('');
   WriteLn('=== fpdev.package.verification Test Suite ===');

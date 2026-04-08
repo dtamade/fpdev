@@ -46,7 +46,8 @@ begin
   ExactNode := FindNodeAtPathCore(ARoot, HelpPath);
   if (ExactNode <> nil) and Assigned(ExactNode.Factory) then
     Exit;
-  if (ExactNode <> nil) and Assigned(ExactNode.Command) and (ExactNode.Children.Count = 0) then
+  if (ExactNode <> nil) and Assigned(ExactNode.Command) and
+     (Length(HelpPath) > 0) and SameText(HelpPath[0], 'system') then
     Exit;
 
   for PrefixLen := BaseLen downto 1 do

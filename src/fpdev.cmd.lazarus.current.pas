@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.cmd.lazarus,
+  fpdev.command.intf, fpdev.command.registry, fpdev.lazarus.manager,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
 
 type
@@ -48,7 +48,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_DESC));
     Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --json           Output in JSON format');
+    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_HELP));
     Exit(EXIT_OK);
   end;

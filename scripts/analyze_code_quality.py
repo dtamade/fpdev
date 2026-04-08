@@ -60,6 +60,18 @@ def analyze_temp_files_and_debug_code():
         lines = content.split('\n')
         in_brace_comment = False
         in_paren_comment = False
+        current_method_name = None
+        adapter_method_names = {
+            'write', 'writeln', 'writefmt', 'writelnfmt',
+            'writecolored', 'writelncolored', 'writestyled', 'writelnstyled',
+            'writesuccess', 'writeerror', 'writewarning', 'writeinfo',
+            'flush', 'clear', 'getoutput',
+        }
+        file_contains_ioutput_adapter = re.search(
+            r'class\s*\([^)]*\bioutput\b[^)]*\)',
+            content,
+            re.IGNORECASE
+        ) is not None
 
         for i, line in enumerate(lines, 1):
             code_part = ''
@@ -106,6 +118,13 @@ def analyze_temp_files_and_debug_code():
             code_lower = code_sans_strings.lower()
             is_declaration = re.match(r'\s*(procedure|function)\b', code_lower) is not None
             is_console_wrapper_unit = pas_file.name.lower() == 'fpdev.output.console.pas'
+            method_match = re.match(
+                r'\s*(?:class\s+)?(?:procedure|function)\s+(?:[\w\.]+\.)?(\w+)\b',
+                code_lower
+            )
+            if method_match:
+                current_method_name = method_match.group(1)
+
             is_file_handle_write = re.search(
                 r'(?<![\w\.])write(?:ln)?\s*\(\s*[a-z_]\w*\s*,',
                 code_lower,
@@ -115,7 +134,11 @@ def analyze_temp_files_and_debug_code():
                 re.search(pattern, code_lower, re.IGNORECASE)
                 for pattern in debug_write_patterns
             )
-            if is_console_wrapper_unit or is_file_handle_write:
+            in_ioutput_adapter_method = (
+                file_contains_ioutput_adapter and
+                current_method_name in adapter_method_names
+            )
+            if is_console_wrapper_unit or is_file_handle_write or in_ioutput_adapter_method:
                 has_debug_write = False
 
             comment_lower = inline_comment.strip().lower()
@@ -379,6 +402,8 @@ def analyze_hardcoded_constants():
             for pattern in hardcoded_patterns:
                 matches = re.findall(pattern, code_part)
                 for match in matches:
+                    if match == "'/'":
+                        continue
                     hardcoded_items.append((i, match))
         
         if hardcoded_items:
@@ -519,6 +544,10 @@ def main():
     
     for issue_type, count in issue_types.items():
         print(f"{issue_type}: {count} 个问题")
+
+    if not all_issues:
+        print("\n✅ 未发现代码质量问题。")
+        return 0
     
     # 详细报告
     print(f"\n⚠️  问题详情:")

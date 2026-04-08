@@ -56,7 +56,7 @@ brew install git wget
 1. Download the latest release:
    ```powershell
    # Using PowerShell
-   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
+   Invoke-WebRequest -Uri "https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-windows-x64.zip" -OutFile "fpdev.zip"
    Expand-Archive -Path "fpdev.zip" -DestinationPath "C:\fpdev"
    ```
 
@@ -78,7 +78,7 @@ brew install git wget
 1. Download and install:
    ```bash
    # Download
-   wget https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-linux-x64.tar.gz
+   wget https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-linux-x64.tar.gz
 
    # Extract
    tar -xzf fpdev-linux-x64.tar.gz
@@ -101,7 +101,7 @@ brew install git wget
 1. Download and install:
    ```bash
    # Download
-   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v1.0.0/fpdev-macos-x64.tar.gz
+   curl -L -o fpdev-macos.tar.gz https://github.com/fpdev/fpdev/releases/download/v2.1.0/fpdev-macos-x64.tar.gz
 
    # Extract
    tar -xzf fpdev-macos.tar.gz
@@ -125,11 +125,10 @@ git clone https://github.com/fpdev/fpdev.git
 cd fpdev
 
 # Build
-cd src
-fpc -FE../bin fpdev.lpr
+bash scripts/build_release.sh
 
 # Verify
-../bin/fpdev system version
+./bin/fpdev system version
 ```
 
 ### Method 3: Package Manager Installation (Planned)

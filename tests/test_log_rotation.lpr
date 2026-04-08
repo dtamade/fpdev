@@ -90,16 +90,10 @@ end;
 { Helper function to set file modification time }
 procedure SetFileTime(const APath: string; ATime: TDateTime);
 var
-  Handle: THandle;
   FileDate: LongInt;
 begin
-  Handle := FileOpen(APath, fmOpenWrite);
-  if Handle <> THandle(-1) then
-  begin
-    FileDate := DateTimeToFileDate(ATime);
-    FileSetDate(Handle, FileDate);
-    FileClose(Handle);
-  end;
+  FileDate := DateTimeToFileDate(ATime);
+  AssertTrue(FileSetDate(APath, FileDate) = 0, 'Set file time for ' + ExtractFileName(APath));
 end;
 
 procedure TestRotationConfigCreation;

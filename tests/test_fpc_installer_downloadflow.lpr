@@ -211,36 +211,42 @@ var
   Plan: TFPCLegacyBinaryDownloadPlan;
   Err: string;
 begin
-  URL := ResolveFPCLegacyBinaryDownloadURL('3.2.2');
-  FileExt := ResolveFPCLegacyBinaryDownloadFileExt;
+  Plan := Default(TFPCLegacyBinaryDownloadPlan);
+  try
+    URL := ResolveFPCLegacyBinaryDownloadURL('3.2.2');
+    FileExt := ResolveFPCLegacyBinaryDownloadFileExt;
 
-  Check('legacy url not empty', URL <> '', 'url should not be empty');
-  Check('legacy url contains sourceforge', Pos('sourceforge.net', URL) > 0,
-    'url=' + URL);
-  Check('legacy url contains version', Pos('3.2.2', URL) > 0,
-    'url=' + URL);
-  Check('legacy file ext not empty', FileExt <> '', 'file ext should not be empty');
-  {$IFDEF LINUX}
-  Check('legacy linux file ext is tar', FileExt = '.tar', 'ext=' + FileExt);
-  Check('legacy linux url mentions Linux', Pos('Linux', URL) > 0, 'url=' + URL);
-  {$ENDIF}
-  {$IFDEF MSWINDOWS}
-  Check('legacy windows file ext is exe', FileExt = '.exe', 'ext=' + FileExt);
-  {$ENDIF}
-  {$IFDEF DARWIN}
-  Check('legacy macOS file ext is dmg', FileExt = '.dmg', 'ext=' + FileExt);
-  {$ENDIF}
+    Check('legacy url not empty', URL <> '', 'url should not be empty');
+    Check('legacy url contains sourceforge', Pos('sourceforge.net', URL) > 0,
+      'url=' + URL);
+    Check('legacy url contains version', Pos('3.2.2', URL) > 0,
+      'url=' + URL);
+    Check('legacy file ext not empty', FileExt <> '', 'file ext should not be empty');
+    {$IFDEF LINUX}
+    Check('legacy linux file ext is tar', FileExt = '.tar', 'ext=' + FileExt);
+    Check('legacy linux url mentions Linux', Pos('Linux', URL) > 0, 'url=' + URL);
+    {$ENDIF}
+    {$IFDEF MSWINDOWS}
+    Check('legacy windows file ext is exe', FileExt = '.exe', 'ext=' + FileExt);
+    {$ENDIF}
+    {$IFDEF DARWIN}
+    Check('legacy macOS file ext is dmg', FileExt = '.dmg', 'ext=' + FileExt);
+    {$ENDIF}
 
-  Err := '';
-  Check('prepare legacy download plan succeeds',
-    PrepareFPCLegacyBinaryDownloadPlan('3.2.2', Plan, Err),
-    'err=' + Err);
-  Check('prepare legacy download plan temp dir contains fpdev_downloads',
-    Pos('fpdev_downloads', Plan.TempDir) > 0, 'temp dir=' + Plan.TempDir);
-  Check('prepare legacy download plan temp file contains version',
-    Pos('3.2.2', Plan.TempFile) > 0, 'temp file=' + Plan.TempFile);
-  Check('prepare legacy download plan temp file has ext',
-    ExtractFileExt(Plan.TempFile) = FileExt, 'temp file=' + Plan.TempFile);
+    Err := '';
+    Check('prepare legacy download plan succeeds',
+      PrepareFPCLegacyBinaryDownloadPlan('3.2.2', Plan, Err),
+      'err=' + Err);
+    Check('prepare legacy download plan temp dir contains fpdev_downloads',
+      Pos('fpdev_downloads', Plan.TempDir) > 0, 'temp dir=' + Plan.TempDir);
+    Check('prepare legacy download plan temp file contains version',
+      Pos('3.2.2', Plan.TempFile) > 0, 'temp file=' + Plan.TempFile);
+    Check('prepare legacy download plan temp file has ext',
+      ExtractFileExt(Plan.TempFile) = FileExt, 'temp file=' + Plan.TempFile);
+  finally
+    if (Plan.TempDir <> '') and DirectoryExists(Plan.TempDir) then
+      CleanupTempDir(Plan.TempDir);
+  end;
 end;
 
 procedure TestExecuteLegacyDownloadSuccess;
@@ -272,6 +278,8 @@ begin
   finally
     if (TempFile <> '') and FileExists(TempFile) then
       DeleteFile(TempFile);
+    if TempFile <> '' then
+      CleanupTempDir(ExtractFileDir(TempFile));
     Probe.Free;
   end;
 end;
@@ -302,7 +310,13 @@ begin
     Check('legacy download failure cleans partial file',
       (Probe.LastTempFile <> '') and (not FileExists(Probe.LastTempFile)),
       'partial file should be removed: ' + Probe.LastTempFile);
+    Check('legacy download failure removes empty download dir',
+      (Probe.LastTempFile <> '') and
+      (not DirectoryExists(ExtractFileDir(Probe.LastTempFile))),
+      'download dir should be removed: ' + ExtractFileDir(Probe.LastTempFile));
   finally
+    if Probe.LastTempFile <> '' then
+      CleanupTempDir(ExtractFileDir(Probe.LastTempFile));
     Probe.Free;
   end;
 end;
@@ -330,7 +344,13 @@ begin
     Check('legacy download exception cleans partial file',
       (Probe.LastTempFile <> '') and (not FileExists(Probe.LastTempFile)),
       'partial file should be removed: ' + Probe.LastTempFile);
+    Check('legacy download exception removes empty download dir',
+      (Probe.LastTempFile <> '') and
+      (not DirectoryExists(ExtractFileDir(Probe.LastTempFile))),
+      'download dir should be removed: ' + ExtractFileDir(Probe.LastTempFile));
   finally
+    if Probe.LastTempFile <> '' then
+      CleanupTempDir(ExtractFileDir(Probe.LastTempFile));
     Probe.Free;
   end;
 end;

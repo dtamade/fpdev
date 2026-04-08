@@ -14,7 +14,7 @@ unit fpdev.cmd.package.publish;
   - Support force overwrite
 
   Usage:
-    Publisher := TPackagePublishCommand.Create('~/.fpdev/registry');
+    Publisher := TPackagePublishCommand.Create(GetDataRoot + PathDelim + 'registry');
     if Publisher.Publish('mylib-1.0.0.tar.gz') then
       WriteLn('Package published successfully')
     else

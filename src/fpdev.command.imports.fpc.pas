@@ -14,6 +14,7 @@ uses
   fpdev.cmd.fpc.use,
   fpdev.cmd.fpc.doctor,
   fpdev.cmd.fpc.current,
+  fpdev.cmd.fpc.status,
   fpdev.cmd.fpc.show,
   fpdev.cmd.fpc.test,
   fpdev.cmd.fpc.verify,

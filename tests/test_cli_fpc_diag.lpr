@@ -4,11 +4,12 @@ program test_cli_fpc_diag;
 
 {
 ================================================================================
-  test_cli_fpc_diag - CLI tests for fpdev fpc doctor/verify/cache commands
+  test_cli_fpc_diag - CLI tests for fpdev fpc doctor/status/verify/cache commands
 ================================================================================
 
   Tests the FPC diagnostic/cache commands' CLI behavior:
   - doctor: environment check with help, execution
+  - status: managed compiler status with offline closure checks
   - verify: installation verification with help, missing args
   - cache list/clean/stats/path: cache management commands
 
@@ -20,16 +21,21 @@ program test_cli_fpc_diag;
 }
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, DateUtils, Process,
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
+  fpdev.types,
   fpdev.command.intf, fpdev.command.registry,
+  fpdev.config.interfaces,
   fpdev.exitcodes,
   fpdev.build.cache.key,
   fpdev.paths,
+  fpdev.fpc.metadata, fpdev.fpc.types,
   fpdev.cmd.fpc,                // Register 'fpc' root command
   fpdev.cmd.fpc.doctor,
+  fpdev.cmd.fpc.status,
+  fpdev.cmd.fpc.use,
   fpdev.cmd.fpc.verify,
   fpdev.cmd.fpc.cache,          // Register 'fpc cache' root node
   fpdev.cmd.fpc.cache.list,
@@ -40,6 +46,133 @@ uses
 
 var
   GTempDir: string;
+
+procedure ConfigureInstallRoot(const Ctx: IContext; const AInstallRoot: string);
+var
+  Settings: TFPDevSettings;
+begin
+  Settings := Ctx.Config.GetSettingsManager.GetSettings;
+  Settings.InstallRoot := AInstallRoot;
+  Ctx.Config.GetSettingsManager.SetSettings(Settings);
+end;
+
+procedure CompileMockFPCBinary(const ATargetPath: string);
+var
+  MockFPCSource: string;
+  CompileProcess: TProcess;
+begin
+  MockFPCSource := ExpandFileName(
+    ExtractFileDir(ParamStr(0)) + PathDelim + '..' + PathDelim + 'tests' +
+    PathDelim + 'mock_fpc.pas'
+  );
+
+  CompileProcess := TProcess.Create(nil);
+  try
+    CompileProcess.Executable := 'fpc';
+    CompileProcess.Parameters.Add('-o' + ATargetPath);
+    CompileProcess.Parameters.Add(MockFPCSource);
+    CompileProcess.Options := CompileProcess.Options + [poWaitOnExit];
+    CompileProcess.Execute;
+
+    if CompileProcess.ExitStatus <> 0 then
+      raise Exception.Create('Failed to compile mock FPC executable');
+  finally
+    CompileProcess.Free;
+  end;
+end;
+
+procedure SetupMockVerifyInstall(const Ctx: IContext; out AInstallRoot, AInstallDir: string);
+var
+  FPCExecutable: string;
+begin
+  AInstallRoot := CreateUniqueTempDir('fpdev_test_verify_exec');
+  ConfigureInstallRoot(Ctx, AInstallRoot);
+
+  AInstallDir := BuildFPCInstallDirFromInstallRoot(AInstallRoot, '3.2.2');
+  ForceDirectories(AInstallDir + PathDelim + 'bin');
+  ForceDirectories(AInstallDir + PathDelim + 'units');
+
+  {$IFDEF MSWINDOWS}
+  FPCExecutable := AInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  FPCExecutable := AInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+
+  CompileMockFPCBinary(FPCExecutable);
+end;
+
+procedure SetupMockLegacyVerifyInstall(
+  const Ctx: IContext;
+  out AInstallRoot, APreferredInstallDir, ALegacyInstallDir: string
+);
+var
+  FPCExecutable: string;
+begin
+  AInstallRoot := CreateUniqueTempDir('fpdev_test_verify_legacy_exec');
+  ConfigureInstallRoot(Ctx, AInstallRoot);
+
+  APreferredInstallDir := BuildFPCInstallDirFromInstallRoot(AInstallRoot, '3.2.2');
+  ALegacyInstallDir := AInstallRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
+  ForceDirectories(ALegacyInstallDir + PathDelim + 'bin');
+  ForceDirectories(ALegacyInstallDir + PathDelim + 'units');
+
+  {$IFDEF MSWINDOWS}
+  FPCExecutable := ALegacyInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  FPCExecutable := ALegacyInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+
+  CompileMockFPCBinary(FPCExecutable);
+end;
+
+procedure SetupMockConfiguredVerifyInstall(
+  const Ctx: IContext;
+  out AInstallRoot, APreferredInstallDir, AConfiguredInstallDir: string
+);
+var
+  FPCExecutable: string;
+  ToolchainInfo: TToolchainInfo;
+begin
+  AInstallRoot := CreateUniqueTempDir('fpdev_test_verify_configured_exec');
+  ConfigureInstallRoot(Ctx, AInstallRoot);
+
+  APreferredInstallDir := BuildFPCInstallDirFromInstallRoot(AInstallRoot, '3.2.2');
+  AConfiguredInstallDir := AInstallRoot + PathDelim + 'custom-toolchains' +
+    PathDelim + 'fpc-3.2.2';
+  ForceDirectories(AConfiguredInstallDir + PathDelim + 'bin');
+  ForceDirectories(AConfiguredInstallDir + PathDelim + 'units');
+
+  ToolchainInfo := Default(TToolchainInfo);
+  ToolchainInfo.Version := '3.2.2';
+  ToolchainInfo.InstallPath := AConfiguredInstallDir;
+  ToolchainInfo.Installed := True;
+  ToolchainInfo.InstallDate := Now;
+  if not Ctx.Config.GetToolchainManager.AddToolchain('fpc-3.2.2', ToolchainInfo) then
+    raise Exception.Create('Failed to add configured FPC toolchain');
+
+  {$IFDEF MSWINDOWS}
+  FPCExecutable := AConfiguredInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  FPCExecutable := AConfiguredInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+
+  CompileMockFPCBinary(FPCExecutable);
+end;
+
+function RegisterInstalledToolchain(
+  const Ctx: IContext;
+  const AVersion, AInstallDir: string
+): Boolean;
+var
+  ToolchainInfo: TToolchainInfo;
+begin
+  ToolchainInfo := Default(TToolchainInfo);
+  ToolchainInfo.Version := AVersion;
+  ToolchainInfo.InstallPath := AInstallDir;
+  ToolchainInfo.Installed := True;
+  ToolchainInfo.InstallDate := Now;
+  Result := Ctx.Config.GetToolchainManager.AddToolchain('fpc-' + AVersion, ToolchainInfo);
+end;
 
 { ===== Group 1: fpc doctor - Command Basics ===== }
 
@@ -271,6 +404,25 @@ begin
   end;
 end;
 
+procedure TestVerifyHelpUnexpectedArg;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('verify help unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('verify help unexpected arg shows usage', StdErr.Contains('verify'));
+    Check('verify help unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
 { ===== Group 7: fpc verify - Missing Arguments ===== }
 
 procedure TestVerifyMissingVersion;
@@ -293,6 +445,207 @@ begin
   end;
 end;
 
+procedure TestVerifyUnexpectedArg;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', 'extra'], Ctx);
+    Check('verify unexpected arg returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('verify unexpected arg shows usage', StdErr.Contains('verify'));
+    Check('verify unexpected arg keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestVerifyUnknownOption;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--unknown'], Ctx);
+    Check('verify unknown option returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('verify unknown option shows usage', StdErr.Contains('verify'));
+    Check('verify unknown option keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestVerifyExecutionSelfHealsMissingMetadata;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot, InstallDir: string;
+  MetaPath: string;
+  Meta: TFPDevMetadata;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  SetupMockVerifyInstall(Ctx, InstallRoot, InstallDir);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    MetaPath := GetMetadataPath(InstallDir);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+
+    Check('verify execution returns EXIT_OK', Ret = EXIT_OK);
+    Check('verify execution prints completion message',
+      StdOut.Contains('Verification complete: FPC 3.2.2 is working correctly'));
+    Check('verify execution reports metadata success',
+      StdOut.Contains('PASS: Metadata file exists'));
+    Check('verify execution does not print fail banner',
+      not StdErr.Contains('FAIL:'));
+    Check('verify execution backfills metadata file', FileExists(MetaPath));
+    Check('verify execution metadata is readable', ReadFPCMetadata(InstallDir, Meta));
+    Check('verify execution metadata ok=true', Meta.Verify.OK);
+    Check('verify execution metadata version preserved',
+      Meta.Verify.DetectedVersion = '3.2.2');
+    Check('verify execution metadata smoke test=true', Meta.Verify.SmokeTestPassed);
+  finally
+    Cmd.Free;
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
+procedure TestVerifyExecutionPreservesExistingSourceMetadata;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot, InstallDir: string;
+  Meta, ReadMeta: TFPDevMetadata;
+  InstalledAt: TDateTime;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  SetupMockVerifyInstall(Ctx, InstallRoot, InstallDir);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    InstalledAt := EncodeDate(2026, 3, 19) + EncodeTime(8, 30, 0, 0);
+    Meta := Default(TFPDevMetadata);
+    Meta.Version := '3.2.2';
+    Meta.Scope := isUser;
+    Meta.SourceMode := smSource;
+    Meta.Channel := 'stable';
+    Meta.Prefix := InstallDir;
+    Meta.Origin.RepoURL := 'https://example.invalid/fpc.git';
+    Meta.Origin.BuiltFromSource := True;
+    Meta.InstalledAt := InstalledAt;
+    Check('verify preserve test seeds metadata', WriteFPCMetadata(InstallDir, Meta));
+
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+
+    Check('verify preserve test returns EXIT_OK', Ret = EXIT_OK);
+    Check('verify preserve test reloads metadata', ReadFPCMetadata(InstallDir, ReadMeta));
+    Check('verify preserve test keeps source mode', ReadMeta.SourceMode = smSource);
+    Check('verify preserve test keeps repo url',
+      ReadMeta.Origin.RepoURL = 'https://example.invalid/fpc.git');
+    Check('verify preserve test keeps built_from_source', ReadMeta.Origin.BuiltFromSource);
+    Check('verify preserve test keeps installed_at',
+      Abs(ReadMeta.InstalledAt - InstalledAt) < (1 / SecsPerDay));
+    Check('verify preserve test updates verify ok', ReadMeta.Verify.OK);
+    Check('verify preserve test updates verify version',
+      ReadMeta.Verify.DetectedVersion = '3.2.2');
+    Check('verify preserve test updates verify smoke test',
+      ReadMeta.Verify.SmokeTestPassed);
+  finally
+    Cmd.Free;
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
+procedure TestVerifyExecutionLegacyLayoutBackfillsMetadataAtLegacyPath;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  PreferredInstallDir: string;
+  LegacyInstallDir: string;
+  Meta: TFPDevMetadata;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  SetupMockLegacyVerifyInstall(Ctx, InstallRoot, PreferredInstallDir, LegacyInstallDir);
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+
+    Check('verify legacy execution returns EXIT_OK', Ret = EXIT_OK);
+    Check('verify legacy execution reports metadata success',
+      StdOut.Contains('PASS: Metadata file exists'));
+    Check('verify legacy execution backfills metadata at legacy path',
+      FileExists(GetMetadataPath(LegacyInstallDir)));
+    Check('verify legacy execution metadata is readable',
+      ReadFPCMetadata(LegacyInstallDir, Meta));
+    Check('verify legacy execution metadata ok=true', Meta.Verify.OK);
+    Check('verify legacy execution metadata version preserved',
+      Meta.Verify.DetectedVersion = '3.2.2');
+    Check('verify legacy execution metadata does not appear in preferred path',
+      not FileExists(GetMetadataPath(PreferredInstallDir)));
+  finally
+    Cmd.Free;
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
+procedure TestVerifyExecutionConfiguredInstallPathBackfillsMetadataAtConfiguredPath;
+var
+  Cmd: TFPCVerifyCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot: string;
+  PreferredInstallDir: string;
+  ConfiguredInstallDir: string;
+  Meta: TFPDevMetadata;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  SetupMockConfiguredVerifyInstall(
+    Ctx,
+    InstallRoot,
+    PreferredInstallDir,
+    ConfiguredInstallDir
+  );
+  Cmd := TFPCVerifyCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2'], Ctx);
+
+    Check('verify configured execution returns EXIT_OK', Ret = EXIT_OK);
+    Check('verify configured execution reports metadata success',
+      StdOut.Contains('PASS: Metadata file exists'));
+    Check('verify configured execution backfills metadata at configured path',
+      FileExists(GetMetadataPath(ConfiguredInstallDir)));
+    Check('verify configured execution metadata is readable',
+      ReadFPCMetadata(ConfiguredInstallDir, Meta));
+    Check('verify configured execution metadata ok=true', Meta.Verify.OK);
+    Check('verify configured execution metadata version preserved',
+      Meta.Verify.DetectedVersion = '3.2.2');
+    Check('verify configured execution metadata prefix uses configured path',
+      ExpandFileName(Meta.Prefix) = ExpandFileName(ConfiguredInstallDir));
+    Check('verify configured execution metadata does not appear in default path',
+      not FileExists(GetMetadataPath(PreferredInstallDir)));
+  finally
+    Cmd.Free;
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
 { ===== Group 8: fpc verify - Registration ===== }
 
 procedure TestVerifyRegistration;
@@ -308,11 +661,292 @@ begin
     begin
       Found := True;
       Break;
-    end;
+  end;
   Check('fpc verify is registered in command registry', Found);
 end;
 
-{ ===== Group 9: fpc cache list - Command Basics ===== }
+{ ===== Group 9: fpc status - Command Basics ===== }
+
+procedure TestStatusCommandName;
+var
+  Cmd: TFPCStatusCommand;
+begin
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Check('status: name is "status"', Cmd.Name = 'status');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestStatusAliasesNil;
+var
+  Cmd: TFPCStatusCommand;
+begin
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Check('status: aliases is nil', Cmd.Aliases = nil);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestStatusFindSubNil;
+var
+  Cmd: TFPCStatusCommand;
+begin
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Check('status: FindSub returns nil', Cmd.FindSub('test') = nil);
+  finally
+    Cmd.Free;
+  end;
+end;
+
+{ ===== Group 10: fpc status - Help ===== }
+
+procedure TestStatusHelpFlag;
+var
+  Cmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help'], Ctx);
+    Check('status --help returns EXIT_OK', Ret = EXIT_OK);
+    Check('status --help shows usage',
+      StdOut.Contains('Usage: fpdev fpc status [--json]'));
+    Check('status --help shows --json option', StdOut.Contains('--json'));
+    Check('status --help keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestStatusHelpShortFlag;
+var
+  Cmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Ret := Cmd.Execute(['-h'], Ctx);
+    Check('status -h returns EXIT_OK', Ret = EXIT_OK);
+    Check('status -h shows usage',
+      StdOut.Contains('Usage: fpdev fpc status [--json]'));
+    Check('status -h keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestStatusHelpUnexpectedArg;
+var
+  Cmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Ret := Cmd.Execute(['--help', 'extra'], Ctx);
+    Check('status --help extra returns EXIT_USAGE_ERROR', Ret = EXIT_USAGE_ERROR);
+    Check('status --help extra shows usage',
+      StdErr.Contains('Usage: fpdev fpc status [--json]'));
+    Check('status --help extra keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+{ ===== Group 11: fpc status - Execution ===== }
+
+procedure TestStatusNoDefaultConfigured;
+var
+  Cmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  Cmd := TFPCStatusCommand.Create;
+  try
+    Ret := Cmd.Execute([], Ctx);
+
+    Check('status without default returns EXIT_OK', Ret = EXIT_OK);
+    Check('status without default reports none effective version',
+      StdOut.Contains('Effective version: none'));
+    Check('status without default reports none configured default',
+      StdOut.Contains('Configured default: none'));
+    Check('status without default reports none scope',
+      StdOut.Contains('Active scope: none'));
+    Check('status without default reports none prefix',
+      StdOut.Contains('Managed prefix: none'));
+    Check('status without default reports unknown source mode',
+      StdOut.Contains('Source mode: unknown'));
+    Check('status without default reports unknown verify status',
+      StdOut.Contains('Verify status: unknown'));
+    Check('status without default keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestStatusMissingConfiguredInstall;
+var
+  Cmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  InstallRoot, MissingInstallDir: string;
+  ToolchainInfo: TToolchainInfo;
+  Registered, SetDefault: Boolean;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  InstallRoot := CreateUniqueTempDir('fpdev_test_status_missing_exec');
+  ConfigureInstallRoot(Ctx, InstallRoot);
+  Cmd := TFPCStatusCommand.Create;
+  try
+    MissingInstallDir := BuildFPCInstallDirFromInstallRoot(InstallRoot, '3.2.2');
+    ToolchainInfo := Default(TToolchainInfo);
+    ToolchainInfo.Version := '3.2.2';
+    ToolchainInfo.InstallPath := MissingInstallDir;
+    ToolchainInfo.Installed := True;
+    ToolchainInfo.InstallDate := Now;
+    Registered := Ctx.Config.GetToolchainManager.AddToolchain('fpc-3.2.2', ToolchainInfo);
+    Check('status missing-install seeds toolchain entry', Registered);
+    SetDefault := Registered and
+      Ctx.Config.GetToolchainManager.SetDefaultToolchain('fpc-3.2.2');
+    Check('status missing-install sets default toolchain', SetDefault);
+
+    Ret := Cmd.Execute([], Ctx);
+
+    Check('status missing-install returns EXIT_NOT_FOUND', Ret = EXIT_NOT_FOUND);
+    Check('status missing-install reports missing configured version',
+      StdErr.Contains('Configured default FPC 3.2.2 is missing:'));
+    Check('status missing-install reports resolved install path',
+      StdErr.Contains(MissingInstallDir));
+    Check('status missing-install keeps stdout empty', Trim(StdOut.GetBuffer) = '');
+  finally
+    Cmd.Free;
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
+procedure TestStatusExecutionAfterUseVerify;
+var
+  UseCmd: TFPCUseCommand;
+  VerifyCmd: TFPCVerifyCommand;
+  StatusCmd: TFPCStatusCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  UseRet, VerifyRet, StatusRet: Integer;
+  InstallRoot, InstallDir: string;
+  WorkspaceDir, SavedDir: string;
+  Registered, WorkspaceReady: Boolean;
+  Meta: TFPDevMetadata;
+begin
+  Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
+  SetupMockVerifyInstall(Ctx, InstallRoot, InstallDir);
+  WorkspaceDir := CreateUniqueTempDir('fpdev_test_status_workspace');
+  SavedDir := GetCurrentDir;
+  UseCmd := TFPCUseCommand.Create;
+  VerifyCmd := TFPCVerifyCommand.Create;
+  StatusCmd := TFPCStatusCommand.Create;
+  try
+    Registered := RegisterInstalledToolchain(Ctx, '3.2.2', InstallDir);
+    Check('status closure registers toolchain entry', Registered);
+
+    WorkspaceReady := SetCurrentDir(WorkspaceDir);
+    Check('status closure switches to temp workspace', WorkspaceReady);
+
+    if Registered and WorkspaceReady then
+    begin
+      UseRet := UseCmd.Execute(['3.2.2'], Ctx);
+      Check('status closure use returns EXIT_OK', UseRet = EXIT_OK);
+      Check('status closure use sets default toolchain',
+        Ctx.Config.GetToolchainManager.GetDefaultToolchain = 'fpc-3.2.2');
+
+      StdOut.Clear;
+      StdErr.Clear;
+      VerifyRet := VerifyCmd.Execute(['3.2.2'], Ctx);
+      Check('status closure verify returns EXIT_OK', VerifyRet = EXIT_OK);
+      Check('status closure verify writes metadata', ReadFPCMetadata(InstallDir, Meta));
+      Check('status closure verify metadata ok=true', Meta.Verify.OK);
+
+      StdOut.Clear;
+      StdErr.Clear;
+      StatusRet := StatusCmd.Execute([], Ctx);
+      Check('status closure text returns EXIT_OK', StatusRet = EXIT_OK);
+      Check('status closure reports effective version',
+        StdOut.Contains('Effective version: 3.2.2'));
+      Check('status closure reports configured default',
+        StdOut.Contains('Configured default: 3.2.2'));
+      Check('status closure reports active scope user',
+        StdOut.Contains('Active scope: user'));
+      Check('status closure reports managed prefix',
+        StdOut.Contains('Managed prefix: ' + InstallDir));
+      Check('status closure reports auto source mode',
+        StdOut.Contains('Source mode: auto'));
+      Check('status closure reports verify ok',
+        StdOut.Contains('Verify status: ok'));
+      Check('status closure text keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+
+      StdOut.Clear;
+      StdErr.Clear;
+      StatusRet := StatusCmd.Execute(['--json'], Ctx);
+      Check('status closure json returns EXIT_OK', StatusRet = EXIT_OK);
+      Check('status closure json reports effective version',
+        StdOut.Contains('"effective_version" : "3.2.2"'));
+      Check('status closure json reports configured default',
+        StdOut.Contains('"configured_default" : "3.2.2"'));
+      Check('status closure json reports active scope user',
+        StdOut.Contains('"active_scope" : "user"'));
+      Check('status closure json reports managed prefix',
+        StdOut.Contains('"managed_prefix" : "' + InstallDir + '"'));
+      Check('status closure json reports auto source mode',
+        StdOut.Contains('"source_mode" : "auto"'));
+      Check('status closure json reports verify ok',
+        StdOut.Contains('"verify_status" : "ok"'));
+      Check('status closure json keeps stderr empty', Trim(StdErr.GetBuffer) = '');
+    end;
+  finally
+    SetCurrentDir(SavedDir);
+    UseCmd.Free;
+    VerifyCmd.Free;
+    StatusCmd.Free;
+    CleanupTempDir(WorkspaceDir);
+    CleanupTempDir(InstallRoot);
+  end;
+end;
+
+{ ===== Group 12: fpc status - Registration ===== }
+
+procedure TestStatusRegistration;
+var
+  Children: TStringArray;
+  I: Integer;
+  Found: Boolean;
+begin
+  Children := GlobalCommandRegistry.ListChildren(['fpc']);
+  Found := False;
+  for I := Low(Children) to High(Children) do
+    if Children[I] = 'status' then
+    begin
+      Found := True;
+      Break;
+    end;
+  Check('fpc status is registered in command registry', Found);
+end;
+
+{ ===== Group 13: fpc cache list - Command Basics ===== }
 
 procedure TestCacheListCommandName;
 var
@@ -782,7 +1416,7 @@ end;
 
 { ===== Main ===== }
 begin
-  WriteLn('=== FPC Diagnostic Commands CLI Tests (doctor/verify/cache) ===');
+  WriteLn('=== FPC Diagnostic Commands CLI Tests (doctor/status/verify/cache) ===');
   WriteLn;
 
   GTempDir := CreateUniqueTempDir('fpdev_test_fpc_diag');
@@ -825,18 +1459,55 @@ begin
     WriteLn('--- fpc verify: Help Output ---');
     TestVerifyHelpFlag;
     TestVerifyHelpShortFlag;
+    TestVerifyHelpUnexpectedArg;
 
     // Group 7: fpc verify missing args
     WriteLn('');
     WriteLn('--- fpc verify: Argument Validation ---');
     TestVerifyMissingVersion;
+    TestVerifyUnexpectedArg;
+    TestVerifyUnknownOption;
+
+    // Group 7b: fpc verify execution
+    WriteLn('');
+    WriteLn('--- fpc verify: Execution ---');
+    TestVerifyExecutionSelfHealsMissingMetadata;
+    TestVerifyExecutionPreservesExistingSourceMetadata;
+    TestVerifyExecutionLegacyLayoutBackfillsMetadataAtLegacyPath;
+    TestVerifyExecutionConfiguredInstallPathBackfillsMetadataAtConfiguredPath;
 
     // Group 8: fpc verify registration
     WriteLn('');
     WriteLn('--- fpc verify: Registration ---');
     TestVerifyRegistration;
 
-    // Group 9: fpc cache list
+    // Group 9: fpc status basics
+    WriteLn('');
+    WriteLn('--- fpc status: Command Basics ---');
+    TestStatusCommandName;
+    TestStatusAliasesNil;
+    TestStatusFindSubNil;
+
+    // Group 10: fpc status help
+    WriteLn('');
+    WriteLn('--- fpc status: Help Output ---');
+    TestStatusHelpFlag;
+    TestStatusHelpShortFlag;
+    TestStatusHelpUnexpectedArg;
+
+    // Group 11: fpc status execution
+    WriteLn('');
+    WriteLn('--- fpc status: Execution ---');
+    TestStatusNoDefaultConfigured;
+    TestStatusMissingConfiguredInstall;
+    TestStatusExecutionAfterUseVerify;
+
+    // Group 12: fpc status registration
+    WriteLn('');
+    WriteLn('--- fpc status: Registration ---');
+    TestStatusRegistration;
+
+    // Group 13: fpc cache list
     WriteLn('');
     WriteLn('--- fpc cache list ---');
     TestCacheListCommandName;
@@ -845,7 +1516,7 @@ begin
     TestCacheListUnexpectedArg;
     TestCacheListUnknownOption;
 
-    // Group 10: fpc cache clean
+    // Group 14: fpc cache clean
     WriteLn('');
     WriteLn('--- fpc cache clean ---');
     TestCacheCleanCommandName;
@@ -857,7 +1528,7 @@ begin
     TestCacheCleanUnknownOption;
     TestCacheCleanAllUnexpectedArg;
 
-    // Group 11: fpc cache stats
+    // Group 15: fpc cache stats
     WriteLn('');
     WriteLn('--- fpc cache stats ---');
     TestCacheStatsCommandName;
@@ -866,7 +1537,7 @@ begin
     TestCacheStatsUnexpectedArg;
     TestCacheStatsUnknownOption;
 
-    // Group 12: fpc cache path
+    // Group 16: fpc cache path
     WriteLn('');
     WriteLn('--- fpc cache path ---');
     TestCachePathCommandName;
@@ -875,7 +1546,7 @@ begin
     TestCachePathUnexpectedArg;
     TestCachePathUnknownOption;
 
-    // Group 13: fpc cache registration
+    // Group 17: fpc cache registration
     WriteLn('');
     WriteLn('--- fpc cache: Registration ---');
     TestCacheRegistration;

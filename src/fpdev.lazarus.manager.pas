@@ -10,7 +10,7 @@ unit fpdev.lazarus.manager;
     \/_/     \/_/\/_/   \/_/     \/_/\/_/   \/_/     \/_/\/_/  Studio
 
 ```
-# fpdev.cmd.lazarus
+# fpdev.lazarus.manager
 
 Lazarus IDE version management commands
 
@@ -80,6 +80,8 @@ type
     function GetCompatibleFPCVersion(const ALazarusVersion: string): string;
     function CleanSourceArtifacts(const ASourceDir: string): Integer;
     function LaunchLazarusExecutable(const AExecutable: string): Boolean;
+    function RunConfigureIDEWithOutputs(const Outp, Errp: IOutput;
+      const AVersion: string): Boolean;
   protected
     function CreateGitClient(const ACliOnly: Boolean): ILazarusGitClient; virtual;
     function DownloadSource(const AVersion, ATargetDir: string): Boolean;
@@ -695,7 +697,7 @@ begin
       @DownloadSource,
       @BuildFromSource,
       @SetupEnvironment,
-      @ConfigureIDE
+      @RunConfigureIDEWithOutputs
     );
 
   except
@@ -706,6 +708,15 @@ begin
       Result := False;
     end;
   end;
+end;
+
+function TLazarusManager.RunConfigureIDEWithOutputs(
+  const Outp, Errp: IOutput;
+  const AVersion: string
+): Boolean;
+begin
+  // Keep install-plan callbacks off the overloaded ConfigureIDE method pointer for FPC 3.2.2.
+  Result := ConfigureIDE(Outp, Errp, AVersion);
 end;
 
 function TLazarusManager.UninstallVersion(const AVersion: string): Boolean;

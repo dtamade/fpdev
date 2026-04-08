@@ -39,6 +39,7 @@ begin
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_DESC));
     Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_JSON));
     Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_HELP));
   end
   else if LSubcmd = 'info' then
@@ -80,6 +81,20 @@ begin
     Ctx.Out.WriteLn(_(HELP_PROJECT_CLEAN_DESC));
     Ctx.Out.WriteLn('');
     Ctx.Out.WriteLn(_(HELP_PROJECT_CLEAN_OPT_HELP));
+  end
+  else if LSubcmd = 'template' then
+  begin
+    Ctx.Out.WriteLn('Usage: fpdev project template <subcommand>');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Manage project templates.');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Subcommands:');
+    Ctx.Out.WriteLn('  list          List available project templates');
+    Ctx.Out.WriteLn('  install       Install a custom project template');
+    Ctx.Out.WriteLn('  remove        Remove a custom project template');
+    Ctx.Out.WriteLn('  update        Update project templates from the remote repository');
+    Ctx.Out.WriteLn('');
+    Ctx.Out.WriteLn('Use "fpdev project template <subcommand> --help" for details.');
   end
   else
     Result := False;

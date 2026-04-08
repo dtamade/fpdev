@@ -3,7 +3,7 @@ program test_resource_repo_mirror;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, DateUtils, fpjson, fpdev.resource.repo.mirror;
+  SysUtils, DateUtils, fpjson, fpdev.resource.repo.mirror, fpdev.utils;
 
 var
   TestsPassed: Integer = 0;
@@ -20,6 +20,54 @@ begin
   begin
     WriteLn('[FAIL] ', ATestName);
     Inc(TestsFailed);
+  end;
+end;
+
+procedure RestoreEnv(const AName, ASavedValue: string);
+begin
+  if ASavedValue <> '' then
+    set_env(AName, ASavedValue)
+  else
+    unset_env(AName);
+end;
+
+{ --- DetectUserRegion tests --- }
+
+procedure TestDetectUserRegionUsesSameProcessLangOverride;
+var
+  SavedTZ: string;
+  SavedLang: string;
+begin
+  SavedTZ := get_env('TZ');
+  SavedLang := get_env('LANG');
+  try
+    set_env('TZ', 'America/Los_Angeles');
+    set_env('LANG', 'zh_CN.UTF-8');
+
+    Check(ResourceRepoDetectUserRegion(nil) = 'china',
+      'DetectUserRegion: same-process LANG zh_CN -> china');
+  finally
+    RestoreEnv('TZ', SavedTZ);
+    RestoreEnv('LANG', SavedLang);
+  end;
+end;
+
+procedure TestDetectUserRegionUsesSameProcessTZOverride;
+var
+  SavedTZ: string;
+  SavedLang: string;
+begin
+  SavedTZ := get_env('TZ');
+  SavedLang := get_env('LANG');
+  try
+    set_env('TZ', 'Europe/Berlin');
+    set_env('LANG', 'C');
+
+    Check(ResourceRepoDetectUserRegion(nil) = 'europe',
+      'DetectUserRegion: same-process TZ Europe/Berlin -> europe');
+  finally
+    RestoreEnv('TZ', SavedTZ);
+    RestoreEnv('LANG', SavedLang);
   end;
 end;
 
@@ -309,6 +357,8 @@ begin
   WriteLn('=== Resource Repo Mirror Unit Tests ===');
   WriteLn;
 
+  TestDetectUserRegionUsesSameProcessLangOverride;
+  TestDetectUserRegionUsesSameProcessTZOverride;
   TestCachedMirrorValid;
   TestCachedMirrorExpired;
   TestCachedMirrorEmpty;

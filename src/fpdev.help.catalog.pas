@@ -63,21 +63,23 @@ end;
 function BuildFPCHelpItems: THelpListItems;
 begin
   Result := nil;
-  SetLength(Result, 14);
+  SetLength(Result, 16);
   Result[0] := MakeHelpItem('install', _(HELP_FPC_INSTALL_DESC));
   Result[1] := MakeHelpItem('uninstall', _(HELP_FPC_UNINSTALL_DESC));
   Result[2] := MakeHelpItem('list', _(HELP_FPC_LIST_DESC));
   Result[3] := MakeHelpItem('use', _(HELP_FPC_USE_DESC));
   Result[4] := MakeHelpItem('current', _(HELP_FPC_CURRENT_DESC));
-  Result[5] := MakeHelpItem('show', _(HELP_FPC_SHOW_DESC));
-  Result[6] := MakeHelpItem('doctor', _(HELP_FPC_DOCTOR_DESC));
-  Result[7] := MakeHelpItem('test', _(HELP_FPC_TEST_DESC));
-  Result[8] := MakeHelpItem('verify', 'Verify an installed FPC version');
-  Result[9] := MakeHelpItem('auto-install', 'Install toolchain from project config');
-  Result[10] := MakeHelpItem('update', _(HELP_FPC_UPDATE_DESC));
-  Result[11] := MakeHelpItem('update-manifest', 'Refresh remote FPC manifest cache');
-  Result[12] := MakeHelpItem('cache', 'Manage local FPC artifact cache');
-  Result[13] := MakeHelpItem('help', _(HELP_SHOW_HELP));
+  Result[5] := MakeHelpItem('status', _(HELP_FPC_STATUS_DESC));
+  Result[6] := MakeHelpItem('show', _(HELP_FPC_SHOW_DESC));
+  Result[7] := MakeHelpItem('doctor', _(HELP_FPC_DOCTOR_DESC));
+  Result[8] := MakeHelpItem('test', _(HELP_FPC_TEST_DESC));
+  Result[9] := MakeHelpItem('verify', 'Verify an installed FPC version');
+  Result[10] := MakeHelpItem('auto-install', 'Install toolchain from project config');
+  Result[11] := MakeHelpItem('update', _(HELP_FPC_UPDATE_DESC));
+  Result[12] := MakeHelpItem('update-manifest', 'Refresh remote FPC manifest cache');
+  Result[13] := MakeHelpItem('cache', 'Manage local FPC artifact cache');
+  Result[14] := MakeHelpItem('policy', 'Check FPC source-version policy');
+  Result[15] := MakeHelpItem('help', _(HELP_SHOW_HELP));
 end;
 
 function BuildPackageHelpItems: THelpListItems;
@@ -102,7 +104,7 @@ end;
 function BuildProjectHelpItems: THelpListItems;
 begin
   Result := nil;
-  SetLength(Result, 8);
+  SetLength(Result, 9);
   Result[0] := MakeHelpItem('new', _(HELP_PROJECT_NEW_DESC));
   Result[1] := MakeHelpItem('list', _(HELP_PROJECT_LIST_DESC));
   Result[2] := MakeHelpItem('info', _(HELP_PROJECT_INFO_DESC));
@@ -110,7 +112,8 @@ begin
   Result[4] := MakeHelpItem('run', _(HELP_PROJECT_RUN_DESC));
   Result[5] := MakeHelpItem('test', _(HELP_PROJECT_TEST_DESC));
   Result[6] := MakeHelpItem('clean', _(HELP_PROJECT_CLEAN_DESC));
-  Result[7] := MakeHelpItem('help', _(HELP_SHOW_HELP));
+  Result[7] := MakeHelpItem('template', 'Manage project templates');
+  Result[8] := MakeHelpItem('help', _(HELP_SHOW_HELP));
 end;
 
 function BuildCrossHelpItems: THelpListItems;

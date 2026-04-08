@@ -3,7 +3,7 @@ program test_lazarus_clean;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, test_config_isolation, Classes, fpdev.cmd.lazarus, fpdev.config.interfaces, fpdev.config.managers,
+  SysUtils, test_config_isolation, Classes, fpdev.lazarus.manager, fpdev.config.interfaces, fpdev.config.managers,
   test_temp_paths
   {$IFDEF UNIX}
   , BaseUnix
@@ -13,7 +13,7 @@ var
   TestRootDir: string;
   TestSourceDir: string;
   ConfigManager: IConfigManager;
-  LazarusManager: fpdev.cmd.lazarus.TLazarusManager;
+  LazarusManager: fpdev.lazarus.manager.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
 
@@ -37,7 +37,7 @@ begin
   SettingsMgr.SetSettings(Settings);
 
   // Create Lazarus manager
-  LazarusManager := fpdev.cmd.lazarus.TLazarusManager.Create(ConfigManager);
+  LazarusManager := fpdev.lazarus.manager.TLazarusManager.Create(ConfigManager);
 
   TestsPassed := 0;
   TestsFailed := 0;
@@ -133,6 +133,7 @@ begin
     ForceDirectories(ComponentsDir);
     ForceDirectories(LCLDir);
     ForceDirectories(TestSourceDir + PathDelim + 'ide');
+    ForceDirectories(TestSourceDir + PathDelim + 'packager');
     ForceDirectories(TestSourceDir + PathDelim + 'debugger');
 
     // Create build artifacts that should be deleted
@@ -304,38 +305,38 @@ begin
 end;
 
 // ============================================================================
-// Test 3: CleanSources handles empty directory
+// Test 3: CleanSources rejects invalid source directory
 // ============================================================================
-procedure TestCleanHandlesEmptyDirectory;
+procedure TestCleanRejectsInvalidSourceDirectory;
 var
   EmptySourceDir: string;
   Success: Boolean;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test 3: CleanSources Handles Empty Directory');
+  WriteLn('Test 3: CleanSources Rejects Invalid Source Directory');
   WriteLn('==================================================');
 
   try
-    // Setup: Create empty Lazarus source directory
+    // Setup: Create empty Lazarus source directory without ide/lcl/packager
     EmptySourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-empty';
     ForceDirectories(EmptySourceDir);
 
-    // Execute: Call CleanSources on empty directory
+    // Execute: Call CleanSources on invalid directory
     Success := LazarusManager.CleanSources('empty');
 
-    // Assert: CleanSources should return true for empty directory
-    AssertTrue(Success, 'CleanSources returns true for empty directory',
-      'CleanSources should successfully handle empty directories');
+    // Assert: CleanSources should reject invalid directory
+    AssertFalse(Success, 'CleanSources rejects invalid source directory',
+      'CleanSources should fail for directory without ide/lcl/packager');
 
     // Assert: Directory should still exist (not deleted)
     AssertTrue(DirectoryExists(EmptySourceDir),
-      'Empty directory still exists after clean',
-      'CleanSources should not delete the source directory itself');
+      'Invalid directory still exists after rejected clean',
+      'CleanSources should not delete the source directory itself on rejection');
 
   except
     on E: Exception do
-      AssertTrue(False, 'Test handles empty directory', 'Exception: ' + E.Message);
+      AssertTrue(False, 'Test rejects invalid source directory', 'Exception: ' + E.Message);
   end;
 end;
 
@@ -355,7 +356,7 @@ begin
       TestConfigManagerUsesIsolatedDefaultConfigPath;
       TestCleanRemovesBuildArtifacts;
       TestCleanHandlesNonExistentDirectory;
-      TestCleanHandlesEmptyDirectory;
+      TestCleanRejectsInvalidSourceDirectory;
 
       // Exit with error if any tests failed
       if TestsFailed > 0 then

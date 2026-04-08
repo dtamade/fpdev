@@ -1,12 +1,16 @@
 unit fpdev.cmd.project;
 
+{
+  Compatibility shim for legacy fpdev.cmd.project imports.
+  New code should use fpdev.project.manager and fpdev.cmd.project.root.
+}
+
 {$I fpdev.settings.inc}
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  fpdev.cmd.project.root,
   fpdev.project.manager;
 
 type

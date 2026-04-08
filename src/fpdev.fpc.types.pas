@@ -64,7 +64,7 @@ type
   TFPCVersionInfo = record
     Version: string;      // e.g., '3.2.2'
     ReleaseDate: string;  // e.g., '2021-05-19'
-    GitTag: string;       // e.g., '3_2_2'
+    GitTag: string;       // e.g., 'release_3_2_2'
     Branch: string;       // e.g., 'fixes_3_2'
     Available: Boolean;   // Available for download
     Installed: Boolean;   // Installed locally
@@ -96,6 +96,21 @@ type
     ErrorMessage: string;
   end;
 
+  { TFPCStatusScope - Reported scope for `fpdev fpc status` }
+  TFPCStatusScope = (
+    fssNone,
+    fssProject,
+    fssUser,
+    fssSystem
+  );
+
+  { TFPCVerifyStatus - Reported verification state for `fpdev fpc status` }
+  TFPCVerifyStatus = (
+    fvsUnknown,
+    fvsOk,
+    fvsFail
+  );
+
   { TVerifyInfo - Verification info for metadata }
   TVerifyInfo = record
     Timestamp: TDateTime;
@@ -123,6 +138,18 @@ type
     InstalledAt: TDateTime;
   end;
 
+  { TFPCStatusInfo - Aggregated FPC status data for CLI and tests }
+  TFPCStatusInfo = record
+    EffectiveVersion: string;
+    ConfiguredDefault: string;
+    ActiveScope: TFPCStatusScope;
+    ManagedPrefix: string;
+    SourceMode: TSourceMode;
+    HasSourceMode: Boolean;
+    VerifyStatus: TFPCVerifyStatus;
+    ConfiguredDefaultInstalled: Boolean;
+  end;
+
   { TBinaryDownloadInfo - Binary download info }
   TBinaryDownloadInfo = record
     URL: string;
@@ -134,9 +161,18 @@ type
 const
   { FPC Release Catalog }
   FPC_RELEASES: array[0..4] of TFPCVersionInfo = (
-    (Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'3_2_2'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.2.0'; ReleaseDate:'2020-06-19'; GitTag:'3_2_0'; Branch:'fixes_3_2'; Available:True; Installed:False),
-    (Version:'3.0.4'; ReleaseDate:'2017-11-21'; GitTag:'3_0_4'; Branch:'fixes_3_0'; Available:True; Installed:False),
+    (
+      Version:'3.2.2'; ReleaseDate:'2021-05-19'; GitTag:'release_3_2_2';
+      Branch:'fixes_3_2'; Available:True; Installed:False
+    ),
+    (
+      Version:'3.2.0'; ReleaseDate:'2020-06-19'; GitTag:'release_3_2_0';
+      Branch:'fixes_3_2'; Available:True; Installed:False
+    ),
+    (
+      Version:'3.0.4'; ReleaseDate:'2017-11-21'; GitTag:'release_3_0_4';
+      Branch:'fixes_3_0'; Available:True; Installed:False
+    ),
     (Version:'3.3.1'; ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False),
     (Version:'main';  ReleaseDate:'rolling';    GitTag:'main';  Branch:'main';    Available:True; Installed:False)
   );
@@ -146,6 +182,9 @@ function OperationSuccess: TOperationResult;
 function OperationError(AErrorCode: TFPCErrorCode; const AMessage: string): TOperationResult;
 function OperationWarning(var AResult: TOperationResult; ACode: Integer; const AMessage: string): TOperationResult;
 function ErrorCodeToString(ACode: TFPCErrorCode): string;
+function FPCStatusScopeToString(const AScope: TFPCStatusScope): string;
+function FPCVerifyStatusToString(const AStatus: TFPCVerifyStatus): string;
+function FPCSourceModeToString(const AMode: TSourceMode): string;
 
 { Version parsing and comparison utilities }
 procedure ParseVersion(const AVer: string; out AMajor, AMinor, APatch: Integer);
@@ -215,6 +254,37 @@ begin
     ecTimeout: Result := 'Operation timed out';
   else
     Result := 'Error code: ' + IntToStr(Ord(ACode));
+  end;
+end;
+
+function FPCStatusScopeToString(const AScope: TFPCStatusScope): string;
+begin
+  case AScope of
+    fssProject: Result := 'project';
+    fssUser: Result := 'user';
+    fssSystem: Result := 'system';
+  else
+    Result := 'none';
+  end;
+end;
+
+function FPCVerifyStatusToString(const AStatus: TFPCVerifyStatus): string;
+begin
+  case AStatus of
+    fvsOk: Result := 'ok';
+    fvsFail: Result := 'fail';
+  else
+    Result := 'unknown';
+  end;
+end;
+
+function FPCSourceModeToString(const AMode: TSourceMode): string;
+begin
+  case AMode of
+    smBinary: Result := 'binary';
+    smSource: Result := 'source';
+  else
+    Result := 'auto';
   end;
 end;
 

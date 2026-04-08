@@ -6,9 +6,11 @@
 
 [![Release](https://img.shields.io/badge/release-v2.1.0-blue.svg)](https://github.com/fpdev/fpdev/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-273%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-275%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
+
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
 
 [Quick Start](#-quick-start) • [Installation](docs/INSTALLATION.en.md) • [FAQ](docs/FAQ.en.md) • [Documentation](docs/QUICKSTART.en.md)
@@ -35,10 +37,10 @@
 ```
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 273 (same inventory rules as CI)
+[INFO] Discoverable test programs: 275 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs
 [INFO] Platform targets: Windows, Linux, macOS
-[INFO] Release sign-off: pending Windows/macOS owner evidence
+[INFO] Release sign-off: public CI release-proof bundle required before publish
 ```
 
 ---
@@ -51,7 +53,7 @@
 # Build from source (recommended)
 git clone https://github.com/fpdev/fpdev.git
 cd fpdev
-lazbuild -B --build-mode=Release fpdev.lpi
+bash scripts/build_release.sh
 ./bin/fpdev system version
 ```
 
@@ -97,6 +99,8 @@ fpdev fpc list                       # List installed versions
 fpdev fpc list --json                # JSON output
 fpdev fpc use 3.2.2                  # Switch version
 fpdev fpc current                    # Show current version
+fpdev fpc status                     # Show managed status
+fpdev fpc verify 3.2.2               # Verify installation
 ```
 
 ### Lazarus IDE Management
@@ -163,33 +167,34 @@ autoload -Uz compinit && compinit
 
 ## 🎯 Why FPDev?
 
-| Feature | FPDev | Traditional |
-|---------|-------|-------------|
-| **Multi-version** | ✅ One-click switch | ❌ Manual PATH config |
-| **Source build** | ✅ Auto download & compile | ❌ Manual steps |
-| **Cross-compile** | ✅ Auto toolchain setup | ❌ Manual binutils install |
-| **Package mgmt** | ✅ npm/cargo-like | ❌ Manual download |
-| **Project templates** | ✅ 7 built-in | ❌ Start from scratch |
-| **Configuration** | ✅ JSON, type-safe | ❌ Scattered files |
+| Feature               | FPDev                      | Traditional                |
+| --------------------- | -------------------------- | -------------------------- |
+| **Multi-version**     | ✅ One-click switch        | ❌ Manual PATH config      |
+| **Source build**      | ✅ Auto download & compile | ❌ Manual steps            |
+| **Cross-compile**     | ✅ Auto toolchain setup    | ❌ Manual binutils install |
+| **Package mgmt**      | ✅ npm/cargo-like          | ❌ Manual download         |
+| **Project templates** | ✅ 7 built-in              | ❌ Start from scratch      |
+| **Configuration**     | ✅ JSON, type-safe         | ❌ Scattered files         |
 
 ---
 
 ## 🧪 Testing
 
-FPDev follows **TDD (Test-Driven Development)** methodology:
+FPDev follows **TDD (Test-Driven Development)** and keeps the test inventory aligned with repo docs and CI:
 
-```
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-✅ 273 discoverable test_*.lpr programs (same rules as CI)
+✅ 275 discoverable test_*.lpr programs (same rules as CI)
 <!-- TEST-INVENTORY-SUMMARY:END -->
-✅ Zero compilation warnings
-✅ GitHub Actions CI ready
-```
 
 Run tests:
+
 ```bash
 bash scripts/run_all_tests.sh
 ```
+
+Check the full test layout and sync workflow in [the testing guide](docs/testing.md).
+
+Check release gates, owner checkpoints, and close-out status in [Release Acceptance Criteria](docs/MVP_ACCEPTANCE_CRITERIA.en.md).
 
 ---
 
