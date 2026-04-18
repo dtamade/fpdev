@@ -231,6 +231,43 @@ begin
   end;
 end;
 
+procedure TestInstallCoreReturnsAlreadyInstalledErrorWhenEnsureIsFalse;
+var
+  Probe: TInstallerLifecycleProbe;
+  State: TFPCInstallerInstallState;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.ValidateVersionResult := True;
+    Probe.InstallDirExistsResult := True;
+    State.Version := '3.2.2';
+    State.InstallRoot := '/managed/root';
+    State.Ensure := False;
+    State.FromSource := True;
+
+    ResultInfo := ExecuteFPCInstallerInstallCore(
+      State,
+      @Probe.ValidateVersion,
+      @Probe.DirectoryExists,
+      @Probe.DownloadSource,
+      @Probe.BuildFromSource
+    );
+
+    Check('installer lifecycle returns already-installed error when ensure is false',
+      (not ResultInfo.Success) and (ResultInfo.ErrorCode = ecVersionAlreadyInstalled),
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle already-installed error skips download',
+      Probe.DownloadCalls = 0,
+      IntToStr(Probe.DownloadCalls));
+    Check('installer lifecycle already-installed error skips build',
+      Probe.BuildCalls = 0,
+      IntToStr(Probe.BuildCalls));
+  finally
+    Probe.Free;
+  end;
+end;
+
 procedure TestInstallCoreBinaryModeFallsBackToSourcePath;
 var
   Probe: TInstallerLifecycleProbe;
@@ -264,6 +301,176 @@ begin
     Check('installer lifecycle uses source build during binary fallback',
       Probe.BuildCalls = 1,
       IntToStr(Probe.BuildCalls));
+    Check('installer lifecycle binary fallback uses default source dir',
+      Probe.LastDownloadTargetDir = '/managed/root/sources/fpc-3.2.2',
+      Probe.LastDownloadTargetDir);
+    Check('installer lifecycle binary fallback uses default install dir',
+      Probe.LastBuildInstallDir = '/managed/root/fpc/3.2.2',
+      Probe.LastBuildInstallDir);
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestInstallCorePrefixOverrideDoesNotChangeSourceDir;
+var
+  Probe: TInstallerLifecycleProbe;
+  State: TFPCInstallerInstallState;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.ValidateVersionResult := True;
+    Probe.SourceDirExistsResult := False;
+    Probe.DownloadResult := OperationSuccess;
+    Probe.BuildResult := OperationSuccess;
+    State.Version := '3.2.2';
+    State.InstallRoot := '/managed/root';
+    State.Prefix := '/custom/install/fpc-3.2.2';
+    State.FromSource := True;
+
+    ResultInfo := ExecuteFPCInstallerInstallCore(
+      State,
+      @Probe.ValidateVersion,
+      @Probe.DirectoryExists,
+      @Probe.DownloadSource,
+      @Probe.BuildFromSource
+    );
+
+    Check('installer lifecycle prefix override still succeeds',
+      ResultInfo.Success,
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle prefix override keeps default source dir',
+      Probe.LastDownloadTargetDir = '/managed/root/sources/fpc-3.2.2',
+      Probe.LastDownloadTargetDir);
+    Check('installer lifecycle prefix override changes build install dir only',
+      Probe.LastBuildInstallDir = '/custom/install/fpc-3.2.2',
+      Probe.LastBuildInstallDir);
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestInstallCoreStopsAfterDownloadFailure;
+var
+  Probe: TInstallerLifecycleProbe;
+  State: TFPCInstallerInstallState;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.ValidateVersionResult := True;
+    Probe.SourceDirExistsResult := False;
+    Probe.DownloadResult := OperationError(ecDownloadFailed, 'download failed');
+    State.Version := '3.2.2';
+    State.InstallRoot := '/managed/root';
+    State.FromSource := True;
+
+    ResultInfo := ExecuteFPCInstallerInstallCore(
+      State,
+      @Probe.ValidateVersion,
+      @Probe.DirectoryExists,
+      @Probe.DownloadSource,
+      @Probe.BuildFromSource
+    );
+
+    Check('installer lifecycle propagates download failure',
+      (not ResultInfo.Success) and (ResultInfo.ErrorCode = ecDownloadFailed),
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle stops before build after download failure',
+      Probe.BuildCalls = 0,
+      IntToStr(Probe.BuildCalls));
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestInstallCorePropagatesBuildFailure;
+var
+  Probe: TInstallerLifecycleProbe;
+  State: TFPCInstallerInstallState;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.ValidateVersionResult := True;
+    Probe.SourceDirExistsResult := True;
+    Probe.BuildResult := OperationError(ecBuildFailed, 'build failed');
+    State.Version := '3.2.2';
+    State.InstallRoot := '/managed/root';
+    State.FromSource := True;
+
+    ResultInfo := ExecuteFPCInstallerInstallCore(
+      State,
+      @Probe.ValidateVersion,
+      @Probe.DirectoryExists,
+      @Probe.DownloadSource,
+      @Probe.BuildFromSource
+    );
+
+    Check('installer lifecycle propagates build failure',
+      (not ResultInfo.Success) and (ResultInfo.ErrorCode = ecBuildFailed),
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle skips download when source dir already exists',
+      Probe.DownloadCalls = 0,
+      IntToStr(Probe.DownloadCalls));
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestUninstallCoreSucceedsWithoutProcessWhenDirMissing;
+var
+  Probe: TInstallerLifecycleProbe;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.InstallDirExistsResult := False;
+
+    ResultInfo := ExecuteFPCInstallerUninstallCore(
+      '3.2.2',
+      '/managed/root/fpc/3.2.2',
+      @Probe.DirectoryExists,
+      @Probe.ExecuteProcess
+    );
+
+    Check('installer lifecycle uninstall succeeds when directory is missing',
+      ResultInfo.Success,
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle uninstall skips process when directory is missing',
+      Probe.ProcessCalls = 0,
+      IntToStr(Probe.ProcessCalls));
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestUninstallCoreReturnsErrorWhenRemoveCommandFails;
+var
+  Probe: TInstallerLifecycleProbe;
+  ResultInfo: TOperationResult;
+begin
+  Probe := TInstallerLifecycleProbe.Create;
+  try
+    Probe.InstallDirExistsResult := True;
+    Probe.ProcessResult.ExitCode := 1;
+    Probe.ProcessResult.Success := False;
+    Probe.ProcessResult.StdErr := 'permission denied';
+
+    ResultInfo := ExecuteFPCInstallerUninstallCore(
+      '3.2.2',
+      '/managed/root/fpc/3.2.2',
+      @Probe.DirectoryExists,
+      @Probe.ExecuteProcess
+    );
+
+    Check('installer lifecycle uninstall returns error when remove command fails',
+      (not ResultInfo.Success) and (ResultInfo.ErrorCode = ecUninstallationFailed),
+      ResultInfo.ErrorMessage);
+    Check('installer lifecycle uninstall still attempted process on failure path',
+      Probe.ProcessCalls = 1,
+      IntToStr(Probe.ProcessCalls));
   finally
     Probe.Free;
   end;
@@ -316,7 +523,13 @@ begin
   TestResolveInstallRootFallsBackToDataRoot;
   TestInstallCoreReturnsInvalidVersionError;
   TestInstallCoreEnsureSucceedsWhenAlreadyInstalled;
+  TestInstallCoreReturnsAlreadyInstalledErrorWhenEnsureIsFalse;
   TestInstallCoreBinaryModeFallsBackToSourcePath;
+  TestInstallCorePrefixOverrideDoesNotChangeSourceDir;
+  TestInstallCoreStopsAfterDownloadFailure;
+  TestInstallCorePropagatesBuildFailure;
+  TestUninstallCoreSucceedsWithoutProcessWhenDirMissing;
+  TestUninstallCoreReturnsErrorWhenRemoveCommandFails;
   TestUninstallCoreBuildsPlatformRemoveCommand;
 
   WriteLn;
