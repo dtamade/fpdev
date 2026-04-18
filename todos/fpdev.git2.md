@@ -14,5 +14,5 @@
   - [ ] TestResults 校验沙箱输出结构（允许安装时）
   - [ ] 日志分文件/轮转、verbosity 开关
 
-- [ ] 文档同步
+- [x] 文档同步
   - [x] 在 docs/history/git2-status-and-tests.md 中补充 fpcunit 工程使用与默认离线说明

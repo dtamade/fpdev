@@ -1,5 +1,40 @@
 # Progress Log
 
+## Session: 2026-04-19 (git2 fpcunit follow-up)
+
+### Phase 113: Git2 Fpcunit Conflict Follow-up
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 在 `git2 status conflict coverage` 收口后继续沿同一窄线推进，选定 follow-up 目标为：把 conflict coverage 纳入 fpcunit 聚合套件，而不是只停留在 focused runner
+  - 先写 docs/coverage contract RED：
+    - 扩展 `tests/test_git2_status_docs_contract.py`
+    - 新要求 `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 必须包含 `Test_StatusEntries_Conflict_Filtered`
+    - 新要求 `docs/history/git2-status-and-tests.md` / `report/fpdev.git2.md` 都明确写出 `TTestCase_Git2Status` 同时覆盖未跟踪过滤与冲突过滤
+    - `python3 -m unittest tests.test_git2_status_docs_contract -v` 先失败，命中预期缺口
+  - 做最小实现：
+    - 在 `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 新增：
+      - 本地 git CLI helper
+      - `PrepareConflictedRepository(...)`
+      - `Test_StatusEntries_Conflict_Filtered`
+    - 同步 `docs/history/git2-status-and-tests.md` / `report/fpdev.git2.md`
+    - 把 `todos/fpdev.git2.md` 的 `文档同步` 汇总项标记为完成
+  - fresh focused verification：
+    - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `6 passed`
+    - `fpc ... tests/fpdev.git2/fpdev.git2.fpcunit.lpr && .../fpdev.git2.fpcunit --all --format=plain` → `3 tests, 0 failures`
+- Files created/modified:
+  - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas`
+  - `tests/test_git2_status_docs_contract.py`
+  - `docs/history/git2-status-and-tests.md`
+  - `report/fpdev.git2.md`
+  - `todos/fpdev.git2.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 这轮没有继续修改生产代码；目标是让 focused conflict runner 与 fpcunit 聚合 runner 的 coverage 叙事一致
+  - 当前 `git2` 这条线更适合停在这里，再往下要重新找新的边界清晰切口
+
 ## Session: 2026-04-19 (git2 status conflict coverage)
 
 ### Phase 112: Git2 Status Conflict Coverage Closure

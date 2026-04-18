@@ -35,6 +35,7 @@
   - fpdev.git2.status_index_test.lpr：索引变更 / IndexOnly 过滤
   - fpdev.git2.status_conflict_test.lpr：真实本地 merge-conflict 仓库 + `gsConflicted` / `IndexOnly` 过滤
   - fpdev.git2.fpcunit.lpr：Discover fallback + focused `TTestCase_Git2Status`
+    - `TTestCase_Git2Status：验证 StatusEntries 未跟踪过滤与冲突过滤`
 - 行为：
   - 若 libgit2.Initialize 失败，相关用例打印“跳过”，退出码 0
   - `buildOrTest.bat` 当前会覆盖：

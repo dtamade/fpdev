@@ -1,12 +1,29 @@
 # Task Plan
 
 ## Active Goal
-收口 2026-04-19 `git2 status` conflict coverage：补齐最后一个 `StatusEntries` 冲突场景回归，修正 `GIT_STATUS_CONFLICTED` 在 `IndexOnly` 过滤下被漏掉的问题，并同步 focused runner / docs / todo / report。
+收口 2026-04-19 `git2` fpcunit follow-up：把 conflict status coverage 纳入 fpcunit 聚合套件，并同步 docs / report / todo，使 focused runner 与 fpcunit runner 对同一条状态契约保持一致。
 
 ## Current Phase
-Phase 112 complete
+Phase 113 complete
 
 ## Active Phases
+### Phase 113: Git2 Fpcunit Conflict Follow-up
+- [x] 先写 RED：
+  - 扩展 `tests/test_git2_status_docs_contract.py`
+  - 新要求：
+    - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 必须包含 `Test_StatusEntries_Conflict_Filtered`
+    - `docs/history/git2-status-and-tests.md` / `report/fpdev.git2.md` 必须明确写出 `TTestCase_Git2Status` 同时覆盖未跟踪过滤与冲突过滤
+  - `python3 -m unittest tests.test_git2_status_docs_contract -v` → 先红
+- [x] 最小实现：
+  - 在 `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 新增 `Test_StatusEntries_Conflict_Filtered`
+  - 为 fpcunit 单元补本地 git 冲突仓库准备 helper
+  - 同步 `docs/history/git2-status-and-tests.md` / `report/fpdev.git2.md` / `todos/fpdev.git2.md`
+- [x] focused verification：
+  - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `6/6`
+  - `fpc ... tests/fpdev.git2/fpdev.git2.fpcunit.lpr && .../fpdev.git2.fpcunit --all --format=plain` → `3 tests, 0 failures`
+- [x] 同步 `task_plan.md`、`findings.md`、`progress.md`
+- **Status:** complete
+
 ### Phase 112: Git2 Status Conflict Coverage Closure
 - [x] 为 `git2 status` conflict coverage 写 RED：
   - 更新 `tests/test_git2_status_docs_contract.py`，要求 docs / batch / todo / report 都反映 `fpdev.git2.status_conflict_test.lpr`

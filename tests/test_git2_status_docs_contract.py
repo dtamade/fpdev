@@ -8,6 +8,7 @@ STATUS_REPORT = REPO_ROOT / 'report' / 'fpdev.git2.md'
 STATUS_TODO = REPO_ROOT / 'todos' / 'fpdev.git2.md'
 STATUS_BATCH = REPO_ROOT / 'tests' / 'fpdev.git2' / 'buildOrTest.bat'
 FPCUNIT_BATCH = REPO_ROOT / 'tests' / 'fpdev.git2' / 'buildOrTest.fpcunit.bat'
+FPCUNIT_TESTS = REPO_ROOT / 'tests' / 'fpdev.git2' / 'fpdev.git2.fpcunit.tests.pas'
 
 
 class Git2StatusDocsContractTests(unittest.TestCase):
@@ -70,6 +71,15 @@ class Git2StatusDocsContractTests(unittest.TestCase):
         self.assertIn(needle, doc_text)
         self.assertIn(needle, report_text)
         self.assertIn(needle, batch_text)
+
+    def test_fpcunit_suite_covers_conflict_status_case(self):
+        tests_text = FPCUNIT_TESTS.read_text(encoding='utf-8')
+        doc_text = STATUS_DOC.read_text(encoding='utf-8')
+        report_text = STATUS_REPORT.read_text(encoding='utf-8')
+
+        self.assertIn('Test_StatusEntries_Conflict_Filtered', tests_text)
+        self.assertIn('TTestCase_Git2Status：验证 StatusEntries 未跟踪过滤与冲突过滤', doc_text)
+        self.assertIn('TTestCase_Git2Status：验证 StatusEntries 未跟踪过滤与冲突过滤', report_text)
 
 
 if __name__ == '__main__':

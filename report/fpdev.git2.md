@@ -54,7 +54,7 @@
 - 新增 fpcunit 测试工程：tests/fpdev.git2/
   - fpdev.git2.fpcunit.lpr/.lpi、buildOrTest.fpcunit.bat
   - TTestCase_Global：验证 Discover 回退（纯 Pascal，不依赖 libgit2）
-  - TTestCase_Git2Status：验证 StatusEntries 未跟踪过滤（libgit2 不可用则跳过）
+  - TTestCase_Git2Status：验证 StatusEntries 未跟踪过滤与冲突过滤
 - 运行方式：
   - 根目录执行 tests\fpdev.git2\buildOrTest.fpcunit.bat
   - 或进入 tests\fpdev.git2：fpc 编译后运行 bin\fpdev.git2.fpcunit.exe --all --format=plain

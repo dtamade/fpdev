@@ -7,6 +7,20 @@
 - 识别项目当前“最大的问题”
 
 ## Research Findings
+- 2026-04-19 已完成 `git2` fpcunit follow-up：
+  - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 现在除了未跟踪过滤，还包含 `Test_StatusEntries_Conflict_Filtered`
+  - 这让 `buildOrTest.fpcunit.bat` 跑到的聚合套件，和 focused `status_conflict_test.lpr` 在契约上保持一致
+- 本轮切口仍然很窄，只补测试覆盖与叙事一致性，不改业务实现：
+  - 本地 git helper 只存在于测试单元
+  - 不动 `src/fpdev.git2.pas` / `git2.api` / `git2.impl`
+- 新增的 focused 证据：
+  - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `6/6`
+  - `tests/fpdev.git2/fpdev.git2.fpcunit.lpr` 聚合运行 → `3 tests, 0 failures`
+- 配套同步结果：
+  - `docs/history/git2-status-and-tests.md`
+  - `report/fpdev.git2.md`
+  - `todos/fpdev.git2.md`
+  现在都明确写成：`TTestCase_Git2Status` 覆盖未跟踪过滤与冲突过滤
 - 2026-04-19 已收口 `git2 status` 最后一块挂起覆盖：merge conflict 场景。
 - 这轮不是再开新 facade/helper wave，而是补一个真实运行时缺口：
   - `src/fpdev.git2.pas` 里 `MapStatusFlags(...)` 早已支持 `GIT_STATUS_CONFLICTED -> gsConflicted`
