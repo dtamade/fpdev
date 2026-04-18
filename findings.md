@@ -3322,3 +3322,34 @@
 - 当前 fresh checkpoint 结论：
   - 2026-04-14 这组高 ROI CLI commandflow 收口包在当前工作树上仍保持为绿
   - 下一步如果继续推进，应先做新的 ROI/业务目标重排，而不是 reopen 这 5 个已完成的 CLI helper 波次
+
+## 2026-04-19 Fresh Hotspot Re-rank Checkpoint After CLI Wave Pack
+- `CLI commandflow wave pack` 收口后，先做了一次 fresh re-rank，而不是直接沿旧 roadmap 机械开第 6 波。
+- line-count scan 显示当前最显著的大文件已经和早期 facade 波次的类型不同：
+  - `src/fpdev.git.operations.impl.pas` → `3128`
+  - `src/fpdev.i18n.strings.pas` → `1833`
+  - `src/fpdev.git2.pas` → `1501`
+  - `src/fpdev.fpc.source.pas` → `871`
+  - `src/fpdev.fpc.manager.pas` → `839`
+  - `src/fpdev.fpc.builder.pas` → `806`
+  - `src/fpdev.build.manager.pas` → `800`
+  - `src/fpdev.package.manager.pas` → `763`
+  - `src/fpdev.resource.repo.pas` / `src/fpdev.lazarus.manager.pas` → `762`
+- 其中真正体量最大的几类并不适合继续按 thin-facade/helper wave 处理：
+  - `fpdev.git.operations.impl.pas` / `fpdev.git2.pas` 更偏 core git/runtime logic，不是 command/facade glue
+  - `fpdev.i18n.strings.pas` 是大规模字符串表，体量高但不构成 helper extraction 目标
+- 对旧高 ROI facade 面重新跑边界 bundle 后，结果仍是全绿：
+  - `python3 -m unittest tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_package_manager_boundary tests.test_lazarus_manager_version_boundary tests.test_fpc_source_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v`
+  - 结果：`36/36`
+- 这说明此前被多轮 helper 化的 manager/source/repo facade 仍保持在当前边界内：
+  - `build.manager`
+  - `fpc.builder`
+  - `package.manager`
+  - `lazarus.manager`
+  - `fpc.source`
+  - `resource.repo`
+  - `fpc.manager bootstrap`
+- fresh checkpoint 结论：
+  - 当前没有再出现新的“3-5 个方法成组、测试护栏成熟、爆炸半径低”的 helper extraction 切口
+  - 如果继续推进，更合理的方向应是新的业务/设计目标，或者先形成一份新的具体实施计划
+  - 在当前大 dirty worktree 上，为保持动作感而 reopen 旧 facade 线，风险高于收益

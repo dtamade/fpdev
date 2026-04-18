@@ -1,5 +1,37 @@
 # Progress Log
 
+## Session: 2026-04-19 (fresh hotspot re-rank checkpoint after CLI wave pack)
+
+### Phase 116: Fresh Hotspot Re-rank Checkpoint After CLI Wave Pack
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 在 `CLI commandflow wave pack` code + truth sync 都已收口后，没有直接 reopen 新 helper wave，而是先做 fresh ROI re-rank
+  - 结合语义搜索与 line-count scan 复核当前剩余大体量单元，最新 top 体量大致为：
+    - `src/fpdev.git.operations.impl.pas` → `3128`
+    - `src/fpdev.i18n.strings.pas` → `1833`
+    - `src/fpdev.git2.pas` → `1501`
+    - `src/fpdev.fpc.source.pas` → `871`
+    - `src/fpdev.fpc.manager.pas` → `839`
+    - `src/fpdev.fpc.builder.pas` → `806`
+    - `src/fpdev.build.manager.pas` → `800`
+    - `src/fpdev.package.manager.pas` → `763`
+    - `src/fpdev.resource.repo.pas` / `src/fpdev.lazarus.manager.pas` → `762`
+  - 运行轻量 facade boundary bundle：
+    - `python3 -m unittest tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_package_manager_boundary tests.test_lazarus_manager_version_boundary tests.test_fpc_source_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v`
+    - 结果：`36 passed`
+  - 将 fresh evidence 与当前源码形态对照后，确认：
+    - `build.manager` / `fpc.builder` / `package.manager` / `lazarus.manager` / `fpc.source` / `resource.repo` 这些旧高 ROI facade 面仍保持 helper 化边界，不 reopen
+    - 当前更大的 `git` / `i18n` 文件主要是 core logic 或数据表，不符合“3-5 个方法成组、低爆炸半径”的 helper wave 条件
+    - 因此这轮 checkpoint 的正确动作是停止继续机械拆 facade，而不是为了保持动作感硬开下一波
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 当前 repo 仍是大 dirty worktree；没有足够证据时继续开 helper wave 的风险高于收益
+  - 下一步若继续推进，应改为新的业务/设计目标，或先形成更具体的新实施计划
+
 ## Session: 2026-04-19 (CLI commandflow wave pack fresh closure)
 
 ### Phase 98: CLI Commandflow Wave Pack Broad Verification + Closure

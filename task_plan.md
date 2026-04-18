@@ -1,12 +1,28 @@
 # Task Plan
 
 ## Active Goal
-收口 2026-04-19 CLI commandflow wave pack：同步 5 个 commandflow helper 抽取的 fresh verification 证据到 planning artifacts，并把下一步结论更新为“先做 fresh ROI re-rank，再开新 wave”。
+完成 2026-04-19 fresh hotspot re-rank checkpoint：确认 `CLI commandflow wave pack` 收口后当前工作树里暂不存在新的高 ROI、低爆炸半径 helper wave。
 
 ## Current Phase
-Phase 98 complete
+Phase 116 complete
 
 ## Active Phases
+### Phase 116: Fresh Hotspot Re-rank Checkpoint After CLI Wave Pack
+- [x] 基于最新工作树重新扫描剩余大体量单元与 command/facade/helper 分布
+- [x] 运行轻量 boundary bundle：
+  - `python3 -m unittest tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_package_manager_boundary tests.test_lazarus_manager_version_boundary tests.test_fpc_source_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v`
+  - 结果：`36/36`
+- [x] 结合 line-count scan 与语义复核，确认当前最显著的大文件主要是：
+  - `src/fpdev.git.operations.impl.pas`
+  - `src/fpdev.i18n.strings.pas`
+  - `src/fpdev.git2.pas`
+  - 以及已经多轮 helper 化并有边界护栏的 `fpc/build/package/resource/lazarus` manager/source facade
+- [x] 记录 checkpoint 结论：
+  - 现阶段没有再出现新的“3-5 个方法成组、测试护栏成熟、爆炸半径低”的 helper extraction 切口
+  - 若继续推进，应切到新的业务/设计目标，或先形成更具体的新计划，而不是 reopen 已完成 wave
+- [x] 同步 `task_plan.md`、`findings.md`、`progress.md`
+- **Status:** complete
+
 ### Phase 115: TFPCInstaller Lifecycleflow Extraction And Truth Reset
 - [x] 在 `tests/test_fpc_installer_boundary.py` 补 installer lifecycleflow 边界 RED：
   - `src/fpdev.fpc.installer.pas` 必须引入 `fpdev.fpc.installer.lifecycleflow`
