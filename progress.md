@@ -4416,3 +4416,37 @@
 - Residual notes:
   - 本轮仍未变更 `BuildManager` 代码；只是把短期 todo 调整到和当前文档真相一致
   - `日志优化：Windows 时间戳零填充（避免空格）` 仍缺实现证据，因此继续保留待办
+
+### Phase 99: BuildManager Zero-Padded Log Timestamp Truth Sync
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 复核 `src/fpdev.build.logger.pas`，确认日志文件名生成逻辑已经使用 `FormatDateTime('yyyymmdd_hhnnss_zzz', Now)`，并非真实实现缺口
+  - 识别到两处 drift：
+    - `docs/build-manager.md` 仍提示“Windows 日志时间戳可能含空格（小时 < 10）”
+    - `todos/fpdev.build.manager.md` 仍把零填充时间戳项保留为未完成
+  - 按 TDD 先扩展 `tests/test_build_manager_docs_truth_contract.py`，新增 `test_build_manager_docs_and_todo_capture_zero_padded_log_timestamp_truth`
+  - 运行 RED：
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract.BuildManagerDocsTruthContractTests.test_build_manager_docs_and_todo_capture_zero_padded_log_timestamp_truth -v`
+    - 结果：`1` 个失败，命中文档仍缺少“当前已零填充”说明
+  - 做最小 GREEN：
+    - 更新 `docs/build-manager.md`
+    - 更新 `todos/fpdev.build.manager.md`
+  - 为当前事实补运行时护栏：
+    - 扩展 `tests/test_build_logger.lpr`
+    - 新增 `TestLogFileNameUsesZeroPaddedTimestampWithoutSpaces`
+  - 运行 focused/full verification：
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract tests.test_contributor_docs_contract -v` → `36 passed`
+    - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-logger-bin -FU/tmp/fpdev-build-logger-lib tests/test_build_logger.lpr && /tmp/fpdev-build-logger-bin/test_build_logger` → `10 passed`
+  - 同步 `task_plan.md`、`findings.md`、`progress.md`
+- Files created/modified:
+  - `docs/build-manager.md`
+  - `todos/fpdev.build.manager.md`
+  - `tests/test_build_manager_docs_truth_contract.py`
+  - `tests/test_build_logger.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮仍未修改 `src/fpdev.build.logger.pas` 生产逻辑；只是把已有零填充行为写实到文档/todo，并补上直接测试证据
+  - 当前 `todos/fpdev.build.manager.md` 的短期项已全部收口，后续 BuildManager 方向应转向中期项或更高层设计/实现问题

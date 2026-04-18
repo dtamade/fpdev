@@ -1709,3 +1709,21 @@ Phase 113 complete
 - 关键验证结果：
   - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `4/4`
   - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `35/35`
+
+
+### Phase 99: BuildManager Zero-Padded Log Timestamp Truth Sync
+- [x] 扩展 `tests/test_build_manager_docs_truth_contract.py`，锁定文档与 `todos/fpdev.build.manager.md` 必须反映“日志文件名已使用零填充时间戳”的当前事实
+- [x] 先运行新增单测，确认中文文档仍保留“Windows 日志时间戳可能含空格”的旧说法并稳定 RED
+- [x] 更新 `docs/build-manager.md` 与 `todos/fpdev.build.manager.md`，把零填充时间戳项同步到当前真实状态
+- [x] 扩展 `tests/test_build_logger.lpr`，为 `build_yyyymmdd_hhnnss_zzz.log` 文件名格式补直接护栏
+- [x] 跑 docs truth suite、组合 docs suite 与 `tests/test_build_logger.lpr`，并同步 `task_plan.md` / `findings.md` / `progress.md`
+
+## Notes
+- 本轮没有修改 `src/fpdev.build.logger.pas` 逻辑；代码里原本就使用 `FormatDateTime('yyyymmdd_hhnnss_zzz', Now)`，问题在于文档和 todo 仍停留在旧认知。
+- 新增 `tests/test_build_logger.lpr` 护栏后，当前已经有直接证据表明日志文件名：
+  - 不含空格
+  - 固定宽度
+  - 日期/时间/毫秒段都为数字
+- 关键验证结果：
+  - `python3 -m unittest tests.test_build_manager_docs_truth_contract tests.test_contributor_docs_contract -v` → `36/36`
+  - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-logger-bin -FU/tmp/fpdev-build-logger-lib tests/test_build_logger.lpr && /tmp/fpdev-build-logger-bin/test_build_logger` → `10/10`

@@ -3177,3 +3177,19 @@
 - focused verification：
   - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `4/4`
   - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `35/35`
+
+## 2026-04-19 BuildManager Zero-Padded Log Timestamp Truth Sync
+- `src/fpdev.build.logger.pas` 的日志文件名生成逻辑本身已经使用 `FormatDateTime('yyyymmdd_hhnnss_zzz', Now)`，所以“Windows 时间戳可能含空格”不是实现缺口，而是文档/todo 认知滞后
+- 在本轮落盘前，存在两处 drift：
+  - `docs/build-manager.md` 仍写着：`Windows 日志时间戳可能含空格（小时 < 10）；如需可改为零填充格式（见 todos）`
+  - `todos/fpdev.build.manager.md` 仍把 `日志优化：Windows 时间戳零填充（避免空格）` 保留为未完成
+- 为了给这个 truth-sync 增加运行时证据，本轮扩展了 `tests/test_build_logger.lpr`：
+  - 直接断言 `TBuildLogger.LogFileName` 不含空格
+  - 断言文件名固定宽度、带 `build_` 前缀和 `.log` 后缀
+  - 断言日期/时间/毫秒段均为数字，符合 `build_yyyymmdd_hhnnss_zzz.log` 约定
+- 文档与 todo 现在都已跟随真实实现更新：
+  - 文档改为说明“当前已使用零填充时间戳，不会因小时 < 10 出现空格”
+  - todo 将零填充项标记为完成
+- focused verification：
+  - `python3 -m unittest tests.test_build_manager_docs_truth_contract tests.test_contributor_docs_contract -v` → `36/36`
+  - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-logger-bin -FU/tmp/fpdev-build-logger-lib tests/test_build_logger.lpr && /tmp/fpdev-build-logger-bin/test_build_logger` → `10/10`

@@ -2,7 +2,7 @@
 
 ## 短期（本轮后立即执行）
 - [x] 文档：docs/build-manager.md 增补“全工具链真实演练 Runbook、脚本清单与参数说明”
-- [ ] 日志优化：Windows 时间戳零填充（避免空格）
+- [x] 日志优化：Windows 时间戳零填充（避免空格）
 - [x] 示例增强：示例中演示 SetTarget/SetPrefix/SetMakeCmd 的用法（注释或参数）
 
 ## 中期
@@ -13,4 +13,3 @@
 ## 可选
 - [ ] CI 自托管 Runner 方案脚本化（Windows/Linux/macOS）
 - [ ] REAL 模式前置“Preflight 必须通过”的强约束
-

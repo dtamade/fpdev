@@ -10,6 +10,19 @@ var
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
+function AllDigits(const S: string): Boolean;
+var
+  i: Integer;
+begin
+  Result := S <> '';
+  if not Result then
+    Exit;
+
+  for i := 1 to Length(S) do
+    if not (S[i] in ['0'..'9']) then
+      Exit(False);
+end;
+
 procedure Check(const ACondition: Boolean; const ATestName: string);
 begin
   if ACondition then
@@ -77,10 +90,45 @@ begin
   end;
 end;
 
+procedure TestLogFileNameUsesZeroPaddedTimestampWithoutSpaces;
+var
+  Logger: TBuildLogger;
+  LogDir, FileName, Stamp: string;
+begin
+  LogDir := '';
+  Logger := nil;
+  try
+    LogDir := CreateUniqueTempDir('fpdev_build_logger_name');
+    Logger := TBuildLogger.Create(LogDir);
+
+    FileName := ExtractFileName(Logger.LogFileName);
+    Check(Pos(' ', FileName) = 0,
+      'BuildLogger log filename: contains no spaces');
+    Check(Length(FileName) = 29,
+      'BuildLogger log filename: fixed-width timestamp');
+    Check(Pos('build_', FileName) = 1,
+      'BuildLogger log filename: build_ prefix');
+    Check(Copy(FileName, 15, 1) = '_',
+      'BuildLogger log filename: date/time separator');
+    Check(Copy(FileName, 22, 1) = '_',
+      'BuildLogger log filename: time/ms separator');
+    Check(Copy(FileName, 26, 4) = '.log',
+      'BuildLogger log filename: .log suffix');
+
+    Stamp := Copy(FileName, 7, 8) + Copy(FileName, 16, 6) + Copy(FileName, 23, 3);
+    Check(AllDigits(Stamp),
+      'BuildLogger log filename: timestamp sections are zero-padded digits');
+  finally
+    Logger.Free;
+    CleanupTempDir(LogDir);
+  end;
+end;
+
 begin
   WriteLn('=== Build Logger Tests ===');
   WriteLn;
 
+  TestLogFileNameUsesZeroPaddedTimestampWithoutSpaces;
   TestLogEnvSnapshotUsesSameProcessPath;
 
   WriteLn;

@@ -47,8 +47,16 @@ class BuildManagerDocsTruthContractTests(unittest.TestCase):
     def test_build_manager_todo_marks_runbook_and_api_examples_complete(self):
         text = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')
         self.assertIn('- [x] 文档：docs/build-manager.md 增补“全工具链真实演练 Runbook、脚本清单与参数说明”', text)
-        self.assertIn('- [ ] 日志优化：Windows 时间戳零填充（避免空格）', text)
+        self.assertIn('- [x] 日志优化：Windows 时间戳零填充（避免空格）', text)
         self.assertIn('- [x] 示例增强：示例中演示 SetTarget/SetPrefix/SetMakeCmd 的用法（注释或参数）', text)
+
+    def test_build_manager_docs_and_todo_capture_zero_padded_log_timestamp_truth(self):
+        doc_text = BUILD_MANAGER_MD.read_text(encoding='utf-8')
+        todo_text = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')
+        self.assertIn('logs/build_yyyymmdd_hhnnss_zzz.log', doc_text)
+        self.assertIn('Windows 日志文件名当前已使用零填充时间戳', doc_text)
+        self.assertNotIn('Windows 日志时间戳可能含空格', doc_text)
+        self.assertIn('- [x] 日志优化：Windows 时间戳零填充（避免空格）', todo_text)
 
 
 if __name__ == '__main__':

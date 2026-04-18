@@ -606,6 +606,6 @@ end.
 | macOS→Win | `gmake` | `x86_64, win64` | `C:\FPC` | 交叉编译 |
 
 注意：
-- Windows 日志时间戳可能含空格（小时 < 10）；如需可改为零填充格式（见 todos）
+- Windows 日志文件名当前已使用零填充时间戳（`logs/build_yyyymmdd_hhnnss_zzz.log`），不会因小时 < 10 出现空格
 - 上游 Makefile 对 DESTDIR/PREFIX 等变量的支持程度可能不同，必要时请查看上游文档或在日志中审阅完整 make 命令行
 - 交叉编译需要目标平台的工具链（如交叉编译器、链接器）已安装并在 PATH 中
