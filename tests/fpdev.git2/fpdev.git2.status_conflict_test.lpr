@@ -12,10 +12,7 @@ begin
   if ACond then
     WriteLn('✓ ', AMsg)
   else
-  begin
-    WriteLn('✗ ', AMsg);
-    Halt(2);
-  end;
+    raise Exception.Create(AMsg);
 end;
 
 procedure WriteTextFile(const APath, AText: string);
