@@ -1,5 +1,33 @@
 # Progress Log
 
+## Session: 2026-04-19 (TFPCInstaller lifecycleflow audit)
+
+### Phase 114: TFPCInstaller Lifecycleflow Test Audit
+- **Status:** in_progress
+- **Started:** 2026-04-19
+- Actions taken:
+  - 读取 `using-superpowers` 与 `planning-with-files` 技能，按要求先建立本次调研的磁盘计划
+  - 用代码搜索确认当前 `TFPCInstaller` 周边已有的边界护栏主要在：
+    - `tests/test_fpc_installer_boundary.py`
+    - `tests/test_fpc_install_manager_boundary.py`
+    - `tests/test_fpc_installer.lpr`
+  - 记录当前任务目标：不改业务文件，只输出最小 RED 测试建议，服务于后续抽取 `fpdev.fpc.installer.lifecycleflow`
+  - 发现 `planning-with-files` 示例中的 `${CLAUDE_PLUGIN_ROOT}` 在当前会话未定义，已改为绝对路径继续
+  - 进一步结构化检查 `src/fpdev.fpc.installer.pas`、`src/fpdev.fpc.installer.lifecycleflow.pas`、`tests/test_fpc_installer_boundary.py`、`tests/test_fpc_installer_lifecycleflow.lpr`、`tests/test_fpc_installer.lpr`
+  - 确认当前工作树里 lifecycleflow 抽取已经存在，boundary tests 也已锁住 facade 委托
+  - 运行 focused 验证：
+    - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `4 passed`
+    - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-fpc-installer-lifecycleflow-bin -FU/tmp/fpdev-fpc-installer-lifecycleflow-lib tests/test_fpc_installer_lifecycleflow.lpr && /tmp/fpdev-fpc-installer-lifecycleflow-bin/test_fpc_installer_lifecycleflow` → `13 checks, 0 failed`
+    - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-fpc-installer-bin -FU/tmp/fpdev-fpc-installer-lib tests/test_fpc_installer.lpr && /tmp/fpdev-fpc-installer-bin/test_fpc_installer` → `35 passed, 0 failed`
+  - 对照旧大测试后识别 residual gaps：helper-focused coverage 还没直接钉住 already-installed error、resolved path wiring、prefix override、download/build failure propagation、uninstall no-op / failure 分支
+- Files created/modified:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 当前仍在继续读取 installer tests / source unit，尚未形成最终建议
+  - 这轮不会改动 `src/` 或 `tests/` 里的业务/测试实现
+
 ## Session: 2026-04-19 (git2 fpcunit follow-up)
 
 ### Phase 113: Git2 Fpcunit Conflict Follow-up
@@ -4450,3 +4478,51 @@
 - Residual notes:
   - 本轮仍未修改 `src/fpdev.build.logger.pas` 生产逻辑；只是把已有零填充行为写实到文档/todo，并补上直接测试证据
   - 当前 `todos/fpdev.build.manager.md` 的短期项已全部收口，后续 BuildManager 方向应转向中期项或更高层设计/实现问题
+
+### Phase 100: TFPCInstaller Lifecycleflow Extraction And Truth Reset
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 先按 TDD 扩展 `tests/test_fpc_installer_boundary.py`：
+    - 要求 `src/fpdev.fpc.installer.pas` 引入 `fpdev.fpc.installer.lifecycleflow`
+    - 要求 `InstallVersion(...)` / `UninstallVersion(...)` 必须委托 helper
+    - 禁止 facade 继续内联 validate / source download-build / remove-command glue
+  - 新增 `tests/test_fpc_installer_lifecycleflow.lpr`，把 install root resolve、invalid version、ensure success、fake binary fallback、uninstall process plan 直接锁进 focused helper tests
+  - 运行 RED：
+    - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `3` 个失败，命中 lifecycleflow import/delegate 缺口
+    - `fpc -Fusrc -Fisrc -Fu. -FE/tmp/fpdev-installer-lifecycleflow-bin-red -FU/tmp/fpdev-installer-lifecycleflow-lib-red tests/test_fpc_installer_lifecycleflow.lpr` → 因 helper unit 不存在而失败
+  - 做最小 GREEN：
+    - 新增 `src/fpdev.fpc.installer.lifecycleflow.pas`
+    - 在 helper 中承接：
+      - install root / install dir / source dir resolve
+      - `InstallVersion(...)` orchestration 与 `TOperationResult` 映射
+      - uninstall remove-command plan 与 `TOperationResult` 映射
+    - 重构 `src/fpdev.fpc.installer.pas`，让 `GetResolvedInstallRoot(...)`、`GetInstallDir(...)`、`InstallVersion(...)`、`UninstallVersion(...)` 全部收缩为 thin delegate
+    - 为 `IFileSystem` / `IProcessRunner` 提供 facade-local wrapper，稳定 callback wiring
+    - 修正 `src/fpdev.fpc.installer.pas` 顶部关于 SourceForge fallback 的过时说明
+  - 同步 backlog truth：
+    - 更新 `todos/fpdev.git2.md`
+    - 将 `BuildManager 强化` 中的混合条目拆成：
+      - `日志分文件（per-run 独立日志文件）` → 完成
+      - `verbosity 开关` → 完成
+      - `日志轮转` → 未完成
+  - 运行 focused/broad verification：
+    - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `4 passed`
+    - `fpc -Fusrc -Fisrc -Fu. -FE/tmp/fpdev-installer-lifecycleflow-bin -FU/tmp/fpdev-installer-lifecycleflow-lib tests/test_fpc_installer_lifecycleflow.lpr && /tmp/fpdev-installer-lifecycleflow-bin/test_fpc_installer_lifecycleflow` → `13 passed`
+    - `fpc -Fusrc -Fisrc -Fu. -FE/tmp/fpdev-installer-bin -FU/tmp/fpdev-installer-lib tests/test_fpc_installer.lpr && /tmp/fpdev-installer-bin/test_fpc_installer` → `35 passed`
+    - `bash scripts/run_all_tests.sh` → `335 passed`
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+  - 同步 `task_plan.md`、`findings.md`、`progress.md`
+- Files created/modified:
+  - `src/fpdev.fpc.installer.lifecycleflow.pas`
+  - `src/fpdev.fpc.installer.pas`
+  - `tests/test_fpc_installer_boundary.py`
+  - `tests/test_fpc_installer_lifecycleflow.lpr`
+  - `todos/fpdev.git2.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮没有改变 `TFPCInstaller` public API，也没有把 fake binary fallback 改成真实 binary install
+  - uninstall 仍保持当前宽松语义：缺目录即成功、继续用 shell remove command、不做 metadata/toolchain cleanup
+  - `BuildManager` 方向只做 truth reset；`日志轮转` 继续留在 backlog，不被这轮误标完成

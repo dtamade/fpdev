@@ -1,12 +1,57 @@
 # Task Plan
 
 ## Active Goal
-收口 2026-04-19 `git2` fpcunit follow-up：把 conflict status coverage 纳入 fpcunit 聚合套件，并同步 docs / report / todo，使 focused runner 与 fpcunit runner 对同一条状态契约保持一致。
+收口 2026-04-19 `BuildManager` 基线重置 + `TFPCInstaller` lifecycleflow 抽取：完成 DI installer facade 下沉、锁定 boundary/helper tests，并同步 planning/todo 真相源。
 
 ## Current Phase
-Phase 113 complete
+Phase 115 complete
 
 ## Active Phases
+### Phase 115: TFPCInstaller Lifecycleflow Extraction And Truth Reset
+- [x] 在 `tests/test_fpc_installer_boundary.py` 补 installer lifecycleflow 边界 RED：
+  - `src/fpdev.fpc.installer.pas` 必须引入 `fpdev.fpc.installer.lifecycleflow`
+  - `InstallVersion(...)` 必须委托 `ExecuteFPCInstallerInstallCore(...)`
+  - `UninstallVersion(...)` 必须委托 `ExecuteFPCInstallerUninstallCore(...)`
+  - facade 不得继续内联 validate / source download-build / remove-command glue
+- [x] 新增 `tests/test_fpc_installer_lifecycleflow.lpr`，锁定 helper 直测：
+  - configured root / `GetDataRoot` fallback
+  - invalid version / ensure success
+  - fake binary fallback 继续走 source path
+  - uninstall remove-command plan 保持平台语义
+- [x] 新增 `src/fpdev.fpc.installer.lifecycleflow.pas`，承接：
+  - install root resolve
+  - version install dir resolve
+  - source dir resolve
+  - `InstallVersion(...)` orchestration
+  - `UninstallVersion(...)` process-plan orchestration
+- [x] 重构 `src/fpdev.fpc.installer.pas`：
+  - `GetResolvedInstallRoot(...)` / `GetInstallDir(...)` 委托 helper
+  - `InstallVersion(...)` / `UninstallVersion(...)` 收缩为 thin delegate
+  - 保留 public signatures 与既有 fake binary fallback 语义不变
+  - 修正 unit 顶部关于 binary fallback 支持范围的过时说明
+- [x] 归一 `todos/fpdev.git2.md` 中 `BuildManager 强化` 的混合条目：
+  - `日志分文件（per-run 独立日志文件）` → 已完成
+  - `verbosity 开关` → 已完成
+  - `日志轮转` → 继续待办
+- [x] 完成 focused + broad verification：
+  - `python3 -m unittest tests.test_fpc_installer_boundary -v`
+  - `tests/test_fpc_installer_lifecycleflow.lpr`
+  - `tests/test_fpc_installer.lpr`
+  - `bash scripts/run_all_tests.sh`
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md`、`findings.md`、`progress.md`
+- **Status:** complete
+
+### Phase 114: TFPCInstaller Lifecycleflow Test Audit
+- [x] 复核 `tests/test_fpc_installer.lpr` 与相关 helper/boundary tests
+- [x] 识别当前 `TFPCInstaller` 生命周期行为已经被哪些测试锁住，哪些还缺直接护栏
+- [x] 给出最小 RED 测试建议：
+  - boundary Python tests 该新增哪些断言
+  - Pascal `lifecycleflow` focused tests 应覆盖哪些当前行为
+- [x] 明确建议保持 public semantics 不变，只锁责任下沉与现有行为
+- [x] 同步 `task_plan.md`、`findings.md`、`progress.md`
+- **Status:** complete
+
 ### Phase 113: Git2 Fpcunit Conflict Follow-up
 - [x] 先写 RED：
   - 扩展 `tests/test_git2_status_docs_contract.py`
@@ -1368,6 +1413,7 @@ Phase 113 complete
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
+| planning-with-files skill 示例中的 `${CLAUDE_PLUGIN_ROOT}` 在当前会话未展开，导致模板与 catchup 脚本路径解析失败 | 1 | 改用 `/home/dtamade/.codex/skills/planning-with-files/...` 绝对路径继续执行 |
 | `fpc -Fusrc -Fisrc -FE/tmp/...` 在目标目录不存在时直接失败 | 1 | 先 `mkdir -p` 再运行 focused Pascal build，记录为环境细节而非代码问题 |
 | `fpdev.git.runtime.pas(77,29) Error: Identifier not found "gbNone"` | 1 | 确认 enum 已拆到 `fpdev.git.types` 后，给 `fpdev.git.runtime.pas` 补显式 import 并补 boundary test 防回归 |
 | `tests/test_git_operations.lpr` 编译时报 `Identifier not found "gbLibgit2"` 等 enum 标识符 | 1 | 确认是 backend type 抽取后的隐式依赖残留，给 focused 测试补显式 `fpdev.git.types` import |

@@ -1,12 +1,42 @@
 # Findings & Decisions
 
 ## Requirements
-- 审查项目整体状态
-- 给出开发建议
-- 对路线图进行评审
-- 识别项目当前“最大的问题”
+- 检查 `/home/dtamade/projects/fpdev` 中 `TFPCInstaller` 周边测试，重点看 `tests/test_fpc_installer.lpr`
+- 特别关注 boundary tests，给出为了后续抽取 `fpdev.fpc.installer.lifecycleflow` 所需的最小 RED 测试补强建议
+- 不修改仓库业务文件，只返回建议
+- 建议需分成两类：
+  - boundary Python tests 该补哪些断言
+  - focused Pascal lifecycleflow tests 应覆盖哪些当前行为
+- 目标是锁住当前行为且不改变 public semantics
 
 ## Research Findings
+- 当前仓库已经有一条很薄的 installer boundary：
+  - `tests/test_fpc_installer_boundary.py` 只锁 `src/fpdev.fpc.installer.pas` 不再持有 CLI fallback / exit-code / mode parsing 责任
+  - 它目前只断言保留 `ExecuteFPCBinaryPostInstall`，还没有锁新的 lifecycle helper seam
+- 进一步核对后发现当前工作树其实已经落地了这条抽取线：
+  - `src/fpdev.fpc.installer.lifecycleflow.pas` 已存在
+  - `tests/test_fpc_installer_boundary.py` 已经锁住：
+    - installer unit 必须 `uses fpdev.fpc.installer.lifecycleflow`
+    - `InstallVersion(...)` 必须委托 `ExecuteFPCInstallerInstallCore(...)`
+    - `UninstallVersion(...)` 必须委托 `ExecuteFPCInstallerUninstallCore(...)`
+    - facade 不再内联 validate / directory exists / download / build / rm / uninstall error glue
+- 当前 focused helper tests `tests/test_fpc_installer_lifecycleflow.lpr` 已直接覆盖：
+  - `ResolveFPCInstallerInstallRootCore(...)` 的 configured-root 与 `GetDataRoot` fallback
+  - invalid version 错误
+  - ensure=true + already-installed 成功并跳过 download/build
+  - binary-mode request 仍沿 source path 走 download/build
+  - uninstall success 时的 remove command 组装
+- 对照旧的 `tests/test_fpc_installer.lpr` 后，仍有几条 helper-owned 语义没有被 focused lifecycleflow tests 直接锁住：
+  - already-installed + ensure=false 返回 `ecVersionAlreadyInstalled`
+  - install core 需要把默认 install/source 路径真正传给 callbacks
+  - prefix override 需要只覆盖 install path，不改变 source dir
+  - download/build failure 需要原样向上返回并短路后续步骤
+  - uninstall 对“不存在目录直接成功”和“remove command 失败返回 `ecUninstallationFailed`”尚未在 helper 测试里直测
+- `tests/test_fpc_install_manager_boundary.py` 已表明 manager 层当前只应持有 install-surface orchestration，不应再直接内联 install core 或 CLI fallback 逻辑
+- 仓库里已有多个类似波次的模式：
+  - 先在 Python boundary test 锁 `uses` / delegate / not-inline contract
+  - 再新增 focused Pascal helper test 直接覆盖 helper 的 plan/execute 或 lifecycle 行为
+- `planning-with-files` 技能给出的 `${CLAUDE_PLUGIN_ROOT}` 示例在本会话不可用，需要改用绝对路径 `/home/dtamade/.codex/skills/planning-with-files/...`
 - 2026-04-19 已完成 `git2` fpcunit follow-up：
   - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas` 现在除了未跟踪过滤，还包含 `Test_StatusEntries_Conflict_Filtered`
   - 这让 `buildOrTest.fpcunit.bat` 跑到的聚合套件，和 focused `status_conflict_test.lpr` 在契约上保持一致
@@ -2548,10 +2578,17 @@
 ## Issues Encountered
 | Issue | Resolution |
 |-------|------------|
+| planning-with-files 技能示例路径变量不可用 | 改为直接使用技能目录绝对路径执行 catchup 与读取模板 |
 | 语义检索工具失败 | 退回本地仓库结构化检查 |
 | 工作树变更面过大，不能直接把 README/ROADMAP 文案当作当前真实状态 | 以契约测试、源码热点和 git 工作树状态交叉验证 |
 
 ## Resources
+- `tests/test_fpc_installer_boundary.py`
+- `tests/test_fpc_installer_lifecycleflow.lpr`
+- `tests/test_fpc_install_manager_boundary.py`
+- `tests/test_fpc_installer.lpr`
+- `src/fpdev.fpc.installer.pas`
+- `src/fpdev.fpc.installer.lifecycleflow.pas`
 - `/home/dtamade/projects/fpdev/src`
 - `/home/dtamade/projects/fpdev/tests`
 - `/home/dtamade/projects/fpdev/scripts`
@@ -3193,3 +3230,35 @@
 - focused verification：
   - `python3 -m unittest tests.test_build_manager_docs_truth_contract tests.test_contributor_docs_contract -v` → `36/36`
   - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-logger-bin -FU/tmp/fpdev-build-logger-lib tests/test_build_logger.lpr && /tmp/fpdev-build-logger-bin/test_build_logger` → `10/10`
+
+## 2026-04-19 TFPCInstaller Lifecycleflow Extraction And Truth Reset
+- `src/fpdev.fpc.installer.pas` 在当前工作树里，binary installer 主体已经 helper 化，真正仍偏厚的是 DI facade 自己的四个点：
+  - `GetResolvedInstallRoot(...)`
+  - `GetInstallDir(...)`
+  - `InstallVersion(...)`
+  - `UninstallVersion(...)`
+- 本轮新增 `src/fpdev.fpc.installer.lifecycleflow.pas`，把上述 residual glue 下沉到 shared helper，并保持 public surface 不变：
+  - `ResolveFPCInstallerInstallRootCore(...)`
+  - `ResolveFPCInstallerVersionInstallDirCore(...)`
+  - `ResolveFPCInstallerInstallPathCore(...)`
+  - `ResolveFPCInstallerSourceDirCore(...)`
+  - `CreateFPCInstallerUninstallPlanCore(...)`
+  - `ExecuteFPCInstallerInstallCore(...)`
+  - `ExecuteFPCInstallerUninstallCore(...)`
+- 关键语义刻意保持不变：
+  - `InstallVersion(..., False, ...)` 继续是 fake binary fallback，实际仍走 source install path
+  - source dir 继续使用 `<InstallRoot>/sources/fpc-<version>`，不切到 `installversionflow` 的其他布局
+  - `Ensure=True` 仍是“目录存在即成功”，不追加验证逻辑
+  - uninstall 继续是“目录不存在即成功”，删除命令仍走 `rm -rf` / `cmd /c rmdir /s /q`
+  - 不追加 metadata/toolchain cleanup，也不改变 custom prefix uninstall 语义
+- 新边界护栏已到位：
+  - `tests/test_fpc_installer_boundary.py` 锁定 facade 必须委托 lifecycleflow
+  - `tests/test_fpc_installer_lifecycleflow.lpr` 直接锁 install/uninstall core 行为
+- BuildManager truth sync 侧，本轮只做 backlog 归一，不 reopen 代码波次：
+  - `todos/fpdev.git2.md` 里的 `日志分文件/轮转、verbosity 开关` 已拆成“分文件已完成 / verbosity 已完成 / rotation 未完成”
+- verification 结果：
+  - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `4/4`
+  - `tests/test_fpc_installer_lifecycleflow.lpr` → `13/13`
+  - `tests/test_fpc_installer.lpr` → `35/35`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
