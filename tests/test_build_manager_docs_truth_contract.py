@@ -42,7 +42,9 @@ class BuildManagerDocsTruthContractTests(unittest.TestCase):
         text = TODO_GIT2_MD.read_text(encoding='utf-8')
         self.assertIn('- [ ] BuildManager 强化', text)
         self.assertIn('  - [x] TestResults 校验沙箱输出结构（允许安装时）', text)
-        self.assertIn('  - [ ] 日志分文件/轮转、verbosity 开关', text)
+        self.assertIn('  - [x] 日志分文件（per-run 独立日志文件）', text)
+        self.assertIn('  - [x] verbosity 开关', text)
+        self.assertIn('  - [ ] 日志轮转', text)
 
     def test_build_manager_todo_marks_runbook_and_api_examples_complete(self):
         text = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')

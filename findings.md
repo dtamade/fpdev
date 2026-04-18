@@ -3262,3 +3262,63 @@
   - `tests/test_fpc_installer.lpr` → `35/35`
   - `bash scripts/run_all_tests.sh` → `335/335`
   - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+
+## 2026-04-19 CLI Commandflow Wave Pack Fresh Closure
+- 这轮没有再开第 6 个 helper 波次，而是把已落在工作树里的 5-wave CLI commandflow 包做了一次 fresh closure，目标是用新鲜证据链替换 2026-04-14 的旧收口记录。
+- 当前 5 个命令 helper 已全部稳定落地：
+  - `src/fpdev.lazarus.installcommandflow.pas`
+  - `src/fpdev.package.installcommandflow.pas`
+  - `src/fpdev.fpc.usecommandflow.pas`
+  - `src/fpdev.fpc.verifycommandflow.pas`
+  - `src/fpdev.cross.buildcommandflow.pas`
+- 对应命令单元现在都已经是 thin facade，只保留 registration、manager/engine ownership、少量 bridge/wrapper 与 helper 调用：
+  - `src/fpdev.cmd.lazarus.install.pas`
+  - `src/fpdev.cmd.package.install.pas`
+  - `src/fpdev.cmd.fpc.use.pas`
+  - `src/fpdev.cmd.fpc.verify.pas`
+  - `src/fpdev.cmd.cross.build.pas`
+- 本轮 fresh focused 证据链为：
+  - `lazarus install`：
+    - `tests.test_lazarus_install_boundary` → `5/5`
+    - `tests/test_lazarus_installcommandflow.lpr` → `33/33`
+    - `tests/test_cli_lazarus.lpr` → `143/143`
+    - `tests/test_lazarus_flow.lpr` → `37/37`
+    - commit: `dee7105`
+  - `package install`：
+    - `tests.test_package_install_boundary` → `2/2`
+    - `tests/test_package_installcommandflow.lpr` → `33/33`
+    - `tests/test_cli_package.lpr` → `234/234`
+    - `tests/test_package_resource_flow.lpr` → `23/23`
+    - commit: `f6667fe`
+  - `fpc use`：
+    - `tests.test_fpc_use_boundary` → `2/2`
+    - `tests/test_fpc_usecommandflow.lpr` → `32/32`
+    - `tests/test_cli_fpc_info.lpr` → `91/91`
+    - commit: `3657612`
+  - `fpc verify`：
+    - `tests.test_fpc_verify_boundary` → `4/4`
+    - `tests/test_fpc_verifycommandflow.lpr` → `18/18`
+    - `tests/test_fpc_verify.lpr` → pass
+    - `tests/test_cli_fpc_diag.lpr` → `158/158`
+    - commit: `774665d`
+  - `cross build`：
+    - `tests.test_cross_build_boundary` → `2/2`
+    - `tests/test_cross_buildcommandflow.lpr` → `37/37`
+    - `tests/test_cli_cross.lpr` → `146/146`
+    - `tests/test_cmd_cross_build.lpr` → `25/25`
+    - commit: `41e3576`
+- fresh broad verification 期间暴露出一处真实 drift，但不在生产代码：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` 初次失败
+  - 根因是 `tests/test_build_manager_docs_truth_contract.py` 仍要求 `todos/fpdev.git2.md` 保留旧聚合行 `日志分文件/轮转、verbosity 开关`
+  - 但当前 todo 真相早已拆成三条：
+    - `日志分文件（per-run 独立日志文件）`
+    - `verbosity 开关`
+    - `日志轮转`
+  - 最小修正只更新了 truth-contract 断言本身，没有修改生产代码，也没有改写 todo 真相
+- fresh broad 证据链最终为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `641/641`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 当前 fresh checkpoint 结论：
+  - 2026-04-14 这组高 ROI CLI commandflow 收口包在当前工作树上仍保持为绿
+  - 下一步如果继续推进，应先做新的 ROI/业务目标重排，而不是 reopen 这 5 个已完成的 CLI helper 波次

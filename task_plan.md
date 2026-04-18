@@ -1,10 +1,10 @@
 # Task Plan
 
 ## Active Goal
-收口 2026-04-19 `BuildManager` 基线重置 + `TFPCInstaller` lifecycleflow 抽取：完成 DI installer facade 下沉、锁定 boundary/helper tests，并同步 planning/todo 真相源。
+收口 2026-04-19 CLI commandflow wave pack：同步 5 个 commandflow helper 抽取的 fresh verification 证据到 planning artifacts，并把下一步结论更新为“先做 fresh ROI re-rank，再开新 wave”。
 
 ## Current Phase
-Phase 115 complete
+Phase 98 complete
 
 ## Active Phases
 ### Phase 115: TFPCInstaller Lifecycleflow Extraction And Truth Reset
@@ -482,9 +482,18 @@ Phase 115 complete
 
 ### Phase 98: CLI Commandflow Wave Pack Broad Verification + Closure
 - [x] 重新汇总 5-wave pack 的 focused 证据链，确认 `lazarus install`、`package install`、`fpc use`、`fpc verify`、`cross build` 全部已转为 thin command facade
+- [x] 在当前工作树 fresh 复核并分别提交 5 个波次：
+  - `dee7105` `refactor(lazarus-install): extract commandflow helper`
+  - `f6667fe` `refactor(package-install): extract commandflow helper`
+  - `3657612` `refactor(fpc-use): extract commandflow helper`
+  - `774665d` `refactor(fpc-verify): extract commandflow helper`
+  - `41e3576` `refactor(cross-build): extract commandflow helper`
+- [x] 修正 `tests/test_build_manager_docs_truth_contract.py` 中过时的 todo 聚合断言，使 Python discover 与当前 `todos/fpdev.git2.md` 真相一致
 - [x] 跑 Python 全量回归 `python3 -m unittest discover -s tests -p 'test_*.py'`
 - [x] 跑 Pascal 整仓回归 `bash scripts/run_all_tests.sh`
+- [x] 跑 `lazbuild -B --build-mode=Release fpdev.lpi`
 - [x] 同步 `task_plan.md`、`findings.md`、`progress.md` 到最终收口状态
+- [x] 记录 fresh checkpoint 结论：下一步应先做新的 ROI/目标重排，不 reopen 已完成的 5-wave helper 线
 - **Status:** complete
 
 ### Phase 97: Cross Build Commandflow Wave

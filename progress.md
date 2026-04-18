@@ -1,9 +1,65 @@
 # Progress Log
 
+## Session: 2026-04-19 (CLI commandflow wave pack fresh closure)
+
+### Phase 98: CLI Commandflow Wave Pack Broad Verification + Closure
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 接管已完成但未完全落盘的 5-wave pack，逐项复核当前工作树里的 helper / boundary / direct tests / thin command facade 形态
+  - `lazarus install` fresh focused verification 通过：
+    - `python3 -m unittest tests.test_lazarus_install_boundary -v` → `5 passed`
+    - `tests/test_lazarus_installcommandflow.lpr` → `33 passed`
+    - `tests/test_cli_lazarus.lpr` → `143 passed`
+    - `tests/test_lazarus_flow.lpr` → `37 passed`
+    - 提交：`dee7105` `refactor(lazarus-install): extract commandflow helper`
+  - `package install` fresh focused verification 通过：
+    - `python3 -m unittest tests.test_package_install_boundary -v` → `2 passed`
+    - `tests/test_package_installcommandflow.lpr` → `33 passed`
+    - `tests/test_cli_package.lpr` → `234 passed`
+    - `tests/test_package_resource_flow.lpr` → `23 passed`
+    - 提交：`f6667fe` `refactor(package-install): extract commandflow helper`
+  - `fpc use` fresh focused verification 通过：
+    - `python3 -m unittest tests.test_fpc_use_boundary -v` → `2 passed`
+    - `tests/test_fpc_usecommandflow.lpr` → `32 passed`
+    - `tests/test_cli_fpc_info.lpr` → `91 passed`
+    - 提交：`3657612` `refactor(fpc-use): extract commandflow helper`
+  - `fpc verify` fresh focused verification 通过：
+    - `python3 -m unittest tests.test_fpc_verify_boundary -v` → `4 passed`
+    - `tests/test_fpc_verifycommandflow.lpr` → `18 passed`
+    - `tests/test_fpc_verify.lpr` → pass
+    - `tests/test_cli_fpc_diag.lpr` → `158 passed`
+    - 提交：`774665d` `refactor(fpc-verify): extract commandflow helper`
+  - `cross build` fresh focused verification 通过：
+    - `python3 -m unittest tests.test_cross_build_boundary -v` → `2 passed`
+    - `tests/test_cross_buildcommandflow.lpr` → `37 passed`
+    - `tests/test_cli_cross.lpr` → `146 passed`
+    - `tests/test_cmd_cross_build.lpr` → `25 passed`
+    - 提交：`41e3576` `refactor(cross-build): extract commandflow helper`
+  - broad verification 先发现一处真实 truth-contract drift：
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` 初次失败
+    - 根因是 `tests/test_build_manager_docs_truth_contract.py` 仍要求旧的 `todos/fpdev.git2.md` 聚合行 `日志分文件/轮转、verbosity 开关`
+    - 当前 todo 真相已拆成三条子项：`日志分文件`、`verbosity 开关`、`日志轮转`
+    - 以最小修正更新 contract 断言，不修改生产代码或 todo 内容
+  - fresh broad verification 最终通过：
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract.BuildManagerDocsTruthContractTests.test_git2_todo_marks_testresults_sandbox_structure_validation_complete -v` → `1 passed`
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `641 passed`
+    - `bash scripts/run_all_tests.sh` → `335 passed`
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `tests/test_build_manager_docs_truth_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 当前 5-wave pack 已以 fresh focused + broad evidence 完整收口
+  - 下一步若继续推进，应先做新的 ROI/业务目标重排，而不是 reopen 已完成的 CLI helper 线
+  - 工作树仍存在大量与本轮无关的未提交改动，本轮未回退也未混入这些无关改动
+
 ## Session: 2026-04-19 (TFPCInstaller lifecycleflow audit)
 
 ### Phase 114: TFPCInstaller Lifecycleflow Test Audit
-- **Status:** in_progress
+- **Status:** complete
 - **Started:** 2026-04-19
 - Actions taken:
   - 读取 `using-superpowers` 与 `planning-with-files` 技能，按要求先建立本次调研的磁盘计划
@@ -25,8 +81,8 @@
   - `findings.md`
   - `progress.md`
 - Residual notes:
-  - 当前仍在继续读取 installer tests / source unit，尚未形成最终建议
-  - 这轮不会改动 `src/` 或 `tests/` 里的业务/测试实现
+  - 该审计结论已在后续 `Phase 115` 中落实为 lifecycleflow 抽取与 focused/broad verification
+  - 本 phase 自身只负责 gap audit 与最小 RED 建议，不单独改动生产代码
 
 ## Session: 2026-04-19 (git2 fpcunit follow-up)
 
