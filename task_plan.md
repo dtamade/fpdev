@@ -1692,3 +1692,20 @@ Phase 113 complete
 - 关键验证结果：
   - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `34/34`
   - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-testresultsflow-bin -FU/tmp/fpdev-build-testresultsflow-lib tests/test_build_testresultsflow.lpr && /tmp/fpdev-build-testresultsflow-bin/test_build_testresultsflow` → `29/29`
+
+
+### Phase 98: BuildManager Todo Short-Term Truth Sync
+- [x] 扩展 `tests/test_build_manager_docs_truth_contract.py`，锁定 `todos/fpdev.build.manager.md` 的短期项必须反映当前文档与示例现状
+- [x] 先运行新增单测，确认 runbook 与 API 示例两项在 todo 中仍是稳定 RED
+- [x] 更新 `todos/fpdev.build.manager.md`，仅勾掉已完成的 runbook 与 `SetTarget/SetPrefix/SetMakeCmd` 示例项，保留 Windows 时间戳零填充未完成
+- [x] 跑 `tests.test_build_manager_docs_truth_contract` 与组合 docs suite，并同步 `task_plan.md` / `findings.md` / `progress.md`
+
+## Notes
+- 这一段仍是 truth-sync，不改 `BuildManager` 代码；目标只是清掉 `todos/fpdev.build.manager.md` 里已经完成却未勾选的短期项。
+- 当前短期项的真实状态：
+  - Runbook / 脚本清单 / 参数说明：已在 `docs/build-manager.md` 落地
+  - `SetMakeCmd` / `SetTarget` / `SetPrefix` 示例：已在文档与交叉编译示例中落地
+  - Windows 时间戳零填充：仍未完成，保持待办
+- 关键验证结果：
+  - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `4/4`
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `35/35`

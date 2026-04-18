@@ -7,6 +7,7 @@ DOCS_DIR = REPO_ROOT / 'docs'
 BUILD_MANAGER_MD = DOCS_DIR / 'build-manager.md'
 BUILD_MANAGER_EN_MD = DOCS_DIR / 'build-manager.en.md'
 BUILD_MANAGER_REPORT_MD = REPO_ROOT / 'report' / 'fpdev.build.manager.md'
+TODO_BUILD_MANAGER_MD = REPO_ROOT / 'todos' / 'fpdev.build.manager.md'
 TODO_GIT2_MD = REPO_ROOT / 'todos' / 'fpdev.git2.md'
 
 
@@ -42,6 +43,12 @@ class BuildManagerDocsTruthContractTests(unittest.TestCase):
         self.assertIn('- [ ] BuildManager 强化', text)
         self.assertIn('  - [x] TestResults 校验沙箱输出结构（允许安装时）', text)
         self.assertIn('  - [ ] 日志分文件/轮转、verbosity 开关', text)
+
+    def test_build_manager_todo_marks_runbook_and_api_examples_complete(self):
+        text = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')
+        self.assertIn('- [x] 文档：docs/build-manager.md 增补“全工具链真实演练 Runbook、脚本清单与参数说明”', text)
+        self.assertIn('- [ ] 日志优化：Windows 时间戳零填充（避免空格）', text)
+        self.assertIn('- [x] 示例增强：示例中演示 SetTarget/SetPrefix/SetMakeCmd 的用法（注释或参数）', text)
 
 
 if __name__ == '__main__':

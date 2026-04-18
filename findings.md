@@ -3162,3 +3162,18 @@
 - focused verification：
   - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `34/34`
   - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-testresultsflow-bin -FU/tmp/fpdev-build-testresultsflow-lib tests/test_build_testresultsflow.lpr && /tmp/fpdev-build-testresultsflow-bin/test_build_testresultsflow` → `29/29`
+
+## 2026-04-19 BuildManager Todo Short-Term Truth Sync
+- `todos/fpdev.build.manager.md` 的短期区里，以下两项已经落地到当前工作树，但此前仍保持未勾选：
+  - `docs/build-manager.md` 已包含“全工具链真实演练 Runbook、脚本清单与参数说明”
+  - 文档已经展示 `SetMakeCmd` / `SetTarget` / `SetPrefix` 用法与交叉编译示例
+- 通过 `rg` 复核，当前文档里可直接命中：
+  - `## 全工具链真实演练 Runbook（快速上手）`
+  - `scripts\\check_toolchain.bat` / `bash scripts/check_toolchain.sh`
+  - `scripts\\run_examples_real.bat` / `bash scripts/run_examples_real.sh`
+  - `SetMakeCmd` / `SetTarget` / `SetPrefix`
+- 同一短期区中的 `日志优化：Windows 时间戳零填充（避免空格）` 仍缺少实现/验证证据，因此本轮继续保持未完成
+- 本轮扩展 `tests/test_build_manager_docs_truth_contract.py` 锁定 todo 真相后，先观察到稳定 RED，再更新 todo 并复验为绿
+- focused verification：
+  - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `4/4`
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `35/35`

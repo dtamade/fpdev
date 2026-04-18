@@ -4382,3 +4382,37 @@
 - Residual notes:
   - 本轮未变更 `BuildManager` 运行逻辑，只同步 truth artifacts；focused Pascal runner 仍证明当前 `TestResults` 行为保持绿态
   - `BuildManager 强化` 父项继续保持未完成，因为 `日志分文件/轮转、verbosity 开关` 仍是未收口项
+
+### Phase 98: BuildManager Todo Short-Term Truth Sync
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 复核 `todos/fpdev.build.manager.md` 的短期项与当前文档现状，确认两处 drift：
+    - `docs/build-manager.md` 已包含 “全工具链真实演练 Runbook、脚本清单与参数说明”，但 todo 仍未勾选
+    - 文档已实际演示 `SetMakeCmd` / `SetTarget` / `SetPrefix`，但 “示例增强” 项仍未勾选
+  - 通过 `rg` 直接命中现状证据：
+    - `## 全工具链真实演练 Runbook（快速上手）`
+    - `scripts\\check_toolchain.bat` / `bash scripts/check_toolchain.sh`
+    - `scripts\\run_examples_real.bat` / `bash scripts/run_examples_real.sh`
+    - `SetMakeCmd` / `SetTarget` / `SetPrefix`
+  - 按 TDD 先扩展 `tests/test_build_manager_docs_truth_contract.py`，新增 `test_build_manager_todo_marks_runbook_and_api_examples_complete`
+  - 运行 RED：
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract.BuildManagerDocsTruthContractTests.test_build_manager_todo_marks_runbook_and_api_examples_complete -v`
+    - 结果：`1` 个失败，命中 `todos/fpdev.build.manager.md` 仍把 runbook 项保留为未完成
+  - 做最小 GREEN：
+    - 更新 `todos/fpdev.build.manager.md`
+    - 仅将 runbook 项与 API 示例项标记为完成
+    - 保留 `日志优化：Windows 时间戳零填充（避免空格）` 为未完成
+  - 运行 focused/full verification：
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `4 passed`
+    - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `35 passed`
+  - 同步 `task_plan.md`、`findings.md`、`progress.md`
+- Files created/modified:
+  - `tests/test_build_manager_docs_truth_contract.py`
+  - `todos/fpdev.build.manager.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮仍未变更 `BuildManager` 代码；只是把短期 todo 调整到和当前文档真相一致
+  - `日志优化：Windows 时间戳零填充（避免空格）` 仍缺实现证据，因此继续保留待办
