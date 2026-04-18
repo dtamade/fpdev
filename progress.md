@@ -4339,3 +4339,46 @@
 - Residual notes:
   - 这轮没有继续打开新的代码 wave，因为 fresh re-rank 后没有再发现新的“3-5 个方法成组、护栏成熟、爆炸半径低”的 helper extraction 切口
   - 如果后续还要继续推进，应该从新的设计级/业务级目标重新立项，而不是继续沿 facade 层做机械切片
+
+### Phase 97: BuildManager TestResults Docs/Todo Truth Sync
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 先复核当前 `BuildManager.TestResults` 真相来源：
+    - `src/fpdev.build.testresultsflow.pas`
+    - `tests/test_build_testresultsflow.lpr`
+  - 识别到三处 drift：
+    - `docs/build-manager.md` 顶部仍写“TestResults 仅检查目录是否存在（占位）”
+    - `docs/build-manager.en.md` 顶部仍写 “TestResults only checks if directory exists (placeholder)”
+    - `report/fpdev.build.manager.md` 未记录 `TestResults` 当前 helper/coverage，`todos/fpdev.git2.md` 未勾掉已完成子项
+  - 按 TDD 先在 `tests/test_contributor_docs_contract.py` 中验证 RED，确认三处 drift 都能被契约稳定击中
+  - 发现 `tests/test_contributor_docs_contract.py` 本身还带有其他未提交改动后，将本段新增断言抽出到独立文件 `tests/test_build_manager_docs_truth_contract.py`，只保留本轮需要提交的最小契约
+  - 新独立契约锁定三条事实：
+    - 文档不得保留旧 placeholder 描述
+    - BuildManager report 必须提到 `src/fpdev.build.testresultsflow.pas` 与 `tests/test_build_testresultsflow.lpr`
+    - todo 必须把 `TestResults 校验沙箱输出结构（允许安装时）` 标为完成，同时保留其他未完成项
+  - 运行 RED：
+    - `python3 -m unittest tests.test_contributor_docs_contract.ContributorDocsContractTests.test_build_manager_docs_do_not_describe_testresults_as_directory_only_placeholder tests.test_contributor_docs_contract.ContributorDocsContractTests.test_build_manager_report_mentions_current_testresults_validation_slice tests.test_contributor_docs_contract.ContributorDocsContractTests.test_git2_todo_marks_testresults_sandbox_structure_validation_complete -v`
+    - 结果：`3` 个失败，分别命中文档 placeholder、report 缺失、todo 未勾选
+  - 做最小 GREEN：
+    - 更新 `docs/build-manager.md`
+    - 更新 `docs/build-manager.en.md`
+    - 更新 `report/fpdev.build.manager.md`
+    - 更新 `todos/fpdev.git2.md`
+  - 运行 focused/full verification：
+    - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `34 passed`
+    - `mkdir -p /tmp/fpdev-build-testresultsflow-bin /tmp/fpdev-build-testresultsflow-lib`
+    - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-testresultsflow-bin -FU/tmp/fpdev-build-testresultsflow-lib tests/test_build_testresultsflow.lpr && /tmp/fpdev-build-testresultsflow-bin/test_build_testresultsflow` → `29 passed`
+  - 同步 `task_plan.md`、`findings.md`、`progress.md`
+- Files created/modified:
+  - `tests/test_build_manager_docs_truth_contract.py`
+  - `docs/build-manager.md`
+  - `docs/build-manager.en.md`
+  - `report/fpdev.build.manager.md`
+  - `todos/fpdev.git2.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮未变更 `BuildManager` 运行逻辑，只同步 truth artifacts；focused Pascal runner 仍证明当前 `TestResults` 行为保持绿态
+  - `BuildManager 强化` 父项继续保持未完成，因为 `日志分文件/轮转、verbosity 开关` 仍是未收口项

@@ -8,7 +8,7 @@
 ## 关键点
 - 最小执行：在源码目录调用 make（若系统无 make，则温和跳过并返回 True）
 - 并行策略：-jN（限定 1..16）
-- 检查：TestResults 仅检查目录是否存在（占位）
+- 检查：TestResults 在允许安装时优先校验沙箱输出结构；未允许安装时回退校验源码目录的 compiler/ 与 rtl/
 - 配置：Configure 目前为占位，不写系统 fpc.cfg
 
 ## 接口

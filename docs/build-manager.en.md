@@ -8,7 +8,7 @@
 ## Key Points
 - Minimal execution: Call make in source directory (if system lacks make, gracefully skip and return True)
 - Parallel strategy: -jN (limited to 1..16)
-- Check: TestResults only checks if directory exists (placeholder)
+- Check: TestResults prioritizes sandbox validation when installation is allowed and falls back to source-tree compiler/rtl validation otherwise
 - Configure: Currently placeholder, does not write to system fpc.cfg
 
 ## Interface

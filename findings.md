@@ -3148,3 +3148,17 @@
 - checkpoint 结论：
   - 当前暂不继续开新的 helper extraction wave
   - 如果后续还要继续推进，应该改为新的设计级/业务级规划，而不是继续沿着 facade 层机械切片
+
+## 2026-04-19 BuildManager TestResults Docs/Todo Truth Sync
+- `src/fpdev.build.testresultsflow.pas` 与 `tests/test_build_testresultsflow.lpr` 已经长期锁定当前 `TestResults` 真相：
+  - 允许安装时优先走沙箱校验，检查 sandbox root、`bin/` / `lib/` 是否存在，以及 strict mode 下的空目录/strict config 失败
+  - 未允许安装时回退到源码目录，要求 `compiler/` 与 `rtl/` 存在
+- 但 `docs/build-manager.md` 与 `docs/build-manager.en.md` 顶部“关键点/Key Points”仍残留早期 placeholder 文案：
+  - `检查：TestResults 仅检查目录是否存在（占位）`
+  - `Check: TestResults only checks if directory exists (placeholder)`
+- `report/fpdev.build.manager.md` 此前只记录示例脚手架、runbook、工具链脚本与 make 参数增强，未写出 `TestResults` 当前的 helper 落点与 focused coverage，导致报告视角落后于真实实现
+- `todos/fpdev.git2.md` 里 `BuildManager 强化` 之下的 `TestResults 校验沙箱输出结构（允许安装时）` 仍未勾选，但这项工作实际上已经由当前 helper + focused runner 收口；同一父项下的 `日志分文件/轮转、verbosity 开关` 仍未完成，因此父项应继续保留未完成
+- 本轮通过 docs contract 先做 RED，再把三类工件同步到真实状态，避免后续继续被旧文字误导
+- focused verification：
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `34/34`
+  - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-testresultsflow-bin -FU/tmp/fpdev-build-testresultsflow-lib tests/test_build_testresultsflow.lpr && /tmp/fpdev-build-testresultsflow-bin/test_build_testresultsflow` → `29/29`

@@ -11,7 +11,7 @@
   - [x] 断言 flags 与过滤
 
 - [ ] BuildManager 强化
-  - [ ] TestResults 校验沙箱输出结构（允许安装时）
+  - [x] TestResults 校验沙箱输出结构（允许安装时）
   - [ ] 日志分文件/轮转、verbosity 开关
 
 - [x] 文档同步

@@ -7,6 +7,10 @@
 - 一键脚本：scripts/run_examples.(bat|sh)（干跑）、run_examples_real.(bat|sh)（真实演练）
 - 工具链体检：scripts/check_toolchain.(bat|sh)，输出 logs/check/toolchain_*.txt
 - BuildManager 增强：make 自适应与参数注入（SetMakeCmd/SetTarget/SetPrefix；ResolveMakeCmd；RunMake 注入变量）
+- TestResults 已收口为当前双路径校验：
+  - `src/fpdev.build.testresultsflow.pas` 负责允许安装时的沙箱结构校验，以及未允许安装时的源码目录回退校验
+  - `tests/test_build_testresultsflow.lpr` 覆盖沙箱缺失、严格模式空 bin/lib、strict config、源码目录回退等 focused 场景
+- 文档已同步到当前行为：`docs/build-manager.md` / `docs/build-manager.en.md` 顶部摘要不再保留“仅检查目录存在”的旧描述
 
 ## 遇到的问题与解决方案
 - 问题：当前会话执行 .bat 未产生控制台输出
@@ -15,7 +19,6 @@
 - 跨平台差异：自动探测 make（mingw32-make/gmake/make），并允许 SetMakeCmd 显式覆盖
 
 ## 后续计划
-- 文档完善：docs/build-manager.md 增补“全工具链真实演练 Runbook”段落
 - 示例微调：如需交叉编译示例，扩展 SetTarget/SetPrefix 用法
 - 真实演练常用变量预设：集中在脚本里通过环境变量传递（CPU_TARGET/OS_TARGET/PREFIX/INSTALL_PREFIX）
 - 日志优化（可选）：Windows 时间戳零填充
@@ -24,5 +27,4 @@
 1) scripts/check_toolchain.(bat|sh) 先体检
 2) scripts/run_examples.(bat|sh) 干跑观察日志
 3) 确认工具链齐全后，scripts/run_examples_real.(bat|sh) 真实演练（仅写入 plays/.sandbox）
-
 

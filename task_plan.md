@@ -1674,3 +1674,21 @@ Phase 113 complete
 - checkpoint 结论：
   - 当前没有再发现一个新的“3-5 个方法成组、测试护栏成熟、爆炸半径低”的明显 helper extraction wave
   - 后续如果继续推进，应重新围绕核心业务层做新的设计级规划，而不是继续对现有 facade 层做机械拆分
+
+
+### Phase 97: BuildManager TestResults Docs/Todo Truth Sync
+- [x] 新增 `tests/test_build_manager_docs_truth_contract.py`，锁定 BuildManager 文档、报告与 todo 必须反映当前 `TestResults` 真相
+- [x] 先运行新增 docs contract，确认当前工作树在旧 placeholder 文案、report 缺失、todo 未勾选三处稳定 RED
+- [x] 更新 `docs/build-manager.md` 与 `docs/build-manager.en.md` 顶部摘要，移除“仅检查目录存在”的陈旧描述
+- [x] 更新 `report/fpdev.build.manager.md`，补上 `src/fpdev.build.testresultsflow.pas` / `tests/test_build_testresultsflow.lpr` 的当前职责与覆盖
+- [x] 更新 `todos/fpdev.git2.md`，仅勾掉已完成的 `TestResults 校验沙箱输出结构（允许安装时）` 子项，保留 `BuildManager 强化` 父项与日志子项未完成
+- [x] 跑 focused docs/Pascal 验证并同步 `task_plan.md` / `findings.md` / `progress.md`
+
+## Notes
+- 本轮不是 reopen `BuildManager` 代码逻辑，只处理“实现/测试已是现状，但文档/报告/todo 仍停留在旧描述”的 truth-sync 漂移。
+- `TestResults` 当前真实契约已稳定为：
+  - 允许安装时优先校验沙箱根、`bin/` / `lib/` 结构与 strict mode
+  - 未允许安装时回退检查源码目录 `compiler/` 与 `rtl/`
+- 关键验证结果：
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_build_manager_docs_truth_contract -v` → `34/34`
+  - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-build-testresultsflow-bin -FU/tmp/fpdev-build-testresultsflow-lib tests/test_build_testresultsflow.lpr && /tmp/fpdev-build-testresultsflow-bin/test_build_testresultsflow` → `29/29`
