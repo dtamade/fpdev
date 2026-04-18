@@ -13,8 +13,7 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry,
-  fpdev.exitcodes;
+  fpdev.command.intf, fpdev.command.registry;
 
 type
   TCrossBuildCommand = class(TInterfacedObject, ICommand)
@@ -28,11 +27,25 @@ type
 implementation
 
 uses
-  fpdev.command.utils,
   fpdev.config.interfaces,
+  fpdev.cross.buildcommandflow,
   fpdev.cross.engine,
   fpdev.cross.engine.intf,
   fpdev.build.manager;
+
+type
+  TCrossBuildEngineBridge = class
+  private
+    FEngine: TCrossBuildEngine;
+  public
+    constructor Create(AEngine: TCrossBuildEngine);
+    procedure SetDryRun(const AValue: Boolean);
+    function BuildCrossCompiler(
+      const ACPU, AOS, ASourceRoot, ASandboxRoot, AVersion: string
+    ): Boolean;
+    function GetLastError: string;
+    function GetCurrentStage: string;
+  end;
 
 function TCrossBuildCommand.Name: string;
 begin
@@ -55,212 +68,88 @@ begin
   Result := TCrossBuildCommand.Create;
 end;
 
-function ParseTargetString(const ATarget: string; out ACPU, AOS: string): Boolean;
-var
-  P: Integer;
+constructor TCrossBuildEngineBridge.Create(AEngine: TCrossBuildEngine);
 begin
-  Result := False;
-  P := Pos('-', ATarget);
-  if P < 2 then Exit;
-  ACPU := Copy(ATarget, 1, P - 1);
-  AOS := Copy(ATarget, P + 1, Length(ATarget));
-  if (ACPU <> '') and (AOS <> '') then
-    Result := True;
+  inherited Create;
+  FEngine := AEngine;
+end;
+
+procedure TCrossBuildEngineBridge.SetDryRun(const AValue: Boolean);
+begin
+  if FEngine <> nil then
+    FEngine.SetDryRun(AValue);
+end;
+
+function TCrossBuildEngineBridge.BuildCrossCompiler(
+  const ACPU, AOS, ASourceRoot, ASandboxRoot, AVersion: string
+): Boolean;
+var
+  Target: TCrossTarget;
+begin
+  if FEngine = nil then
+    Exit(False);
+
+  Target := Default(TCrossTarget);
+  Target.Enabled := True;
+  Target.CPU := ACPU;
+  Target.OS := AOS;
+  Result := FEngine.BuildCrossCompiler(Target, ASourceRoot, ASandboxRoot, AVersion);
+end;
+
+function TCrossBuildEngineBridge.GetLastError: string;
+begin
+  if FEngine <> nil then
+    Result := FEngine.GetLastError
+  else
+    Result := '';
+end;
+
+function TCrossBuildEngineBridge.GetCurrentStage: string;
+begin
+  if FEngine <> nil then
+    Result := CrossBuildStageToString(FEngine.GetCurrentStage)
+  else
+    Result := '';
 end;
 
 function TCrossBuildCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  TargetStr, SourceRoot, SandboxRoot, Version: string;
-  UnknownOption: string;
-  CPU, OS: string;
-  DryRun, HasSourceRoot, HasSandboxRoot, HasVersion: Boolean;
-  Target: TCrossTarget;
-  BM: TBuildManager;
-  Engine: TCrossBuildEngine;
-  Log: TStringArray;
-  I, PositionalCount: Integer;
+  LPlan: TCrossBuildCommandPlan;
+  LShouldExit: Boolean;
+  LBuildManager: TBuildManager;
+  LEngine: TCrossBuildEngine;
+  LBridge: TCrossBuildEngineBridge;
 begin
-  Result := EXIT_OK;
-
-  // Handle --help (note: dispatcher normalizes --help/-h to 'help' string)
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') or
-     ((Length(AParams) > 0) and (LowerCase(AParams[0]) = 'help')) then
-  begin
-    if Length(AParams) > 1 then
-    begin
-      Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-      Exit(EXIT_USAGE_ERROR);
-    end;
-    Ctx.Out.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Build a cross-compiler for the specified target.');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Options:');
-    Ctx.Out.WriteLn('  --dry-run         Show commands without executing');
-    Ctx.Out.WriteLn('  --source=<path>   FPC source root directory');
-    Ctx.Out.WriteLn('  --sandbox=<path>  Installation sandbox directory');
-    Ctx.Out.WriteLn('  --version=<ver>   FPC version (default: main)');
-    Ctx.Out.WriteLn('  --help            Show this help');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Examples:');
-    Ctx.Out.WriteLn('  fpdev cross build x86_64-win64 --dry-run');
-    Ctx.Out.WriteLn('  fpdev cross build arm-linux --source=sources/fpc');
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(
+  Result := PrepareCrossBuildCommandPlanCore(
     AParams,
-    ['--dry-run', '--source=', '--sandbox=', '--version='],
-    UnknownOption
-  ) then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  // Parse target argument
-  PositionalCount := CountPositionalArgs(AParams);
-  if PositionalCount < 1 then
-  begin
-    Ctx.Err.WriteLn('Error: target not specified');
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [--dry-run]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if PositionalCount > 1 then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  TargetStr := GetPositionalArg(AParams, 0);
-  if not ParseTargetString(TargetStr, CPU, OS) then
-  begin
-    Ctx.Err.WriteLn('Error: invalid target format "' + TargetStr + '"');
-    Ctx.Err.WriteLn('Expected format: <cpu>-<os> (e.g. x86_64-win64, arm-linux)');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  // Parse options
-  DryRun := HasFlag(AParams, 'dry-run');
-  HasSourceRoot := GetFlagValue(AParams, 'source', SourceRoot);
-  if HasSourceRoot and (SourceRoot = '') then
-  begin
-    Ctx.Err.WriteLn('Error: Missing --source value');
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  if not HasSourceRoot then
-    SourceRoot := 'sources' + PathDelim + 'fpc';
-  HasSandboxRoot := GetFlagValue(AParams, 'sandbox', SandboxRoot);
-  if HasSandboxRoot and (SandboxRoot = '') then
-  begin
-    Ctx.Err.WriteLn('Error: Missing --sandbox value');
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  if not HasSandboxRoot then
-    SandboxRoot := 'sandbox';
-  HasVersion := GetFlagValue(AParams, 'version', Version);
-  if HasVersion and (Version = '') then
-  begin
-    Ctx.Err.WriteLn('Error: Missing --version value');
-    Ctx.Err.WriteLn('Usage: fpdev cross build <cpu-os> [options]');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  if not HasVersion then
-    Version := 'main';
-
-  // Preflight: for real builds, require a populated FPC source tree.
-  // BuildManager expects: <sourceRoot>/fpc-<version>/Makefile.
-  if not DryRun then
-  begin
-    // The engine/build manager will fail later anyway; this makes the failure actionable and avoids
-    // unexpected network/make tool failures during acceptance smoke.
-    if not DirectoryExists(IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version) then
-    begin
-      Ctx.Err.WriteLn(
-        'Error: FPC source tree not found: ' +
-        IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version
-      );
-      Ctx.Err.WriteLn('Hint: Provide a checkout under that path, or pass --source=<root> and --version=<ver>.');
-      Exit(EXIT_NOT_FOUND);
-    end;
-    if not FileExists(IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version + PathDelim + 'Makefile') then
-    begin
-      Ctx.Err.WriteLn('Error: FPC source tree incomplete (missing Makefile): ' +
-        IncludeTrailingPathDelimiter(SourceRoot) + 'fpc-' + Version);
-      Ctx.Err.WriteLn('Hint: Ensure the directory contains a full FPC source checkout (must include Makefile).');
-      Exit(EXIT_NOT_FOUND);
-    end;
-  end;
-
-  // Build target record
-  Target := Default(TCrossTarget);
-  Target.Enabled := True;
-  Target.CPU := CPU;
-  Target.OS := OS;
-
-  // Create engine
-  BM := TBuildManager.Create(SourceRoot, 4, True);
-  Engine := TCrossBuildEngine.Create(BM, True);
+  LBuildManager := TBuildManager.Create(LPlan.SourceRoot, 4, True);
+  LEngine := TCrossBuildEngine.Create(LBuildManager, True);
+  LBridge := TCrossBuildEngineBridge.Create(LEngine);
   try
-    Engine.SetDryRun(DryRun);
-
-    if DryRun then
-    begin
-      Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' (dry-run) ===');
-      Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Build Plan:');
-      Ctx.Out.WriteLn('  Step 1: compiler_cycle  - Build native compiler');
-      Ctx.Out.WriteLn('  Step 2: compiler_install - Install native compiler');
-      Ctx.Out.WriteLn('  Step 3: rtl_all         - Build RTL for ' + CPU + '-' + OS);
-      Ctx.Out.WriteLn('  Step 4: rtl_install     - Install RTL');
-      Ctx.Out.WriteLn('  Step 5: packages_all    - Build packages for ' + CPU + '-' + OS);
-      Ctx.Out.WriteLn('  Step 6: packages_install - Install packages');
-      Ctx.Out.WriteLn('  Step 7: verify          - Verify installation');
-      Ctx.Out.WriteLn('');
-      Ctx.Out.WriteLn('Source:  ' + SourceRoot);
-      Ctx.Out.WriteLn('Sandbox: ' + SandboxRoot);
-      Ctx.Out.WriteLn('Version: ' + Version);
-      Ctx.Out.WriteLn('');
-
-      // Dry-run should be side-effect free and should not fail just because sources
-      // or toolchains are not present yet. The purpose is to show the plan/options.
-      Ctx.Out.WriteLn('Dry-run: build execution skipped.');
-      Exit(EXIT_OK);
-    end
-    else
-      Ctx.Out.WriteLn('=== Cross-compile ' + CPU + '-' + OS + ' ===');
-
-    if Engine.BuildCrossCompiler(Target, SourceRoot, SandboxRoot, Version) then
-    begin
-      Ctx.Out.WriteLn('');
-      if DryRun then
-      begin
-        Ctx.Out.WriteLn('Dry-run completed. The following commands would be executed:');
-        Ctx.Out.WriteLn('');
-        Log := Engine.GetCommandLog;
-        for I := 0 to Engine.GetCommandLogCount - 1 do
-          Ctx.Out.WriteLn('  $ ' + Log[I]);
-        Ctx.Out.WriteLn('');
-        Ctx.Out.WriteLn('To execute these commands, run without --dry-run flag.');
-      end
-      else
-        Ctx.Out.WriteLn('Cross-compilation completed successfully.');
-    end
-    else
-    begin
-      Ctx.Err.WriteLn('Error: ' + Engine.GetLastError);
-      Ctx.Err.WriteLn('Stage: ' + CrossBuildStageToString(Engine.GetCurrentStage));
-      Result := EXIT_ERROR;
-    end;
+    Result := ExecuteCrossBuildCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LBridge.SetDryRun,
+      @LBridge.BuildCrossCompiler,
+      @LBridge.GetLastError,
+      @LBridge.GetCurrentStage
+    );
   finally
-    Engine.Free;
+    LBridge.Free;
+    LEngine.Free;
   end;
 end;
 
 initialization
-  GlobalCommandRegistry.RegisterPath(['cross','build'], @CrossBuildFactory, []);
+  GlobalCommandRegistry.RegisterPath(['cross', 'build'], @CrossBuildFactory, []);
 
 end.
