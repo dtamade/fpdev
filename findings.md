@@ -7,6 +7,715 @@
 - 识别项目当前“最大的问题”
 
 ## Research Findings
+- 2026-04-19 做了 fresh revalidation，而不是继续盲目开新波次：
+  - 重新运行 FPC/Git 相关边界 bundle：
+    - `tests.test_git_runtime_boundary`
+    - `tests.test_fpc_builder_boundary`
+    - `tests.test_fpc_manager_verify_boundary`
+    - `tests.test_fpc_binary_verify_boundary`
+  - 结果：`44/44` 通过，说明：
+    - `fpdev.utils.git` breaking removal 仍被锁住
+    - `fpdev.fpc.verifyflow` 共享 verify orchestration 仍稳定
+    - `fpdev.fpc.builder` 的 thin-delegate 形态未回退
+- 2026-04-19 同步运行 facade hotspot boundary bundle：
+  - `tests.test_build_manager_boundary`
+  - `tests.test_package_manager_boundary`
+  - `tests.test_lazarus_manager_version_boundary`
+  - `tests.test_fpc_source_boundary`
+  - `tests.test_resource_repo_boundary`
+  - `tests.test_fpc_manager_bootstrap_boundary`
+  - 结果：`36/36` 通过
+- 这次 fresh evidence 进一步确认：
+  - 之前识别出的高 ROI facade/helper extraction 面在当前工作树下仍保持为 thin delegate
+  - 当前没有再暴露出一个新的“3-5 个方法成组、现成护栏成熟、爆炸半径低”的 helper wave
+  - 如果继续推进，应该切换到新的设计级或业务级目标，而不是继续沿 helper-wave 主线机械拆分
+- 2026-04-16 已完成 `project template` 子命令 commandflow 收口：
+  - 新增 `src/fpdev.project.templatecommandflow.pas`
+  - `src/fpdev.cmd.project.template.list.pas` / `install.pas` / `remove.pas` / `update.pas` 现在都只保留 manager ownership、显式 callback wrapper 与 helper 调用
+  - 这轮不是改 `project.manager` / `project.templateflow` core，而是把 4 个 `project template` 子命令中重复的 help/usage、参数解析与 exit-code glue 成组下沉
+- 新 helper 当前承接的关键语义：
+  - `list`：help 输出、unknown option / extra positional usage error、runtime callback dispatch
+  - `install`：`<path>` required positional parse、missing-argument wording、runtime path delegation
+  - `remove`：`<name>` required positional parse、missing-argument wording、runtime name delegation
+  - `update`：help 输出、unknown option / extra positional usage error、success-failure exit-code mapping
+- 新增的验证护栏覆盖了两层：
+  - `tests/test_project_template_command_boundary.py`：锁定 4 个命令单元必须引入 `fpdev.project.templatecommandflow`，并且不再内联 `FindUnknownOption` / `CountPositionalArgs` / `MissingArgError` / `GetPositionalArg` / hardcoded usage glue
+  - `tests/test_project_templatecommandflow.lpr`：直接覆盖 list/install/remove/update 的 prepare/execute helper 行为与关键 contract
+- 这轮继续复用了 Phase 109 暴露出来的一个关键工程结论：
+  - `ListTemplates` / `InstallTemplate` / `RemoveTemplate` / `UpdateTemplates` 都是 overloaded manager 方法
+  - 如果把 overload 生硬 cast 成 `of object` callback，就有再次触发 `Invalid pointer operation` 的风险
+  - 因此这轮从一开始就采用命令单元显式 wrapper method，再把 wrapper 传给 helper 的做法，没有重演运行时异常
+- 这轮 fresh focused / broad 证据更新为：
+  - `python3 -m unittest tests.test_project_template_command_boundary -v` → `8/8`
+  - `tests/test_project_templatecommandflow.lpr` → `32 checks`
+  - `tests/test_project_template_commands.lpr` → `47/47`
+  - `tests/test_command_registry.lpr` → `397/397`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `632/632`
+  - `bash scripts/run_all_tests.sh` → `334/334`
+  - `lazbuild -B fpdev.lpi` → pass
+- 当前 fresh checkpoint 结论：
+  - `project template` 子命令 surfaces 现在也完成了一轮高 ROI thin-facade 收口
+  - 这轮没有扩大到 template repo lifecycle / sync core redesign，也没有 reopen `project.manager`
+  - 若继续推进下一波，应重新做 hotspot re-ranking，而不是把 `project template` / `project.manager` 当成默认下一刀
+- 2026-04-16 已完成 `project` 主命令 leaf commandflow 收口：
+  - 新增 `src/fpdev.project.commandflow.pas`
+  - `src/fpdev.cmd.project.list.pas` / `info.pas` / `build.pas` / `test.pas` / `clean.pas` / `new.pas` 现在都只保留 manager ownership、极少量 callback seam 与 helper 调用
+  - 这轮不是改 `project.manager` core，而是把 6 个主命令中重复的 help/usage、参数解析、JSON serialization、success/failure text 与 exit-code mapping 成组下沉
+- 新 helper 当前承接的关键语义：
+  - `list`：`--json` parse、help-extra-arg usage error、模板 JSON 序列化与 type string 映射
+  - `info`：required template positional parse、missing-argument wording、runtime dispatch
+  - `build`：`[dir] [target]` parse、default `.` / empty target、success/failure wording
+  - `test` / `clean`：optional `[dir]` parse，保持 manager-owned runtime output，不额外追加 generic message
+  - `new`：`<template> <name> [dir]` parse、derived target dir (`dir + PathDelim + name`)、success/failure wording
+- 新增的验证护栏覆盖了两层：
+  - `tests/test_project_command_boundary.py`：锁定 6 个命令单元必须引入 `fpdev.project.commandflow`，并且不再内联 `HasFlag` / `FindUnknownOption` / `CountPositionalArgs` / JSON serialization / success-failure text glue
+  - `tests/test_project_commandflow.lpr`：直接覆盖 list/info/build/test/clean/new 的 prepare/execute helper 行为与关键 contract
+- 这轮 focused 验证中额外暴露出一处真实运行时问题，而不是断言回归：
+  - `test_cli_project.lpr` 初版在 `test` / `clean` no-args 路径命中 `Invalid pointer operation`
+  - 根因不是 helper 逻辑本身，而是 `list/info/test/clean` 为了把 overloaded manager 方法接到 `of object` callback 上，做了 unsafe cast，触发运行时栈破坏
+  - 现已改为在命令单元里提供显式 wrapper method，再把 wrapper 传给 helper；行为保持不变，运行时异常消失
+- 这轮 fresh focused / broad 证据更新为：
+  - `python3 -m unittest tests.test_project_command_boundary -v` → `12/12`
+  - `tests/test_project_commandflow.lpr` → `68 checks`
+  - `tests/test_cli_project.lpr` → `83/83`
+  - `tests/test_project_commands.lpr` → `11/11`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `624/624`
+  - `bash scripts/run_all_tests.sh` → `333/333`
+  - `lazbuild -B fpdev.lpi` → pass
+- 当前 fresh checkpoint 结论：
+  - `project` 主命令 surfaces 现在已完成一轮高 ROI thin-facade 收口
+  - 这轮没有扩大到 `project.manager` / `project.execflow` / `project.cleanflow` / `project.createflow` core redesign
+  - 下一波若继续推进，更自然的候选会转向 `project template` 子命令或其他 residual command-layer surfaces，而不是 reopen `project.manager`
+- 2026-04-16 已完成 Lazarus leaf CLI commandflow 收口：
+  - 新增 `src/fpdev.lazarus.leafcommandflow.pas`
+  - `src/fpdev.cmd.lazarus.current.pas` / `use.pas` / `show.pas` / `configure.pas` / `uninstall.pas` / `update.pas` / `test.pas` 现在都只保留 manager ownership、极少量 dependency seam 与 helper 调用
+  - 这轮不是改 Lazarus manager core，而是把 7 个叶子命令中重复的 help/usage、参数解析、JSON/text dispatch、special-case output 与 exit-code mapping 成组下沉
+- 新 helper 当前承接的关键语义：
+  - `current`：`--json` parse、JSON/null rendering、text fallback rendering
+  - `use/show/configure/uninstall/test`：required-version positional parse、help/usage、unknown-option usage error
+  - `show`：unsupported version pre-validation 与 `EXIT_NOT_FOUND`
+  - `configure`：start banner 保持在 manager 调用前输出
+  - `uninstall`：manager 返回 false 时继续追加 `MSG_FAILED`
+  - `update`：optional version positional parse，且 success/failure 路径都不追加 generic message
+- 新增的验证护栏覆盖了两层：
+  - `tests/test_lazarus_leaf_boundary.py`：锁定 7 个命令单元必须引入 `fpdev.lazarus.leafcommandflow`，并且不再内联 `HasFlag` / usage/help constant / current JSON render / configure banner / uninstall generic failed 等 glue
+  - `tests/test_lazarus_leafcommandflow.lpr`：直接覆盖 current/use/show/configure/uninstall/update/test 的 plan/execute helper 行为与特殊 contract
+- 这轮 fresh focused / broad 证据更新为：
+  - `python3 -m unittest tests.test_lazarus_leaf_boundary -v` → `14/14`
+  - `tests/test_lazarus_leafcommandflow.lpr` → `68 checks`
+  - `tests/test_cli_lazarus.lpr` → `143/143`
+  - `tests/test_lazarus_update.lpr` → `150/150`
+  - `tests/test_lazarus_configure_workflow.lpr` → `51/51`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `612/612`
+  - `bash scripts/run_all_tests.sh` → `332/332`
+  - `lazbuild -B fpdev.lpi` → pass
+- 当前 fresh checkpoint 结论：
+  - Lazarus leaf command surfaces 现在已基本完成 thin-facade 收口
+  - 这轮没有扩大到 `lazarus.manager` / `lazarus.source` / install/runtime core redesign
+  - 若继续推进下一波，应该重新基于当前工作树做 hotspot re-ranking；更可能的候选已转向其他 command-layer residual surfaces，而不是继续 reopen Lazarus 叶子命令
+- 2026-04-16 已完成 `index` 服务缓存与离线 fallback 收口：
+  - 新增 `src/fpdev.index.serviceflow.pas`
+  - `src/fpdev.index.pas` 现在通过 shared helper 统一执行 remote -> fallback -> cache JSON 加载
+  - `src/fpdev.index.commandflow.pas` 现在会把 `Ctx.Out` 注入 `TFPDevIndex.Output`
+  - `system index show/update` 在远端失败但 cache 可用时会成功返回，并明确输出 `using cached ...` warning
+- 本轮 `index` cache 路径已统一为：
+  - `<GetCacheDir>/index.json`
+  - `<GetCacheDir>/manifests/bootstrap.json`
+  - `<GetCacheDir>/manifests/fpc.json`
+  - `<GetCacheDir>/manifests/lazarus.json`
+- `TFPDevIndex.Create(...)` 已不再手写 HOME / APPDATA 路径拼接，而是统一走 `GetCacheDir`，因此：
+  - `FPDEV_DATA_ROOT`
+  - portable mode
+  - 同进程环境覆盖
+  现在都能自然影响 index cache 位置
+- 新增的验证护栏覆盖了三层：
+  - `tests/test_index_boundary.py`：锁定 `fpdev.index` / `fpdev.index.commandflow` 必须走 helper 与 output 注入
+  - `tests/test_index_serviceflow.lpr`：直接覆盖 remote success、remote fail + cache hit、remote fail + cache miss、manifest versions/download parse
+  - `tests/test_cmd_index.lpr`：直接覆盖 `show/update` 在 cache fallback 时仍成功且输出 warning
+- 这轮 fresh focused / broad 证据更新为：
+  - `python3 -m unittest tests.test_index_boundary -v` → `6/6`
+  - `tests/test_index_serviceflow.lpr` → `24/24`
+  - `tests/test_cmd_index.lpr` → `37/37`
+  - `python3 -m unittest tests.test_index_boundary tests.test_command_namespace_hygiene tests.test_temp_hygiene -v` → `152/152`
+  - `tests/test_command_registry.lpr` → `397/397`
+  - `tests/test_fpc_indexflow.lpr` → `11/11`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `598/598`
+  - `bash scripts/run_all_tests.sh` → `331/331`
+  - `lazbuild -B fpdev.lpi` → pass
+- 当前 fresh checkpoint 结论：
+  - `index` 服务缓存/离线化目标已经闭环
+  - 本轮没有扩大到 TTL、签名、schema redesign 或新的 CLI flag
+  - 若继续推进下一波，应该重新基于当前工作树做 hotspot re-ranking，而不是继续沿用 Phase 106 的 `package` 收口目标
+- 2026-04-16 延续 `package list` / `package clean` 收口后的 checkpoint re-ranking，继续完成一个 follow-up wave pack：
+  - `src/fpdev.cmd.package.deps.pas` + `src/fpdev.cmd.package.why.pas`
+  - `src/fpdev.cmd.package.repo.add.pas` / `src/fpdev.cmd.package.repo.list.pas` / `src/fpdev.cmd.package.repo.remove.pas` / `src/fpdev.cmd.package.repo.update.pas`
+  - `src/fpdev.cmd.package.update.pas` / `src/fpdev.cmd.package.uninstall.pas` / `src/fpdev.cmd.package.install_local.pas`
+  - 目标不是扩功能，而是继续把命令层内联的 help/usage、参数解析、precheck、sample-output dispatch 与 exit-code glue 下沉到共享 helper
+- `package deps` / `package why` commandflow thin-facade 已完成：
+  - 新增 `src/fpdev.package.depscommandflow.pas` 与 `src/fpdev.package.whycommandflow.pas`
+  - `src/fpdev.cmd.package.deps.pas` 与 `src/fpdev.cmd.package.why.pas` 现在只保留 `TPackageManager` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - help/usage
+    - unknown option / package positional parse
+    - sample output rendering
+    - exit-code mapping
+- `package repo add/list/remove/update` commandflow thin-facade 已完成：
+  - 新增 `src/fpdev.package.repocommandflow.pas`
+  - 4 个 repo 子命令现在统一只保留 `TPackageManager` ownership、helper 调用与 command registration
+  - 共享 helper 当前承接：
+    - help/usage
+    - unknown option / missing or extra positional parse
+    - duplicate / not-found precheck
+    - callback dispatch 与 exit-code mapping
+- `package update` / `package uninstall` / `package install-local` commandflow thin-facade 已完成：
+  - 新增 `src/fpdev.package.lifecyclecommandflow.pas`
+  - 3 个 lifecycle 子命令现在只保留 manager/runtime path ownership、helper 调用与 command registration
+  - 共享 helper 当前承接：
+    - help/usage
+    - unknown option / positional parse
+    - installed package / local path preflight
+    - callback dispatch 与 exit-code mapping
+- 该 follow-up wave pack 的 fresh focused 证据链为：
+  - `python3 -m unittest tests.test_package_deps_boundary tests.test_package_why_boundary tests.test_package_repo_boundary tests.test_package_lifecycle_boundary -v` → `18 tests OK`
+  - `tests/test_package_depscommandflow.lpr` → `35 passed / 0 failed`
+  - `tests/test_package_whycommandflow.lpr` → `25 passed / 0 failed`
+  - `tests/test_package_repocommandflow.lpr` → `78 passed / 0 failed`
+  - `tests/test_package_lifecyclecommandflow.lpr` → `52 passed / 0 failed`
+  - `tests/test_cli_package.lpr` → `234 passed / 0 failed`
+  - `tests/test_command_registry.lpr` → `397 passed / 0 failed`
+  - `tests/test_cli_misc.lpr` → `152 passed / 0 failed`
+- 本轮 broad verification 前仍先清理了可再生产物：
+  - `bin/`
+  - `lib/`
+  - `/tmp/fpdev-*`
+  - 目的依旧是隔离环境空间噪音，不把临时磁盘问题误判成生产回归
+- 该 follow-up wave pack 的最新 fresh broad 证据为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `591/591`
+  - `bash scripts/run_all_tests.sh` → `329/329`
+  - `lazbuild -B fpdev.lpi` → pass
+- 本轮还顺手收掉了新 helper 引入的源码 hint：
+  - `src/fpdev.package.repocommandflow.pas` 中 `repo list/update` execute helper 之前保留了无用 `APlan` / `AErr`
+  - 现已改为更精简的 helper 签名；属于无行为变化清理
+- 当前 checkpoint 结论再次更新为：
+  - `package` CLI leaf command surfaces 现已基本完成 thin-facade 收口
+  - `package help` / root command 装配层本来就足够薄，不 reopen
+  - 若继续推进，下一个最高 ROI 切口大概率已经不在 `package` 叶子命令层，除非 fresh hotspot scan 证明还有新的成组热点
+- 2026-04-16 延续 `package publish` / `package search` / `package info` commandflow thin-facade 收口后，继续做 package 命令层 hotspot re-ranking，结论是：
+  - 当前最值得连续收的是 `src/fpdev.cmd.package.list.pas` 与 `src/fpdev.cmd.package.clean.pas`
+  - 原因不是 manager core 复杂，而是两个命令单元仍内联了：
+    - `package list`：help/usage、`--all` / `-a` / `--json` parse、JSON serialization、text / JSON dispatch、exit-code mapping
+    - `package clean`：help/usage、scope parse / validation、`--dry-run` / `--yes`、dry-run / refusal / success dispatch、exit-code mapping
+- `package list` commandflow thin-facade wave 已完成：
+  - 新增 `src/fpdev.package.listcommandflow.pas`
+  - `src/fpdev.cmd.package.list.pas` 现在只保留 `TPackageManager` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PreparePackageListCommandPlanCore(...)`
+    - `ExecutePackageListCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - unknown option / extra positional
+    - `--all` / `-a`
+    - `--json` parse
+    - JSON serialization
+    - text / JSON dispatch
+    - exit-code mapping
+- `package clean` commandflow thin-facade wave 已完成：
+  - 新增 `src/fpdev.package.cleancommandflow.pas`
+  - `src/fpdev.cmd.package.clean.pas` 现在只保留 `TPackageManager` ownership、runtime path 注入、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PreparePackageCleanCommandPlanCore(...)`
+    - `ExecutePackageCleanCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - unknown option / invalid scope / extra positional
+    - `--dry-run`
+    - `--yes`
+    - dry-run preview
+    - refusal-without-yes
+    - success / failure exit-code mapping
+- `package list` + `package clean` 波次的 fresh focused 证据：
+  - `python3 -m unittest tests.test_package_list_boundary tests.test_package_clean_boundary -v` → `4 tests OK`
+  - `tests/test_package_listcommandflow.lpr` → `34 passed / 0 failed`
+  - `tests/test_package_cleancommandflow.lpr` → `35 passed / 0 failed`
+  - `tests/test_cli_package.lpr` → `234 passed / 0 failed`
+- 本轮 broad verification 前先主动清理了可再生产物：
+  - `bin/`
+  - `lib/`
+  - `/tmp/fpdev-*`
+  - 目的不是修代码，而是避免环境空间噪音重复污染全量回归
+- 最新 fresh broad 证据已更新为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `573/573`
+  - `bash scripts/run_all_tests.sh` → `325/325`
+  - `lazbuild -B fpdev.lpi` → pass
+- 当前 checkpoint 结论更新为：
+  - 第一优先下一波：`src/fpdev.cmd.package.deps.pas` + `src/fpdev.cmd.package.why.pas`
+    - 原因：两者仍是厚命令 facade，内联 help/positional parse/输出编排，但 blast radius 小，且已存在 `tests/test_cli_package.lpr`、`tests/test_command_registry.lpr`、`tests/test_package_commands.lpr` 护栏
+  - 第二优先下一波：`src/fpdev.cmd.package.repo.add.pas` / `src/fpdev.cmd.package.repo.list.pas` / `src/fpdev.cmd.package.repo.remove.pas` / `src/fpdev.cmd.package.repo.update.pas`
+    - 原因：4 个命令结构高度同构，已有 `tests/test_cli_package_repo.inc`、`tests/test_cli_misc.lpr`、`tests/test_command_registry.lpr` 护栏，适合成组收口
+  - 第三优先下一波：`src/fpdev.cmd.package.update.pas` / `src/fpdev.cmd.package.uninstall.pas` / `src/fpdev.cmd.package.install_local.pas`
+    - 原因：也仍有明显命令层 parse/precheck glue，但牵涉 installed/index/path preflight，优先级略低于前两组
+  - `package.manager` / `project.manager` / `build.manager` / `cross.search` / `lazarus.source` 本轮继续不 reopen
+- 2026-04-16 延续 `package publish` / `package search` commandflow thin-facade 收口后，继续做 package 命令层 hotspot re-ranking，结论是：
+  - `package` 线下一刀最值得收的是 `src/fpdev.cmd.package.info.pas`
+  - 原因不是 info core 复杂，而是命令单元仍内联了：
+    - help/usage 与 positional parse
+    - installed package precheck
+    - runtime dispatch 与 exit-code mapping
+- `package info` commandflow thin-facade wave 已完成：
+  - 新增 `src/fpdev.package.infocommandflow.pas`
+  - `src/fpdev.cmd.package.info.pas` 现在只保留 `TPackageManager` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PreparePackageInfoCommandPlanCore(...)`
+    - `ExecutePackageInfoCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - unknown option / missing package / blank package / extra positional
+    - installed package precheck
+    - show-info success / failure exit-code mapping
+- `package info` 波次的 fresh focused 证据：
+  - `python3 -m unittest tests.test_package_info_boundary -v` → `2 tests OK`
+  - `tests/test_package_infocommandflow.lpr` → `27 passed / 0 failed`
+  - `tests/test_cli_package.lpr` → `234 passed / 0 failed`
+- 本轮 broad 验证里还确认了一条环境侧事实：
+  - 首次全量 Python 在 `.tmp-pytest/` 与 `logs/check/` 写入时报告 `No space left on device`
+  - 根因不是 `package info` 回归，而是工作区内可再生产物占用空间导致的临时环境噪音
+  - 清理 `bin/`、`lib/` 与 `/tmp/fpdev-*` 后，fresh broad 验证恢复稳定
+- 最新 fresh broad 证据已更新为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `569/569`
+  - `bash scripts/run_all_tests.sh` → `323/323`
+  - `lazbuild -B fpdev.lpi` → pass
+- 2026-04-16 在 `package publish` 收口后继续做 package 命令层 hotspot re-ranking，结论是：
+  - `package` 线下一刀最值得收的是 `src/fpdev.cmd.package.search.pas`
+  - 原因不是 search core 本身复杂，而是命令单元还内联了：
+    - help/usage 与 positional parse
+    - `--json` 分支
+    - JSON serialization
+    - text / json dispatch
+- `package search` commandflow thin-facade wave 已完成：
+  - 新增 `src/fpdev.package.searchcommandflow.pas`
+  - `src/fpdev.cmd.package.search.pas` 现在只保留 `TPackageManager` / `TPackageSearchCommand` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PreparePackageSearchCommandPlanCore(...)`
+    - `ExecutePackageSearchCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - unknown option / missing query / extra positional
+    - `--json` parse
+    - JSON serialization
+    - text search vs JSON registry search dispatch
+    - exit-code mapping
+- `package search` 波次的 fresh focused 证据：
+  - `python3 -m unittest tests.test_package_search_boundary -v` → `2 tests OK`
+  - `tests/test_package_searchcommandflow.lpr` → `34 passed / 0 failed`
+  - `tests/test_cli_package.lpr` → `234 passed / 0 failed`
+- 本轮还顺手收掉了上一波 `publish` 单元留下的未使用 `uses`：
+  - `src/fpdev.cmd.package.publish.pas` 现在不再触发源码级 unused-unit hint
+  - fresh `lazbuild -B fpdev.lpi` 当前只剩 FPC/Lazarus 读取工具链配置文件时的 2 条外部 hint，不属于仓库源码问题
+- 最新 fresh broad 证据已更新为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `567/567`
+  - `bash scripts/run_all_tests.sh` → `322/322`
+  - `lazbuild -B fpdev.lpi` → pass
+- 2026-04-16 在 git2 focused runner 收口后重新做 hotspot re-ranking，结论是：
+  - `src/fpdev.project.manager.pas` / `src/fpdev.package.manager.pas` 当前公开 surface 已经足够薄，不值得 reopen
+  - 更高 ROI 的下一刀落在仍然厚重的命令单元，尤其是 `src/fpdev.cmd.package.publish.pas`
+- `package publish` commandflow thin-facade wave 已完成：
+  - 新增 `src/fpdev.package.publishcommandflow.pas`
+  - `src/fpdev.cmd.package.publish.pas` 现在只保留 `TPackageManager` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PreparePackagePublishCommandPlanCore(...)`
+    - `ExecutePackagePublishCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - unknown option / unexpected positional 处理
+    - installed package precheck
+    - metadata preflight
+    - publish success/failure exit-code mapping
+- `package publish` 波次的 fresh focused 证据：
+  - `python3 -m unittest tests.test_package_publish_boundary -v` → `2 tests OK`
+  - `tests/test_package_publishcommandflow.lpr` → `28 passed / 0 failed`
+  - `tests/test_cli_package.lpr` → `234 passed / 0 failed`
+- 本轮在 direct helper 测试里额外识别出一个“测试自身而非生产代码”的真实问题：
+  - `tests/test_package_publishcommandflow.lpr` 初版把 `TStringOutput` 当普通对象手动 `Free`
+  - 但它实际继承 `TInterfacedObject`，在成功路径中会被临时接口引用提前参与引用计数生命周期
+  - 改为 object + interface 双持有后，AccessViolation 消失，且不影响生产行为
+- 最新 fresh broad 证据已更新为：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `565/565`
+  - `bash scripts/run_all_tests.sh` → `321/321`
+  - `lazbuild -B fpdev.lpi` → pass
+- 2026-04-16 git2 focused runner rehab 已完成收口：
+  - `tests/fpdev.git2/` 下多个 focused runner 仍残留旧接口/旧语法：
+    - 已移除的全局 `GitManager`
+    - 当前 FPC mode 不接受的 `for var i := ...`
+    - `status_index_test.lpr` 越过可见性读取私有 `TGitRepository.FHandle`
+    - Unix 清理分支使用 `ExecuteProcess('rm', ...)`，在当前 Linux 环境会直接抛运行时异常
+  - `fpdev.git2.fpcunit.lpr` 也已过时：
+    - `RunRegisteredTests` 在当前 FPCUnit 组合下不可用
+    - 实际可用入口是仓内其他 suite 已采用的 `TTestRunner.Initialize/Run`
+  - `.gitignore` focused runner 的真实红灯根因不在 tests，而在生产代码：
+    - `src/fpdev.git2.pas` 的 `AcceptStatus(...)` 将 `WorkingTreeOnly` 仅定义为 WT_* 标志
+    - `GIT_STATUS_IGNORED` 没被算作工作区状态，导致 `IncludeIgnored=True + WorkingTreeOnly=True` 时被错误过滤掉
+    - 把 `GIT_STATUS_IGNORED` 纳入 `LHasWt` 后，ignored 场景 fresh 转绿，且未破坏 untracked/index focused runners
+  - fpcunit runner 的真实执行约束已固定：
+    - `tests/fpdev.git2/buildOrTest.fpcunit.bat`
+    - `docs/history/git2-status-and-tests.md`
+    - `report/fpdev.git2.md`
+    - 现在都统一到 `fpdev.git2.fpcunit.exe --all --format=plain`
+  - 最新 fresh focused 证据：
+    - `tests/fpdev.git2/fpdev.git2.test.lpr` → pass
+    - `tests/fpdev.git2/fpdev.git2.status_test.lpr` → pass
+    - `tests/fpdev.git2/fpdev.git2.status_entries_test.lpr` → pass
+    - `tests/fpdev.git2/fpdev.git2.status_ignore_test.lpr` → pass
+    - `tests/fpdev.git2/fpdev.git2.status_index_test.lpr` → pass
+    - `tests/fpdev.git2/fpdev.git2.fpcunit.lpr --all --format=plain` → `2 tests / 0 failures`
+    - `python3 -m unittest tests.test_contributor_docs_contract tests.test_git2_status_docs_contract tests.test_git_runtime_boundary -v` → `71 tests OK`
+  - 最新 fresh broad 证据：
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `563/563`
+    - `bash scripts/run_all_tests.sh` → `320/320`
+    - `bash scripts/check_toolchain.sh` → `missing_required: 0`
+    - `lazbuild -B fpdev.lpi` → pass
+- 2026-04-15 fresh baseline 已重新站稳：
+  - `lazbuild -B fpdev.lpi` 通过
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `552/552`
+  - `bash scripts/run_all_tests.sh` → `319 / 319 passed`
+  - `bash scripts/check_toolchain.sh` → required 项 `0` missing
+  - `bash scripts/cli_smoke.sh ./bin/fpdev` → passed
+- 本轮对 `src/` 当前 hint list 做了最小无行为变化清理：
+  - 删除未使用 `uses`
+  - 给 managed dynamic array 局部变量补显式初始化
+  - `src/` 级别的 Lazarus 编译 hint 已清空；fresh `lazbuild` 剩余的 2 条是 FPC 读取配置文件时的 `11030/11031` 提示，不属于仓库源码 hint
+- fresh recheck 直接推翻了上一轮 planning 中的两个过期假设：
+  - `src/fpdev.lazarus.source.pas` 当前已经完成：
+    - `fpdev.lazarus.sourceflow`
+    - `fpdev.lazarus.sourceruntimeflow`
+    - `fpdev.lazarus.sourcelifecycleflow`
+    - `fpdev.lazarus.sourceversionflow`
+  - `src/fpdev.cross.search.pas` 当前已经完成：
+    - `fpdev.cross.searchdiag`
+    - `fpdev.cross.searchpaths`
+    - `fpdev.cross.searchflow`
+- 因此，本轮不再 reopen 旧计划里提到的 `lazarus.source` / `cross.search` 下一波；更高收益的动作变成：
+  - 先把 planning artifacts 同步到 repo 真实状态
+  - 暂不强开新的低确定性 helper wave，避免在超大 dirty worktree 上重复扫描和误改
+- 当前 checkpoint 结论更新为：
+  - `package.manager`、`project.manager`、`build.manager`、`cross.search`、`lazarus.source` 本轮都不 reopen
+  - 若后续继续推进，必须先重新证明存在新的“3-5 个方法成组、测试护栏成熟、爆炸半径低”的切口，再开下一波
+- 2026-04-14 基于最新工作树再次重排 ROI 后，新的最高收益收口包已经固定为 5 个 CLI commandflow 波次：
+  - `src/fpdev.cmd.lazarus.install.pas`
+  - `src/fpdev.cmd.package.install.pas`
+  - `src/fpdev.cmd.fpc.use.pas`
+  - `src/fpdev.cmd.fpc.verify.pas`
+  - `src/fpdev.cmd.cross.build.pas`
+- 本轮总计划已落盘到 `docs/plans/2026-04-14-cli-commandflow-wave-pack.md`
+- 统一架构约束继续沿用 `fpc install commandflow` 已验证模式：
+  - command unit 只保留 registration、manager ownership、settings 持久化与 helper 调用
+  - 新 helper 单元承接 help/usage、option parse、runtime orchestration 与 exit-code mapping
+  - 每一波都先写 Python boundary + Pascal direct helper tests，再做最小实现，再跑 focused verification
+- 最新波次排序理由：
+  - `lazarus install` 与现有 `fpdev.lazarus.commandflow` 邻近，最容易快速复制成功模式
+  - `package install` 参数解析与 dry-run/available-index 逻辑集中，适合独立 helper 收口
+  - `fpc use` 耦合 project/global config resolve 与 activation 报告，但 blast radius 仍局限在单命令
+  - `fpc verify` 有现成 boundary/test assets，重构成本低
+  - `cross build` 风险最高，因此放在最后，用前四波已经成型的 helper 模式来压缩不确定性
+- `fpc verify` commandflow wave 已完成：
+  - 新增 `src/fpdev.fpc.verifycommandflow.pas`
+  - `src/fpdev.cmd.fpc.verify.pas` 现在只保留 `TFPCManager` ownership、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PrepareFPCVerifyCommandPlanCore(...)`
+    - `ExecuteFPCVerifyCommandPlanCore(...)`
+  - CLI parse/report/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - positional version parse
+    - `[1/3]` / `[2/3]` / `[3/3]` report
+    - metadata check wording
+    - exit-code mapping
+- `cross build` commandflow wave 已完成：
+  - 新增 `src/fpdev.cross.buildcommandflow.pas`
+  - `src/fpdev.cmd.cross.build.pas` 现在只保留 build-manager / engine ownership、小型 bridge、helper 调用与 command registration
+  - 新 helper 当前承接：
+    - `PrepareCrossBuildCommandPlanCore(...)`
+    - `ExecuteCrossBuildCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - target parse
+    - `--dry-run` / `--source` / `--sandbox` / `--version`
+    - source-tree preflight
+    - dry-run plan report
+    - engine success/failure exit-code mapping
+- 5-wave CLI commandflow wave pack 已完整收口：
+  - `src/fpdev.lazarus.installcommandflow.pas`
+  - `src/fpdev.package.installcommandflow.pas`
+  - `src/fpdev.fpc.usecommandflow.pas`
+  - `src/fpdev.fpc.verifycommandflow.pas`
+  - `src/fpdev.cross.buildcommandflow.pas`
+- 最新 focused verification 已通过：
+  - `python3 -m unittest tests.test_fpc_verify_boundary tests.test_cross_build_boundary -v`
+  - `tests/test_fpc_verifycommandflow.lpr`
+  - `tests/test_fpc_verify.lpr`
+  - `tests/test_cli_fpc_diag.lpr`
+  - `tests/test_cross_buildcommandflow.lpr`
+  - `tests/test_cmd_cross_build.lpr`
+  - `tests/test_cli_cross.lpr`
+- 最新 broad verification 已通过：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `551/551`
+  - `bash scripts/run_all_tests.sh` → `319 / 319 passed`
+- 当前结论已经更新为：
+  - 2026-04-14 这组最高 ROI 的 CLI commandflow 收口包已全部完成
+  - 本轮没有引入新的 Python / Pascal 回归
+  - 当前最显著的剩余阻塞仍然不是代码层，而是本地标准 Lazarus 构建路径受 `lib/` 属主问题影响
+- 2026-04-14 在 toolchain parity/docs/hotspot recheck 收口后，继续按 fresh re-ranking 复核当前工作树：
+  - `manager/source/repo` 线的高 ROI facade/helper extraction 基本都已完成
+  - 当前更高效的下一刀转到 CLI 层：`src/fpdev.cmd.fpc.install.pas` 的 `TFPCInstallCommand.Execute(...)` 仍持有参数解析、network guard、auto fallback 与 exit-code 映射
+  - 这条线的优势是：
+    - 现成强契约：`tests/test_fpc_install_cli.lpr`
+    - 命令层 boundary 可低成本加固：`tests/test_fpc_install_cli_boundary.py`
+    - 爆炸半径小：只改 command unit 与新 commandflow helper，不触碰 install manager / install core
+- `fpc install` commandflow wave 已落地：
+  - 新增 `src/fpdev.fpc.installcommandflow.pas`
+  - `src/fpdev.cmd.fpc.install.pas` 现在只保留 settings 持久化、`TFPCManager` ownership 与 command registration
+  - 新 helper 当前承接：
+    - `PrepareFPCInstallCommandPlanCore(...)`
+    - `ExecuteFPCInstallCommandPlanCore(...)`
+  - CLI parse/runtime 已从命令单元下沉，包括：
+    - help/usage
+    - `--from` / `--jobs` / `--prefix` / `--offline` / `--no-cache`
+    - network-disabled guard
+    - auto binary -> source fallback
+    - exit-code mapping
+- 本轮 focused verification 已通过：
+  - `python3 -m unittest tests.test_fpc_install_cli_boundary -v`
+  - `fpc ... tests/test_fpc_installcommandflow.lpr`
+  - `/tmp/fpdev-fpc-installcommandflow-bin/test_fpc_installcommandflow`
+  - `fpc ... tests/test_fpc_install_cli.lpr`
+  - `/tmp/fpdev-fpc-install-cli-bin/test_fpc_install_cli`
+- broad verification 已通过：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `542/542`
+  - `bash scripts/run_all_tests.sh` → `314 / 314 passed`
+- 2026-04-14 在 `runtime/lifecycle/bootstrap` wave 收口后，继续做了一轮更宽的稳定性基线验证，而不是机械继续拆单个低 ROI wrapper。
+- 热点复核结论：
+  - `project.manager`、`package.manager`、`resource.repo`、`fpc.manager`、`lazarus.manager` 当前剩余公开 surface 大多已经变成 thin delegate 或小型 callback bridge
+  - 当前没有像前几轮那样“3-5 个方法一组、测试护栏成熟、文件写入范围彼此独立”的高效率新波次
+  - 因此短期最优先级从“继续切 facade”转为“补齐更宽的验证证据”
+- Python 全量回归结果：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `Ran 533 tests ... OK`
+- 工具链检查结果：
+  - `bash scripts/check_toolchain.sh`
+  - required 全部可用：`make`、`fpc`、`lazbuild`、`git`、`openssl`
+  - optional 缺失：`mingw32-make`、`ppc386`、`ppcarm`
+- 标准构建路径命中真实环境阻塞：
+  - `lazbuild -B fpdev.lpi` 失败不是源码编译错误，而是本地工作树 `lib/` 目录当前属主为 `root:root`
+  - 具体错误：无法写入 `/home/dtamade/projects/fpdev/lib/fpdev.compiled`
+  - 这说明当前仓库存在一个“本地构建产物属主漂移”问题，会阻塞标准 Lazarus 构建入口
+- fallback 主程序编译结果：
+  - `mkdir -p /tmp/fpdev-main-lib /tmp/fpdev-main-bin`
+  - `fpc -Fusrc -Fisrc -Fu./src -FE/tmp/fpdev-main-bin -FU/tmp/fpdev-main-lib src/fpdev.lpr`
+  - 主程序完整编译并成功链接到 `/tmp/fpdev-main-bin/fpdev`
+  - 结果表明源码链路本身是健康的；`lazbuild` 红灯属于环境权限问题，不是本轮代码回归
+- CLI smoke 结果：
+  - `bash scripts/cli_smoke.sh /tmp/fpdev-main-bin/fpdev` 通过
+  - `system version`、`system help`、`fpc --help`、`fpc list --all` 均正常输出
+- 当前结论：
+  - 代码层本轮新增变更在 Pascal 全量、Python 全量、fallback 主程序编译和 CLI smoke 下都没有暴露新回归
+  - 下一步如果继续追求开发效率，优先级更高的是：
+    - 先清理本地 `lib/` 属主问题，恢复 `lazbuild -B fpdev.lpi` 这条标准构建路径
+    - 然后再做下一轮 fresh hotspot re-ranking，而不是现在硬拆单个小 wrapper
+- 2026-04-14 新一组 `runtime/lifecycle/bootstrap` wave pack 已完成收口：
+  - `docs/plans/2026-04-14-build-manager-runtime-toolchain-wave.md`
+  - `docs/plans/2026-04-14-resource-repo-repoio-lifecycle-wave.md`
+  - `docs/plans/2026-04-14-fpc-manager-bootstrap-residual-wave.md`
+- 按用户要求尝试拉起 `gpt-5.4` 团队时，外部 API 返回 `401 API_KEY_DISABLED`，因此本轮改由主控本地分波实施；这次切换没有改变既定范围和验收标准。
+- `build.manager` runtime/toolchain wave 结果：
+  - 新增 `src/fpdev.build.runtimeflow.pas`
+  - `src/fpdev.build.manager.pas` 的 `CheckToolchain(...)`、`ApplyConfig(...)`、`RunMake(...)`、`CreateBuildStamp(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_build_runtimeflow.lpr`，并扩展 `tests/test_build_manager_boundary.py`
+- `resource.repo` repo-io/lifecycle wave 结果：
+  - 新增 `src/fpdev.resource.repo.lifecycleflow.pas`
+  - `src/fpdev.resource.repo.pas` 的 `GitClone(...)`、`GitPull(...)`、`LoadManifest(...)`、`GetManifestVersion(...)`、`HasPackage(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_resource_repo_lifecyclesurfaceflow.lpr`，并扩展 `tests/test_resource_repo_boundary.py`
+- `fpc.manager` bootstrap residual wave 结果：
+  - 新增 `src/fpdev.fpc.bootstrapflow.pas`
+  - `src/fpdev.fpc.manager.pas` 的 `EnsureBootstrapCompiler(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_fpc_bootstrapflow.lpr` 与 `tests/test_fpc_manager_bootstrap_boundary.py`
+- 本轮 focused verification 已通过：
+  - `python3 -m unittest tests.test_build_manager_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v`
+  - `tests/test_build_runtimeflow.lpr`
+  - `tests/test_build_makeflow.lpr`
+  - `tests/test_build_managerflow.lpr`
+  - `tests/fpdev.build.manager/test_build_manager.lpr`
+  - `tests/test_resource_repo_lifecyclesurfaceflow.lpr`
+  - `tests/test_resource_repo_lifecycleflow.lpr`
+  - `tests/test_package_resource_flow.lpr`
+  - `tests/test_fpc_bootstrapflow.lpr`
+  - `tests/test_fpc_installer_binaryflow.lpr`
+  - `tests/test_fpc_sourcebootstrapflow.lpr`
+- 最新整仓回归结果：
+  - `bash scripts/run_all_tests.sh` → `Total: 313 / Passed: 313 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 这组三条高 ROI surface 已全部完成
+  - 本轮没有引入额外回归
+  - baseline 从上一轮 `310/310` 提升到 `313/313`
+- 2026-04-14 这一组 follow-up wave pack 已完整收口：
+  - `docs/plans/2026-04-14-lazarus-manager-catalog-surface-wave.md`
+  - `docs/plans/2026-04-14-lazarus-manager-maintenance-surface-wave.md`
+  - `docs/plans/2026-04-14-cross-manager-install-support-wave.md`
+- `lazarus.manager` catalog surface 结果：
+  - 新增 `src/fpdev.lazarus.catalogflow.pas`
+  - `GetCompatibleFPCVersion(...)`、`GetAvailableVersions(...)`、`GetInstalledVersions(...)` 已改为委托 catalog helper
+  - 新增 `tests/test_lazarus_catalogflow.lpr`，并扩展 `tests/test_lazarus_manager_metadata_boundary.py`
+  - 本轮中途命中过一个真实回归：`lazarus-` 前缀归一化长度写错，导致 configured version 被切成 `.0`；修正为 `Length('lazarus-')` 后 direct helper 转绿
+- `lazarus.manager` maintenance/source surface 结果：
+  - 新增 `src/fpdev.lazarus.maintenanceflow.pas`
+  - `UninstallVersion(...)`、`UpdateSources(...)`、`CleanSources(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_lazarus_maintenanceflow.lpr`，并扩展 `tests/test_lazarus_manager_runtime_boundary.py`
+  - 本轮主控额外修复了一个 bridge 细节：`CreateMaintenanceGitRuntime(...)` 直接返回基接口，避免 runtime cast 让 `UpdateSources(...)` 在 focused suite 中返回 false
+- `cross.manager` install-support surface 结果：
+  - 新增 `src/fpdev.cross.installsupportflow.pas`
+  - `DownloadBinutils(...)`、`DownloadLibraries(...)`、`SetupCrossEnvironment(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_cross_installsupportflow.lpr`，并扩展 `tests/test_cross_manager_boundary.py`
+  - `InstallTarget(...)` / `UpdateTarget(...)` 继续复用既有 `fpdev.cross.managerflow`
+- 本轮 focused verification 已独立复跑并通过：
+  - `python3 -m unittest tests.test_lazarus_manager_metadata_boundary tests.test_lazarus_manager_runtime_boundary tests.test_cross_manager_boundary -v`
+  - `tests/test_lazarus_catalogflow.lpr`
+  - `tests/test_lazarus_maintenanceflow.lpr`
+  - `tests/test_lazarus_management.lpr`
+  - `tests/test_lazarus_update.lpr`
+  - `tests/test_lazarus_flow.lpr`
+  - `tests/test_cross_installsupportflow.lpr`
+  - `tests/test_cross_managerflow.lpr`
+  - `tests/test_cross_management.lpr`
+  - `tests/test_cross_targetflow.lpr`
+- 整仓回归结果已更新为：
+  - `bash scripts/run_all_tests.sh` → `Total: 310 / Passed: 310 / Failed: 0 / Skipped: 0`
+- 执行层面的经验：
+  - Cross worker 可以独立从 RED 走到 GREEN，主控只需审阅与最终验证
+  - Lazarus worker 在 `src/fpdev.lazarus.manager.pas` 的大块回接上因 patch 匹配失败卡住；对于这种“单文件多方法回接”场景，让 worker 先铺测试和 helper，再由主控收口 manager，效率反而更高
+- 2026-04-14 在 `lazarus.manager version surface` 与 `cross.manager install/uninstall surface` 收口后再次实扫源码，当前下一组最高 ROI 已重排为：
+  - `src/fpdev.lazarus.manager.pas` catalog/configured merge surface：
+    - `GetAvailableVersions(...)`
+    - `GetInstalledVersions(...)`
+    - `GetCompatibleFPCVersion(...)`
+  - `src/fpdev.lazarus.manager.pas` maintenance/source surface：
+    - `UninstallVersion(...)`
+    - `UpdateSources(...)`
+    - `CleanSources(...)`
+  - `src/fpdev.cross.manager.pas` install-support surface：
+    - `DownloadBinutils(...)`
+    - `DownloadLibraries(...)`
+    - `SetupCrossEnvironment(...)`
+- 这轮的关键执行约束已经明确：
+  - `Wave 83` 与 `Wave 84` 都会改 `src/fpdev.lazarus.manager.pas`
+  - 因此不适合把两条 Lazarus 线分给两个并发 worker
+  - 最优并发策略是：
+    - Worker A：合并实施 Lazarus catalog + maintenance 两个子波次
+    - Worker B：实施 Cross install-support 波次
+    - 主控：写计划、集成、验证、同步 planning files
+- 已新增 2026-04-14 三份正式计划：
+  - `docs/plans/2026-04-14-lazarus-manager-catalog-surface-wave.md`
+  - `docs/plans/2026-04-14-lazarus-manager-maintenance-surface-wave.md`
+  - `docs/plans/2026-04-14-cross-manager-install-support-wave.md`
+- 本轮实施约束继续保持不变：
+  - 只做 thin facade/helper extraction
+  - 不扩展用户可见行为
+  - manager 继续持有 config/query/downloader/gitrepo 等 state ownership
+  - helper 只承接 orchestration / presentation / facade surface glue
+- 这轮具体拆分结论：
+  - `lazarus.manager` catalog surface 应优先新建 `catalogflow`，复用 `metadataflow` / `types`，不要回退 `versionflow` / `runtimeactions`
+  - `lazarus.manager` maintenance/source surface 应新建 `maintenanceflow`，复用 `CreateLazarusSourcePlanCore(...)`、`ExecuteLazarusUpdatePlanCore(...)`、`ExecuteLazarusCleanPlanCore(...)`
+  - `cross.manager` downloader/environment surface 应新建 `installsupportflow`，与现有 `managerflow` 协同，而不是重写 `InstallTarget(...)` / `UpdateTarget(...)` 核心
+- 2026-04-14 在上一轮 `fpc.source` / `fpc.builder` / `build.manager` 收口后重新实扫源码，发现早先口头排序需要微调：
+  - `src/fpdev.fpc.manager.pas` 真实已比预期更薄；最值得继续切的不是 info/list，而是 `VerifyInstallation(...)` 最后一段 surface glue
+  - `src/fpdev.resource.repo.pas` 的 `Initialize/Update/GetStatus/LoadManifest` 已 helper 化，当前最大的剩余 inline surface 实际落在 mirror 选择与镜像列表 facade
+  - `src/fpdev.lazarus.source.pas` 已连续多轮削薄；相反 `src/fpdev.lazarus.manager.pas` 仍保留明显的 list/default/current/info version surface
+- 因此本轮 follow-up wave pack 的真实 ROI 顺序调整为：
+  - `src/fpdev.lazarus.manager.pas` version surface
+  - `src/fpdev.resource.repo.pas` mirror surface
+  - `src/fpdev.fpc.manager.pas` verify surface
+- 已新增 2026-04-14 三份正式计划：
+  - `docs/plans/2026-04-14-fpc-manager-verify-surface-wave.md`
+  - `docs/plans/2026-04-14-resource-repo-mirror-surface-wave.md`
+  - `docs/plans/2026-04-14-lazarus-manager-version-surface-wave.md`
+- 本轮继续坚持 thin facade/helper extraction：
+  - 不扩展用户可见行为
+  - manager/repository 保留 state ownership 与 callback wiring
+  - 新 helper 只承接 orchestration / presentation / surface glue
+- 2026-04-14 follow-up wave pack 已完整收口：
+  - `fpc.manager` verify surface：
+    - `src/fpdev.fpc.verifyflow.pas` 新增 `ExecuteManagedFPCVerificationSurfaceCore(...)`
+    - `src/fpdev.fpc.manager.pas` 的 `VerifyInstallation(...)` 已收缩为 thin delegate
+    - `tests/test_fpc_manager_verify_boundary.py` 与 `tests/test_fpc_verify.lpr` 已补强
+  - `resource.repo` mirror surface：
+    - `src/fpdev.resource.repo.mirrorflow.pas` 新增
+      - `ExecuteResourceRepoSelectBestMirrorSurfaceCore(...)`
+      - `ExecuteResourceRepoGetMirrorsSurfaceCore(...)`
+    - `src/fpdev.resource.repo.pas` 的 `SelectBestMirror(...)` / `GetMirrors(...)` 已收缩为 thin delegate
+    - 新增 `tests/test_resource_repo_mirrorsurfaceflow.lpr`
+  - `lazarus.manager` version surface：
+    - 新增 `src/fpdev.lazarus.versionflow.pas`
+    - 承接 `NormalizeDefaultLazarusVersionCore(...)`、`WriteManagedLazarusVersionListCore(...)`、`SetManagedLazarusDefaultVersionCore(...)`、`ShowManagedLazarusVersionInfoCore(...)`
+    - `src/fpdev.lazarus.manager.pas` 的 `ListVersions(...)` / `SetDefaultVersion(...)` / `GetCurrentVersion(...)` / `ShowVersionInfo(...)` 已收缩为 thin delegate
+    - 新增 `tests/test_lazarus_manager_version_boundary.py`、`tests/test_lazarus_versionflow.lpr`
+- 本轮 focused verification 已通过：
+  - `python3 -m unittest tests.test_fpc_manager_verify_boundary tests.test_fpc_verify_boundary tests.test_resource_repo_boundary tests.test_lazarus_manager_version_boundary tests.test_lazarus_manager_metadata_boundary tests.test_lazarus_manager_runtime_boundary -v`
+  - `tests/test_fpc_verify.lpr`
+  - `tests/test_fpc_manager_installmetadata.lpr`
+  - `tests/test_resource_repo_mirrorsurfaceflow.lpr`
+  - `tests/test_resource_repo_mirror.lpr`
+  - `tests/test_package_resource_flow.lpr`
+  - `tests/test_resource_repo_lifecycleflow.lpr`
+  - `tests/test_lazarus_versionflow.lpr`
+  - `tests/test_lazarus_manager_metadataflow.lpr`
+  - `tests/test_lazarus_management.lpr`
+  - `tests/test_cli_fpc_diag.lpr`
+- 整仓回归结果已更新为：
+  - `bash scripts/run_all_tests.sh` → `Total: 307 / Passed: 307 / Failed: 0 / Skipped: 0`
+- 2026-04-13 下一组 hotspot plan pack 已完成，执行顺序与结果稳定为：
+  - `lazarus.source` runtime/config surface
+  - `resource.repo` bootstrap/install/checksum surface
+  - `fpc.manager` residual callback glue
+- 本轮继续坚持 thin facade/helper extraction：
+  - 不扩展用户可见行为
+  - 只把 manager/source/repo 剩余 orchestration 收进新 helper
+  - 既有低层 helper 与 callback contract 保持不变
+- `lazarus.source` runtime/config wave 已落地：
+  - 新增 `src/fpdev.lazarus.sourceruntimeflow.pas`
+  - `src/fpdev.lazarus.source.pas` 的 `ConfigureCustomFPCIDE(...)`、`ListLocalVersions(...)`、`BuildLazarus(...)`、`LaunchLazarus(...)` 已委托到新 helper
+  - 新增 `tests/test_lazarus_sourceruntimeflow.lpr`，并扩展 `tests/test_lazarus_source_boundary.py`
+- `resource.repo` bootstrap surface 已落地：
+  - 新增 `src/fpdev.resource.repo.bootstrapflow.pas`
+  - `FindBestBootstrapVersion(...)`、`VerifyChecksum(...)`、`InstallBootstrap(...)` 已收口到 bootstrap helper
+  - 真实阻塞不是设计问题，而是 facade bridge 漏了一个私有方法：`InstallBootstrapWithInfo(...)`
+  - 最终通过在 `src/fpdev.resource.repo.pas` 中补回 thin wrapper，并继续复用 `RepoInstallBootstrapCompiler(BuildInstallContext(Self), ...)` 消除了编译失败
+- `fpc.manager` residual glue wave 已落地：
+  - 新增 `src/fpdev.fpc.residualflow.pas`
+  - `SetupEnvironment(...)`、`WriteInstallMetadata(...)`、`UpdateVerificationMetadata(...)`、`RefreshInstallVerificationMetadata(...)` 已委托到新 helper
+  - 新增 `tests/test_fpc_manager_residual_boundary.py` 与 `tests/test_fpc_residualflow.lpr`
+- focused 验证已全部恢复为绿：
+  - `python3 -m unittest tests.test_resource_repo_boundary -v`
+  - `tests/test_resource_repo_bootstrapflow.lpr`
+  - `tests/test_resource_repo_bootstrap.lpr`
+  - `tests/test_resource_repo_bootstrapquery.lpr`
+  - `python3 -m unittest tests.test_fpc_manager_residual_boundary -v`
+  - `tests/test_fpc_residualflow.lpr`
+  - `tests/test_fpc_manager_setupenvironment.lpr`
+  - `tests/test_fpc_manager_installmetadata.lpr`
+  - `tests/test_fpc_installsurfaceflow.lpr`
+- 整仓回归结果已更新为：
+  - `bash scripts/run_all_tests.sh` → `Total: 300 / Passed: 300 / Failed: 0 / Skipped: 0`
+- 当前结论：
+  - 这组三个高 ROI surface 已完成收口
+  - 下一轮不应沿用旧排序继续机械推进，而应重新基于最新文件体量和剩余 inline 面做一次 fresh re-ranking
+- 2026-04-11 路线切换：`src/fpdev.lazarus.manager.pas` follow-up waves 已完成，继续开发的最高 ROI 不再是追 Lazarus manager，而是转向仍然厚重的 manager/source 热点。
+- 当前 hotspot 排序已固定：
+  - `src/fpdev.fpc.manager.pas`
+  - `src/fpdev.lazarus.source.pas`
+  - `src/fpdev.project.manager.pas`
+  - `src/fpdev.package.manager.pas` / `src/fpdev.resource.repo.pas`
+  - `src/fpdev.cross.manager.pas` / `src/fpdev.cross.search.pas`
+- FPC 线现成 helper 已成熟：
+  - `src/fpdev.fpc.verifyflow.pas`
+  - `src/fpdev.fpc.metadataflow.pas`
+  - `src/fpdev.fpc.runtimeflow.pas`
+  - `src/fpdev.fpc.installversionflow.pas`
+- 因此下一波最小且收益最高的切口不是 install 主流程，而是 `src/fpdev.fpc.manager.pas` 的 `GetStatus(...)` orchestration，下沉为独立 `statusflow`。
 - `mcp__ace_tool__search_context` 在本次会话中返回 HTTP 499，当前改用本地文件与脚本直接检查。
 - 入口链路清晰：`src/fpdev.lpr` → `src/fpdev.cli.runner.pas` → `src/fpdev.cli.bootstrap.pas` → `src/fpdev.command.imports*.pas` → 全局命令注册表。
 - 仓库存在正式 roadmap/status 文档：`docs/ROADMAP.md`；同时保留历史快照 `docs/DEVELOPMENT_ROADMAP.md` 和大量 `docs/plans/*.md`。
@@ -27,6 +736,1770 @@
 - 命令层正在迁移但尚未收口：`src/fpdev.cmd.lazarus.root.pas` / `src/fpdev.cmd.project.root.pas` 已引入 root shell 注册，但大量业务逻辑仍驻留在旧的 `src/fpdev.cmd.lazarus.pas` / `src/fpdev.cmd.project.pas` manager 中，并被新命令单元直接依赖。
 - Git 抽象层迁移也未完成：`src/fpdev.git2.pas` 明确标注 deprecated、推荐使用 `git2.api + git2.impl`，但 `src/fpdev.utils.git.pas` 与 `TGitOperations` 仍被多个核心源码单元直接依赖。
 - 因此，项目最大的深层问题不是“功能缺失”，而是“完成态叙事、验证证据、架构迁移进度”三者未完全对齐。
+
+## 2026-04-13 Hotspot Re-Evaluation
+- 重新按当前真实源码行数和剩余 inline 面排序后，本轮最高 ROI 热点是：
+  - `src/fpdev.fpc.manager.pas` `InstallVersion(...)` install surface
+  - `src/fpdev.resource.repo.pas` manifest-guarded query wrappers
+  - `src/fpdev.cross.search.pas` `SearchBinutilsWithConfig(...)` orchestration
+  - `src/fpdev.project.manager.pas` `UpdateTemplates(...)`
+- 实测当前热点行数：
+  - `src/fpdev.cross.search.pas` `570`
+  - `src/fpdev.fpc.manager.pas` `887`
+  - `src/fpdev.project.manager.pas` `559`
+  - `src/fpdev.package.manager.pas` `762`
+  - `src/fpdev.resource.repo.pas` `853`
+- `package.manager` 的真实状态比旧假设薄很多：
+  - 已有 `ExecutePackageListCore`
+  - 已有 `ExecutePackageSearchCore`
+  - 已有 `ExecutePackageInfoCore`
+  - 已有 `ExecutePackageVerifyCore`
+  - 已有 `FRepoService` facade
+  - 因此本轮不强行造新 helper，而是把它降级为 verification checkpoint
+- release docs contract 漂移在当前工作树里已关闭：
+  - `python3 -m unittest tests.test_release_docs_contract -v` 为绿
+  - 因此本轮只做 checkpoint，不重复开 production docs 改动，除非后续回归再次暴露漂移
+- `cross.search` 的真实最小切口不是继续拆 layer 实现，而是抽 configured shortcut + layer sequencing orchestration：
+  - 现有 `src/fpdev.cross.searchpaths.pas` 已承接 prefix/library candidate
+  - 现有 `src/fpdev.cross.searchdiag.pas` 已承接 diagnose/log lines
+  - 剩余 ROI 最大的是 `SearchBinutilsWithConfig(...)`
+- `fpc.manager` 的真实最小切口不是重复改 `installversionflow`，而是在 manager 前面再补一层 install surface：
+  - 仍保留的职责包括 validation gate、installer flag wiring、build-cache callback wiring、install path resolve、post-success verification refresh
+  - `ExecuteFPCInstallVersionCore(...)` 已经是稳定内核，应继续复用而不是重写
+- `project.manager` 当前 build/test/run 已相对薄，最值得继续削的是 `UpdateTemplates(const Outp, Errp: IOutput): Boolean;`
+- `resource.repo` 当前 mirror/install/distribution helper 已在位，剩余重复最多的是：
+  - `EnsureManifestLoaded`
+  - `try/except + LogFmt`
+  - low-level query helper 调用
+  - 适合收进统一 `queryflow`
+
+## 2026-04-13 Cross / FPC / Project / Resource Hotspot Wave
+- 本轮 2026-04-13 三份正式计划已全部落地并收口：
+  - `docs/plans/2026-04-13-cross-search-orchestration-wave.md`
+  - `docs/plans/2026-04-13-fpc-install-surface-wave.md`
+  - `docs/plans/2026-04-13-project-resource-followup-wave.md`
+- `cross.search` 波次结果：
+  - 新增 `src/fpdev.cross.searchflow.pas`
+  - `src/fpdev.cross.search.pas` 的 `SearchBinutilsWithConfig(...)` 已收缩为对 `ExecuteCrossBinutilsSearchCore(...)` 的 thin delegate
+  - 新增 `tests/test_cross_searchflow.lpr`，并扩展 `tests/test_cross_search_boundary.py` 锁定 helper wiring
+- `fpc.manager` 波次结果：
+  - 新增 `src/fpdev.fpc.installsurfaceflow.pas`
+  - `src/fpdev.fpc.manager.pas` 新增 `ConfigureInstaller(...)`，`InstallVersion(...)` 已委托到 `ExecuteManagedFPCInstallSurfaceCore(...)`
+  - `tests/test_fpc_mock_helpers.pas` 在 Unix 上改为直接生成可执行 shell-script mock compilers，避免 `tests/test_fpc_manager_installmetadata.lpr` 再依赖宿主机真实 `fpc`
+  - 新增 `tests/test_fpc_installsurfaceflow.lpr`，并扩展 `tests/test_fpc_install_manager_boundary.py`
+- `project/resource` 波次结果：
+  - `src/fpdev.project.templateflow.pas` 新增 `ExecuteProjectTemplateUpdateCore(...)`，`src/fpdev.project.manager.pas` 的 `UpdateTemplates(...)` 已改为 thin delegate
+  - 新增 `src/fpdev.resource.repo.queryflow.pas`
+  - `src/fpdev.resource.repo.pas` 的 bootstrap / binary / cross manifest query wrappers 已统一委托到 query helper
+  - 新增 `tests/test_resource_repo_queryflow.lpr`，并扩展 `tests/test_project_manager_boundary.py`、`tests/test_project_templateflow.lpr`、`tests/test_resource_repo_boundary.py`
+- `package.manager` 与 release docs 在这轮只做 checkpoint，不强行为了“全部都做”再抽新 helper：
+  - `python3 -m unittest tests.test_package_manager_boundary tests.test_release_docs_contract -v` 通过
+  - 判断保持不变：这两处当前更适合作为稳定性检查点，而不是重复打开低 ROI 切口
+- focused 验证已通过：
+  - `python3 -m unittest tests.test_cross_search_boundary -v`
+  - `tests/test_cross_searchflow.lpr`
+  - `tests/test_cross_search.lpr`
+  - `tests/test_cross_install_flow.lpr`
+  - `python3 -m unittest tests.test_fpc_install_manager_boundary -v`
+  - `tests/test_fpc_installsurfaceflow.lpr`
+  - `tests/test_fpc_installversionflow.lpr`
+  - `tests/test_fpc_manager_installmetadata.lpr`
+  - `python3 -m unittest tests.test_project_manager_boundary tests.test_resource_repo_boundary -v`
+  - `tests/test_project_templateflow.lpr`
+  - `tests/test_project_template_commands.lpr`
+  - `tests/test_resource_repo_queryflow.lpr`
+  - `tests/test_resource_repo_bootstrapquery.lpr`
+  - `tests/test_resource_repo_cross.lpr`
+- 本轮全部改动最终经过整仓回归确认：
+  - `bash scripts/run_all_tests.sh` → `Total: 293 / Passed: 293 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 2026-04-13 hotspot wave 已完整收口
+
+## 2026-04-13 Next Hotspot Plan Pack Completion
+- 当前工作树中的三条 plan line 已全部闭环：
+  - `docs/plans/2026-04-13-lazarus-source-runtime-config-wave.md`
+  - `docs/plans/2026-04-13-resource-bootstrap-surface-wave.md`
+  - `docs/plans/2026-04-13-fpc-residual-glue-wave.md`
+- 本轮唯一真实返工点发生在 `resource.repo`：
+  - `InstallBootstrap(...)` 已改成委托 `ExecuteResourceRepoInstallBootstrapCore(...)`
+  - 但 `TResourceRepository` 一度缺少 `InstallBootstrapWithInfo(...)` private bridge，导致 `tests/test_fpc_manager_installmetadata.lpr` 等 suite 在编译阶段失败
+  - 修复方式保持最小：新增缺失 bridge，不改 helper 设计，不改 install 行为
+- 本轮额外确认了一点：
+  - `tests/test_fpc_installsurfaceflow.lpr` 的首次失败来自全新 `/tmp` 输出目录尚未创建，而不是实现回归
+  - 建立独立 `/tmp/fpdev-fpc-installsurface-{bin,lib}` 后 suite 恢复通过
+- 最终验证快照：
+  - resource boundary/direct/regression focused suites：通过
+  - fpc residual boundary/direct/regression focused suites：通过
+  - Lazarus runtime/config 相关 focused suites：此前已通过，且在 full regression 中再次覆盖
+  - full regression：`300/300`
+  - 整仓基线从 `290` 提升到 `293`
+  - 下一轮应重新评估新的 hotspot，而不是为了追求“全部拆完”继续强开 `package.manager` 或 release docs 切口
+
+## 2026-04-13 Follow-up Wave Re-Evaluation
+- 在 `2026-04-13` 第一轮 hotspot wave 收口后，再次按真实剩余 inline 面与 helper 复用度重排，当前更高 ROI 的切口是：
+  - `src/fpdev.fpc.manager.pas` maintenance surface：`UninstallVersion(...)` / `UpdateSources(...)` / `CleanSources(...)`
+  - `src/fpdev.lazarus.source.pas` lifecycle orchestration：`CloneLazarusSource(...)` / `UpdateLazarusSource(...)` / `SwitchLazarusVersion(...)` / `InstallLazarusVersion(...)`
+  - `src/fpdev.resource.repo.pas` package surface：`GetPackageInfo(...)` / `ListPackages(...)` / `SearchPackages(...)`
+- 当前真实体量：
+  - `src/fpdev.fpc.manager.pas` `883`
+  - `src/fpdev.lazarus.source.pas` `748`
+  - `src/fpdev.resource.repo.pas` `800`
+  - `src/fpdev.package.manager.pas` `762`
+  - `src/fpdev.cross.search.pas` `536`
+- 选择依据：
+  - `fpc.manager` 已有 `statusflow` / `versionflow` / `indexflow` / `installsurfaceflow`，继续切 maintenance surface 的上下文复用最高
+  - `lazarus.source` 已有 `sourceflow` / `sourceversionflow`，现在最值得继续下沉的是 lifecycle orchestration，而不是重新打开 build/launch 细节
+  - `resource.repo` 的 bootstrap / binary / cross query 已收进 helper，package surface 是最自然的 follow-up
+- 本轮明确不再把 `package.manager` 当主切口：
+  - `InstallPackage(...)` 已委托 `ExecutePackageManagerInstallCore(...)`
+  - `UpdatePackage(...)` 已委托 `ExecutePackageManagerUpdateCore(...)`
+  - `ShowPackageDependencies(...)` 已委托 `WritePackageDependencyLinesCore(...)`
+  - 因此继续深拆的 ROI 明显低于 `fpc/lazarus/resource`
+- `cross.search` 也继续降为 checkpoint：
+  - 现有 `searchpaths` / `searchdiag` / `searchflow` 已覆盖 most valuable orchestration seams
+  - 剩余主要是 layer 算法本体，不适合作为“开发效率最高”的下一刀
+
+## 2026-04-13 Follow-up Wave Closure
+- 本轮 follow-up wave 已完整收口：
+  - `docs/plans/2026-04-13-fpc-maintenance-surface-wave.md`
+  - `docs/plans/2026-04-13-lazarus-source-lifecycle-wave.md`
+  - `docs/plans/2026-04-13-resource-package-surface-wave.md`
+- `fpc.manager` maintenance surface 结果：
+  - 新增 `src/fpdev.fpc.maintenanceflow.pas`
+  - `src/fpdev.fpc.manager.pas` 的 `UninstallVersion(...)` / `UpdateSources(...)` / `CleanSources(...)` 已委托到 shared helper
+  - direct helper 与最终整仓回归都重新覆盖到 `test_fpc_maintenanceflow`
+- `lazarus.source` lifecycle 结果：
+  - 新增 `src/fpdev.lazarus.sourcelifecycleflow.pas`
+  - `src/fpdev.lazarus.source.pas` 的 `CloneLazarusSource(...)` / `UpdateLazarusSource(...)` / `SwitchLazarusVersion(...)` / `InstallLazarusVersion(...)` 已委托到 shared helper
+  - 本轮额外修掉一个真实遗留阻塞：`tests/test_lazarus_sourcelifecycleflow.lpr` 仍使用旧枚举值 `gbGit`，现已改为有效枚举 `gbCommandLine`
+- `resource.repo` package surface 结果：
+  - 新增 `src/fpdev.resource.repo.packageflow.pas`
+  - `src/fpdev.resource.repo.pas` 的 `GetPackageInfo(...)` / `ListPackages(...)` / `SearchPackages(...)` 已收缩为 thin delegate
+  - 新增 `tests/test_resource_repo_packagesurfaceflow.lpr`，并扩展 `tests/test_resource_repo_boundary.py`
+- `package.manager` 与 `cross.search` 本轮继续只做 checkpoint，没有为“全部都做”强开低 ROI helper：
+  - `python3 -m unittest tests.test_package_manager_boundary tests.test_resource_repo_boundary tests.test_cross_search_boundary tests.test_release_docs_contract -v` 通过
+  - 说明当前 checkpoint 判断仍然成立
+- focused 验证已通过：
+  - `python3 -m unittest tests.test_lazarus_source_boundary -v`
+  - `tests/test_lazarus_sourcelifecycleflow.lpr`
+  - `tests/test_lazarus_update.lpr`
+  - `tests/test_lazarus_flow.lpr`
+  - `python3 -m unittest tests.test_resource_repo_boundary tests.test_package_manager_boundary -v`
+  - `tests/test_resource_repo_packagesurfaceflow.lpr`
+  - `tests/test_resource_repo_query.lpr`
+  - `tests/test_package_manager_installupdateflow.lpr`
+- 本轮最终经 checkpoint + 整仓回归确认：
+  - `python3 -m unittest tests.test_package_manager_boundary tests.test_resource_repo_boundary tests.test_cross_search_boundary tests.test_release_docs_contract -v` → `30 tests, OK`
+  - `bash scripts/run_all_tests.sh` → `Total: 296 / Passed: 296 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 2026-04-13 follow-up wave 已全部完成
+  - 整仓基线从 `293` 提升到 `296`
+  - 下一个回合应该重新排序新的 hotspot，而不是继续机械深拆 `package.manager` 或 `cross.search`
+
+## 2026-04-13 Project Create Surface Wave Closure
+- 本轮继续沿 ROI 最高切口推进，优先选择 `src/fpdev.project.manager.pas` 的 create/setup surface，而不是继续机械打开 `package.manager` 或 `cross.search`
+- 新增正式计划：
+  - `docs/plans/2026-04-13-project-create-surface-wave.md`
+- `project.manager` 波次结果：
+  - 新增 `src/fpdev.project.createflow.pas`
+  - `src/fpdev.project.manager.pas` 的 `CreateFromTemplate(...)` / `CreateProject(...)` 已委托到 shared helper
+  - `SetupProjectEnvironment(...)` 继续保持 placeholder 语义，不趁这波偷塞新功能
+- 新增/扩展测试：
+  - 新增 `tests/test_project_createflow.lpr`
+  - 扩展 `tests/test_project_manager_boundary.py`
+- 这波的 direct helper contract 固化了四个关键行为：
+  - template missing -> false
+  - target dir 缺失时先创建目录
+  - invalid project name -> false 且不继续 create/setup
+  - create 成功但 setup 失败 -> 继续返回 true，并输出 warning
+- checkpoint 复核保持不变：
+  - `package.manager` 仍然足够 thin，继续作为 checkpoint
+  - `cross.search` 剩余主要是 layer 算法本体，继续作为 checkpoint
+- focused 验证已通过：
+  - `python3 -m unittest tests.test_project_manager_boundary -v`
+  - `tests/test_project_createflow.lpr`
+  - `tests/test_project_management.lpr`
+  - `tests/test_project_commands.lpr`
+  - `python3 -m unittest tests.test_package_manager_boundary tests.test_cross_search_boundary -v`
+- 本轮最终经整仓回归确认：
+  - `bash scripts/run_all_tests.sh` → `Total: 297 / Passed: 297 / Failed: 0 / Skipped: 0`
+- 结论：
+  - project create surface wave 已完整收口
+  - 整仓基线从 `296` 提升到 `297`
+  - 下一轮应重新评估剩余 hotspot；当前更像是 `project.manager` 残余 facade、`package.manager` repo/query 细缝与 `cross.search` 算法层三者之间的再排序，而不是直接假定某一块必然优先
+
+
+## 2026-04-13 Post-Project Hotspot Re-Ranking
+- 在 project create wave 收口后，重新按“最小切口 / 现有测试护栏 / helper 复用 / 行为风险 / 行数收益”复核当前树，新的排序结论是：
+  - `src/fpdev.lazarus.source.pas` runtime/config surface
+  - `src/fpdev.resource.repo.pas` bootstrap/install/checksum surface
+  - `src/fpdev.fpc.manager.pas` 剩余 glue callback / presentation surface
+- 真实剩余体量重新确认：
+  - `src/fpdev.fpc.manager.pas` `891`
+  - `src/fpdev.resource.repo.pas` `803`
+  - `src/fpdev.package.manager.pas` `762`
+  - `src/fpdev.lazarus.source.pas` `705`
+  - `src/fpdev.cross.search.pas` `536`
+  - `src/fpdev.project.manager.pas` `495`
+- `lazarus.source` 当前成为第一优先级，不是因为总行数最大，而是因为还留着一组边界清晰、现成测试充分的 orchestration surface：
+  - `ConfigureCustomFPCIDE(...)`
+  - `ListLocalVersions(...)`
+  - `BuildLazarus(...)`
+  - `LaunchLazarus(...)`
+  - 这些方法仍直接持有 source runtime/config 输出、目录扫描、IDE config apply 与 launch wiring；`tests/test_lazarus_update.lpr` 已覆盖 invalid/valid build、launch contract 与 local versions 语义，补 Python boundary + direct helper 的成本较低
+- `resource.repo` 当前排第二，剩余值得切的不是 package/query/mirror，而是 bootstrap/install/checksum surface：
+  - `FindBestBootstrapVersion(...)`
+  - `VerifyChecksum(...)`
+  - `InstallBootstrap(...)`
+  - 以及与之相邻的 bootstrap executable / log wiring
+  - 这条线已经有 `bootstrapquery` / `mirrorflow` / `distributionflow` / `install` 等 helper，可继续做 surface 收口；但比 `lazarus.source` 略低，是因为剩余逻辑更碎，且部分已经接近 low-level utility，而不是纯 facade
+- `fpc.manager` 暂降到第三优先级：
+  - 当前 `InstallVersion(...)`、`UninstallVersion(...)`、`ListVersions(...)`、`SetDefaultVersion(...)`、`GetStatus(...)`、`UpdateSources(...)`、`CleanSources(...)`、`ShowVersionInfo(...)`、`TestInstallation(...)` 都已委托现有 helper
+  - 剩余相对可切的只是 `SetupEnvironment(...)`、`WriteInstallMetadata(...)`、`UpdateVerificationMetadata(...)` 这类 callback glue；继续下刀的收益低于 `lazarus.source` 与 `resource.repo`
+- 本轮明确继续保持 checkpoint，不为“全部做完”而强开：
+  - `src/fpdev.project.manager.pas`：create/template/clean/build/test/run surface 已基本 helper 化，剩余主要是输出对象选择与 exception wrapper
+  - `src/fpdev.package.manager.pas`：install/update/list/search/info/dependency 已大面积委托 core/helper/service，继续深拆 ROI 不高
+  - `src/fpdev.cross.search.pas`：当前大头在 `SearchLayer1..6` 算法层，而不是 orchestration facade；不是下一波最佳切口
+- 结论：
+  - 如果只打一波，优先做 `lazarus.source runtime/config surface wave`
+  - 如果打一组 plan pack，推荐顺序为：
+    1. `lazarus.source`
+    2. `resource.repo`
+    3. 最后再决定是否继续打开 `fpc.manager`
+
+## 2026-04-12 Cross Search / FPC Index / Lazarus Source Versionflow Wave
+- 本轮重新锁定真实 repo 状态后，确认旧假设已过时：
+  - `fpc.manager` 的 source/info facade 相关切片已提前完成
+  - `lazarus.source` 的首刀 `sourceflow` 也已落地
+  - 因此没有重复打开旧切口，而是切到三刀：
+    - `docs/plans/2026-04-12-cross-search-diagnose-wave.md`
+    - `docs/plans/2026-04-12-fpc-manager-index-cleanup-wave.md`
+    - `docs/plans/2026-04-12-lazarus-source-versionflow-wave.md`
+- `cross.search` 波次结果：
+  - 新增 `src/fpdev.cross.searchdiag.pas`
+  - `src/fpdev.cross.search.pas` 的 `DiagnoseTarget(...)` / `GetSearchLog(...)` 已收缩为 thin delegate
+  - focused 验证：
+    - `python3 -m unittest tests.test_cross_search_boundary -v`
+    - `tests/test_cross_searchdiag.lpr`
+    - `tests/test_cross_search.lpr`
+    - `tests/test_cross_search_libs.lpr`
+- `fpc.manager` 波次结果：
+  - 新增 `src/fpdev.fpc.indexflow.pas`
+  - `src/fpdev.fpc.manager.pas` 的 `FPC_UpdateIndex(...)` 已委托到 shared flow
+  - manager-local dead duplicates 已删除：
+    - `SafeWriteAllText`
+    - `ReadAllTextIfExists`
+    - `TryParseInt`
+    - `ParseVersion`
+    - `CompareSemVer`
+    - `SameMajorMinor`
+    - `LogLine`
+    - `FPDEV_LOGFILE`
+  - focused 验证：
+    - `python3 -m unittest tests.test_fpc_manager_index_boundary -v`
+    - `tests/test_fpc_indexflow.lpr`
+- `lazarus.source` 波次结果：
+  - 新增 `src/fpdev.lazarus.sourceversionflow.pas`
+  - `src/fpdev.lazarus.source.pas` 现在把 legacy static version / description / branch readback / available-version inventory 委托到 shared flow
+  - 新 helper 当前承接的职责是：
+    - `RegistryHasLazarusReleasesCore(...)`
+    - `ResolveLegacyLazarusCloneRefCore(...)`
+    - `ResolveLegacyLazarusDescriptionCore(...)`
+    - `ResolveLegacyLazarusVersionFromBranchCore(...)`
+    - `BuildLegacyLazarusAvailableVersionsCore(...)`
+    - `IsLegacyLazarusVersionAvailableCore(...)`
+- 本轮暴露出一处真实 Pascal 边界问题：
+  - `src/fpdev.lazarus.source.pas` 的 `LAZARUS_VERSIONS` 是静态数组常量
+  - `src/fpdev.lazarus.sourceversionflow.pas` 初版使用 dynamic-array 形参，导致 `tests/test_lazarus_update.lpr` 编译失败
+  - 最小修复是把 static-version 参数改成 open-array contract，这样同时兼容静态数组常量和 direct helper 测试里的动态数组
+  - 并顺手给 `tests/test_lazarus_sourceversionflow.lpr` 的 `BuildStaticVersions` 补 `Result := nil`，清掉 managed-result warning
+- focused 验证：
+  - `python3 -m unittest tests.test_lazarus_source_boundary -v`
+  - `tests/test_lazarus_sourceversionflow.lpr`
+  - `tests/test_lazarus_update.lpr`
+- 本轮全部改动最终经过整仓回归确认：
+  - `bash scripts/run_all_tests.sh` → `Total: 290 / Passed: 290 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 这波新切片已完整收口
+  - 整仓基线从 `287` 提升到 `290`
+  - 下一轮可以继续在 `cross.search` 剩余 layer orchestration、`fpc.manager` 剩余 install/runtime seam 与其他 manager hotspot 之间重新排序 ROI
+
+## 2026-04-12 Manager Hotspot Wave Pack
+- 本轮 2026-04-12 三个 plan 已全部落地并收口：
+  - `docs/plans/2026-04-12-project-manager-slicing-wave.md`
+  - `docs/plans/2026-04-12-package-resource-hotspot-wave.md`
+  - `docs/plans/2026-04-12-cross-manager-search-wave.md`
+- `project` 波次最终切口聚焦 template lifecycle/presentation，而不是 build/run/test：
+  - 新增 `src/fpdev.project.templateflow.pas`
+  - `src/fpdev.project.manager.pas` 已将 template list/info/install/remove/update-sync 逻辑下沉到 shared flow
+  - focused 验证：
+    - `python3 -m unittest tests.test_project_manager_boundary -v`
+    - `tests/test_project_templateflow.lpr`
+    - `tests/test_project_template_commands.lpr`
+- `package/resource` 波次最终切口聚焦本地源码安装、依赖展示和 mirror orchestration：
+  - 新增 `src/fpdev.package.managerflow.pas`
+  - 新增 `src/fpdev.resource.repo.mirrorflow.pas`
+  - `src/fpdev.package.manager.pas` 现在把 local install / deps output 委托到 shared flow
+  - `src/fpdev.resource.repo.pas` 现在把 best-mirror 选择与 public mirror mapping 委托到 shared flow
+  - 为兼容 direct helper 覆盖，`ExecutePackageInstallFromSourceCore(...)` 保留了 manager 用的完整 callback 版本，同时补了 direct test 用的简化 overload
+  - focused 验证：
+    - `python3 -m unittest tests.test_package_manager_boundary tests.test_resource_repo_boundary -v`
+    - `tests/test_package_resource_flow.lpr`
+    - `tests/test_package_manager_installupdateflow.lpr`
+    - `tests/test_resource_repo_mirror.lpr`
+- `cross` 波次没有重开 install/search 算法本体，而是只削掉 manager facade 的 list/info/update/clean：
+  - 新增 `src/fpdev.cross.managerflow.pas`
+  - `src/fpdev.cross.manager.pas` 的 `ListTargets(...)` / `ShowTargetInfo(...)` / `UpdateTarget(...)` / `CleanTarget(...)` 已收缩为 thin facade
+  - helper 当前承接的职责是：
+    - `ExecuteCrossListTargetsCore(...)`
+    - `ExecuteCrossShowTargetInfoCore(...)`
+    - `ExecuteCrossUpdateTargetCore(...)`
+    - `ResolveCrossCleanPathsCore(...)`
+    - `ExecuteCrossCleanTargetCore(...)`
+  - focused 验证：
+    - `python3 -m unittest tests.test_cross_manager_boundary -v`
+    - `tests/test_cross_managerflow.lpr`
+    - `tests/test_cross_targetflow.lpr`
+    - `tests/test_cross_management.lpr`
+- 本轮全部改动最终经过整仓回归确认：
+  - `bash scripts/run_all_tests.sh` → `Total: 285 / Passed: 285 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 2026-04-12 wave pack 已完整收口
+  - 下一轮如果继续沿 hotspot 主线推进，优先级应重新在 `src/fpdev.cross.search.pas` 与剩余 manager follow-up 之间排序，而不是重复打开本轮已经稳定的 facade flow
+
+## 2026-04-12 Search / Exec / Tail Follow-Up Wave
+- 在重新评估后，发现 `project execflow` 与 `package facadeflow` 已经存在，因此本轮没有机械重复旧假设，而是按当前真实代码状态改成三刀：
+  - `cross.search`：抽 prefix + library candidate helper
+  - `project`：补齐 execution surface 的 clean helper
+  - `package`：删除 manager 尾部纯 wrapper，直接传 core helper
+- 新增正式 plan：
+  - `docs/plans/2026-04-12-cross-search-paths-wave.md`
+  - `docs/plans/2026-04-12-project-exec-surface-wave.md`
+  - `docs/plans/2026-04-12-package-tail-facade-wave.md`
+- `cross.search` 波次结果：
+  - 新增 `src/fpdev.cross.searchpaths.pas`
+  - `src/fpdev.cross.search.pas` 的 `GetPrefixCandidates(...)` / `SearchLibraries(...)` 已收缩为 thin delegate
+  - focused 验证：
+    - `python3 -m unittest tests.test_cross_search_boundary -v`
+    - `tests/test_cross_searchpaths.lpr`
+    - `tests/test_cross_search.lpr`
+    - `tests/test_cross_search_libs.lpr`
+- `project` 波次结果：
+  - 新增 `src/fpdev.project.cleanflow.pas`
+  - `src/fpdev.project.manager.pas` 现在保持 build/test/run -> `execflow`，clean -> `cleanflow`
+  - focused 验证：
+    - `python3 -m unittest tests.test_project_exec_boundary -v`
+    - `tests/test_project_cleanflow.lpr`
+    - `tests/test_project_execflow.lpr`
+    - `tests/test_project_run.lpr`
+    - `tests/test_project_test.lpr`
+    - `tests/test_project_clean.lpr`
+- `package` 波次结果：
+  - 新增 `tests/test_package_tail_boundary.py`
+  - `src/fpdev.package.facadeflow.pas` 的纯 helper callback 现在不再要求 object method
+  - `src/fpdev.package.manager.pas` 已删除 4 个纯转发 wrapper，并直接传：
+    - `@EnsurePackageMetadataFileCore`
+    - `@TryResolvePublishMetadataCore`
+    - `@HandlePublishMetadataFailureCore`
+    - `@CreatePublishArchiveCore`
+  - focused 验证：
+    - `python3 -m unittest tests.test_package_tail_boundary -v`
+    - `tests/test_package_facadeflow.lpr`
+    - `tests/test_package_create.lpr`
+    - `tests/test_package_metadata_writer.lpr`
+- 本轮全部改动最终经过整仓回归确认：
+  - `bash scripts/run_all_tests.sh` → `Total: 287 / Passed: 287 / Failed: 0 / Skipped: 0`
+- 结论：
+  - follow-up wave 已完整收口
+  - 新增测试让整仓基线从 `285` 提升到 `287`
+  - 下一轮应重新评估是否继续下沉 `cross.search` diagnose/layer orchestration，或转向 `project/package` 其他剩余 manager 热点
+
+## 2026-04-09 Release Bundle Recovery
+- 当前工作树只剩两个测试文件有未提交修改：`tests/test_ci_workflow_contract.py` 与 `tests/test_release_scripts_contract.py`。
+- 新增/修改后的测试把 release-ready-bundle 契约从 “CI YAML 内联复制与 evidence 生成细节” 收敛为 “CI 调用 `scripts/assemble_release_ready_bundle.sh` 共享脚本”。
+- 复现实测：`python3 -m unittest tests.test_ci_workflow_contract tests.test_release_scripts_contract -v` 失败 4 项，全部与 `scripts/assemble_release_ready_bundle.sh` 缺失和 workflow 未切换到该脚本有关。
+- `.github/workflows/ci.yml` 当前仍内联执行：
+  - 复制四个平台 release asset
+  - 复制 release acceptance logs 与 owner proof
+  - 调用 `scripts/generate_release_checksums.py`
+  - 通过 `find ... summary.txt | grep -q '^with_install: ...$'` 发现 baseline/install summary
+  - 调用 `scripts/generate_release_evidence.py`
+- 因此这次修复的最小正确动作是：把上述现有逻辑原样抽到共享脚本，再让 workflow 调用该脚本。
+- 已实施修复：
+  - 新增 `scripts/assemble_release_ready_bundle.sh`，承接 release asset/log/owner-proof 复制、checksum 生成、release evidence 生成和 baseline/install summary 发现逻辑
+  - 将 `.github/workflows/ci.yml` 的 assemble job 精简为 `bash scripts/assemble_release_ready_bundle.sh`
+- 验证结果：
+  - `python3 -m unittest tests.test_ci_workflow_contract tests.test_release_scripts_contract -v` 通过（37 tests, OK）
+  - `bash -n scripts/assemble_release_ready_bundle.sh` 通过
+
+## 2026-04-09 Post-Release Documentation Truth Sync
+- `docs/ROADMAP.md` 已明确写成 `Release Proof Published, v2.1.0 Released`，但 `docs/MVP_ACCEPTANCE_CRITERIA*.md` 仍保留 Windows/macOS proof `pending` 和未勾选发布证明清单，存在公开状态不一致。
+- `docs/KNOWN_LIMITATIONS.md` 仍使用 `版本 1.0.0` 和 `2026-02-15` 的旧元数据，且没有区分“当前限制”和“已关闭的历史限制”。
+- 这类问题的风险不在代码执行层，而在维护者与外部读者看到的项目状态是否可信；因此优先级高于继续开新功能线。
+- 已实施修复：
+  - 将 `docs/MVP_ACCEPTANCE_CRITERIA.md` 与 `docs/MVP_ACCEPTANCE_CRITERIA.en.md` 同步为“已发布”口径
+  - 将跨平台 release proof 矩阵改为 `pass`
+  - 补充 GitHub Release、发布资产和 `RELEASE_EVIDENCE.md` / `SHA256SUMS.txt` 的发布后证据入口
+  - 将 `docs/KNOWN_LIMITATIONS.md` 更新到 `v2.1.0`，并把 Windows 内存报告改写为“已关闭的历史限制”
+- 验证结果：
+  - `python3 -m unittest tests.test_release_docs_contract tests.test_contributor_docs_contract tests.test_docs_taxonomy_contract tests.test_readme_testing_contract -v` 通过（42 tests, OK）
+- 下一条更像“继续开发”的主线仍然是：
+  - `docs/plans/2026-03-08-cli-flags-split-wave.md`
+  - 因为仓库中仍不存在 `src/fpdev.cli.flags.pas`，说明那条结构收口线还没落地
+
+## 2026-04-11 FPC Manager Statusflow Wave
+- 本轮最小切片已经落地：
+  - 新增 `src/fpdev.fpc.statusflow.pas`
+  - 新增 `tests/test_fpc_manager_status_boundary.py`
+  - 新增 `tests/test_fpc_statusflow.lpr`
+- 新 helper 当前承接的职责是：
+  - `InitializeFPCStatusInfoCore(...)`
+  - `ResolveManagedFPCStatusInstallPathCore(...)`
+  - `BuildManagedFPCStatusCore(...)`
+- `src/fpdev.fpc.manager.pas` 已收口为 facade 调度，不再在 `GetStatus(...)` 中本地维护：
+  - configured/default install path 解析
+  - executable existence 检查
+  - metadata -> status 映射
+  - missing configured default 的错误文案收口
+- 特别处理了一处边界细节：
+  - `GetStatus(...)` 不能复用会写错误输出的公共 `ReadMetadata(...)`
+  - 因此 manager 新增了静默 callback `TryReadStatusMetadata(...)`
+  - 这样 metadata 缺失仍保持 status 命令原有的无噪音行为
+- 结构收益：
+  - `src/fpdev.fpc.manager.pas` 当前降到 `1108` 行
+  - `src/fpdev.fpc.statusflow.pas` 承接 159 行可复用 status orchestration
+  - 下一波 FPC manager 再继续推进时，可以围绕 list/status/bootstrap 相关边界继续收口，而不必回头拆已稳定的 install/verify/metadata helper
+- 验证结果：
+  - `python3 -m unittest tests.test_fpc_manager_status_boundary -v`：3 tests, OK
+  - `tests/test_fpc_statusflow.lpr`：19 passed, 0 failed
+  - `tests/test_fpc_status.lpr`：26 passed, 0 failed
+  - `python3 -m unittest tests.test_contributor_docs_contract -v`：29 tests, OK
+  - `bash scripts/run_prettier.sh --check docs/history/B171-large-files-report.md`：OK
+  - `bash scripts/run_all_tests.sh`：280/280
+
+## 2026-04-12 FPC Manager Versionflow Wave
+- 本轮切片已落地：
+  - 新增 `src/fpdev.fpc.versionflow.pas`
+  - 新增 `tests/test_fpc_manager_version_boundary.py`
+  - 新增 `tests/test_fpc_versionflow.lpr`
+- 新 helper 当前承接的职责是：
+  - `NormalizeDefaultFPCVersionCore(...)`
+  - `WriteManagedFPCVersionListCore(...)`
+  - `SetManagedFPCDefaultVersionCore(...)`
+  - `ActivateManagedFPCVersionCore(...)`
+- `src/fpdev.fpc.manager.pas` 已继续收口为 facade 调度，不再在本地持有：
+  - managed version list rendering
+  - default toolchain normalization glue
+  - activate-then-set-default orchestration
+- 这轮实现里暴露出的真实根因不是 helper 本身，而是共享类型边界漂移：
+  - `src/fpdev.fpc.version.pas` 仍自定义 `TFPCVersionInfo` / `TFPCVersionArray`
+  - `src/fpdev.fpc.activation.pas` 仍自定义 `TActivationResult`
+  - 这导致 manager 与 shared flow 在编译期出现“字段相同但类型不同”的不兼容错误
+- 最小修复方式是把上述重复类型收口为 shared alias：
+  - `src/fpdev.fpc.version.pas` 改为别名 `fpdev.fpc.types.TFPCVersionInfo` / `TFPCVersionArray`
+  - `src/fpdev.fpc.activation.pas` 改为别名 `fpdev.fpc.types.TActivationResult`
+  - 这样保留了现有 public 名称，不需要改动调用面语义
+- 结构收益：
+  - `src/fpdev.fpc.manager.pas` 当前降到 `1046` 行
+  - `src/fpdev.fpc.versionflow.pas` 承接 `174` 行可复用 version/default/activation orchestration
+  - 下一波可以按既定路线切到 `docs/plans/2026-04-12-lazarus-source-slicing-wave.md`
+- 验证结果：
+  - `python3 -m unittest tests.test_fpc_manager_version_boundary -v`：4 tests, OK
+  - `tests/test_fpc_versionflow.lpr`：17 passed, 0 failed
+  - `tests/test_fpc_use.lpr`：29 passed, 0 failed
+  - `tests/test_cli_fpc_info.lpr`：91 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：281/281
+
+## 2026-04-09 CLI Flags Split Wave
+- 当前代码状态比计划文档更新：仓库里已经没有 `TryHandleGlobalFlag` 一类旧的 top-level flag orchestration 层，因此不能机械照搬计划里的旧符号名。
+- 但计划的核心目标仍成立：`fpdev.cli.global` 不应继续同时承担 flag preparse 和参数归一化两种职责。
+- 当前真实剩余的 pre-dispatch flag 逻辑只剩一个：
+  - `--portable`
+- 因此本轮采用了“按当前代码状态做最小适配”的实现：
+  - 新建 `src/fpdev.cli.flags.pas`
+  - 将 `LeadingPortablePreludeLength` 与 `ApplyPortableModeFromArgs` 放入新单元
+  - `src/fpdev.cli.global.pas` 仅保留 `CollectCLIArgs`、`NormalizePrimaryAndParams`、`BuildDispatchArgs`
+  - `src/fpdev.cli.runner.pas` 改为从 `fpdev.cli.flags` 调用 `ApplyPortableModeFromArgs`
+  - `tests/test_cli_misc.lpr` 的 3 个 flag 相关测试移入新 include：`tests/test_cli_flags.inc`
+- RED/GREEN 证据：
+  - RED: `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_cli_misc.lpr` 报 `Can't find unit fpdev.cli.flags`
+  - GREEN: focused `test_cli_misc` 通过（152/152）
+  - GREEN: focused `test_cli_runner` 通过（16/16）
+  - GREEN: `bash scripts/run_all_tests.sh` 通过（275/275）
+- 环境观察：
+  - 仓库根 `lib/` 目录是 root-owned 旧产物，导致直接 `fpc ... -FUlib` 与 `lazbuild -B fpdev.lpi` 会命中 `Permission denied`
+  - 这不是本轮代码回归；`run_all_tests.sh` 通过临时输出与 fallback 路径成功绕过了该环境噪音
+
+## 2026-04-09 Next Route Screening After CLI Split
+- `docs/plans/2026-02-12-quality-analyzer-false-positive-reduction.md` 的目标已经在当前树中实现：
+  - `scripts/analyze_code_quality.py` 已包含 console wrapper / file-handle write 误报抑制
+  - `tests/test_analyze_code_quality.py` 22 项全部通过
+- `docs/plans/2026-03-06-repo-maintenance-priority-fixes.md` 的剩余显性目标也已落地：
+  - `src/fpdev.command.imports.pas` 已存在
+  - `tests/test_command_imports.lpr` 已存在
+  - `.gitignore` 已包含 `__pycache__/` 和 `*.pyc`
+- `docs/plans/2026-03-16-fpc-lazarus-cross-platform-build-hardening.md` 在当前树中也已对应到：
+  - `src/fpdev.build.toolchain.pas`
+  - `tests/test_build_toolchain_makecmd.lpr`
+  - `src/fpdev.lazarus.commandflow.pas`
+  - `tests/test_lazarus_flow.lpr`
+- `docs/plans/2026-02-12-remote-registry-http-methods.md` 同样已落地：
+  - `src/fpdev.registry.client.pas` 已实现 POST/PUT/DELETE 分支
+  - `tests/test_registry_client_remote.lpr`、`tests/test_package_registry.lpr`、`tests/test_package_publish.lpr` focused 回归通过
+- 因此，当前继续开发的最佳入口不再是补旧计划，而是处理仍然存在的结构债。
+
+## 2026-04-09 Git Decoupling Candidate
+- 兼容 shim 现状已经很薄：
+  - `src/fpdev.cmd.lazarus.pas` 24 行
+  - `src/fpdev.cmd.project.pas` 23 行
+- 真正仍厚重的兼容层是 `src/fpdev.utils.git.pas`（3219 行）。
+- 该巨石当前仍被多个核心单元直接依赖：
+  - `src/fpdev.lazarus.manager.pas`
+  - `src/fpdev.fpc.builder.pas`
+  - `src/fpdev.fpc.runtimeflow.pas`
+  - `src/fpdev.lazarus.commandflow.pas`
+  - `src/fpdev.resource.repo.pas`
+  - `src/fpdev.git.runtime.pas`
+- 其中最小可切的纯逻辑依赖是 Git pull 错误分类：
+  - `TGitPullFailureKind`
+  - `ClassifyGitPullFailure`
+- 当前只有少数调用面：
+  - `src/fpdev.fpc.runtimeflow.pas`
+  - `src/fpdev.lazarus.commandflow.pas`
+  - `src/fpdev.utils.git.pas` 内部
+- 这使其适合作为下一轮结构抽取的最小切片。
+
+## 2026-04-09 Git Pull Error Helper Extraction
+- RED:
+  - 在 `tests/test_fpc_runtimeflow.lpr` 中加入对 `fpdev.git.errors` 的直接语义断言
+  - focused 编译失败：`Can't find unit fpdev.git.errors used by test_fpc_runtimeflow`
+- GREEN:
+  - 新增 `src/fpdev.git.errors.pas`，承载：
+    - `TGitPullFailureKind`
+    - `ClassifyGitPullFailure`
+  - `src/fpdev.fpc.runtimeflow.pas` 改为直接依赖 `fpdev.git.errors`
+  - `src/fpdev.lazarus.commandflow.pas` 改为直接依赖 `fpdev.git.errors`，并移除对 `fpdev.utils.git` 的不必要引用
+  - `src/fpdev.utils.git.pas` 保留兼容函数签名，但内部已委托到 `fpdev.git.errors.ClassifyGitPullFailure`
+- 验证结果：
+  - `tests/test_fpc_runtimeflow.lpr`: 56 passed, 0 failed
+  - `tests/test_lazarus_runtimeflow.lpr`: 31 passed, 0 failed
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+- 结构收益：
+  - `fpdev.fpc.runtimeflow` 不再为了一个 classifier 依赖 `fpdev.utils.git`
+  - `fpdev.lazarus.commandflow` 也不再直接依赖 `fpdev.utils.git`
+  - 后续如果继续拆 `fpdev.utils.git`，现在已经有了一个独立可复用的纯逻辑落点
+
+## 2026-04-10 Final Git Compat Shim Removal
+- 进入最后一刀前，仓库默认入口其实已经稳定：
+  - `src/fpdev.git.operations.pas` 是默认 facade
+  - `src/fpdev.git.operations.impl.pas` 承接具体实现
+  - 仓库内 Pascal 源码与 focused tests 已不再直接 import `fpdev.utils.git`
+- 因此真正剩下的工作不是继续做软迁移，而是把 breaking delete 执行完整，并把发布口径说清楚。
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 失败 13 项
+  - 失败点集中在三类：
+    - `src/fpdev.utils.git.pas` 仍存在
+    - `docs/GIT_COMPAT_MIGRATION.md`、`ARCHITECTURE*`、`GIT2_USAGE*`、`LIBGIT2_INTEGRATION*`、`CLAUDE.md`、history docs 仍写成 soft-deprecated shim
+    - `CHANGELOG.md` / `RELEASE_NOTES.md` 尚未发布 breaking impact summary
+- GREEN 修复：
+  - 删除 `src/fpdev.utils.git.pas`
+  - 将 `tests/test_git_runtime_boundary.py` 切到 removal-complete 契约：
+    - shim 文件必须不存在
+    - Pascal repo 不得再出现 `fpdev.utils.git` direct import
+    - migration doc / changelog / release notes 必须发布最终 breaking 口径
+  - 更新：
+    - `docs/GIT_COMPAT_MIGRATION.md`
+    - `CHANGELOG.md`
+    - `RELEASE_NOTES.md`
+    - `CLAUDE.md`
+    - `docs/ARCHITECTURE*.md`
+    - `docs/GIT2_USAGE*.md`
+    - `docs/LIBGIT2_INTEGRATION*.md`
+    - `docs/history/B166-deprecated-cleanup.md`
+    - `docs/history/DEPRECATED_CODE_AUDIT.md`
+    - `docs/history/DEVELOPMENT_ROADMAP*.md`
+  - `tests/test_style_regressions_batch19.py` 改为检查 `src/fpdev.git.operations.pas` 行长，不再引用已删除文件
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（35 tests, OK）
+  - `python3 -m unittest tests.test_run_prettier_sh tests.test_contributor_docs_contract tests.test_git_runtime_boundary -v` 通过（64 tests, OK）
+  - `python3 -m unittest tests.test_style_regressions_batch19 -v` 通过（3 tests, OK）
+  - `bash scripts/run_prettier.sh --write ...` 成功
+  - `bash scripts/run_prettier.sh --check ...` 成功
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `tests/test_git_facade.lpr`: 124 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+- 结构判断：
+  - 仓库已经不再保留 `fpdev.utils.git` 作为任何编译期入口
+  - system-git 默认入口正式收敛为 `fpdev.git.operations` / `fpdev.git.operations.impl`
+  - active docs 现在只在迁移/兼容说明语境中提到已删除的 shim，且发布文档已经显式说明 breaking impact
+
+## 2026-04-10 Release Status Wording Contract Resync
+- 在 breaking removal 收尾后，补跑 `python3 -m unittest discover -s tests -p 'test_*.py'` 时发现 4 个红灯都集中在 `tests/test_release_status_wording.py`。
+- 根因不是文档回归，而是测试仍在断言旧的“public CI release proof pending / required before publish / 274 tests”状态。
+- 当前公开文档的真实状态已经是：
+  - README 中写明 `public CI release-proof bundle published with v2.1.0`
+  - `docs/ROADMAP.md` 写明 `Release Proof Published, v2.1.0 Released`
+  - `RELEASE_NOTES.md` 使用 `275` discoverable tests，并声明 `RELEASE_EVIDENCE.md` 已发布
+- 修复方式应当是更新契约测试，而不是把文档回退到旧状态。
+- GREEN 修复：
+  - 更新 `tests/test_release_status_wording.py`
+  - 让它对齐 README / README.en / ROADMAP / RELEASE_NOTES 的当前已发布口径
+- 验证结果：
+  - `python3 -m unittest tests.test_release_status_wording -v` 通过（4 tests, OK）
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` 通过（408 tests, OK）
+
+## 2026-04-10 Full Pascal Regression After Git Removal
+- 在 Python 契约与 focused Pascal suites 都转绿之后，剩余风险主要是更大范围的 Pascal 组装面是否被当前工作树里的多处迁移改动带偏。
+- 因此继续跑仓库标准回归入口：
+  - `bash scripts/run_all_tests.sh`
+- 结果：
+  - `Total: 275`
+  - `Passed: 275`
+  - `Failed: 0`
+  - `Skipped: 0`
+- 判断：
+  - 当前 `fpdev.utils.git` 删除、release wording 契约修复、以及此前 CLI/Git/doc 改动在仓库标准 Pascal 回归下没有引入新失败。
+  - 以当前工作树状态看，已经没有新的测试阻塞项。
+
+## 2026-04-11 Lazarus Manager Follow-up Waves
+- `src/fpdev.cmd.lazarus.root.pas`、`src/fpdev.cmd.lazarus.pas`、`src/fpdev.command.imports.lazarus.pas` 当前都不是主要调度问题中心：
+  - root shell 已只负责注册
+  - compat shim 已收缩
+  - imports 只做聚合
+- `src/fpdev.lazarus.manager.pas` 在 metadataflow slice 完成后，剩余最值得继续下沉的热点按收益排序是：
+  - path/install-state 解析
+  - install callbacks
+  - runtime/IDE actions
+- 已确认本轮最高效率路线固定为四波：
+  - `pathflow`
+  - `install callbacks`
+  - `runtime/IDE actions`
+  - `docs/contracts`
+- 当前强护栏测试：
+  - `tests/test_lazarus_configure_workflow.lpr`
+  - `tests/test_lazarus_update.lpr`
+  - `tests/test_cli_lazarus.lpr`
+  - `tests/test_lazarus_management.lpr`
+  - `tests/test_lazarus_install_boundary.py`
+  - `tests/test_lazarus_callback_contract.py`
+- 计划落点：
+  - `src/fpdev.lazarus.pathflow.pas`
+  - `src/fpdev.lazarus.installcallbacks.pas`
+  - `src/fpdev.lazarus.runtimeactions.pas`
+- 约束保持不变：
+  - `fpdev.lazarus.commandflow` 继续持有用户输出与 plan core
+  - `fpdev.lazarus.manager` 不重新吸回 install flow 用户文案
+  - focused Pascal 编译继续使用独立 `/tmp` 输出目录
+- 本轮已实施完成：
+  - `src/fpdev.lazarus.pathflow.pas`
+  - `src/fpdev.lazarus.installcallbacks.pas`
+  - `src/fpdev.lazarus.runtimeactions.pas`
+- 当前 `src/fpdev.lazarus.manager.pas` 已从 `1060` 行进一步收缩到 `841` 行，职责明显收口到 facade/orchestration：
+  - config/registry access
+  - callback wiring
+  - facade dispatch
+  - 少量薄包装 helper
+- 行为契约保持：
+  - configured custom install path 仍驱动 `ConfigureIDE` / `ShowVersionInfo` / `TestInstallation` / `LaunchIDE`
+  - registry 缺失时，configured/default version 行为不回退
+  - install callback wiring 仍经过 `RunConfigureIDEWithOutputs`，没有退回 overloaded `ConfigureIDE` 指针
+- 文档真相已同步：
+  - `docs/history/B171-large-files-report.md` 已补当前 Lazarus helper 分层与最新行数
+  - `tests/test_contributor_docs_contract.py` 已锁住新 helper 与 `841` 行 manager 事实
+- 验证结论：
+  - focused Python suites 通过
+  - focused Pascal suites 通过
+  - `python3 -m unittest tests.test_contributor_docs_contract -v` 通过
+  - `bash scripts/run_prettier.sh --check docs/history/B171-large-files-report.md` 通过
+  - `bash scripts/run_all_tests.sh` 通过，`279/279`
+
+## 2026-04-09 Git Pull Error Normalizer Extraction
+- 在完成 classifier 抽取后，`src/fpdev.fpc.runtimeflow.pas` 与 `src/fpdev.lazarus.commandflow.pas` 仍保留了重复的本地函数：
+  - `NormalizeGitPullErrorDetail`
+- 这两个重复函数的分支逻辑完全一致，只是调用相同的本地化消息：
+  - `MSG_GIT_UPDATE_DIRTY_WORKTREE`
+  - `MSG_GIT_UPDATE_DETACHED_HEAD`
+  - `MSG_GIT_UPDATE_DIVERGED_HISTORY`
+  - `MSG_FAILED`
+- RED:
+  - 在 `tests/test_fpc_runtimeflow.lpr` 中新增 direct helper 断言，直接调用 `NormalizeGitPullErrorDetail(...)`
+  - focused 编译失败：`Identifier not found "NormalizeGitPullErrorDetail"`
+- GREEN:
+  - `src/fpdev.git.errors.pas` 新增 `NormalizeGitPullErrorDetail`
+  - `src/fpdev.fpc.runtimeflow.pas` 删除本地副本，改用 shared helper
+  - `src/fpdev.lazarus.commandflow.pas` 删除本地副本，改用 shared helper
+- 验证结果：
+  - `tests/test_fpc_runtimeflow.lpr`: 60 passed, 0 failed
+  - `tests/test_lazarus_runtimeflow.lpr`: 31 passed, 0 failed
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+- 结构收益：
+  - Git pull 错误分类和错误文案归一化现在都集中在 `src/fpdev.git.errors.pas`
+  - `fpdev.fpc.runtimeflow` 与 `fpdev.lazarus.commandflow` 不再各自维护同一份归一化逻辑
+  - 下一步如果继续削薄 Git 兼容层，可以优先考虑 `fpdev.utils.git` 中仍然残留的兼容 enum / wrapper 和更高层 runtime 封装
+
+## 2026-04-09 Git Backend Type Extraction
+- 已新增 `src/fpdev.git.types.pas`，把最轻量的 backend 相关符号单独收口：
+  - `TGitBackend`
+  - `GitBackendToString`
+- 第一批业务调用方已切换到该轻量单元：
+  - `src/fpdev.lazarus.manager.pas`
+  - `src/fpdev.lazarus.source.pas`
+  - `src/fpdev.fpc.builder.pas`
+  - `src/fpdev.resource.repo.pas`
+  - `tests/test_lazarus_update.lpr`
+- `src/fpdev.utils.git.pas` 当前保留兼容 facade：
+  - `TGitBackend = fpdev.git.types.TGitBackend`
+  - `GitBackendToString(...)` 内部转发到 `fpdev.git.types`
+- 这一步暴露了一个真实边界裂缝：
+  - `src/fpdev.git.runtime.pas` 仍在使用 `gbNone`
+  - 但它只 `uses fpdev.utils.git`
+  - 在 enum 已拆出后，这不再保证枚举值标识符可见
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.git.runtime should import backend enum symbols from the lightweight types unit`
+  - `test_fpc_builder.lpr` focused 编译失败：`fpdev.git.runtime.pas(77,29) Error: Identifier not found "gbNone"`
+- GREEN 修复：
+  - `src/fpdev.git.runtime.pas` 显式引入 `fpdev.git.types`
+  - `tests/test_git_runtime_boundary.py` 新增 runtime 轻量类型 import 契约
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（4 tests, OK）
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_resource_repo_bootstrap.lpr`: 31 passed, 0 failed
+- 结构判断：
+  - 现在“业务单元 + runtime” 对 backend enum 的依赖已经明确指向 `fpdev.git.types`
+  - `fpdev.utils.git` 还剩下的更像是 runtime behavior、CLI runner contract 和具体 Git operations 封装，而不是纯类型容器
+  - 因此下一条合理路线不是继续搬 enum，而是收缩 `fpdev.git.runtime` 仍从 `fpdev.utils.git` 暴露出去的 contract
+
+## 2026-04-09 Git Runtime Factory Slice
+- 在 backend type 已收口后，`fpdev.git.runtime` 的下一个小问题不是行为逻辑，而是业务模块仍然直接依赖具体构造：
+  - `TGitRuntime.Create`
+  - `TGitRuntime.Create(nil, ACliOnly)`
+- 直接调用点有 6 处：
+  - `src/fpdev.source.repo.pas`
+  - `src/fpdev.fpc.builder.pas`
+  - `src/fpdev.lazarus.source.pas`
+  - `src/fpdev.resource.repo.pas`
+  - `src/fpdev.fpc.manager.pas`
+  - `src/fpdev.lazarus.manager.pas`
+- 这类耦合的问题在于：
+  - 业务模块知道了 runtime 的具体构造细节
+  - 后续如果要隐藏 `IGitCliRunner` / `TGitOperations`，调用点会跟着受影响
+- 因此本轮先选更小的一刀：
+  - 不立即抽 `IGitCliRunner`
+  - 先在 `src/fpdev.git.runtime.pas` 暴露 `NewGitRuntime(...)`
+  - 把业务模块统一切到工厂
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：业务模块仍包含 `TGitRuntime.Create`
+- GREEN 修复：
+  - `src/fpdev.git.runtime.pas` 新增 `NewGitRuntime(const ACliOnly: Boolean = False): IGitRuntime`
+  - 上述 6 个业务模块全部改走 runtime factory
+  - `tests/test_git_runtime_boundary.py` 新增 direct-constructor boundary test
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（5 tests, OK）
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_resource_repo_bootstrap.lpr`: 31 passed, 0 failed
+  - `tests/test_fpc_source_repo.lpr`: 159 passed, 0 failed
+  - `tests/test_fpc_update.lpr`: all tests passed
+- 结构判断：
+  - 现在业务侧已经不再依赖 `TGitRuntime` 的具体构造细节
+  - `fpdev.git.runtime` 还没有摆脱 `fpdev.utils.git` 的 interface-level 依赖，因为它仍公开了 runner overload 且持有 `TGitOperations`
+  - 下一步更自然的是继续处理 `IGitCliRunner` contract 或 runtime 内部 field type 隐藏，而不是再去动业务调用方
+
+## 2026-04-09 Git Runtime Interface Sealing
+- 在 runtime factory 收口后，`src/fpdev.git.runtime.pas` 仍有最后一层 interface 泄漏：
+  - interface uses `fpdev.utils.git`
+  - interface 中直接声明 `TGitRuntime = class`
+  - interface 中出现 `TGitOperations` field 和 `IGitCliRunner` constructor overload
+- 这层泄漏的问题是：
+  - 即使业务模块已经改走 `NewGitRuntime(...)`，编译接口仍然绑定在 `fpdev.utils.git`
+  - 下一步任何 `TGitOperations` / runner contract 调整，都会先击中 runtime interface
+- 仓库内检索确认没有任何外部单元再直接引用 `TGitRuntime` 类型本身；因此可以用更小的方式处理：
+  - 不新建额外 facade
+  - 直接把 `TGitRuntime` 实现类缩回 `implementation`
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.git.runtime interface should not depend on fpdev.utils.git`
+- GREEN 修复：
+  - `src/fpdev.git.runtime.pas` 的 interface uses 只保留 `fpdev.git.types`
+  - `TGitRuntime` 类声明与 `TGitOperations` / `IGitCliRunner` 依赖全部下沉到 `implementation`
+  - interface 层对外只保留：
+    - `IGitRuntime`
+    - `NewGitRuntime(...)`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（6 tests, OK）
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_resource_repo_bootstrap.lpr`: 31 passed, 0 failed
+  - `tests/test_fpc_source_repo.lpr`: 159 passed, 0 failed
+  - `tests/test_fpc_update.lpr`: all tests passed
+- 结构判断：
+  - `fpdev.git.runtime` 已经不再从 interface 层泄漏 `fpdev.utils.git`
+  - 现在真正剩下的 runner contract 只集中在 `fpdev.utils.git`、`fpdev.fpc.builder.di` 和 `tests/test_git_operations.lpr`
+  - 所以下一条最自然的路线不再是碰 runtime，而是评估是否要把 `IGitCliRunner` 从 `fpdev.utils.git` 抽成轻量 contract 单元
+
+## 2026-04-09 Git Runtime Runner Cleanup
+- 在 interface sealing 之后，`src/fpdev.git.runtime.pas` 虽然对外已经干净，但文件内部仍残留：
+  - `constructor Create(const ACliRunner: IGitCliRunner; const ACliOnly: Boolean = False)`
+  - 对 `IGitCliRunner` 的显式文本依赖
+- 仓库内再次检索确认：
+  - 业务侧只通过 `NewGitRuntime(ACliOnly)` 使用 runtime
+  - 没有任何外部单元还需要 runtime 暴露自定义 runner 入口
+- 因此这一步继续做更小的收口：
+  - 不抽新 unit
+  - 直接删除 runtime 内部的 runner-based constructor 路径
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.git.runtime should no longer mention IGitCliRunner`
+- GREEN 修复：
+  - `src/fpdev.git.runtime.pas` 将 `TGitRuntime` 构造器收敛为 `Create(const ACliOnly: Boolean = False)`
+  - `NewGitRuntime(...)` 直接转到这个更小的构造器
+  - runtime 文件中不再出现 `IGitCliRunner`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（7 tests, OK）
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_fpc_source_repo.lpr`: 159 passed, 0 failed
+  - `tests/test_fpc_update.lpr`: all tests passed
+- 结构判断：
+  - 现在 runtime 这一层已经基本收干净了
+  - `IGitCliRunner` 是否值得继续单独抽出，已经变成一个需要重新评估收益的问题，而不是默认必做项
+  - 下一步不应机械继续拆 runner；应先判断 `fpdev.utils.git` 里还有没有更高收益的纯兼容残留
+
+## 2026-04-09 Git Runner Re-Evaluation and Env Helper Extraction
+- 重新核对剩余 runner contract 后，当前真实消费面只剩：
+  - `src/fpdev.utils.git.pas`
+  - `src/fpdev.fpc.builder.di.pas`
+  - `tests/test_git_operations.lpr`
+- 继续把 `IGitCliRunner` 单独抽出去的问题是：
+  - `Execute(...)` 直接绑定 `fpdev.utils.process.TProcessResult`
+  - `src/fpdev.fpc.builder.di.pas` 还在做 `fpdev.fpc.interfaces.TProcessResult -> fpdev.utils.process.TProcessResult` 的适配
+  - 抽新 unit 大概率只是把 process result 耦合整体搬家，而不是减少依赖
+- 因此本轮结论是不继续为 runner contract 拆 unit，而是转向更纯的兼容残留：
+  - `ResolveGitCredentialEnv`
+  - `ResolveGitIdentityEnv`
+- RED 证据：
+  - 将 `tests/test_git_env_credentials.lpr` 与 `tests/test_git_env_identity.lpr` 改为依赖 `fpdev.git.env`
+  - focused 编译失败：`Can't find unit fpdev.git.env`
+- GREEN 修复：
+  - 新增 `src/fpdev.git.env.pas`
+  - 将两组 env helper 的实现迁到新单元
+  - `src/fpdev.utils.git.pas` 保留兼容签名，但内部转发到 `fpdev.git.env`
+  - `tests/test_git_runtime_boundary.py` 新增 focused env unit 约束
+- 追加发现与修复：
+  - 在跑 `tests/test_git_operations.lpr` 时，发现它仍隐式依赖 `fpdev.utils.git` 泄漏 backend enum 标识符
+  - 最小修复是给该测试显式补 `fpdev.git.types`
+  - 并在 `tests/test_git_runtime_boundary.py` 补一条 focused 测试对轻量类型单元的断言
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（9 tests, OK）
+  - `tests/test_git_env_credentials.lpr`: 15 passed, 0 failed
+  - `tests/test_git_env_identity.lpr`: 12 passed, 0 failed
+  - `tests/test_git_operations.lpr`: 251 passed, 0 failed
+- 结构判断：
+  - runner contract 目前不值得继续机械外提
+  - `fpdev.utils.git` 的纯 helper 剩余暴露面已经进一步缩小
+  - 后续如果继续清理，应优先找不携带 `TProcessResult` / `TGitOperations` 行为耦合的纯兼容残留
+
+## 2026-04-09 Legacy Git Facade Runtime Migration
+- 继续筛剩余 `TGitOperations` 直接消费面后，`src/fpdev.git.pas` 是一个合适的下一刀：
+  - 它是 compat facade
+  - 仓库内真实消费面很小，主要是 `tests/test_git_facade.lpr` 和 `tests/fpdev.git2.adapter/test_git.lpr`
+  - 但它仍直接 `uses fpdev.utils.git` 并持有 `TGitOperations`
+- 直接迁移时发现一个语义陷阱：
+  - `src/fpdev.git.runtime.pas` 当前 `Pull(...)` 实际转发到 `PullFastForwardOnly(...)`
+  - 而 `src/fpdev.git.pas` 的 `UpdateRepository(...)` 之前直接调用的是 `TGitOperations.Pull(...)`
+  - 如果机械切到 runtime 的现有 `Pull(...)`，会悄悄把 compat facade 的 update 语义收紧成 ff-only
+- 因此本轮采用更小但语义安全的实现：
+  - 不修改现有 `runtime.Pull(...)`
+  - 在 runtime 额外补一个 merge-capable 入口 `PullWithMerge(...)`
+  - 同时只补 compat facade 真正需要的 pass-through：
+    - `GetRemoteURL`
+    - `GetCurrentBranch`
+    - `ListBranches`
+    - `Add`
+    - `Commit`
+    - `Push`
+    - `GetVersion`
+- RED 证据：
+  - `tests/test_git_runtime_boundary.py` 新增断言后失败：`fpdev.git.pas` 仍包含 `fpdev.utils.git` / `TGitOperations`
+- GREEN 修复：
+  - `src/fpdev.git.runtime.pas` 扩展为 compat facade 提供最小 pass-through
+  - `src/fpdev.git.pas` 改用 `IGitRuntime` / `NewGitRuntime`
+  - `UpdateRepository(...)` 改走 `PullWithMerge(...)`，其余 facade 行为走 runtime 透传
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（10 tests, OK）
+  - `tests/test_git_facade.lpr`: 124 passed, 0 failed
+  - `tests/fpdev.git2.adapter/test_git.lpr`: 编译通过
+  - `python3 -m unittest tests.test_style_regressions_batch19 -v`: 3 tests passed
+- 结构判断：
+  - `fpdev.git.pas` 已不再是 `fpdev.utils.git` 的直接外泄点
+  - 当前仓库里 `TGitOperations` 的直接消费面进一步收缩，主要回到 runtime 本体、DI runner fallback 和 `test_git_operations`
+  - 如果继续清理，下一步更值得看的是：compat facade 之外是否还有可以不扩 runtime 语义就能迁出的旧消费点
+
+## 2026-04-09 FPC Builder DI Git Runtime Bridge
+- 在 compat facade 迁完之后，业务单元里还剩一个明显的旧耦合点：`src/fpdev.fpc.builder.di.pas`
+  - 仍直接提到 `fpdev.utils.git`
+  - 仍知道 `IGitCliRunner`
+  - 仍直接 `TGitOperations.Create(...)`
+- 这条线如果继续往 `fpdev.git.runtime` 扩，会把 builder 专属的 CLI clone fallback 语义塞进 public runtime contract，收益不高。
+- 因此本轮选择更小的一刀：
+  - 不扩 public runtime
+  - 新增 builder 专用 helper `src/fpdev.fpc.builder.gitruntime.pas`
+  - 把 `IProcessRunner -> IGitCliRunner -> TGitOperations.Clone(...)` 这条适配链缩到 helper 内
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.fpc.builder.di.pas` 仍包含 `fpdev.utils.git`
+  - 最后定位到的真实残留点是一条注释文字，而不是行为逻辑
+- GREEN 修复：
+  - 新增 `src/fpdev.fpc.builder.gitruntime.pas`
+  - `src/fpdev.fpc.builder.di.pas` 改为调用 `CloneRepositoryWithProcessRunner(...)`
+  - `builder.di` 中残留的 `fpdev.utils.git` 注释文本一并清理，保证文本边界和代码边界一致
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（11 tests, OK）
+  - `python3 -m unittest tests.test_style_regressions_batch19 -v` 通过（3 tests, OK）
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+- 结构判断：
+  - `fpdev.fpc.builder.di.pas` 已不再直接依赖 `fpdev.utils.git` contract
+  - builder 的 CLI clone fallback 现在被限制在 builder-specific helper 中，没有继续污染公共 runtime 面
+  - 当前剩余 direct `TGitOperations` 消费面更集中，也更容易判断哪些是故意保留的兼容层
+
+## 2026-04-09 Business Module Git Narrative Cleanup
+- 在 `builder.di` 结构边界收口后，业务单元里还残留几处旧叙事：
+  - `src/fpdev.resource.repo.pas`
+  - `src/fpdev.fpc.builder.pas`
+  - `src/fpdev.lazarus.source.pas`
+- 这些点不是行为耦合，而是注释仍把当前实现描述成 `TGitOperations` 直连。
+- 这类残留的问题在于：
+  - 会误导后续维护者，把已经完成的 runtime 迁移说回旧架构
+  - 会让文本边界测试失去可信度，因为“测试红了但代码并没真耦合”会降低信号质量
+- 因此本轮继续做最小收口：
+  - 不改行为
+  - 只把业务单元的描述统一到“git runtime/backend”语义
+  - 并把它固化为 Python boundary contract
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：业务单元仍包含 `TGitOperations`
+- GREEN 修复：
+  - `tests/test_git_runtime_boundary.py` 新增业务单元不得直接描述 `TGitOperations` 的断言
+  - `src/fpdev.resource.repo.pas`、`src/fpdev.fpc.builder.pas`、`src/fpdev.lazarus.source.pas` 的旧注释全部改为 runtime/backend 语义
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（12 tests, OK）
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_resource_repo_bootstrap.lpr`: 31 passed, 0 failed
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+- 结构判断：
+  - 业务单元的代码叙事已经和当前 runtime 架构对齐
+  - `TGitOperations` 现在更明确地收缩到 runtime 本体、builder-specific bridge 和兼容性直测面
+  - 下一步如果继续清理，应优先看 `fpdev.utils.git` interface 上那些已经没有仓库内消费者的兼容 wrapper
+
+## 2026-04-09 Shared Pull Failure Type Reuse
+- 在前面几轮 helper 抽取之后，`src/fpdev.utils.git.pas` 还留着一处纯兼容重复：
+  - `TGitPullFailureKind` 仍本地重复定义
+  - `ClassifyGitPullFailure(...)` 仍做一次手工 enum 映射
+- 这类残留的问题是：
+  - 共享 helper 已经在 `src/fpdev.git.errors.pas` 成为真源头，但 compat unit 仍保留第二份类型定义
+  - 如果将来 `TGitPullFailureKind` 扩容或调整，兼容层容易再次漂移
+- 因此本轮继续做最小收口：
+  - 不删除 compat API
+  - 让 `fpdev.utils.git` 直接 alias `fpdev.git.errors.TGitPullFailureKind`
+  - 同时重导出 `gpfk*` 常量，保持旧调用点语义不变
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.utils.git` 仍本地定义 `TGitPullFailureKind`
+- GREEN 修复：
+  - `src/fpdev.utils.git.pas` 的 `TGitPullFailureKind` 改为共享 alias
+  - `gpfkUnknown` / `gpfkDirtyWorktree` / `gpfkDetachedHead` / `gpfkDivergedHistory` 改为常量重导出
+  - `ClassifyGitPullFailure(...)` 收敛为直接转发到 `fpdev.git.errors.ClassifyGitPullFailure(...)`
+  - `tests/test_git_operations.lpr` 新增 legacy compatibility 断言，覆盖旧入口仍然可用
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（13 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+- 结构判断：
+  - `fpdev.utils.git` 现在不再维护第二份 pull failure enum 定义
+  - 共享 git error helper 已经成为 pull failure classification 的单一真源
+  - 下一步更适合继续筛 `fpdev.utils.git` interface 上那些仅剩兼容转发、且仓库内已无消费者的 wrapper
+
+## 2026-04-09 Compat Wrapper Internal Call Cleanup
+- 在共享 type reuse 之后，`src/fpdev.utils.git.pas` 里还剩一类更细的兼容残留：
+  - 内部 credential loading 仍走 `ResolveGitCredentialEnv(...)` compat wrapper
+  - 内部 commit flow 仍走 `ResolveGitIdentityEnv(...)` compat wrapper
+  - 内部 pull-failure gate 仍走 `ClassifyGitPullFailure(...)` compat wrapper
+- 这类残留的问题是：
+  - wrapper 明明只该是对外兼容入口，内部实现却还在反向依赖它
+  - 会模糊“共享 helper 是真源头、compat wrapper 只是转发层”的结构边界
+- 因此本轮继续做最小收口：
+  - 不删 compat API
+  - 只把 `fpdev.utils.git` 内部逻辑改成直连 `fpdev.git.env` / `fpdev.git.errors`
+  - 用 Python boundary test 把这种“compat wrapper 只留给外部用”的约束固化下来
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`fpdev.utils.git` 内部关键路径仍只在 compat wrapper 里调用共享 helper
+- GREEN 修复：
+  - `LoadCredentialPayloadFromEnv(...)` 改为直接调 `fpdev.git.env.ResolveGitCredentialEnv(...)`
+  - pull-failure gate 改为直接调 `fpdev.git.errors.ClassifyGitPullFailure(...)`
+  - 两处 identity 读取路径都改为直接调 `fpdev.git.env.ResolveGitIdentityEnv(...)`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（13 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+- 结构判断：
+  - `fpdev.utils.git` 内部已经不再反向依赖 compat wrapper
+  - compat wrapper 的定位现在更清晰：只为外部旧调用点保留
+  - 下一步仍然应该优先盘 interface 上那些仓库内已无消费者的兼容 wrapper，而不是动运行时行为
+
+## 2026-04-09 Shared-By-Default Compat Test Cleanup
+- 在 compat wrapper internal-call 收口后，仓库内还有一个“意图不够清晰”的地方：`tests/test_git_operations.lpr`
+  - 它既是 `TGitOperations` 的主回归面
+  - 又顺手在普通测试里直接使用 compat helper wrapper
+- 这会带来两个问题：
+  - shared helper 与 compat helper 的职责边界在测试层不够明确
+  - 即使生产代码已经 shared-by-default，测试本身还会继续充当隐性 compat 消费者
+- 因此本轮做的不是移除 compat coverage，而是把意图写清：
+  - 默认 helper 检查改走 shared helper
+  - compat helper 只在明确命名的 legacy compatibility case 中使用
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：`test_git_operations` 还没有显式区分 shared helper 与 compat wrapper 的使用场景
+- GREEN 修复：
+  - `tests/test_git_operations.lpr` 改为默认使用 `fpdev.git.types.GitBackendToString(...)`
+  - 新增 `TestLegacyGitBackendToStringCompatibility`
+  - `TestLegacyClassifyGitPullFailureCompatibility` 改为显式使用 `fpdev.utils.git.ClassifyGitPullFailure(...)`
+  - `src/fpdev.utils.git.pas` 的 compat helper 区域补说明，明确这些 wrapper 只为外部兼容入口保留
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（13 tests, OK）
+  - `tests/test_git_operations.lpr`: 257 passed, 0 failed
+- 结构判断：
+  - 仓库内测试现在也已经 shared-by-default，compat wrapper 只在显式 legacy coverage 中出现
+  - `fpdev.utils.git` public surface 还没收缩，但其“仅兼容入口”的定位已经更清晰
+  - 下一步更适合直接盘点 interface 上哪些 compat wrapper 在仓库内已经彻底无消费者
+
+## 2026-04-09 Shared-By-Default Env Compat Test Cleanup
+- 在 `test_git_operations` 已经 shared-by-default 之后，env focused tests 还残留同类问题：
+  - `tests/test_git_env_credentials.lpr`
+  - `tests/test_git_env_identity.lpr`
+- 它们虽然已经切到 `fpdev.git.env`，但调用方式还是 unqualified，且没有明确的 legacy compat coverage。
+- 这类残留的问题是：
+  - shared helper 与 compat helper 的边界在 focused env tests 里仍不够显式
+  - 如果以后要判断 `fpdev.utils.git` 的 env wrapper 是否还有仓库内消费者，信号会不够清楚
+- 因此本轮继续同一原则：
+  - shared helper 默认显式调用
+  - compat helper 只在明确命名的 legacy compatibility case 中出现
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：env tests 还没有显式区分 shared helper 与 compat wrapper 的用途
+- GREEN 修复：
+  - `tests/test_git_env_credentials.lpr` 改为默认显式调用 `fpdev.git.env.ResolveGitCredentialEnv(...)`
+  - 新增 credentials legacy compatibility case，显式调用 `fpdev.utils.git.ResolveGitCredentialEnv(...)`
+  - `tests/test_git_env_identity.lpr` 改为默认显式调用 `fpdev.git.env.ResolveGitIdentityEnv(...)`
+  - 新增 identity legacy compatibility case，显式调用 `fpdev.utils.git.ResolveGitIdentityEnv(...)`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（13 tests, OK）
+  - `tests/test_git_env_credentials.lpr`: 21 passed, 0 failed
+  - `tests/test_git_env_identity.lpr`: 20 passed, 0 failed
+- 结构判断：
+  - env focused tests 现在也已经 shared-by-default，compat env wrapper 只在显式 legacy coverage 中出现
+  - 这样 `fpdev.utils.git` 剩余 env wrapper 的仓库内消费面已经更容易精确盘点
+  - 下一步可以更直接判断哪些 compat wrapper 在仓库内已经彻底无消费者
+
+## 2026-04-09 Compat Consumer Boundary Codification
+- 在 `test_git_operations` 和 env focused tests 都完成 shared-by-default 切换后，compat helper 的仓库内消费面已经很窄：
+  - `tests/test_git_operations.lpr`
+  - `tests/test_git_env_credentials.lpr`
+  - `tests/test_git_env_identity.lpr`
+  - 以及实现侧必需的 `src/fpdev.git.runtime.pas` / `src/fpdev.fpc.builder.gitruntime.pas`
+- 这一步最有价值的不是再改行为，而是把“谁还允许碰 compat helper”固定下来。
+- 因此本轮选择：
+  - 不再调整运行时实现
+  - 在 Python boundary suite 中增加 compat helper 消费者白名单
+  - 在 legacy tests 内补更直白的注释，说明这些调用是显式 compat coverage
+- GREEN 结果：
+  - `tests/test_git_runtime_boundary.py` 现在会检查：
+    - `fpdev.utils.git.GitBackendToString(...)` 只允许出现在 `tests/test_git_operations.lpr`
+    - `fpdev.utils.git.ClassifyGitPullFailure(...)` 只允许出现在 `tests/test_git_operations.lpr`
+    - `fpdev.utils.git.ResolveGitCredentialEnv(...)` 只允许出现在 `tests/test_git_env_credentials.lpr`
+    - `fpdev.utils.git.ResolveGitIdentityEnv(...)` 只允许出现在 `tests/test_git_env_identity.lpr`
+  - 三个 legacy test 文件现在也都把这些调用明确标成 explicit compat coverage
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（14 tests, OK）
+  - `tests/test_git_operations.lpr`: 257 passed, 0 failed
+  - `tests/test_git_env_credentials.lpr`: 21 passed, 0 failed
+  - `tests/test_git_env_identity.lpr`: 20 passed, 0 failed
+- 结构判断：
+  - compat helper 的仓库内显式消费面已经被固定成一个很小的白名单
+  - 下一步可以更聚焦地讨论：这些 public compat helper 是否还需要继续保留在 `fpdev.utils.git` interface 上，还是已经可以开始考虑收 public surface
+
+## 2026-04-09 Public Compat Surface Staging
+- 在 compat helper 的仓库内消费者已经被白名单固定后，下一步最值钱的不是立刻删 API，而是把 public compat surface 的默认使用方式彻底收口。
+- 本轮采用“分阶段收口”而不是 breaking change：
+  - `fpdev.utils.git` 继续保留 public helper wrappers
+  - 但仓库默认代码/默认 focused tests 不再 inline 覆盖这些 wrappers
+  - compat coverage 迁到 dedicated legacy suite，interface 和文档都明确标注其 legacy 定位
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 先失败在 5 处：
+    - 缺少 `docs/GIT_COMPAT_MIGRATION.md`
+    - 缺少 `tests/test_git_compat_legacy.lpr`
+    - env focused tests 仍 inline 调用 compat env wrapper
+    - `test_git_operations` 仍 inline 调用 compat backend/error wrapper
+    - `src/fpdev.utils.git.pas` interface 还没有明确 legacy compatibility surface 标识
+- GREEN 修复：
+  - `tests/test_git_runtime_boundary.py` 现在要求 compat helper 只出现在 `tests/test_git_compat_legacy.lpr`
+  - `tests/test_git_operations.lpr` 改为只验证 shared helper `fpdev.git.types` / `fpdev.git.errors`
+  - `tests/test_git_env_credentials.lpr` 与 `tests/test_git_env_identity.lpr` 改为 shared-only focused tests
+  - 新增 `tests/test_git_compat_legacy.lpr`，集中验证 4 个 compat helper 与 shared helper 行为等价
+  - `src/fpdev.utils.git.pas` interface 新增 legacy compatibility surface 注释
+  - 新增 `docs/GIT_COMPAT_MIGRATION.md`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（16 tests, OK）
+  - `tests/test_git_env_credentials.lpr`: 15 passed, 0 failed
+  - `tests/test_git_env_identity.lpr`: 12 passed, 0 failed
+  - `tests/test_git_compat_legacy.lpr`: 20 passed, 0 failed
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+- 结构判断：
+  - `fpdev.utils.git` 现在已经被仓库明确叙述为 legacy compatibility layer，而不是默认 helper 面
+  - shared helper 与 compat wrapper 的职责边界现在同时被源码注释、迁移文档和 boundary tests 固化
+  - 下一步如果要继续收 public surface，可以在 dedicated legacy suite 的保护下更安全地做 deprecate/remove 规划
+
+## 2026-04-09 Git Runtime Impl Unit Split
+- 在 public compat surface 分阶段收口之后，`src/fpdev.git.runtime.pas` 仍然承担了两件事：
+  - 对外定义 `IGitRuntime` contract
+  - 对内直接持有 `TGitRuntime` / `TGitOperations`
+- 这类残留的问题是：
+  - `fpdev.git.runtime` 虽然 interface 很干净，但 unit 本体仍是具体实现依赖点
+  - 任何后续关于 `TGitOperations` 的收口，仍会优先落到这个默认 contract 单元
+- 因此本轮继续做非 breaking 的最小结构切片：
+  - 新增 `src/fpdev.git.runtime.impl.pas`
+  - 让 `src/fpdev.git.runtime.pas` 只保留 `IGitRuntime` 与 `NewGitRuntime(...)`
+  - 用 factory forwarding 连接 contract 和 impl
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：
+    - 缺少 `src/fpdev.git.runtime.impl.pas`
+    - `src/fpdev.git.runtime.pas` 仍直接承载 `TGitRuntime` / `TGitOperations`
+- GREEN 修复：
+  - 新增 `src/fpdev.git.runtime.impl.pas`
+  - `TGitRuntime` 与全部 method forwarding 全部迁入 impl unit
+  - `src/fpdev.git.runtime.pas` 的 `implementation uses` 只保留 `fpdev.git.runtime.impl`
+  - `NewGitRuntime(...)` 改为转发到 `NewGitRuntimeImpl(...)`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（17 tests, OK）
+  - `tests/test_git_facade.lpr`: 124 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+  - `tests/test_fpc_source_repo.lpr`: 159 passed, 0 failed
+- 结构判断：
+  - `fpdev.git.runtime` 现在已经真正变成 contract-only 单元
+  - `fpdev.utils.git` 的默认依赖面进一步缩小到 runtime impl、builder-specific bridge 和 `TGitOperations` 直测面
+  - 下一步如果继续推进，可以更聚焦地盘：`fpdev.utils.git` interface 上的 alias/constants 是否值得开始真正 deprecate/remove
+
+## 2026-04-09 Compat Alias Boundary Codification
+- 在 helper wrapper 已经收口到 dedicated legacy suite 之后，`fpdev.utils.git` interface 上还剩一小块更隐蔽的 compat 面：
+  - `TGitBackend`
+  - `TGitPullFailureKind`
+  - `gpfkUnknown` / `gpfkDirtyWorktree` / `gpfkDetachedHead` / `gpfkDivergedHistory`
+- 这类符号的问题是：
+  - 仓库内当前几乎没有显式消费者，边界很容易重新变模糊
+  - 如果以后真的要 deprecate/remove，没有 dedicated legacy coverage 就缺少稳定锚点
+- 因此本轮继续同一原则：
+  - alias/常量 compat 面不删
+  - 但 dedicated legacy suite 要显式覆盖
+  - Python boundary suite 与迁移文档都要把它们列出来
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：
+    - `docs/GIT_COMPAT_MIGRATION.md` 没提到 `TGitBackend` / `TGitPullFailureKind` / `gpfkUnknown`
+    - `tests/test_git_compat_legacy.lpr` 没有显式 legacy coverage
+- GREEN 修复：
+  - `tests/test_git_runtime_boundary.py` 新增 alias/常量 compat-consumer 白名单
+  - `tests/test_git_compat_legacy.lpr` 新增 legacy type/constant compatibility case
+  - `docs/GIT_COMPAT_MIGRATION.md` 补 alias/常量迁移说明
+  - `src/fpdev.utils.git.pas` 的 const 区补 legacy compatibility 注释
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（18 tests, OK）
+  - `tests/test_git_compat_legacy.lpr`: 26 passed, 0 failed
+- 结构判断：
+  - `fpdev.utils.git` 剩余 public compat surface 现在不只 helper wrappers，连 alias/常量边界也被 dedicated legacy suite 固化了
+  - 这让下一步真正做 deprecate/remove 规划时，风险和验证面都会更可控
+
+## 2026-04-09 Default Operations Entrypoint Migration
+- 在 runtime impl split 与 compat boundary 固化之后，`TGitOperations` 的默认依赖面还残留一个明显问题：
+  - `src/fpdev.git.runtime.impl.pas`
+  - `src/fpdev.fpc.builder.gitruntime.pas`
+  - `tests/test_git_operations.lpr`
+  这些默认消费者仍直接 `uses fpdev.utils.git`
+- 这类残留的问题是：
+  - `fpdev.utils.git` 仍同时承担 compat layer 和默认 operations entrypoint 两种角色
+  - 下一步如果要继续收 public surface，会继续被这些默认消费者卡住
+- 因此本轮继续采用更小的一刀：
+  - 不搬 `TGitOperations` 的大实现体
+  - 先新增 `src/fpdev.git.operations.pas` 作为默认 facade 入口
+  - 把 runtime impl、builder bridge 和直测面都切到新 unit
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：
+    - 缺少 `src/fpdev.git.operations.pas`
+    - `src/fpdev.git.runtime.impl.pas` 仍直接 `uses fpdev.utils.git`
+- GREEN 修复：
+  - 新增 `src/fpdev.git.operations.pas`
+  - `src/fpdev.git.runtime.impl.pas` 改为依赖 `fpdev.git.operations`
+  - `src/fpdev.fpc.builder.gitruntime.pas` 改为依赖 `fpdev.git.operations`
+  - `tests/test_git_operations.lpr` 改为依赖 `fpdev.git.operations`
+  - `docs/GIT_COMPAT_MIGRATION.md` 补 `TGitOperations` / `IGitCliRunner` 的默认入口说明
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（19 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_git_facade.lpr`: 124 passed, 0 failed
+- 结构判断：
+  - `fpdev.utils.git` 现在更明确地退回 compat layer，而不是默认 operations entrypoint
+  - 默认代码面对 `TGitOperations` 的依赖已经被压到 `fpdev.git.operations`
+  - 下一步如果继续推进，可以开始评估 `fpdev.utils.git` 是否已经适合真正做 deprecate/remove 计划
+
+## 2026-04-09 Operations Facade Narrative Hardening
+- 在默认入口迁移已经落地后，边界上还剩最后一层叙事缺口：
+  - `src/fpdev.git.operations.pas` 还没有明确声明自己是 `TGitOperations` / `IGitCliRunner` 的默认入口
+  - `src/fpdev.utils.git.pas` 虽然已标 legacy compatibility surface，但还没有把 operations consumer 明确引导到 `fpdev.git.operations`
+- 这层缺口的问题是：
+  - 文本边界测试无法把“默认入口已迁移”和“源码叙事已对齐”绑定在一起
+  - 后续读源码的人仍可能把 `fpdev.utils.git` 误判为 operations 的默认入口
+- 因此本轮继续采用更小的一刀：
+  - 不改实现，不改签名
+  - 只补 default-entrypoint 与 migration-routing 注释
+  - 让 `fpdev.utils.git` direct import 白名单与源文件叙事保持一致
+- 接续上一轮 RED 证据：
+  - `tests/test_git_runtime_boundary.py` 已新增断言，要求 `src/fpdev.git.operations.pas` 包含 `Default entrypoint for TGitOperations and IGitCliRunner.`
+  - `tests/test_git_runtime_boundary.py` 已新增断言，要求 `src/fpdev.utils.git.pas` 包含 `New code that needs TGitOperations or IGitCliRunner should prefer fpdev.git.operations.`
+- GREEN 修复：
+  - 在 `src/fpdev.git.operations.pas` 补默认入口注释
+  - 在 `src/fpdev.utils.git.pas` 补 operations facade 迁移提示
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（21 tests, OK）
+- 结构判断：
+  - `fpdev.utils.git` 现在不仅在依赖面上退回 compat layer，在源码叙事上也不再充当 operations 默认入口
+  - 仓库内 direct import `fpdev.utils.git` 的白名单现在稳定为 `src/fpdev.git.operations.pas` 与 `tests/test_git_compat_legacy.lpr`
+  - 下一步如果继续推进，重点应该转向真正的 deprecate/remove 规划，而不是继续修补默认入口语义
+
+## 2026-04-09 Compat Surface Soft Deprecation
+- 在 direct-import 白名单和 dedicated legacy suite 都已经稳定后，`fpdev.utils.git` 的剩余 compat public surface 进入了一个新的阶段：
+  - 它们仍要保留，不能立刻删
+  - 但仓库默认代码已经不该继续把这些 symbol 当成正常入口
+- 这时继续只靠注释已经不够，因为：
+  - external caller 读到 interface 时没有编译期信号
+  - dedicated legacy suite 之外的新调用即使违反迁移方向，也不会被即时提醒
+- 因此本轮选择继续做更小但更有约束力的一刀：
+  - 不删 compat API
+  - 给 compat alias / const / helper wrapper 全部补 `deprecated` 提示，直接把替代入口写进编译器 warning
+  - 同时把 `fpdev.utils.git` 内部实现切回 shared type/const，避免普通 operations 编译被 compat warning 污染
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 新增断言后失败：
+    - `src/fpdev.utils.git.pas` 还没有 `deprecated` migration marker
+    - `docs/GIT_COMPAT_MIGRATION.md` 还没有 soft-deprecated / compiler warnings 说明
+- GREEN 修复：
+  - `src/fpdev.utils.git.pas` 为以下 compat public surface 补 `deprecated`：
+    - `TGitBackend`
+    - `TGitPullFailureKind`
+    - `gpfkUnknown` / `gpfkDirtyWorktree` / `gpfkDetachedHead` / `gpfkDivergedHistory`
+    - `GitBackendToString(...)`
+    - `ClassifyGitPullFailure(...)`
+    - `ResolveGitCredentialEnv(...)`
+    - `ResolveGitIdentityEnv(...)`
+  - `src/fpdev.utils.git.pas` 内部字段与比较逻辑改回 shared type/const，避免默认 operations 路径自触发 compat warning
+  - `docs/GIT_COMPAT_MIGRATION.md` 补充 soft-deprecated 与 compiler warnings 说明
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（22 tests, OK）
+  - `tests/test_git_compat_legacy.lpr`: 26 passed, 0 failed，且按预期发出 17 条 deprecated warnings
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed，普通 operations 路径编译已无 compat self-warning
+- 结构判断：
+  - `fpdev.utils.git` 的剩余 compat public surface 现在不仅被 dedicated legacy suite 隔离，还开始对外发出明确迁移信号
+  - deprecate/remove 规划现在可以基于真实 warning 面推进，而不是只靠文档和注释
+  - builder/runtime/operations 默认路径仍保持干净，兼容提示主要集中在显式 legacy caller 上
+
+## 2026-04-10 Removal Staging And Bridge Decisions
+- 基于 soft-deprecation 之后的下一步，先做了全仓 Pascal caller 扫描，范围是：
+  - `src/*.pas`
+  - `tests/*.pas`
+  - `tests/*.lpr`
+- 扫描结果很清楚，以下 deprecated compat public surface 的仓库内 Pascal caller 都只剩 `tests/test_git_compat_legacy.lpr`：
+  - `fpdev.utils.git.TGitBackend`
+  - `fpdev.utils.git.TGitPullFailureKind`
+  - `fpdev.utils.git.gpfkUnknown` / `gpfkDirtyWorktree` / `gpfkDetachedHead` / `gpfkDivergedHistory`
+  - `fpdev.utils.git.GitBackendToString(...)`
+  - `fpdev.utils.git.ClassifyGitPullFailure(...)`
+  - `fpdev.utils.git.ResolveGitCredentialEnv(...)`
+  - `fpdev.utils.git.ResolveGitIdentityEnv(...)`
+- 这意味着 removal staging 可以正式分成三组：
+  - A 组：上述 deprecated alias/helper，进入 next breaking window candidate removal 清单
+  - B 组：默认代码仍需要的实现桥接面
+    - `src/fpdev.git.operations.pas`
+    - `src/fpdev.fpc.builder.gitruntime.pas`
+  - C 组：本轮明确不动的大实现面
+    - `TGitOperations`
+    - `IGitCliRunner`
+- 对两个结构问题，这轮也已经落成明确决策：
+  - `src/fpdev.fpc.builder.gitruntime.pas` 继续保持 builder-specific helper
+    - 理由：仓库内 Pascal caller 扫描显示它当前只有 `src/fpdev.fpc.builder.di.pas`
+    - 现在为了“可能的未来复用”去抽通用 clone adapter，会提前扩大抽象面，但没有第二个真实 caller 支撑
+  - `tests/test_git_operations.lpr` 保持为 `fpdev.git.operations` 的 focused contract suite
+    - 它继续直接验证默认 facade 入口是合理的
+    - 但它不再是 compat layer direct consumer，也不该被记作 removal blocker
+- 因此本轮不是再删代码，而是把 remove 前置条件固化成边界：
+  - compat alias/helper caller 白名单扩大到全仓 Pascal 文件
+  - builder helper 的 repo 消费面固定为 `src/fpdev.fpc.builder.di.pas`
+  - `tests/test_git_operations.lpr` 的定位固定为“default operations facade focused contract suite”
+- GREEN 修复：
+  - `docs/GIT_COMPAT_MIGRATION.md` 现在包含 removal staging 的 A/B/C 叙事与 next breaking window candidate 列表
+  - `src/fpdev.fpc.builder.gitruntime.pas` 补 builder-specific 注释
+  - `tests/test_git_operations.lpr` 补 focused facade suite 注释
+  - `tests/test_git_runtime_boundary.py` 扩展了全仓 caller 白名单与 bridge/suite 定位断言
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（24 tests, OK）
+  - `tests/test_git_compat_legacy.lpr`: 26 passed, 0 failed；17 条 deprecated warnings
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+- 结构判断：
+  - removal staging 现在不只是“文档计划”，而是已经具备代码注释、迁移文档、全仓 boundary、focused suite 四层证据
+  - 下一刀如果要真正删 A 组 symbol，已经不需要再重新盘 builder/test 结构，只要确认 breaking window 即可
+
+## 2026-04-10 Breaking Removal Of Compat Helpers
+- 在 removal staging 证据已经完整后，这轮直接执行 breaking removal，而不是继续停留在 soft-deprecated 状态。
+- 删除范围是 `fpdev.utils.git` 中 A 组 compat public surface：
+  - `TGitBackend`
+  - `TGitPullFailureKind`
+  - `gpfkUnknown` / `gpfkDirtyWorktree` / `gpfkDetachedHead` / `gpfkDivergedHistory`
+  - `GitBackendToString(...)`
+  - `ClassifyGitPullFailure(...)`
+  - `ResolveGitCredentialEnv(...)`
+  - `ResolveGitIdentityEnv(...)`
+- 这轮删除成立的前提已经被上一轮验证覆盖：
+  - 仓库内 Pascal caller 为零
+  - builder bridge 与 operations focused suite 的定位已经固定
+  - `TGitOperations` / `IGitCliRunner` 仍通过 `fpdev.git.operations` 对外提供默认入口
+- GREEN 修复：
+  - `src/fpdev.utils.git.pas` 删除 compat alias/helper declaration 与 forwarding implementation
+  - `tests/test_git_compat_legacy.lpr` 删除
+  - `tests/test_git_runtime_boundary.py` 改为检查：
+    - removed compat surface 不再出现在 `fpdev.utils.git` interface
+    - repo Pascal files 不再消费这些 removed symbol
+    - `tests/test_git_compat_legacy.lpr` 已不存在
+    - `fpdev.utils.git` direct import 只剩 `src/fpdev.git.operations.pas`
+  - `docs/GIT_COMPAT_MIGRATION.md` 改为 breaking removal completed 叙事
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（24 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `test ! -e tests/test_git_compat_legacy.lpr` 成功
+- 结构判断：
+  - `fpdev.utils.git` 现在只保留 `TGitOperations` / `IGitCliRunner` 及其实现相关 public surface
+  - helper/alias 兼容层已真正退出当前代码树，而不是继续以 deprecated 形式悬挂
+  - 下一阶段如果继续清理，重点不再是 helper removal，而是是否要进一步搬迁 `TGitOperations` 的实现归属
+
+## 2026-04-10 TGitOperations Implementation Relocation
+- helper/alias breaking removal 完成后，剩余的结构性问题已经非常聚焦：
+  - `src/fpdev.git.operations.pas` 虽然已是默认入口，但仍只是 alias facade
+  - `src/fpdev.utils.git.pas` 仍承载 `TGitOperations` / `IGitCliRunner` 的 concrete implementation
+  - 这会让 compat shim 和默认实现归属继续绑在一起
+- 本轮选择最小迁移方式，而不是重写实现：
+  - 直接把现有大实现体整体迁到 `src/fpdev.git.operations.impl.pas`
+  - `src/fpdev.git.operations.pas` 改为默认 facade over `fpdev.git.operations.impl`
+  - `src/fpdev.utils.git.pas` 缩成 legacy compatibility shim over `fpdev.git.operations`
+- 这样做的好处是：
+  - 默认代码路径的 implementation ownership 与 public entrypoint 对齐
+  - compat unit 不再承载真实行为，只保留旧 import 的类型别名兼容
+  - 迁移规模仍然足够小，没有重写 `TGitOperations` 内部 libgit2 / CLI fallback 逻辑
+- GREEN 修复：
+  - 新增 `src/fpdev.git.operations.impl.pas`
+  - `src/fpdev.git.operations.pas` 不再 `uses fpdev.utils.git`
+  - `src/fpdev.utils.git.pas` 重写为 2 个 alias 的薄 shim
+  - `docs/GIT_COMPAT_MIGRATION.md` 改写为“compatibility shim over `fpdev.git.operations`”叙事
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（24 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `tests/test_fpc_builder.lpr`: 90 passed, 0 failed
+  - `tests/test_git_facade.lpr`: 124 passed, 0 failed
+  - `python3 -m unittest tests.test_style_regressions_batch19 -v` 通过（3 tests, OK）
+- 结构判断：
+  - `fpdev.git.operations` 现在不仅是默认入口，而且已经成为默认实现归属链路的入口
+  - `fpdev.utils.git` 现在是真正意义上的 compatibility shim，而不再是“legacy facade + real implementation”混合体
+  - 下一步如果继续推进，重点会从 implementation relocation 转向是否要给 compat shim 制定最终 retire/remove 策略
+
+## 2026-04-10 Compat Shim Soft Deprecation
+- 在实现归属迁走之后，`fpdev.utils.git` 已经只剩两个 alias：
+  - `TGitOperations`
+  - `IGitCliRunner`
+- 这时继续让 shim 静默存在的问题是：
+  - 仓库内虽然已经没有内部 Pascal caller，但外部 caller 仍不会收到任何迁移信号
+  - final remove 的下一步缺少 compiler-level 过渡阶段
+- 因此这轮继续做最小推进，而不是直接删除 shim：
+  - 保留 `src/fpdev.utils.git.pas`
+  - 只给两个 alias 加 `deprecated 'Use fpdev.git.operations instead'`
+  - 同时把 boundary 从“compat shim 不能含 deprecated”调整为“removed helper 不得复活，但剩余 shim alias 必须 soft-deprecated”
+- GREEN 修复：
+  - `src/fpdev.utils.git.pas` 的 `IGitCliRunner` / `TGitOperations` alias 现在都带 deprecation message
+  - `tests/test_git_runtime_boundary.py` 现在显式要求：
+    - compat shim 带 deprecation marker
+    - `fpdev.git.operations` 默认入口不带该 marker
+    - 编译一个临时 Pascal caller 时，compat shim 会为两个 alias 自动发出 deprecation warning
+  - `docs/GIT_COMPAT_MIGRATION.md` 现在写明 shim aliases 已 soft-deprecated，并指向 `fpdev.git.operations`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（25 tests, OK）
+  - `tests/test_git_operations.lpr`: 254 passed, 0 failed
+  - `python3 -m unittest tests.test_style_regressions_batch19 -v` 通过（3 tests, OK）
+  - 临时编译样例 `/tmp/test_utils_git_deprecated.lpr` 成功，并发出：
+    - `Warning: Symbol "TGitOperations" is deprecated: "Use fpdev.git.operations instead"`
+    - `Warning: Symbol "IGitCliRunner" is deprecated: "Use fpdev.git.operations instead"`
+- 结构判断：
+  - 现在默认入口和 compat 入口之间已经不只是“路径不同”，而是具备 compiler-level 迁移信号
+  - 下一步如果继续推进，可以基于真实 warning 面去评估最终删除 `fpdev.utils.git` 的时机
+
+## 2026-04-10 Conservative Doc Cleanup For Compat Shim
+- 在 soft-deprecated shim 已落地之后，仓库里还剩一类会误导维护者的残留：
+  - 历史 roadmap 仍把 `DownloadSource` 描述成直接调用 `TGitOperations.Clone`
+  - 历史 roadmap 仍把 `src/fpdev.utils.git.pas` 写成 backend detection 的当前落点
+  - `docs/history/B166-deprecated-cleanup.md` 仍把 `fpdev.utils.git` 叙述成保留 `SharedGitManager` 的内部实现单元
+- 这类问题虽然不影响运行时，但会破坏 conservative route 的目标：
+  - 外部/后来维护者仍可能被历史文档误导，继续把 compat shim 当作推荐入口
+  - 之后再推进 final remove 时，文档叙事会与代码边界失配
+- GREEN 修复：
+  - `docs/history/DEVELOPMENT_ROADMAP.md` / `.en.md` 现在把 Git 入口改写为：
+    - `fpdev.git.operations`
+    - `src/fpdev.git.operations.impl.pas`
+    - `src/fpdev.fpc.builder.gitruntime.pas`
+  - `docs/history/B166-deprecated-cleanup.md` 现在明确标记：
+    - 其中关于 `SharedGitManager` 的描述只属于当时历史语境
+    - 当前工作树里 `fpdev.utils.git` 已是指向 `fpdev.git.operations` 的 soft-deprecated compatibility shim
+  - `CLAUDE.md` 的 Git integration 指南现在也明确把新代码入口指向：
+    - `src/fpdev.git.operations.pas`
+    - `src/fpdev.git.operations.impl.pas`
+    - 并把 `src/fpdev.utils.git.pas` 标成 soft-deprecated compatibility shim
+  - `tests/test_git_runtime_boundary.py` 新增历史文档边界，防止旧入口叙事回流
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（28 tests, OK）
+- 结构判断：
+  - conservative route 现在已经同时覆盖代码、编译器 warning、迁移文档、历史路线图四层叙事
+  - 如果后续继续保守推进，下一批值得看的不再是 Git 入口文档，而是外部使用示例与非测试性的 README/guide 是否还需同步
+
+## 2026-04-10 Conservative Doc Cleanup For Changelog And Audit
+- 在清完 migration doc、历史 roadmap 和 `CLAUDE.md` 之后，还剩两份文档会继续误导读者：
+  - `CHANGELOG.md` 仍把 `fpdev.utils.git.pas` 列成普通 Git utilities 模块
+  - `docs/history/DEPRECATED_CODE_AUDIT.md` 仍停留在旧的 `SharedGitManager` / `TGitOperations.FGitManager` 语境，没有补当前 worktree 的后续迁移结果
+- 这类文档和前一批不同：
+  - `CHANGELOG.md` 兼具当前入口索引与历史记录双重作用，如果不补 current-worktree note，会把读者重新引回 compat shim
+  - `DEPRECATED_CODE_AUDIT.md` 是历史审计文档，但仍需要清楚标注“后续已被 superseded”，否则会误导对当前代码边界的判断
+- GREEN 修复：
+  - `CHANGELOG.md` 现在在 `Unreleased` 区和旧 Phase 2 / utility list 处都补了 current-worktree Git note：
+    - 默认入口是 `fpdev.git.operations`
+    - 具体实现是 `fpdev.git.operations.impl`
+    - `fpdev.utils.git` 只是 soft-deprecated compatibility shim
+  - `docs/history/DEPRECATED_CODE_AUDIT.md` 现在补了 current worktree note，并把 `No action needed` 改成更明确的历史语境表述
+  - `tests/test_git_runtime_boundary.py` 现在也覆盖了 changelog/audit 这两份文档
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary.GitRuntimeBoundaryTests.test_changelog_marks_utils_git_as_legacy_path -v` 通过
+  - `python3 -m unittest tests.test_git_runtime_boundary.GitRuntimeBoundaryTests.test_historical_deprecated_code_audit_marks_utils_git_as_superseded -v` 通过
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（30 tests, OK）
+- 结构判断：
+  - 保守路线下，当前仓库里会影响“默认 Git 入口认知”的非测试文档基本已经收口
+  - 现在剩余的 `fpdev.utils.git` 文本引用，主要集中在迁移记录文件与有意保留的迁移文档，而不是面向当前开发的说明入口
+
+## 2026-04-10 Conservative Guide Cleanup For Git2 Usage Docs
+- 在 changelog / audit 文档收口之后，再扫现行 guide 时发现一个更细但真实的缺口：
+  - `README.md` 本身没有继续指向 `fpdev.utils.git`
+  - 但 `docs/GIT2_USAGE.md` / `.en.md` 只讲了 libgit2 层，没有补当前 worktree 的 system-git facade 入口
+- 这会带来一个维护成本问题：
+  - 读 guide 的人会知道 `git2.api` / `git2.impl`
+  - 但如果要看当前仓库里的 system-git wrapper / operations facade，文档里没有把 `fpdev.git.operations` 说清楚
+- GREEN 修复：
+  - `docs/GIT2_USAGE.md` / `.en.md` 都补了 current worktree note：
+    - `fpdev.git.operations` 是 `TGitOperations` / `IGitCliRunner` 的默认入口
+    - `src/fpdev.git.operations.impl.pas` 是具体实现
+    - `src/fpdev.utils.git.pas` 只是 soft-deprecated compatibility shim
+  - `tests/test_git_runtime_boundary.py` 现在也会检查两份 guide 是否保留这条说明
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary.GitRuntimeBoundaryTests.test_git2_usage_guides_point_system_git_facade_at_operations_units -v` 通过
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（31 tests, OK）
+- 额外记录：
+  - 按 docs workflow 尝试执行 `yarn prettier --write ./docs/GIT2_USAGE.md ./docs/GIT2_USAGE.en.md`
+  - 当前仓库下的 prettier 调用返回 `No files matching the pattern were found`
+  - 这是本地文档格式化入口问题，不是内容回归；本轮未继续扩面排查 formatter 配置
+- 结构判断：
+  - 面向当前开发者/维护者的 Git 入口说明现在已经覆盖：
+    - migration doc
+    - historical docs
+    - CLAUDE.md
+    - changelog/audit
+    - active Git2 usage guides
+  - 如果继续保守推进，下一步已经不再是补“入口说明”，而更像是决定是否要专门整理 formatter/doc tooling 或开始评估 final remove 路线
+
+## 2026-04-10 Conservative Active Doc Cleanup For Architecture And Libgit2 Guides
+- 在 `GIT2_USAGE`、`CHANGELOG`、历史文档都收口之后，再扫一轮活跃文档，发现真正还值得补的只剩两类：
+  - `docs/ARCHITECTURE.md` / `.en.md` 的架构总览里，Git 服务仍是抽象大词，没有把当前默认 system-git 入口写清楚
+  - `docs/LIBGIT2_INTEGRATION.md` / `.en.md` 是活跃集成文档，但没有声明自己只覆盖 libgit2 路径，也没有把 system-git facade 导向 `fpdev.git.operations`
+- 同时复查了 `README`、`QUICKSTART`、`INSTALLATION`：
+  - 它们没有继续把 `fpdev.utils.git` 误写成当前默认入口
+  - 因此本轮保持保守路线，只动真正存在叙事缺口的文档
+- RED 证据：
+  - `tests/test_git_runtime_boundary.py` 新增两组断言后失败：
+    - `docs/ARCHITECTURE.md` / `.en.md` 不包含 `fpdev.git.operations`
+    - `docs/LIBGIT2_INTEGRATION.md` / `.en.md` 不包含 `system-git facade` 与新的入口说明
+- GREEN 修复：
+  - `docs/ARCHITECTURE.md` / `.en.md` 现在新增 Git service notes，明确：
+    - system-git 新代码默认走 `src/fpdev.git.operations.pas`
+    - `src/fpdev.git.operations.impl.pas` 承载 `TGitOperations` / `IGitCliRunner` 的具体实现
+    - `src/fpdev.utils.git.pas` 只保留 soft-deprecated compatibility shim 角色
+  - `docs/LIBGIT2_INTEGRATION.md` / `.en.md` 现在新增 scope note，明确：
+    - 本文档主要覆盖 libgit2 路径
+    - 当前工作树中的 system-git facade 默认入口是 `fpdev.git.operations`
+    - `src/fpdev.git.operations.impl.pas` 是具体实现
+    - `src/fpdev.utils.git.pas` 仍只是 soft-deprecated compatibility shim
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（33 tests, OK）
+- 额外记录：
+  - 按 docs workflow 再次尝试：
+    - `yarn prettier --write docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md docs/LIBGIT2_INTEGRATION.md docs/LIBGIT2_INTEGRATION.en.md`
+    - `yarn prettier --write ./docs/ARCHITECTURE.md ./docs/ARCHITECTURE.en.md ./docs/LIBGIT2_INTEGRATION.md ./docs/LIBGIT2_INTEGRATION.en.md`
+  - 两次都返回 `No files matching the pattern were found`
+  - 因此本轮继续把它记录为文档格式化入口问题，而不是内容回归
+- 结构判断：
+  - 面向当前维护者的活跃 Git 文档说明现在已经覆盖：
+    - migration doc
+    - Git2 usage guide
+    - architecture overview
+    - libgit2 integration guide 的 scope note
+  - 下一步如果继续保守推进，更像是二选一：
+    - 单独处理 docs tooling / formatter 入口
+    - 或开始整理最终移除 `fpdev.utils.git` 的条件清单
+
+## 2026-04-10 Docs Formatter Entrypoint Recovery
+- 在前一轮文档收口之后，唯一还留着的噪音是：
+  - `yarn prettier --write docs/...`
+  - `yarn prettier --write ./docs/...`
+  都会报 `No files matching the pattern were found`
+- root-cause 证据：
+  - 直接运行 `/home/dtamade/node_modules/.bin/prettier --check docs/ARCHITECTURE.md` 可以正常识别文件，并给出格式结果
+  - 通过 `yarn run prettier --check docs/ARCHITECTURE.md` 调同一个二进制，却会报相对路径不存在
+  - 当前仓库本身没有 `package.json` / `.prettier*`；`yarn` 实际是借用了上级 `/home/dtamade/package.json` 的环境
+- 判断：
+  - 问题不在 Markdown 内容，也不在 Prettier 本体
+  - 问题在 `yarn prettier` 这层外壳对仓库外上级 workspace 的依赖，导致 repo 里的相对路径不稳定
+- RED 证据：
+  - 新增 `tests/test_run_prettier_sh.py`
+  - 在脚本不存在时，focused suite 失败：
+    - `Missing /home/dtamade/projects/fpdev/scripts/run_prettier.sh`
+    - 其它用例也因脚本缺失返回 127
+- GREEN 修复：
+  - 新增 `scripts/run_prettier.sh`
+  - 设计成仓库内稳定入口：
+    - 直接查找 `prettier`
+    - 找不到时回退 `${HOME}/node_modules/.bin/prettier`
+    - 再尝试通过 `node require.resolve('prettier/bin/prettier.cjs')` 定位
+    - 不再依赖 `yarn prettier` 这层包装
+  - 该脚本对 `--check` / `--write` 与相对/绝对路径参数做原样透传
+  - 已实际用该脚本格式化：
+    - `docs/ARCHITECTURE.md`
+    - `docs/ARCHITECTURE.en.md`
+    - `docs/LIBGIT2_INTEGRATION.md`
+    - `docs/LIBGIT2_INTEGRATION.en.md`
+- 验证结果：
+  - `python3 -m unittest tests.test_run_prettier_sh -v` 通过（4 tests, OK）
+  - `bash scripts/run_prettier.sh --write docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md docs/LIBGIT2_INTEGRATION.md docs/LIBGIT2_INTEGRATION.en.md` 成功执行
+  - `bash -n scripts/run_prettier.sh` 通过
+  - `python3 -m unittest tests.test_run_prettier_sh tests.test_git_runtime_boundary -v` 通过（37 tests, OK）
+- 结构判断：
+  - 仓库现在已经有了不依赖外部 workspace 包装层的文档格式化入口
+  - 后续如果继续补文档，不必再把 `yarn prettier` 的环境噪音当成内容问题
+
+## 2026-04-10 Doc Tooling And Git Compat Closure
+- 用户确认继续把“效率最高的下一批”一波做完之后，本轮把剩余 8 项收口动作合并为一个正式计划：
+  - 计划文件：`docs/plans/2026-04-10-doc-tooling-and-git-compat-closure.md`
+- 这轮的关键目标不是继续改 Git 实现，而是把已经落地的结构边界转成：
+  - contributor docs 可直接照抄的高频命令
+  - active docs 的 shim mention 白名单
+  - `fpdev.utils.git` 最终 removal 前的 gate policy
+- RED 证据：
+  - `python3 -m unittest tests.test_contributor_docs_contract -v` 失败 2 项：
+    - `CLAUDE.md` 仍写 `python3 -m pytest tests -q`
+    - `docs/testing.md` 还没有 `scripts/run_prettier.sh` 和 `/tmp` focused Pascal guidance
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 失败 1 项：
+    - `docs/GIT_COMPAT_MIGRATION.md` 尚未定义 `Final removal gates` 与 `Current text-reference buckets`
+- GREEN 修复：
+  - `CLAUDE.md`
+    - Python baseline 改为 `python3 -m unittest discover -s tests -p 'test_*.py'`
+    - 补了 `bash scripts/run_prettier.sh --check docs/testing.md`
+    - 补了 `/tmp/fpdev-test-bin` / `/tmp/fpdev-test-lib` 的 focused Pascal compile 示例
+    - 补了 `FPDEV_TEST_PROJECT_ROOT="$(pwd)" ...` 的运行方式
+  - `docs/testing.md`
+    - 新增高频本地命令索引
+    - 新增 repo-local Prettier wrapper 用法
+    - 新增 focused Pascal 手工编译时写到 `/tmp` 的标准模式
+    - 新增 `FPDEV_TEST_PROJECT_ROOT=` 说明
+  - `docs/GIT_COMPAT_MIGRATION.md`
+    - 新增 `Final removal gates`
+    - 新增 `Current text-reference buckets`
+    - 明确 active docs 只有在解释 migration / compatibility scope 时才允许提 `fpdev.utils.git`
+  - `tests/test_git_runtime_boundary.py`
+    - 新增 migration gate / reference bucket 断言
+    - 新增 active-doc whitelist 断言
+  - `tests/test_contributor_docs_contract.py`
+    - 新增 contributor docs 对 formatter / unittest / `/tmp` focused Pascal guidance 的断言
+- 验证结果：
+  - `python3 -m unittest tests.test_contributor_docs_contract -v` 通过（25 tests, OK）
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（35 tests, OK）
+  - `bash scripts/run_prettier.sh --write CLAUDE.md docs/testing.md docs/GIT_COMPAT_MIGRATION.md docs/plans/2026-04-10-doc-tooling-and-git-compat-closure.md` 成功
+  - `bash scripts/run_prettier.sh --check CLAUDE.md docs/testing.md docs/GIT_COMPAT_MIGRATION.md docs/plans/2026-04-10-doc-tooling-and-git-compat-closure.md` 通过
+  - `bash -n scripts/run_prettier.sh` 通过
+  - `python3 -m unittest tests.test_run_prettier_sh tests.test_contributor_docs_contract tests.test_git_runtime_boundary -v` 通过（64 tests, OK）
+- 结构判断：
+  - 现在 contributor-facing 的高频入口已经不再依赖外部 `yarn` workspace 或过时的 `pytest` 指令
+  - `fpdev.utils.git` 的剩余存在理由也已经从“口头共识”变成文档化的 final-removal gate
+  - 下一步如果继续推进，最合理的是直接整理 breaking remove 清单，而不是再做一轮大范围文档搜补
+
+## 2026-04-10 Git Compat Breaking Removal Staging
+- 在 contributor docs 和 migration gate 收口之后，下一步最值钱的动作不是立刻删 `src/fpdev.utils.git.pas`，而是把 breaking remove 变成：
+  - 一个可执行计划文件
+  - 一个 migration doc 入口
+  - 一个 boundary 契约
+- RED 证据：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 失败 2 项：
+    - 缺少 `docs/plans/2026-04-10-git-compat-breaking-removal.md`
+    - `docs/GIT_COMPAT_MIGRATION.md` 尚未链接该计划
+- GREEN 修复：
+  - 新增 `docs/plans/2026-04-10-git-compat-breaking-removal.md`
+  - 计划里明确了：
+    - `Delete: src/fpdev.utils.git.pas`
+    - breaking release note 的模板
+    - `tests.test_git_runtime_boundary`
+    - `tests.test_contributor_docs_contract`
+    - `tests.test_run_prettier_sh`
+    - Pascal focused suites 的 `/tmp` 验证命令
+  - `docs/GIT_COMPAT_MIGRATION.md` 现在把 staged execution checklist 指向该计划
+- 额外记录：
+  - 一次并行的 `--write` / `--check` 结果不具备验收意义，因为 `--check` 可能在格式化前执行
+  - 已改为串行重跑 `bash scripts/run_prettier.sh --check docs/GIT_COMPAT_MIGRATION.md docs/plans/2026-04-10-git-compat-breaking-removal.md`
+- 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` 通过（36 tests, OK）
+  - `python3 -m unittest tests.test_run_prettier_sh tests.test_contributor_docs_contract tests.test_git_runtime_boundary -v` 通过（65 tests, OK）
+  - `bash scripts/run_prettier.sh --check docs/GIT_COMPAT_MIGRATION.md docs/plans/2026-04-10-git-compat-breaking-removal.md` 通过
+- 结构判断：
+  - 现在 breaking remove 已经不是模糊口号，而是有明确删除目标、文档入口、release-note 模板和验证束的 staged plan
+  - 下一步如果继续推进，已经可以直接选“执行 breaking delete”而不是再写一轮准备文档
+
+## 2026-04-10 FPC Metadataflow Extraction
+- `src/fpdev.fpc.manager.pas` 仍是当前显著热点之一，而 install metadata / verification metadata 这段逻辑已经具备纯函数化条件，适合作为下一刀。
+- 本轮最小切片已经落地：
+  - 新增 `src/fpdev.fpc.metadataflow.pas`
+  - 抽出 4 个 helper：
+    - `ResolveFPCMetadataScopeCore`
+    - `InferFPCStatusScopeCore`
+    - `BuildFPCInstallMetadataCore`
+    - `ApplyFPCVerificationMetadataCore`
+  - `src/fpdev.fpc.manager.pas` 的以下方法改为委托 helper：
+    - `ResolveMetadataScope`
+    - `InferStatusScope`
+    - `WriteInstallMetadata`
+    - `UpdateVerificationMetadata`
+- 在接线过程中暴露出一个真实结构问题：
+  - `src/fpdev.fpc.validator.pas` 私自维护了重复的 `TVerificationResult`
+  - `src/fpdev.cmd.fpc.verify.pas` 与 `tests/test_fpc_verify.lpr` 因此形成旧类型引用残留
+  - 本轮已统一到 `src/fpdev.fpc.types.pas.TVerificationResult`
+- 本轮还顺手压掉了一个 focused 验证稳定性问题：
+  - `test_fpc_manager_installmetadata`
+  - `test_fpc_verify`
+  - `test_cli_fpc_diag`
+  - 这三者都用 `ParamStr(0)` 推断 `tests/mock_fpc.pas`
+  - 当二进制按仓库标准写到 `/tmp` 时，这个假设会失效
+  - 已在 `tests/test_temp_paths.pas` 新增 `ResolveTestAssetPath` 并统一切换
+- 验证结果：
+  - `tests/test_fpc_manager_installmetadata.lpr`：25 passed, 0 failed
+  - `tests/test_fpc_scoped_install.lpr`：9 passed, 0 failed
+  - `tests/test_fpc_verify.lpr`：All tests passed
+  - `tests/test_cli_fpc_diag.lpr`：158 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+- 结构判断：
+  - `src/fpdev.fpc.manager.pas` 的 metadata 读写/推导逻辑已经开始独立成更容易复用和测试的 helper
+  - `TVerificationResult` 现在只剩一个定义源，后续继续拆 manager/validator/verifier 交界面时风险更低
+  - `/tmp` focused Pascal 运行模式现在对 `mock_fpc.pas` 路径更稳，后续 FPC CLI/manager focused 套件可以继续沿用
+
+## 2026-04-11 FPC Verify Flow Boundary And Mock Helper Consolidation
+- 延续上一轮 `metadataflow` 抽取后，当前最高收益的下一刀不是继续平铺新 helper，而是把 verify 链路中的职责边界拉直：
+  - `TFPCValidator` 保留安装路径、配置与输出相关职责
+  - `fpdev.fpc.verify.TFPCVerifier` 统一承接可执行文件版本检查与 hello world smoke test
+- 为避免这条边界再次漂移，本轮先补了一个文本契约：
+  - 新增 `tests/test_fpc_verify_boundary.py`
+  - 约束 `src/fpdev.fpc.validator.pas` 必须依赖 `fpdev.fpc.verify`
+  - 约束 validator 不再出现本地 `RunSmokeTest`
+  - 约束 verify 相关 Pascal 测试必须共享 `test_fpc_mock_helpers`
+- 测试基础设施这轮也顺手去重：
+  - 新增 `tests/test_fpc_mock_helpers.pas`
+  - 将 `test_fpc_verify`
+  - `test_fpc_manager_installmetadata`
+  - `test_cli_fpc_diag`
+  - 三处局部 `CompileMockFPC*` 过程收敛到共享 helper
+- 这样做的直接收益：
+  - mock FPC 构建方式只剩一处
+  - `/tmp` focused Pascal 运行模式不再依赖每个测试自己维护编译细节
+  - validator 不再重复维护 `-iV` + smoke test 的 runtime 逻辑
+- 验证结果：
+  - `python3 -m unittest tests.test_fpc_verify_boundary -v`：3 tests, OK
+  - `tests/test_fpc_manager_installmetadata.lpr`：25 passed, 0 failed
+  - `tests/test_fpc_verify.lpr`：All tests passed
+  - `tests/test_fpc_validator_runtimeflow.lpr`：24 passed, 0 failed
+  - `tests/test_cli_fpc_diag.lpr`：158 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+- 结构判断：
+  - verify 链路现在至少在“路径/配置解析”和“runtime executable verification”之间有了明确边界
+  - 下一刀如果继续拆 FPC，优先目标应该转向 `TFPCManager.VerifyInstallation` / `RefreshInstallVerificationMetadata` 周边 orchestrator，而不是再去复制/扩散 verifier 逻辑
+
+
+## 2026-04-11 FPC Manager Verify Orchestration Wave
+- 在 validator/runtime boundary 拉直之后，manager 层还残留三处 verify orchestration：
+  - `VerifyInstalledExecutableVersion(...)` 仍直接 new `TFPCVerifier`
+  - `RefreshInstallVerificationMetadata(...)` 仍在 manager 内拼版本校验、smoke test 与 warning 输出
+  - `VerifyInstallation(...)` 虽然已委托 `TFPCValidator`，但 metadata backfill 仍自己拼装 install-path resolve + write 分支
+- 这类残留的问题不是功能错，而是职责边界继续漂：
+  - validator 已经负责“安装路径/配置 -> executable verification facade”
+  - metadataflow 已经负责 metadata record 组装
+  - manager 再持有 verify orchestration，会把结构重新拉回巨石 facade
+- 本轮采用的最小切片：
+  - 新增 `src/fpdev.fpc.verifyflow.pas`
+  - 抽出：
+    - `VerifyInstalledExecutableVersionCore`
+    - `RefreshInstalledFPCVerificationCore`
+    - `PersistManagedFPCVerificationResultCore`
+  - `src/fpdev.fpc.manager.pas` 保留：
+    - `UpdateVerificationMetadata(...)` 作为 manager-owned metadata writer callback
+    - facade 入口与 flow wiring
+- 同时补了一条文本契约，防止 manager 再把 verify orchestration收回来：
+  - 新增 `tests/test_fpc_manager_verify_boundary.py`
+  - 要求 manager 必须 `uses fpdev.fpc.verifyflow`
+  - 要求 refresh / verify 持久化路径委托到 shared flow
+  - 要求 manager 不再直接出现 `Verifier := TFPCVerifier.Create`
+- 验证结果：
+  - `python3 -m unittest tests.test_fpc_manager_verify_boundary tests.test_fpc_verify_boundary -v`：6 tests, OK
+  - `tests/test_fpc_manager_installmetadata.lpr`：25 passed, 0 failed
+  - `tests/test_fpc_verify.lpr`：All tests passed
+  - `tests/test_fpc_validator_runtimeflow.lpr`：24 passed, 0 failed
+  - `tests/test_cli_fpc_diag.lpr`：158 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+- 结构判断：
+  - manager 现在对 verify 的职责收缩为 facade dispatch + metadata writer callback
+  - executable-level verification 与 manager-level orchestration 现在都各有明确落点，不再在 manager 内重复展开
+  - 下一刀如果继续做 FPC verify 清债，更值得看的不是 manager，而是孤立残留的 `src/fpdev.fpc.verifier.pas`
+
+## 2026-04-11 FPC Binary Verify Consolidation Wave
+- 在 manager-level verifyflow 抽出之后，binary install 路径还保留一条孤立分叉：
+  - `src/fpdev.fpc.binary.pas` 自己持有 verifier state，并直接串 `VerifyVersion(...)`、`CompileHelloWorld(...)`、`GenerateMetadata(...)`
+  - `src/fpdev.fpc.verifier.pas` 形成了无生产消费者的 duplicate implementation
+- 这条分叉的问题不是功能缺失，而是 shared verifyflow 已出现后，binary 分支仍在复制 verify orchestration，导致：
+  - `TVerificationResult` 的接线与 metadata 回写策略容易继续漂移
+  - binary / manager 两条 post-install verify 链路会继续各改各的
+- 本轮最小切片：
+  - 在 `src/fpdev.fpc.verifyflow.pas` 新增：
+    - `RunInstalledFPCVerificationCore`
+    - `WriteBinaryInstallVerificationMetadataCore`
+  - `src/fpdev.fpc.binary.pas` 改为只负责安装流程与用户输出，不再持有 `TFPCVerifier`
+  - 删除 `src/fpdev.fpc.verifier.pas`
+  - 新增 `tests/test_fpc_binary_verify_boundary.py`，锁定 binary install verify 必须复用 shared verifyflow
+  - 更新 `tests/test_style_regressions_batch16.py`，改为断言 legacy verifier 已移除
+- 实施过程中捕获到一个真实回归：
+  - `tests/test_binary_installer_unit.lpr` 首次编译失败：`src/fpdev.fpc.binary.pas` 缺少 `fpdev.fpc.types`，导致 `TVerificationResult` 不可见
+  - 这是文本 boundary 测试抓不到、但 Pascal 编译会立刻暴露的真实依赖缺口
+  - 补显式 import 后恢复
+- 验证结果：
+  - `python3 -m unittest tests.test_fpc_binary_verify_boundary tests.test_style_regressions_batch16 -v`：6 tests, OK
+  - `tests/test_binary_installer_unit.lpr`：24 passed, 0 failed
+  - `tests/test_fpc_install_integration.lpr`：27 passed, 0 failed
+  - `tests/test_fpc_verifier.lpr`：7 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+- 结构判断：
+  - verifyflow 现在不再只服务 manager，也开始成为 binary install 的共享 verify 编排落点
+  - duplicate verifier unit 已清掉，binary install 与 manager verify 路径的 metadata 回写策略更容易保持一致
+  - 下一刀如果继续做 FPC verify 清债，更该看是否还存在其他直接 new `TFPCVerifier` 的业务 orchestration，而不是再保留分叉 unit
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -50,3 +2523,590 @@
 
 ## Visual/Browser Findings
 - 暂无
+
+
+## 2026-04-11 FPC Install Offline Cache Orchestration Downshift
+- 根因不是 cache API 本身坏了，而是 orchestration 分层错位：
+  - `src/fpdev.cmd.fpc.install.pas` 同时持有参数解析、cache 命中判断、restore、toolchain 注册、verify、metadata backfill、exit code 映射
+  - `src/fpdev.fpc.installversionflow.pas` 已经存在 shared install flow，但 source offline 语义只做到一半，而且文件还停在 overload 中间态
+  - `src/fpdev.fpc.installer.pas` 作为 binary installer facade 却没有真正接住 binary cache-restore/offline 分支
+- 这会导致两个实际问题：
+  - CLI boundary 很脆弱，命令层一旦继续堆逻辑，就会把 manager / installer / flow 的职责重新拉平
+  - offline cache-hit 的 metadata/verify 行为只能在 CLI 手写路径里成立，无法变成 manager-level contract
+- 本轮最小收口方案：
+  - 让 `src/fpdev.fpc.installversionflow.pas` 显式承载 source install 的 offline cache-miss / restore-fail contract
+  - 让 `src/fpdev.fpc.installer.pas` 显式承载 binary install 的 cache-hit / offline miss / restore-fail contract
+  - 让 `src/fpdev.fpc.manager.pas` 只负责 wiring 与 install-success 之后统一的 verify metadata refresh
+  - 让 `src/fpdev.cmd.fpc.install.pas` 缩回 CLI concerns：flags、mode fallback、network guard、exit code
+- 为了保住既有 CLI 契约，manager 侧做了一个刻意决定：
+  - offline 模式下不在进入 install flow 之前做版本校验
+  - 先尝试 cache-only 流，再由 flow 决定是 cache hit、cache miss 还是 restore fail
+  - 否则 `fpdev fpc install <version> --offline` 会把原本的 cache-miss user-facing contract 退化成 generic invalid-version early exit
+- 新增的测试把这条 contract 锁住了：
+  - `tests/test_fpc_install_cli_boundary.py`：CLI 不得继续持有 restore/setup/verify orchestration
+  - `tests/test_fpc_installversionflow.lpr`：source offline cache miss / restore fail
+  - `tests/test_fpc_install_cli.lpr`：
+    - offline cache-hit metadata backfill
+    - offline cache-hit with `--prefix`
+    - offline cache-hit verify warning still returns success
+- 实测结果：
+  - focused 边界 + Pascal suite 全绿
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+- 结构判断：
+  - 现在 offline/cache-restore 已经真正下沉到 install stack，而不是停留在命令层的特例分支
+  - manager 成为稳定的 wiring 层，CLI 只剩用户入口逻辑
+  - 后续如果继续做 install 清债，优先方向应该是把 binary/source install 的 post-install 输出再统一，而不是再回到 CLI 补分支
+
+
+## 2026-04-11 FPC Install Output And Boundary Wave
+- 在 offline/cache orchestration 下沉完成后，install 栈还残留一层职责漂移：
+  - binary normal-install 的 completion summary 在 `src/fpdev.fpc.installer.postinstall.pas`
+  - source install 的 success 收口在 `src/fpdev.fpc.installversionflow.pas`
+  - offline cache miss / restore-fail 文案在 `src/fpdev.fpc.installversionflow.pas` 与 `src/fpdev.fpc.installer.pas` 各自复制
+- 这类漂移的直接后果：
+  - cache-hit 与 source-build 的用户输出不一致
+  - postinstall 单元继续承担用户级 summary，容易再次把 install output 责任切碎
+  - manager/installer 仍缺少一层文本 boundary，CLI fallback 逻辑未来可能重新回流
+- 本轮最小收口方案：
+  - 新增 `src/fpdev.fpc.installreportflow.pas`，集中承载 offline miss / restore-fail / success banner 文案
+  - 让 `src/fpdev.fpc.installversionflow.pas` 成为 install success banner 的唯一 owner
+  - 让 `src/fpdev.fpc.installer.postinstall.pas` 缩回 layout/env/cache responsibilities
+  - 新增 `tests/test_fpc_install_manager_boundary.py` 与 `tests/test_fpc_installer_boundary.py`，把 manager/installer 的职责边界锁成文本契约
+- 同时补齐了几条之前没显式写死的 CLI contract：
+  - `--offline --no-cache`
+  - `--from=binary --offline`
+  - `--from=source --offline`
+  - offline cache-hit success output 的 activation next-step
+- 实施过程中捕获到一个真实回归：
+  - 第一轮 `bash scripts/run_all_tests.sh` 只剩 `test_fpc_installer_postinstall` 失败
+  - 原因不是实现错，而是单测仍要求 postinstall 自己打印 completion summary
+  - focused 修正该测试后，第二轮全量回归恢复 `275 passed, 0 failed, 0 skipped`
+- 结构判断：
+  - install output 现在有了单一 owner，不再在 source/binary/postinstall 三处分裂
+  - postinstall 的边界比之前清晰，后续再改 success banner 不会波及 layout/env/cache 单测
+  - manager / installer / flow / postinstall 四层的职责线现在比 downshift 之前更稳定，后续若还有 install 清债，优先目标应是行为 contract 扩展，而不是再回头收 ownership 漂移
+
+
+## 2026-04-11 Install Contract Docs And Lazarus Wave
+- 这轮确认了一个真实的 FPC binary scheduling 缺口：
+  - `src/fpdev.fpc.installer.binaryflow.pas` 之前用单个 `try/except` 包住整条 manifest -> repo -> SourceForge 链
+  - 结果是 manifest 或 repo 只要抛异常，后续 fallback 根本不会执行
+  - 这不是文案问题，而是 binary acquisition flow 的真实调度问题
+- 本轮最小修复策略：
+  - 对 manifest / repo 两段做分阶段异常容错
+  - 异常时记录 warning，但继续进入下一跳
+  - 当整条 binary chain 都耗尽时，再输出统一 `[FAIL] Binary acquisition failed for FPC <version>` 总结
+  - SourceForge terminal exception 仍保留 generic `InstallFromBinary failed - ...` 契约，避免改变既有最终失败路径
+- Lazarus install 栈的主要问题不是调度，而是 output ownership 不完整：
+  - `src/fpdev.lazarus.manager.pas` 已经正确 delegate 到 `CreateLazarusInstallPlanCore(...)` / `ExecuteLazarusInstallPlanCore(...)`
+  - 但 `src/fpdev.lazarus.commandflow.pas` 之前只拥有 fallback warning / configure warning，没有成功完成后的 activation next-step
+  - 这会让 install success UX 与 FPC install 栈、README/quickstart 文档叙事长期不一致
+- 本轮对 Lazarus 的最小收口：
+  - 让 `src/fpdev.lazarus.commandflow.pas` 承接 success banner
+  - 增加 `Installation completed!`、`To activate this version, run:`、`fpdev lazarus use <version>`
+  - 用 `tests/test_lazarus_install_boundary.py` 锁住 manager 不得重新持有 `fallback to source build` / `fpdev lazarus use` / `fpdev lazarus configure` 等 flow 文案
+- 文档侧的漂移是具体且系统性的：
+  - 根目录和 `docs/` 下的 quickstart 仍把 `--from-source` 写成 FPC 首屏安装起手式
+  - FAQ 没把 `--offline`、`--no-cache` 和 `fpdev fpc cache list` 的恢复路线讲清楚
+  - `docs/MANIFEST-USAGE.md` 讲了 manifest/mirror，却没讲 CLI 层真正存在的 manifest -> fpdev-repo -> SourceForge 二进制获取链
+- 同步后当前公开 install contract 已统一为：
+  - FPC 默认是 binary-first
+  - `--offline` 是 cache-only
+  - `--no-cache` 是强制 fresh binary fetch
+  - `--from-source` 是显式源码模式
+  - Lazarus 当前默认路径会提示 binary package path unavailable，并回退到源码构建
+- 验证结果：
+  - Python boundary/docs bundle：37 tests, OK
+  - `tests/test_fpc_installer_binaryflow.lpr`：42 passed, 0 failed
+  - `tests/test_fpc_installversionflow.lpr`：57 passed, 0 failed
+  - `tests/test_lazarus_flow.lpr`：37 passed, 0 failed
+  - `tests/test_lazarus_update.lpr`：150 passed, 0 failed
+  - `bash scripts/run_all_tests.sh`：275 passed, 0 failed, 0 skipped
+
+
+## 2026-04-11 Next Route Re-Screening After Install Wave
+- 重新核对当前树后，Lazarus install contract wave 已经完整落地：
+  - `task_plan.md` 已记录到 Phase 36 complete
+  - `tests/test_lazarus_install_boundary.py`、`tests/test_lazarus_flow.lpr`、README/FAQ/QUICKSTART/MANIFEST-USAGE 的 install contract 同步都已在树上
+- 因此下一波不该继续重复 install/output 收尾，而应切到此前已经排定的下一优先级：
+  - 继续切薄 `src/fpdev.lazarus.manager.pas`
+- 重新排查“调度一定有问题”后的结论：
+  - 当前 CLI/root shell 已不是主要问题中心
+  - `src/fpdev.cmd.lazarus.root.pas` 只负责 root shell 注册
+  - `src/fpdev.cmd.lazarus.pas` 已经是 compatibility shim
+  - `src/fpdev.command.imports.lazarus.pas` 也只聚合 root + action units
+  - 所以真正的剩余热点在 `src/fpdev.lazarus.manager.pas`，不是命令树分发壳层
+- `src/fpdev.lazarus.manager.pas` 当前 1177 行，责任仍明显偏多：
+  - install callbacks：`DownloadSource` / `BuildFromSource` / `SetupEnvironment`
+  - metadata/version inventory：`TryGetConfiguredVersionInfo` / `GetAvailableVersions` / `GetInstalledVersions` / `ShowVersionInfo`
+  - IDE/runtime orchestration：`UpdateSources` / `ConfigureIDE` / `LaunchIDE` / `TestInstallation`
+- 下一刀优先选 metadata/version inventory，而不是 install/update：
+  - install/update/launch/configure 已经分别有 `fpdev.lazarus.commandflow` 中的 plan/core helper 承托
+  - metadata/version inventory 仍主要堆在 manager 内部，纯装配比例高、爆炸半径最小
+  - 这条线与 FPC 侧已经跑通的 `metadataflow` 抽取模式一致，适合复制节奏
+- 现有 Lazarus 测试已经给这条切片提供稳定护栏：
+  - `tests/test_lazarus_configure_workflow.lpr` 已锁住 registry 缺失但已安装版本仍应进入 `ListVersions`
+  - 同一个 suite 也锁住 configured FPC version / custom install path 必须覆盖 registry 默认值
+  - `tests/test_lazarus_install_boundary.py` 与 `tests/test_lazarus_callback_contract.py` 已锁住 install output ownership 和 configure callback wiring，意味着这轮无需再动 install contract
+- 额外注意到一条同步成本：
+  - `tests/test_contributor_docs_contract.py` 当前把 `src/fpdev.lazarus.manager.pas` 的 hotspot line count 写死为 `1166`
+  - 实际文件现在已是 `1177` 行，若本轮继续切片并让行数下降，开发者文档和契约测试必须一起更新
+
+
+## 2026-04-11 Lazarus Manager Metadataflow Slice
+- 本轮最小切片已经落地：
+  - 新增 `src/fpdev.lazarus.types.pas`
+  - 新增 `src/fpdev.lazarus.metadataflow.pas`
+- 新 helper 当前承接的职责是：
+  - `NormalizeConfiguredLazarusFPCVersionCore`
+  - `BuildConfiguredLazarusVersionInfoCore`
+  - `OverlayConfiguredLazarusVersionInfoCore`
+  - `MergeConfiguredInstalledLazarusVersionsCore`
+  - `FilterInstalledLazarusVersionsCore`
+  - `TryFindLazarusVersionInfoCore`
+- `src/fpdev.lazarus.manager.pas` 已收口为委托这些 helper，而不再本地维护：
+  - configured FPC version 的 `fpc-` 前缀归一化
+  - configured metadata overlay
+  - installed version merge/filter
+  - `ShowVersionInfo` 中的版本查找循环
+- 结构收益：
+  - manager 行数从 `1177` 降到 `1060`
+  - `TLazarusVersionInfo` / `TLazarusVersionArray` 不再被 manager 私有持有
+  - 后续若继续切 Lazarus manager，可以在 install callbacks 或 IDE/runtime orchestration 上继续下刀，而不会再和 version inventory 耦在一起
+- 开发者文档 truth sync 也已同步：
+  - `docs/history/B171-large-files-report.md` 改到 `2026-04-11` 视角
+  - 补入 `src/fpdev.lazarus.metadataflow.pas`
+  - `tests/test_contributor_docs_contract.py` 已跟随新行数和新 helper 单元更新
+- 验证结果：
+  - RED:
+    - `python3 -m unittest tests.test_lazarus_manager_metadata_boundary -v`：3 failures
+    - `fpc ... tests/test_lazarus_manager_metadataflow.lpr`：`Can't find unit fpdev.lazarus.types`
+  - GREEN focused:
+    - `tests.test_lazarus_manager_metadata_boundary`: 3 tests, OK
+    - `tests/test_lazarus_manager_metadataflow.lpr`: 11 passed, 0 failed
+    - `tests/test_lazarus_configure_workflow.lpr`: 51 passed, 0 failed
+    - `tests/test_lazarus_update.lpr`: 150 passed, 0 failed
+    - `tests/test_cli_lazarus.lpr`: 143 passed, 0 failed
+    - `tests/test_lazarus_management.lpr`: 23 passed, 0 failed
+    - `python3 -m unittest tests.test_lazarus_manager_metadata_boundary tests.test_lazarus_install_boundary tests.test_lazarus_callback_contract tests.test_contributor_docs_contract -v`: 37 tests, OK
+  - Full baseline:
+    - `bash scripts/run_all_tests.sh`: `276/276` passed
+
+
+## 2026-04-12 Lazarus Source Slicing Wave Discovery
+- `src/fpdev.lazarus.source.pas` 当前 908 行，最小高 ROI 切口是先抽 clone/update 前置编排与 build make 参数构建，而不是立刻重拆 install/build 全流程。
+- `CloneLazarusSource(...)` 当前同时承担 version fallback、clone ref/repository/source path 解析、git backend preflight、旧目录删除后的 clone 驱动与 valid source tree 校验。
+- `UpdateLazarusSource(...)` 当前同时承担 empty-arg -> `FCurrentVersion` -> `main` 解析、source path 解析、valid source dir preflight、git backend preflight 与 pull 调度。
+- `BuildLazarus(...)` 的最纯共享逻辑是 make 参数数组构建：`clean`, `all`, `-jN`, `PP=<fpc>`。
+- `tests/test_lazarus_update.lpr` 已覆盖这几块核心语义：registry git_tag/branch fallback、invalid clone tree rejection、invalid update dir rejection、ff-only update rejection、successful update tracks `FCurrentVersion`、invalid/valid build、install success/failure。
+- 因此本波新增 `src/fpdev.lazarus.sourceflow.pas`，只承接 pure helper：version/path/plan/make-params；`fpdev.lazarus.source.pas` 保留输出、git 调用、状态写入与 command execution。
+
+## 2026-04-12 Lazarus Source Slicing Wave Result
+- 本轮最小切片已经落地：
+  - `src/fpdev.lazarus.sourceflow.pas`
+  - `tests/test_lazarus_source_boundary.py`
+  - `tests/test_lazarus_sourceflow.lpr`
+- 新 helper 当前承接的职责是：
+  - `ResolveLazarusLegacySourceVersionCore(...)`
+  - `BuildLazarusLegacySourcePathCore(...)`
+  - `IsValidLazarusLegacySourceTreeCore(...)`
+  - `CreateLazarusLegacyClonePlanCore(...)`
+  - `CreateLazarusLegacyUpdatePlanCore(...)`
+  - `BuildLazarusLegacyMakeParamsCore(...)`
+- `src/fpdev.lazarus.source.pas` 已收口为 facade 调度，不再在本地持有：
+  - clone 的 version/source-path/repository/ref 组装
+  - update 的 empty-arg/current-version/source-path 组装
+  - build 的 make 参数数组拼接
+  - source path / source tree validity 的重复内联实现
+- 结构收益：
+  - `src/fpdev.lazarus.source.pas` 从 `908` 行降到 `873` 行
+  - `src/fpdev.lazarus.sourceflow.pas` 承接 `129` 行 legacy source helper
+  - 本波刻意停点在 clone/update/build params helper，没有继续重拆 install/build/launch orchestration
+- 验证结果：
+  - RED:
+    - `python3 -m unittest tests.test_lazarus_source_boundary -v`：4 failures
+    - `fpc ... tests/test_lazarus_sourceflow.lpr`：`Can't find unit fpdev.lazarus.sourceflow`
+  - GREEN focused:
+    - `python3 -m unittest tests.test_lazarus_source_boundary -v`：4 tests, OK
+    - `tests/test_lazarus_sourceflow.lpr`：18 passed, 0 failed
+    - `tests/test_lazarus_update.lpr`：150 passed, 0 failed
+    - `tests/test_lazarus_flow.lpr`：37 passed, 0 failed
+  - Full baseline:
+    - `bash scripts/run_all_tests.sh`：282 passed, 0 failed, 0 skipped
+
+## 2026-04-13 Cross Manager Install/Uninstall Wave
+- 重新核对当前树后，之前把下一主波次继续指向 `resource.repo lifecycle` 与 `package.manager tail` 的判断已经过时：
+  - `src/fpdev.resource.repo.pas` 的 lifecycle/status 主要路径已经由 `src/fpdev.resource.repo.lifecycle.pas` 与 `src/fpdev.resource.repo.statusflow.pas` 承接，保持 checkpoint 即可
+  - `src/fpdev.package.manager.pas` 的 local install / create / publish 尾部 orchestration 已经由 `src/fpdev.package.facadeflow.pas` 承接，保持 checkpoint 即可
+  - 因此这轮真正高 ROI 的剩余切口是 `src/fpdev.cross.manager.pas` 中仍然偏厚的 `InstallTarget(...)` / `UninstallTarget(...)`
+- 本轮正式计划已落地：`docs/plans/2026-04-13-cross-manager-install-uninstall-wave.md`
+- 结构调整结果：
+  - `src/fpdev.cross.managerflow.pas` 新增：
+    - `ExecuteCrossInstallTargetCore(...)`
+    - `ExecuteCrossUninstallTargetCore(...)`
+  - `src/fpdev.cross.manager.pas` 现在把：
+    - `InstallTarget(...)`
+    - `UninstallTarget(...)`
+    委托给 managerflow，而不再内联 system compiler shortcut / manual instruction fallback / uninstall filesystem cleanup
+  - manager 仅保留必要 wrapper：
+    - `DetectSystemCompilerForTarget(...)`
+    - `GetPackageManagerInstructionsForTarget(...)`
+    - `RemoveCrossTargetConfig(...)`
+- helper callback contract 的最小边界现在是：
+  - validate / installed / target info / install path
+  - system compiler detect
+  - save/remove cross target config
+  - download binutils / libraries
+  - setup environment
+  - package-manager instructions
+- 本轮直接测试护栏：
+  - `tests/test_cross_manager_boundary.py` 现在锁定 install/uninstall delegate boundary
+  - `tests/test_cross_managerflow.lpr` 现在直接覆盖：
+    - unsupported target rejected
+    - already-installed short-circuit
+    - system compiler found -> save config + success
+    - binutils download fail -> manual instructions + false
+    - normal install path -> setup environment + success
+    - uninstall missing target -> success note
+    - uninstall installed target -> delete dir + remove config + success
+- install/uninstall contract 保持不变：
+  - install:
+    - unsupported target -> error + false
+    - already installed -> note + true
+    - system compiler found -> save config + success + using-system note
+    - binutils download failure -> manual instructions + false
+    - libraries download failure -> warning only
+    - normal path -> setup environment + success
+  - uninstall:
+    - target missing -> note + true
+    - target installed -> remove install dir + remove config + success
+- 验证结果：
+  - RED:
+    - `python3 -m unittest tests.test_cross_manager_boundary -v`：1 failure（`InstallTarget(...)` 尚未 delegate 到 `ExecuteCrossInstallTargetCore(...)`）
+    - `fpc -Fusrc -Fisrc -Fu./tests -FE/tmp/fpdev-cross-managerflow-bin-red -FU/tmp/fpdev-cross-managerflow-lib-red tests/test_cross_managerflow.lpr`：7 个 compile errors（`ExecuteCrossInstallTargetCore` / `ExecuteCrossUninstallTargetCore` 缺失）
+  - GREEN focused:
+    - `python3 -m unittest tests.test_cross_manager_boundary -v`：4 tests, OK
+    - `tests/test_cross_managerflow.lpr`：71 passed, 0 failed
+    - `tests/test_cross_management.lpr`：32 passed, 0 failed
+  - Full baseline:
+    - `bash scripts/run_all_tests.sh`：`Total: 300 / Passed: 300 / Failed: 0 / Skipped: 0`
+
+## 2026-04-14 Wave Pack Re-Ranking
+- 基于上一轮 `300/300` 全绿结果重新核对当前真实源码体量后，下一组最高 ROI 热点已切换为：
+  - `src/fpdev.fpc.source.pas`：`1061`
+  - `src/fpdev.build.manager.pas`：`953`
+  - `src/fpdev.fpc.builder.pas`：`861`
+- 这三处共同特征：
+  - 仍保留明显 sequential orchestration surface
+  - 现有低层 helper / runtime / repo / build primitives 已足够成熟
+  - 都有现成 focused regression 可复用，适合最小风险继续走 thin facade/helper extraction
+- 本轮明确降级为 checkpoint / 次优先的对象：
+  - `src/fpdev.fpc.manager.pas`：`832`，已被 `statusflow` / `versionflow` / `installsurfaceflow` / `maintenanceflow` / `residualflow` 大幅削薄
+  - `src/fpdev.resource.repo.pas`：`774`，bootstrap/query/package/mirror surface 已基本 helper 化
+  - `src/fpdev.package.manager.pas`：`762`，当前更适合维持 checkpoint
+  - `src/fpdev.lazarus.source.pas`：`628`，最近几轮已连续收口
+  - `src/fpdev.cross.manager.pas` / `src/fpdev.cross.search.pas`：近期已完成高 ROI 切口
+- 2026-04-14 三份正式计划已创建：
+  - `docs/plans/2026-04-14-fpc-source-surface-wave.md`
+  - `docs/plans/2026-04-14-fpc-builder-surface-wave.md`
+  - `docs/plans/2026-04-14-build-manager-surface-wave.md`
+- `fpc.source` 本轮的最小安全边界已固定为三块：
+  - `sourceinstallflow`：install sequencing / rollback / cache-hit branch
+  - `sourcebootstrapflow`：bootstrap compiler ensure / download orchestration
+  - `sourcebuildflow`：build pipeline + cache validation / restore
+- 用户已明确要求“按计划拉起团队(gpt-5.4)一波实施”，因此本轮执行方式不是单线程串行，而是：
+  - Worker 1：负责 `fpc.source` wave
+  - Worker 2：负责 `fpc.builder` wave
+  - Worker 3：负责 `build.manager` wave
+  - 主控本地负责 planning sync、结果审阅、集成补丁与最终验证
+
+## 2026-04-14 Wave Pack Closure
+- 本轮 `gpt-5.4` 团队实施 + 主控集成已完成，三条主线全部收口：
+  - `fpc.source`
+  - `fpc.builder`
+  - `build.manager`
+- `fpc.source` 波次结果：
+  - 新增 `src/fpdev.fpc.sourceinstallflow.pas`
+  - 新增 `src/fpdev.fpc.sourcebootstrapflow.pas`
+  - 新增 `src/fpdev.fpc.sourcebuildflow.pas`
+  - `src/fpdev.fpc.source.pas` 的 install/bootstrap/build/cache surface 已改为 thin delegate：
+    - `InstallFPCVersion(...)`
+    - `DownloadBootstrapCompilerInternal(...)`
+    - `EnsureBootstrapCompiler(...)`
+    - `BuildFPCSource(...)`
+    - `BuildFPCCompiler(...)`
+    - `BuildFPCRTL(...)`
+    - `BuildFPCPackages(...)`
+    - `InstallFPCBinaries(...)`
+    - `ConfigureFPCEnvironment(...)`
+    - `TestBuildResults(...)`
+    - `IsCacheAvailable(...)`
+    - `UseCachedBuild(...)`
+  - 新增测试：
+    - `tests/test_fpc_source_boundary.py`
+    - `tests/test_fpc_sourceinstallflow.lpr`
+    - `tests/test_fpc_sourcebootstrapflow.lpr`
+    - `tests/test_fpc_sourcebuildflow.lpr`
+- `fpc.builder` 波次结果：
+  - 新增 `src/fpdev.fpc.builderflow.pas`
+  - `src/fpdev.fpc.builder.pas` 现在把：
+    - `EnsureBootstrapCompiler(...)`
+    - `BuildFromSource(...)`
+    收口到 `ExecuteFPCBuilderEnsureBootstrapCore(...)` 与 `ExecuteFPCBuilderBuildFromSourceCore(...)`
+  - builder facade 保留 repo/state/output wiring，并新增最小 wrapper：
+    - resource repo ensure / query / install bridge
+    - source tree prepare
+    - build plan resolve / execute
+  - 新增测试：
+    - `tests/test_fpc_builder_boundary.py`
+    - `tests/test_fpc_builderflow.lpr`
+- `build.manager` 波次结果：
+  - 新增 `src/fpdev.build.managerflow.pas`
+  - `src/fpdev.build.manager.pas` 已改为通过 managerflow 承接：
+    - make-operation surface：`BuildCompiler(...)` / `BuildRTL(...)` / `BuildPackages(...)` / `InstallPackages(...)` / `Install(...)`
+    - wrapper surface：`TestResults(...)` / `Preflight(...)`
+  - `Configure(...)` / `FullBuild(...)` / `RunVersionedPreflight(...)` 等现有稳定边界保持不动
+  - 新增测试：
+    - `tests/test_build_manager_boundary.py`
+    - `tests/test_build_managerflow.lpr`
+- 本轮额外发现并确认：
+  - `build.manager` 的主回归 suite 真实路径是 `tests/fpdev.build.manager/test_build_manager.lpr`，不是计划文档里写的 `tests/test_build_manager.lpr`
+  - 这是测试入口路径问题，不是实现回归；主控在 focused verification 时按真实路径执行
+- focused verification 全部通过：
+  - `python3 -m unittest tests.test_fpc_source_boundary -v`
+  - `tests/test_fpc_sourceinstallflow.lpr`
+  - `tests/test_fpc_sourcebootstrapflow.lpr`
+  - `tests/test_fpc_sourcebuildflow.lpr`
+  - `tests/test_fpc_source_repo.lpr`
+  - `tests/test_bootstrap_downloader.lpr`
+  - `python3 -m unittest tests.test_fpc_builder_boundary -v`
+  - `tests/test_fpc_builderflow.lpr`
+  - `tests/test_fpc_builder.lpr`
+  - `tests/test_fpc_builder_bootstrapcompat.lpr`
+  - `tests/test_fpc_builder_buildplan.lpr`
+  - `python3 -m unittest tests.test_build_manager_boundary tests.test_build_manager_callback_contract -v`
+  - `tests/test_build_managerflow.lpr`
+  - `tests/fpdev.build.manager/test_build_manager.lpr`
+  - `tests/test_build_fullbuildflow.lpr`
+  - `tests/test_build_preflightflow.lpr`
+  - `tests/test_build_testresultsflow.lpr`
+- 整仓回归结果已更新为：
+  - `bash scripts/run_all_tests.sh` → `Total: 305 / Passed: 305 / Failed: 0 / Skipped: 0`
+- 结论：
+  - 2026-04-14 wave pack 已完整闭环
+  - 三个巨石单元都进一步收缩为 thin facade + helper flow 结构
+  - baseline 从上一轮 `300/300` 提升到 `305/305`
+
+## 2026-04-14 Runtime/Lifecycle/Bootstrap Re-Ranking
+- 基于当前真实文件体量与剩余 inline surface，下一组最高 ROI 热点已固定为：
+  - `src/fpdev.build.manager.pas`
+    - `CheckToolchain(...)`
+    - `ApplyConfig(...)`
+    - `RunMake(...)`
+    - `CreateBuildStamp(...)`
+  - `src/fpdev.resource.repo.pas`
+    - `GitClone(...)`
+    - `GitPull(...)`
+    - `LoadManifest(...)`
+    - `GetManifestVersion(...)`
+    - `HasPackage(...)`
+  - `src/fpdev.fpc.manager.pas`
+    - `EnsureBootstrapCompiler(...)`
+- 这三处共同特征：
+  - 已有更低层 helper/runtime 足够成熟
+  - 剩余的是 facade 级 orchestration / lifecycle / fallback glue
+  - 目标文件互不冲突，适合按用户要求继续用 `gpt-5.4` 团队并行推进
+- 当前明确不 reopen 的对象：
+  - `src/fpdev.package.manager.pas`
+  - `src/fpdev.project.manager.pas`
+  - `src/fpdev.lazarus.manager.pas`
+  - `src/fpdev.cross.manager.pas`
+  - `src/fpdev.cross.search.pas`
+- 2026-04-14 三份正式计划已创建：
+  - `docs/plans/2026-04-14-build-manager-runtime-toolchain-wave.md`
+  - `docs/plans/2026-04-14-resource-repo-repoio-lifecycle-wave.md`
+  - `docs/plans/2026-04-14-fpc-manager-bootstrap-residual-wave.md`
+- 本轮执行方式已锁定为：
+  - Worker 1：`build.manager` runtime/toolchain wave
+  - Worker 2：`resource.repo` repo-io/lifecycle wave
+  - Worker 3：`fpc.manager` bootstrap residual wave
+  - 主控：planning sync、结果审阅、集成补丁与最终 focused/full verification
+
+## 2026-04-14 Build Baseline Guardrail Closure
+- 真实阻塞点不是源码编译错误，而是仓库构建输出目录 `bin/` / `lib/` 曾被 `root:root` 占有，导致 `lazbuild -B fpdev.lpi` 无法写入 `lib/fpdev.compiled`。
+- 最终稳定修复路径是：
+  - 先把旧 root-owned `bin/` / `lib/` 在仓库根做隐藏重命名备份
+  - 再重建新的当前用户可写 `bin/` / `lib/`
+  - 随后标准 `lazbuild -B fpdev.lpi` 恢复通过
+- 直接把旧 root-owned 目录移到 `/tmp`、`$HOME/.cache`、仓库上级目录都失败了；这些路径上的 `mv` 最终都返回 `Permission denied`。
+  - 推断：当前环境对这些旧 root-owned 目录的“移出仓库”同样受限
+  - 因此本轮保留隐藏备份目录：
+    - `.bin.root-owned-20260414_190837`
+    - `.lib.root-owned-20260414_190837`
+  - 它们不再参与新的标准构建路径
+- `scripts/check_toolchain.sh` 已新增 repo build-output readiness guardrail：
+  - `repo_bin_writable`
+  - `repo_lib_writable`
+  - 二者都按 required 检查计入退出码
+  - 脚本支持测试用 override：`FPDEV_TOOLCHAIN_REPO_ROOT`
+- `src/fpdev.toolchain.pas` 已把同样的 guardrail 前移到 `BuildToolchainReportJSON`：
+  - 在识别到 repo root 时输出 `repo_bin_writable` / `repo_lib_writable`
+  - 任一 repo build output 不可写时，report `level` 升为 `FAIL`
+- 新增/扩展测试：
+  - `tests/test_check_toolchain_sh.py`
+  - `tests/test_toolchain.lpr`
+  - `tests/test_command_registry.lpr`
+- focused 验证通过：
+  - `python3 -m unittest tests.test_check_toolchain_sh -v`
+  - `tests/test_toolchain.lpr`
+  - `tests/test_command_registry.lpr`
+  - `bash scripts/check_toolchain.sh`
+- broad verification 全部通过：
+  - `lazbuild -B fpdev.lpi`
+  - `bash scripts/cli_smoke.sh ./bin/fpdev`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `535/535`
+  - `bash scripts/run_all_tests.sh` → `313/313`
+- fresh hotspot re-ranking 结论：
+  - 当前最有价值的收口工作已经从“继续细拆 facade”完成切换到“恢复标准构建基线 + 把环境问题前移成 guardrail”
+  - 这一轮完成后，暂时没有比它更高 ROI 的显著单元级拆分切口；下一波若要继续推进，应该重新基于最新工作树做 fresh hotspot scan，而不是沿用旧排序
+
+## 2026-04-14 Toolchain Parity / Docs / Hotspot Recheck Closure
+- 中英文 toolchain 文档已与最新行为对齐：
+  - `BuildToolchainReportJSON` 在 repo root 场景下会追加 `repo_bin_writable` / `repo_lib_writable`
+  - `FPDEV_TOOLCHAIN_REPO_ROOT` 已作为测试/临时 override 写入文档
+  - 文档明确 `scripts/check_toolchain.sh` / `scripts/check_toolchain.bat` 会把 repo build output 不可写视为 required failure
+- `scripts/check_toolchain.bat` 已补上与 Unix 脚本对齐的 repo build-output parity：
+  - 支持 `FPDEV_TOOLCHAIN_REPO_ROOT`
+  - 新增 `repo_bin_writable`
+  - 新增 `repo_lib_writable`
+  - detailed log 中新增 `Build outputs:`
+- 新增 `tests/test_check_toolchain_bat.py`，以静态 contract 方式锁定 Windows batch parity。
+  - 当前 Linux 环境无法直接执行 `.bat`，因此本轮验证方式是 contract test，而不是运行时 Windows smoke
+- root-owned 隐藏备份目录策略已收敛：
+  - `.gitignore` 已新增：
+    - `.bin.root-owned-*`
+    - `.lib.root-owned-*`
+  - 结果是现存的：
+    - `.bin.root-owned-20260414_190837`
+    - `.lib.root-owned-20260414_190837`
+    不再污染 `git status`
+- focused verification 全部通过：
+  - `python3 -m unittest tests.test_check_toolchain_sh tests.test_check_toolchain_bat -v` → `7 passed`
+  - `bash scripts/check_toolchain.sh` → required `0 miss`, optional `3 miss`
+- broad verification 全部通过：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `540/540`
+  - `bash scripts/run_all_tests.sh` → `313/313`
+- fresh hotspot recheck 结论：
+  - 当前若继续推进，唯一仍具备“4 个方法成组 + 现成 focused tests + 低爆炸半径”的候选，依旧是 `src/fpdev.build.manager.pas`
+    - `CheckToolchain(...)`
+    - `ApplyConfig(...)`
+    - `RunMake(...)`
+    - `CreateBuildStamp(...)`
+  - `src/fpdev.resource.repo.pas` 与 `src/fpdev.fpc.manager.pas` 的高 ROI 成组面在最近几轮已经基本收口为 thin delegate；当前继续 reopen 的收益低于 `build.manager`
+  - `src/fpdev.lazarus.manager.pas`、`src/fpdev.project.manager.pas`、`src/fpdev.package.manager.pas` 当前不应 reopen
+  - 由于本轮目标是“parity + docs + closure”，且所有 focused/full verification 均为绿，本轮不再强开新的代码 wave；如果下一轮继续推进，应直接以 `build.manager` residual runtime/toolchain surface 作为唯一优先目标
+
+## 2026-04-15 Architecture / Contract / Planning Sync Closure
+- 中英文架构总览文档已补上当前工作树的 facade/helper split 现况：
+  - `docs/ARCHITECTURE.md` 新增 `## 2026-04 当前工作树 facade/helper split`
+  - `docs/ARCHITECTURE.en.md` 新增 `## 2026-04 Current worktree facade/helper split`
+- 本轮明确写实并锁定的当前 split 包括：
+  - `src/fpdev.build.manager.pas` → `src/fpdev.build.managerflow.pas` + `src/fpdev.build.runtimeflow.pas`
+  - `src/fpdev.fpc.builder.pas` → `src/fpdev.fpc.builderflow.pas`
+  - `src/fpdev.fpc.binary.pas` → `src/fpdev.fpc.binaryflow.pas`
+  - `src/fpdev.cmd.fpc.install.pas` → `src/fpdev.fpc.installcommandflow.pas`
+  - `src/fpdev.cmd.fpc.use.pas` → `src/fpdev.fpc.usecommandflow.pas`
+  - `src/fpdev.cmd.fpc.verify.pas` → `src/fpdev.fpc.verifycommandflow.pas`
+- `tests/test_contributor_docs_contract.py` 已扩展新的 architecture docs contract：
+  - 要求中英文架构文档必须包含上述 section 标题
+  - 要求文档必须显式提到：
+    - `src/fpdev.build.managerflow.pas`
+    - `src/fpdev.build.runtimeflow.pas`
+    - `src/fpdev.fpc.builderflow.pas`
+    - `src/fpdev.fpc.binaryflow.pas`
+    - `src/fpdev.fpc.installcommandflow.pas`
+    - `src/fpdev.fpc.usecommandflow.pas`
+    - `src/fpdev.fpc.verifycommandflow.pas`
+- focused verification 全部通过：
+  - `python3 -m unittest tests.test_contributor_docs_contract -v` → `30 passed`
+  - `python3 -m unittest tests.test_fpc_binary_boundary tests.test_fpc_binary_verify_boundary tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_fpc_install_cli_boundary -v` → `18 passed`
+- broad verification 全部通过：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `557/557`
+  - `bash scripts/run_all_tests.sh` → `320/320`
+  - `bash scripts/check_toolchain.sh` → required `0` missing，optional 缺 `mingw32-make` / `ppc386` / `ppcarm`
+  - `lazbuild -B fpdev.lpi` → pass；仅保留 Lazarus/FPC 配置文件读取提示，不涉及仓库源码回归
+- 收口结论：
+  - 当前 architecture docs、docs contract 与 planning 三件套已重新对齐到 2026-04-15 的真实工作树
+  - 本轮只做“文档真相同步 + contract 锁定 + 基线复核”，不 reopen 新代码波次
+
+## 2026-04-16 FPC Sourceflow Residual Wave Closure
+- 当前真实高 ROI 切口不是重开 `sourceinstallflow/bootstrapflow/buildflow`，而是 `src/fpdev.fpc.source.pas` 里仍残留的一小组 inline lifecycle/query/prereq glue：
+  - `CloneFPCSource(...)`
+  - `UpdateFPCSource(...)`
+  - `SwitchFPCVersion(...)`
+  - `ListAvailableVersions(...)`
+  - `ListLocalVersions(...)`
+  - `CheckBuildPrerequisites(...)`
+- 本轮新增 `src/fpdev.fpc.sourceflow.pas`，把上述 residual surface 下沉到 shared helper，同时保持 manager 继续持有：
+  - `FSourceRoot` / `FCurrentVersion` / `FBootstrapCompiler`
+  - `Repo`
+  - `ExecuteCommand(...)`
+  - `IsValidSourceDirectory(...)`
+- helper 当前稳定承接的职责：
+  - clone/update 的版本 fallback 与 current-version update
+  - update success/fail status output
+  - switch fail-fast gate
+  - available version merge / static fallback
+  - local version scan / validator filter
+  - prereq `make --version` probe + bootstrap gate
+- `src/fpdev.fpc.source.pas` 当前已收缩为 thin delegate，不再在本地显式持有：
+  - update success/fail 文案
+  - local version scan loop
+  - prereq probe 细节
+  - available version merge/fallback 细节
+- focused verification 全部通过：
+  - `python3 -m unittest tests.test_fpc_source_boundary -v` → `5/5`
+  - `tests/test_fpc_sourceflow.lpr` → `27` checks green
+  - `tests/test_fpc_sourceinstallflow.lpr` → `12/12`
+  - `tests/test_fpc_sourcebootstrapflow.lpr` → `12/12`
+  - `tests/test_fpc_sourcebuildflow.lpr` → `8/8`
+  - `tests/test_fpc_source_repo.lpr` → `159/159`
+- broad verification 通过：
+  - `bash scripts/run_all_tests.sh` → `330/330`
+  - `lazbuild -B fpdev.lpi` → pass
+- fresh next-step 结论：
+  - 这轮完成后，`src/fpdev.fpc.source.pas` 的剩余代码已经主要是 state/path helper 与 low-level validation，不再适合继续硬拆同一条线
+  - 若下一轮继续推进，应该重新按当前工作树做 fresh hotspot re-rank，而不是继续沿用旧的 `fpc.source` residual 假设
+
+## 2026-04-16 Fresh Hotspot Recheck Checkpoint
+- 在 `fpc.sourceflow` 收口后，重新基于当前工作树核对大体量 facade/service 文件，当前 top 体量大致为：
+  - `src/fpdev.fpc.source.pas`：`870`
+  - `src/fpdev.fpc.manager.pas`：`838`
+  - `src/fpdev.fpc.builder.pas`：`805`
+  - `src/fpdev.build.manager.pas`：`799`
+  - `src/fpdev.package.manager.pas`：`762`
+  - `src/fpdev.resource.repo.pas`：`761`
+  - `src/fpdev.lazarus.manager.pas`：`761`
+- 但这些文件里，之前最有价值的 facade 面在当前磁盘状态下都已经 helper 化并被 boundary tests 锁住：
+  - `build.manager`：`managerflow` + `runtimeflow`
+  - `fpc.builder`：`builderflow`
+  - `fpc.source`：`sourceinstallflow` + `sourcebootstrapflow` + `sourcebuildflow` + `sourceflow`
+  - `fpc.manager`：`installsurfaceflow` / `maintenanceflow` / `residualflow` / `runtimeflow` / `verifyflow` / `statusflow` / `versionflow` / `bootstrapflow` / `indexflow`
+  - `resource.repo`：`lifecycleflow` / `queryflow` / `packageflow` / `mirrorflow` / `bootstrapflow` / `statusflow` / `distributionflow`
+  - `package.manager`：`managerflow` / `facadeflow` / `installflow` / `publishflow` / `queryflow`
+  - `lazarus.manager`：`metadataflow` / `catalogflow` / `maintenanceflow` / `versionflow` / `pathflow`
+- fresh boundary evidence 全部为绿：
+  - `tests.test_build_manager_boundary` → `5/5`
+  - `tests.test_fpc_builder_boundary` → `3/3`
+  - `tests.test_package_manager_boundary` → `3/3`
+  - `tests.test_lazarus_manager_version_boundary` → `5/5`
+  - `tests.test_fpc_source_boundary` → `5/5`
+  - `tests.test_resource_repo_boundary` + `tests.test_fpc_manager_bootstrap_boundary` → `15/15`
+- 结构判断已经和 2026-04-14 的旧排序不同：
+  - `build.manager` 不再是“下一波目标”，因为 `runtimeflow` 已真实落地且 boundary 为绿
+  - `fpc.builder` 也不再是“待开波次”，因为 `builderflow` 已落地且 boundary 为绿
+  - `package.manager` / `resource.repo` / `fpc.manager` / `lazarus.manager` 当前剩余大块更偏 core business logic、state ownership、service bridge，而不是低风险 thin-facade cut
+  - `src/fpdev.index.pas`、`src/fpdev.fpc.installer.pas`、`src/fpdev.lazarus.config.pas` 虽然仍偏大，但当前没有现成证据表明存在新的“3-5 个方法成组 + 低爆炸半径” helper wave
+- checkpoint 结论：
+  - 当前暂不继续开新的 helper extraction wave
+  - 如果后续还要继续推进，应该改为新的设计级/业务级规划，而不是继续沿着 facade 层机械切片
