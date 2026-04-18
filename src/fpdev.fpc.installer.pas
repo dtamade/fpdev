@@ -5,15 +5,12 @@ unit fpdev.fpc.installer;
   fpdev.fpc.installer - FPC Binary Installation Service
 ================================================================================
 
-  Provides FPC binary package download and installation capabilities:
-  - Download binary packages from fpdev-repo (GitHub/Gitee mirrors)
-  - Verify checksums via manifest.json
-  - Extract archives (ZIP, TAR, TAR.GZ)
-  - Install from binary packages
+  Provides FPC installation capabilities for two surfaces:
+  - TFPCBinaryInstaller: runtime binary acquisition via manifest/repo/SourceForge fallback
+  - TFPCInstaller: DI-friendly installer facade used by focused unit tests
 
-  IMPORTANT: This service ONLY downloads from fpdev-repo.
-  SourceForge and other external sources are NOT supported.
-  See docs/REPO_SPECIFICATION.md for repository format.
+  Binary installation still prefers manifest metadata and fpdev-repo binaries,
+  while keeping the legacy SourceForge fallback for unsupported runtime paths.
 
   Mirror configuration:
     China users: fpdev system config set mirror gitee
@@ -50,10 +47,11 @@ uses
   fpdev.fpc.installer.extract, fpdev.fpc.installer.config,
   fpdev.fpc.installer.binaryflow, fpdev.fpc.installer.downloadflow,
   fpdev.fpc.installer.environmentflow, fpdev.fpc.installer.iobridge,
+  fpdev.fpc.installer.lifecycleflow,
   fpdev.fpc.installer.manifestplan, fpdev.fpc.installer.manifestflow,
   fpdev.fpc.installer.nestedflow, fpdev.fpc.installer.postinstall,
   fpdev.fpc.installer.repoflow, fpdev.fpc.installer.sourceforgeflow,
-  fpdev.fpc.installer.archiveflow;
+  fpdev.fpc.installer.archiveflow, fpdev.fpc.installreportflow;
 
 type
   { TFPCBinaryInstaller - FPC binary installation service }
@@ -66,6 +64,7 @@ type
     FErr: IOutput;
     FCache: TBuildCache;
     FNoCache: Boolean;
+    FOfflineMode: Boolean;
     FConfigGen: TFPCConfigGenerator;
 
     { Gets the installation path for a given FPC version. }
@@ -179,6 +178,9 @@ type
       ANoCache: True to skip cache save/restore }
     procedure SetNoCache(ANoCache: Boolean);
 
+    { Sets offline mode for cache-only installation behavior. }
+    procedure SetOfflineMode(AOfflineMode: Boolean);
+
     { Resource repository accessor for external coordination. }
     property ResourceRepo: TResourceRepository read FResourceRepo;
   end;
@@ -194,6 +196,9 @@ type
 
     function GetResolvedInstallRoot: string;
     function GetInstallDir(const AVersion: string): string;
+    function DirectoryExistsAt(const APath: string): Boolean;
+    function ExecuteProcess(const AExecutable: string;
+      const AParams: array of string; const AWorkDir: string): TProcessResult;
   public
     constructor Create(AVersionManager: TFPCVersionManager;
       AConfigManager: TFPDevConfigManager;
@@ -223,12 +228,23 @@ implementation
 
 uses
   fpdev.i18n, fpdev.i18n.strings, fpdev.output.console;
-{$IFDEF MSWINDOWS}
-const
-  WINDOWS_CMD_EXECUTE = '/c';
-  WINDOWS_CMD_REMOVE_SUBTREE = '/s';
-  WINDOWS_CMD_QUIET = '/q';
-{$ENDIF}
+
+procedure WriteLine(const AOut: IOutput; const AText: string = '');
+begin
+  if AOut <> nil then
+    AOut.WriteLn(AText);
+end;
+
+procedure WriteOfflineCacheMiss(const AVersion: string; const AErr: IOutput);
+begin
+  WriteFPCOfflineCacheMissReport(AVersion, AErr);
+end;
+
+procedure WriteOfflineCacheRestoreFailure(const AVersion: string;
+  const AErr: IOutput);
+begin
+  WriteFPCOfflineCacheRestoreFailureReport(AVersion, AErr);
+end;
 
 { TFPCBinaryInstaller }
 
@@ -242,6 +258,7 @@ begin
   FResourceRepo := nil;
   FCache := nil;
   FNoCache := False;
+  FOfflineMode := False;
 
   FOut := AOut;
   if FOut = nil then
@@ -283,6 +300,11 @@ end;
 procedure TFPCBinaryInstaller.SetNoCache(ANoCache: Boolean);
 begin
   FNoCache := ANoCache;
+end;
+
+procedure TFPCBinaryInstaller.SetOfflineMode(AOfflineMode: Boolean);
+begin
+  FOfflineMode := AOfflineMode;
 end;
 
 function TFPCBinaryInstaller.GetVersionInstallPath(const AVersion: string): string;
@@ -451,6 +473,7 @@ var
   InstallPath: string;
   Platform: string;
   PostInstallActions: TFPCBinaryPostInstallActions;
+  CacheAvailable: Boolean;
 begin
   Result := False;
 
@@ -459,6 +482,50 @@ begin
       InstallPath := ExpandFileName(APrefix)
     else
       InstallPath := GetVersionInstallPath(AVersion);
+
+    CacheAvailable := Assigned(FCache) and (not FNoCache);
+    if CacheAvailable then
+    begin
+      if FCache.HasArtifacts(AVersion) then
+      begin
+        WriteLine(FOut, '[CACHE HIT] Found cached artifact for FPC ' + AVersion);
+        WriteLine(FOut, '[CACHE] Restoring from cache to: ' + InstallPath);
+        if FCache.RestoreArtifacts(AVersion, InstallPath) then
+        begin
+          if not EnsureManagedFPCInstallLayout(InstallPath, AVersion, FOut) then
+          begin
+            FErr.WriteLn(_(MSG_ERROR) + ': InstallFromBinary failed - managed install layout incomplete');
+            Exit(False);
+          end;
+
+          if SetupEnvironment(AVersion, InstallPath) then
+            WriteLine(FOut, '[OK] Toolchain registered successfully')
+          else
+            WriteLine(FOut, '[WARN] Failed to register toolchain (non-fatal)');
+
+          Result := True;
+          Exit;
+        end;
+
+        if FOfflineMode then
+        begin
+          WriteOfflineCacheRestoreFailure(AVersion, FErr);
+          Exit(False);
+        end;
+
+        WriteLine(FOut, '[WARN] Cache restoration failed, proceeding with download...');
+      end
+      else if FOfflineMode then
+      begin
+        WriteOfflineCacheMiss(AVersion, FErr);
+        Exit(False);
+      end;
+    end
+    else if FOfflineMode then
+    begin
+      WriteOfflineCacheMiss(AVersion, FErr);
+      Exit(False);
+    end;
 
     Platform := GetCurrentPlatform;
 
@@ -516,7 +583,27 @@ end;
 
 function TFPCInstaller.GetInstallDir(const AVersion: string): string;
 begin
-  Result := GetResolvedInstallRoot + PathDelim + 'fpc' + PathDelim + AVersion;
+  Result := ResolveFPCInstallerVersionInstallDirCore(
+    GetResolvedInstallRoot,
+    AVersion
+  );
+end;
+
+function TFPCInstaller.DirectoryExistsAt(const APath: string): Boolean;
+begin
+  Result := Assigned(FFileSystem) and FFileSystem.DirectoryExists(APath);
+end;
+
+function TFPCInstaller.ExecuteProcess(const AExecutable: string;
+  const AParams: array of string; const AWorkDir: string): TProcessResult;
+begin
+  if Assigned(FProcessRunner) then
+    Exit(FProcessRunner.Execute(AExecutable, AParams, AWorkDir));
+
+  Result.ExitCode := 1;
+  Result.StdOut := '';
+  Result.StdErr := 'Process runner unavailable';
+  Result.Success := False;
 end;
 
 function TFPCInstaller.GetResolvedInstallRoot: string;
@@ -524,112 +611,37 @@ var
   Settings: TFPDevSettings;
 begin
   Settings := FConfigManager.GetSettings;
-  Result := Settings.InstallRoot;
-  if Result = '' then
-    Result := GetDataRoot;
+  Result := ResolveFPCInstallerInstallRootCore(Settings);
 end;
 
 function TFPCInstaller.InstallVersion(const AVersion: string; AFromSource: Boolean;
   const APrefix: string; AEnsure: Boolean): TOperationResult;
 var
-  InstallDir, SourceDir, InstallRoot: string;
-  BuildResult: TOperationResult;
+  State: TFPCInstallerInstallState;
 begin
-  // Validate version
-  if not FVersionManager.ValidateVersion(AVersion) then
-  begin
-    Result := OperationError(ecVersionInvalid, 'Invalid version: ' + AVersion);
-    Exit;
-  end;
+  State.Version := AVersion;
+  State.InstallRoot := GetResolvedInstallRoot;
+  State.Prefix := APrefix;
+  State.FromSource := AFromSource;
+  State.Ensure := AEnsure;
 
-  // Determine install directory
-  if APrefix <> '' then
-    InstallDir := APrefix
-  else
-    InstallDir := GetInstallDir(AVersion);
-
-  // Check if already installed
-  if FFileSystem.DirectoryExists(InstallDir) then
-  begin
-    if AEnsure then
-    begin
-      // Ensure mode: already installed is success
-      Result := OperationSuccess;
-      Exit;
-    end
-    else
-    begin
-      Result := OperationError(ecVersionAlreadyInstalled, 'Version already installed: ' + AVersion);
-      Exit;
-    end;
-  end;
-
-  if not AFromSource then
-  begin
-    // Binary installation path is unified to source flow in DI installer.
-    // Real binary installation is handled by TFPCBinaryInstaller in command runtime.
-    AFromSource := True;
-  end;
-
-  // Install from source (explicit source mode or binary-mode fallback)
-  InstallRoot := GetResolvedInstallRoot;
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-' + AVersion;
-
-  // Download source if not exists
-  if not FFileSystem.DirectoryExists(SourceDir) then
-  begin
-    BuildResult := FBuilder.DownloadSource(AVersion, SourceDir);
-    if not BuildResult.Success then
-    begin
-      Result := BuildResult;
-      Exit;
-    end;
-  end;
-
-  // Build from source
-  BuildResult := FBuilder.BuildFromSource(SourceDir, InstallDir);
-  if not BuildResult.Success then
-  begin
-    Result := BuildResult;
-    Exit;
-  end;
-
-  Result := OperationSuccess;
+  Result := ExecuteFPCInstallerInstallCore(
+    State,
+    @FVersionManager.ValidateVersion,
+    @DirectoryExistsAt,
+    @FBuilder.DownloadSource,
+    @FBuilder.BuildFromSource
+  );
 end;
 
 function TFPCInstaller.UninstallVersion(const AVersion: string): TOperationResult;
-var
-  InstallDir: string;
-  ProcResult: fpdev.fpc.interfaces.TProcessResult;
 begin
-  InstallDir := GetInstallDir(AVersion);
-
-  // Check if installed
-  if not FFileSystem.DirectoryExists(InstallDir) then
-  begin
-    // Not installed - success (nothing to uninstall)
-    Result := OperationSuccess;
-    Exit;
-  end;
-
-  // Remove directory
-  {$IFDEF MSWINDOWS}
-  ProcResult := FProcessRunner.Execute(
-    'cmd',
-    [WINDOWS_CMD_EXECUTE, 'rmdir', WINDOWS_CMD_REMOVE_SUBTREE, WINDOWS_CMD_QUIET, InstallDir],
-    ''
+  Result := ExecuteFPCInstallerUninstallCore(
+    AVersion,
+    GetInstallDir(AVersion),
+    @DirectoryExistsAt,
+    @ExecuteProcess
   );
-  {$ELSE}
-  ProcResult := FProcessRunner.Execute('rm', ['-rf', InstallDir], '');
-  {$ENDIF}
-
-  if not ProcResult.Success then
-  begin
-    Result := OperationError(ecUninstallationFailed, 'Failed to remove directory: ' + InstallDir);
-    Exit;
-  end;
-
-  Result := OperationSuccess;
 end;
 
 function TFPCInstaller.GetBinaryDownloadURL(const AVersion: string): string;
