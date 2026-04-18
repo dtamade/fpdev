@@ -1,12 +1,33 @@
 # Task Plan
 
 ## Active Goal
-收口 2026-04-19 helper-wave 主线 checkpoint：复核 FPC/Git 边界与现有 facade hotspot bundle，确认当前工作树下已无新的高 ROI helper extraction wave，后续推进需切换到新的设计级或业务级目标。
+收口 2026-04-19 `git2 status` conflict coverage：补齐最后一个 `StatusEntries` 冲突场景回归，修正 `GIT_STATUS_CONFLICTED` 在 `IndexOnly` 过滤下被漏掉的问题，并同步 focused runner / docs / todo / report。
 
 ## Current Phase
-Phase 111 complete
+Phase 112 complete
 
 ## Active Phases
+### Phase 112: Git2 Status Conflict Coverage Closure
+- [x] 为 `git2 status` conflict coverage 写 RED：
+  - 更新 `tests/test_git2_status_docs_contract.py`，要求 docs / batch / todo / report 都反映 `fpdev.git2.status_conflict_test.lpr`
+  - 新增 `tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr`
+  - 先跑 docs contract RED，再跑 focused conflict runner RED，确认当前缺口是：
+    - docs / batch / todo / report 尚未接线
+    - `GIT_STATUS_CONFLICTED` 会被 `IndexOnly` 过滤错误漏掉
+- [x] 做最小实现：
+  - 在 `src/fpdev.git2.pas` 的 `AcceptStatus(...)` 中把 `GIT_STATUS_CONFLICTED` 视作 index/worktree focused view 都可见
+  - 更新 `tests/fpdev.git2/buildOrTest.bat`
+  - 更新 `docs/history/git2-status-and-tests.md`
+  - 更新 `report/fpdev.git2.md`
+  - 更新 `todos/fpdev.git2.md`
+- [x] focused verification：
+  - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `5/5`
+  - `fpc ... tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr && .../fpdev.git2.status_conflict_test` → pass
+  - `fpc ... tests/fpdev.git2/fpdev.git2.status_index_test.lpr && .../fpdev.git2.status_index_test` → pass
+  - `fpc ... tests/fpdev.git2/fpdev.git2.status_entries_test.lpr && .../fpdev.git2.status_entries_test` → pass
+- [x] 同步 `task_plan.md`、`findings.md`、`progress.md`
+- **Status:** complete
+
 ### Phase 111: Revalidation Checkpoint
 - [x] 复核 FPC/Git compatibility + verify/builder 边界 bundle：
   - `python3 -m unittest tests.test_git_runtime_boundary tests.test_fpc_builder_boundary tests.test_fpc_manager_verify_boundary tests.test_fpc_binary_verify_boundary -v`

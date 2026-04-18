@@ -1,5 +1,44 @@
 # Progress Log
 
+## Session: 2026-04-19 (git2 status conflict coverage)
+
+### Phase 112: Git2 Status Conflict Coverage Closure
+- **Status:** complete
+- **Started:** 2026-04-19
+- Actions taken:
+  - 复核 `todos/fpdev.git2.md` 与现有 `git2` 状态测试，选定当前最小且真实的未收口切口：`StatusEntries` 的冲突场景覆盖
+  - 先做 docs contract RED：
+    - 更新 `tests/test_git2_status_docs_contract.py`
+    - 新要求 `docs/history/git2-status-and-tests.md`、`report/fpdev.git2.md`、`tests/fpdev.git2/buildOrTest.bat`、`todos/fpdev.git2.md` 都要反映 `fpdev.git2.status_conflict_test.lpr`
+    - `python3 -m unittest tests.test_git2_status_docs_contract -v` 先失败，命中预期缺口：runner/doc/todo/report 尚未接线
+  - 新增 focused runtime RED：
+    - 新增 `tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr`
+    - 用本地 `git` CLI 在临时仓库里制造真实 merge conflict
+    - 初次 focused runner RED 证明默认视图可见 conflict，但 `IndexOnly=True` 会把 conflict 项错误过滤掉
+  - 做最小实现：
+    - 在 `src/fpdev.git2.pas` 的 `AcceptStatus(...)` 中把 `GIT_STATUS_CONFLICTED` 视作 index/worktree focused view 都可见
+    - 把 `tests/fpdev.git2/buildOrTest.bat` 接入新的 conflict runner
+    - 同步 `docs/history/git2-status-and-tests.md`、`report/fpdev.git2.md`、`todos/fpdev.git2.md`
+  - fresh focused verification：
+    - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `5 passed`
+    - `fpc ... tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr && .../fpdev.git2.status_conflict_test` → pass
+    - `fpc ... tests/fpdev.git2/fpdev.git2.status_index_test.lpr && .../fpdev.git2.status_index_test` → pass
+    - `fpc ... tests/fpdev.git2/fpdev.git2.status_entries_test.lpr && .../fpdev.git2.status_entries_test` → pass
+- Files created/modified:
+  - `src/fpdev.git2.pas`
+  - `tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr` (created)
+  - `tests/fpdev.git2/buildOrTest.bat`
+  - `tests/test_git2_status_docs_contract.py`
+  - `docs/history/git2-status-and-tests.md`
+  - `report/fpdev.git2.md`
+  - `todos/fpdev.git2.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 这轮修的是 `StatusEntries` focused filter 语义，不涉及更大的 `git2` facade 或系统 git runtime 设计
+  - 目前 `merge-conflict` 已有真实本地仓库回归；若继续推进 `git2`，更自然的下一刀会转向更细的状态 flags 或更高层 facade 行为，而不是继续把 conflict 记为 TODO
+
 ## Session: 2026-04-19 (revalidation checkpoint)
 
 ### Phase 111: Revalidation Checkpoint

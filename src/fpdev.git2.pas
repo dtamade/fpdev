@@ -277,7 +277,7 @@ end;
 
 function AcceptStatus(AFlags: cuint; const Filter: TGitStatusFilter): Boolean;
 var
-  LHasIndex, LHasWt, LIsUntracked, LIsIgnored: Boolean;
+  LHasIndex, LHasWt, LIsUntracked, LIsIgnored, LIsConflicted: Boolean;
 begin
   LHasIndex := (AFlags and (
     GIT_STATUS_INDEX_NEW or
@@ -291,10 +291,18 @@ begin
     GIT_STATUS_WT_MODIFIED or
     GIT_STATUS_WT_DELETED or
     GIT_STATUS_WT_RENAMED or
-    GIT_STATUS_WT_TYPECHANGE
+    GIT_STATUS_WT_TYPECHANGE or
+    GIT_STATUS_IGNORED
   )) <> 0;
   LIsUntracked := (AFlags and GIT_STATUS_WT_NEW) <> 0;
   LIsIgnored := (AFlags and GIT_STATUS_IGNORED) <> 0;
+  LIsConflicted := (AFlags and GIT_STATUS_CONFLICTED) <> 0;
+  if LIsConflicted then
+  begin
+    // Unmerged entries are visible from both index- and worktree-focused views.
+    LHasIndex := True;
+    LHasWt := True;
+  end;
   if Filter.IndexOnly and not LHasIndex then Exit(False);
   if Filter.WorkingTreeOnly and not LHasWt then Exit(False);
   if (not Filter.IncludeUntracked) and LIsUntracked then Exit(False);

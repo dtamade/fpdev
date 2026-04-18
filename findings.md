@@ -7,6 +7,30 @@
 - 识别项目当前“最大的问题”
 
 ## Research Findings
+- 2026-04-19 已收口 `git2 status` 最后一块挂起覆盖：merge conflict 场景。
+- 这轮不是再开新 facade/helper wave，而是补一个真实运行时缺口：
+  - `src/fpdev.git2.pas` 里 `MapStatusFlags(...)` 早已支持 `GIT_STATUS_CONFLICTED -> gsConflicted`
+  - 但 `AcceptStatus(...)` 没把 conflict 视作 `IndexOnly` / `WorkingTreeOnly` focused view 的可见项
+  - 结果是默认 `StatusEntries(Filter)` 能看到冲突，但 `IndexOnly=True` 会把它错误过滤掉
+- 本轮用一个真实本地仓库回归把这个缺口钉住：
+  - 新增 `tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr`
+  - 通过本地 `git` CLI 在临时仓库里制造真实 merge conflict
+  - 直接验证：
+    - 默认 `StatusEntries(Filter)` 返回 `gsConflicted`
+    - `IndexOnly=True` 时冲突项不会消失
+- 最小修复落点：
+  - `src/fpdev.git2.pas`
+  - `AcceptStatus(...)` 现在会把 `GIT_STATUS_CONFLICTED` 视作 index/worktree focused views 都可见
+- 配套收口同步完成：
+  - `tests/fpdev.git2/buildOrTest.bat` 已接入 `fpdev.git2.status_conflict_test.lpr`
+  - `docs/history/git2-status-and-tests.md` 不再写“merge-conflict 覆盖（暂缓）”
+  - `report/fpdev.git2.md` 已记录新的 focused runner
+  - `todos/fpdev.git2.md` 已把“冲突标志（可模拟）”改为完成
+- focused verification 证据：
+  - `python3 -m unittest tests.test_git2_status_docs_contract -v` → `5/5`
+  - `tests/fpdev.git2/fpdev.git2.status_conflict_test.lpr` → pass
+  - `tests/fpdev.git2/fpdev.git2.status_index_test.lpr` → pass
+  - `tests/fpdev.git2/fpdev.git2.status_entries_test.lpr` → pass
 - 2026-04-19 做了 fresh revalidation，而不是继续盲目开新波次：
   - 重新运行 FPC/Git 相关边界 bundle：
     - `tests.test_git_runtime_boundary`
