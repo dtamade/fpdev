@@ -35,11 +35,12 @@ uses
   fpdev.config, fpdev.config.interfaces, fpdev.output.intf, fpdev.output.console,
   fpdev.resource.repo, fpdev.resource.repo.types, fpdev.utils.fs, fpdev.utils.process,
   fpdev.i18n, fpdev.i18n.strings,
-  fpdev.project.generator, fpdev.project.execflow;
+  fpdev.project.generator, fpdev.project.createflow, fpdev.project.cleanflow, fpdev.project.execflow,
+  fpdev.project.templateflow;
 
 type
-  TProjectTemplate = fpdev.project.generator.TProjectTemplate;
-  TProjectTemplateArray = array of TProjectTemplate;
+  TProjectTemplate = fpdev.project.templateflow.TProjectTemplate;
+  TProjectTemplateArray = fpdev.project.templateflow.TProjectTemplateArray;
 
   { TProjectManager }
   TProjectManager = class
@@ -57,7 +58,6 @@ type
       const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
     function RunDirectProcess(const AExecutable: string;
       const AParams: SysUtils.TStringArray; const AWorkDir: string): TProcessResult;
-    procedure CopyTemplateDirectory(const ASrcDir, ADestDir: string);
 
   public
     constructor Create(AConfigManager: TFPDevConfigManager); overload;
@@ -149,55 +149,6 @@ begin
   inherited Destroy;
 end;
 
-procedure TProjectManager.CopyTemplateDirectory(const ASrcDir, ADestDir: string);
-var
-  SR: TSearchRec;
-  SrcPath, DstPath: string;
-  SrcStream, DstStream: TFileStream;
-begin
-  // Ensure destination directory exists
-  EnsureDir(ADestDir);
-
-  // Scan source directory
-  if FindFirst(ASrcDir + PathDelim + '*', faAnyFile, SR) = 0 then
-  begin
-    repeat
-      // Skip special directories
-      if (SR.Name = '.') or (SR.Name = '..') then
-        Continue;
-
-      SrcPath := ASrcDir + PathDelim + SR.Name;
-      DstPath := ADestDir + PathDelim + SR.Name;
-
-      if (SR.Attr and faDirectory) <> 0 then
-      begin
-        // Recursively copy subdirectory
-        CopyTemplateDirectory(SrcPath, DstPath);
-      end
-      else
-      begin
-        // Copy file
-        try
-          SrcStream := TFileStream.Create(SrcPath, fmOpenRead or fmShareDenyWrite);
-          try
-            DstStream := TFileStream.Create(DstPath, fmCreate);
-            try
-              DstStream.CopyFrom(SrcStream, SrcStream.Size);
-            finally
-              DstStream.Free;
-            end;
-          finally
-            SrcStream.Free;
-          end;
-        except
-          // Ignore individual file copy errors, continue with next file
-        end;
-      end;
-    until FindNext(SR) <> 0;
-    FindClose(SR);
-  end;
-end;
-
 function TProjectManager.ValidateProjectName(const AProjectName: string): Boolean;
 begin
   Result := (AProjectName <> '') and
@@ -238,29 +189,14 @@ begin
 end;
 
 function TProjectManager.CreateFromTemplate(const ATemplateName, AProjectName, ATargetDir: string): Boolean;
-var
-  Template: TProjectTemplate;
 begin
-  Result := False;
-
-  Template := GetTemplateInfo(ATemplateName);
-  if Template.Name = '' then
-  begin
-    Exit;
-  end;
-
-  try
-    // Ensure the target directory exists
-    if not DirectoryExists(ATargetDir) then
-      EnsureDir(ATargetDir);
-
-    // Delegate to the project file generation service
-    Result := FGenerator.GenerateProjectFiles(Template, AProjectName, ATargetDir);
-
-  except
-    on E: Exception do
-      Result := False;
-  end;
+  Result := ExecuteProjectCreateFromTemplateCore(
+    ATemplateName,
+    AProjectName,
+    ATargetDir,
+    @GetTemplateInfo,
+    @FGenerator.GenerateProjectFiles
+  );
 end;
 
 function TProjectManager.SetupProjectEnvironment(const AProjectDir: string): Boolean;
@@ -277,26 +213,16 @@ begin
   LOut := TConsoleOutput.Create(True) as IOutput;
   Result := False;
 
-  if not ValidateProjectName(AProjectName) then
-  begin
-    Exit;
-  end;
-
   try
-
-    // Create project from template
-    if not CreateFromTemplate(ATemplateName, AProjectName, ATargetDir) then
-    begin
-      Exit;
-    end;
-
-    // Setup project environment
-    if not SetupProjectEnvironment(ATargetDir) then
-    begin
-      LOut.WriteLn('Warning: Project environment setup incomplete for: ' + ATargetDir);
-    end;
-
-    Result := True;
+    Result := ExecuteProjectCreateCore(
+      ATemplateName,
+      AProjectName,
+      ATargetDir,
+      LOut,
+      @ValidateProjectName,
+      @CreateFromTemplate,
+      @SetupProjectEnvironment
+    );
 
   except
     on E: Exception do
@@ -316,9 +242,6 @@ end;
 
 function TProjectManager.ListTemplates(const Outp: IOutput): Boolean;
 var
-  Templates: TProjectTemplateArray;
-  i: Integer;
-  Line: string;
   LO: IOutput;
 begin
   Result := True;
@@ -328,28 +251,7 @@ begin
     LO := TConsoleOutput.Create(False) as IOutput;
 
   try
-    Templates := GetAvailableTemplates;
-
-
-    for i := 0 to High(Templates) do
-    begin
-      Line := Format('%-10s  ', [Templates[i].Name]);
-      case Templates[i].ProjectType of
-        ptConsole: Line := Line + 'Console     ';
-        ptGUI: Line := Line + 'GUI App     ';
-        ptLibrary: Line := Line + 'Library     ';
-        ptPackage: Line := Line + 'Package     ';
-        ptWebApp: Line := Line + 'Web App     ';
-        ptService: Line := Line + 'Service     ';
-        ptGame: Line := Line + 'Game        ';
-      else
-        Line := Line + 'Custom      ';
-      end;
-      Line := Line + Templates[i].Description;
-      LO.WriteLn(Line);
-    end;
-
-
+    Result := ExecuteProjectTemplateListCore(GetAvailableTemplates, LO);
   except
     on E: Exception do
     begin
@@ -368,7 +270,6 @@ end;
 
 function TProjectManager.ShowTemplateInfo(const Outp, Errp: IOutput; const ATemplateName: string): Boolean;
 var
-  Template: TProjectTemplate;
   LO: IOutput;
   LE: IOutput;
 begin
@@ -382,33 +283,12 @@ begin
     LE := TConsoleOutput.Create(True) as IOutput;
 
   try
-    Template := GetTemplateInfo(ATemplateName);
-
-    if Template.Name = '' then
-    begin
-      LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TEMPLATE_NOT_FOUND, [ATemplateName]));
-      Exit;
-    end;
-
-
-    LO.WriteLn(Format('Name:        %s', [Template.Name]));
-    LO.WriteLn(Format('Display:     %s', [Template.DisplayName]));
-    LO.WriteLn(Format('Description: %s', [Template.Description]));
-    LO.Write('Type:        ');
-    case Template.ProjectType of
-      ptConsole: LO.WriteLn(_(CMD_PROJECT_TYPE_CONSOLE));
-      ptGUI: LO.WriteLn(_(CMD_PROJECT_TYPE_GUI));
-      ptLibrary: LO.WriteLn(_(CMD_PROJECT_TYPE_LIBRARY));
-      ptPackage: LO.WriteLn(_(CMD_PROJECT_TYPE_PACKAGE));
-      ptWebApp: LO.WriteLn(_(CMD_PROJECT_TYPE_WEBAPP));
-      ptService: LO.WriteLn(_(CMD_PROJECT_TYPE_SERVICE));
-      ptGame: LO.WriteLn(_(CMD_PROJECT_TYPE_GAME));
-    else
-      LO.WriteLn(_(CMD_PROJECT_TYPE_CUSTOM));
-    end;
-
-    Result := True;
-
+    Result := ExecuteProjectTemplateInfoCore(
+      ATemplateName,
+      GetTemplateInfo(ATemplateName),
+      LO,
+      LE
+    );
   except
     on E: Exception do
     begin
@@ -463,12 +343,9 @@ end;
 
 function TProjectManager.CleanProject(const Outp, Errp: IOutput; const AProjectDir: string): Boolean;
 var
-  DeletedCount: Integer;
   LO: IOutput;
   LE: IOutput;
 begin
-  Result := False;
-
   LO := Outp;
   if LO = nil then
     LO := TConsoleOutput.Create(False) as IOutput;
@@ -476,26 +353,7 @@ begin
   if LE = nil then
     LE := TConsoleOutput.Create(True) as IOutput;
 
-  // Validate directory exists
-  if not DirectoryExists(AProjectDir) then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_DIR_NOT_FOUND, [AProjectDir]));
-    Exit;
-  end;
-
-  try
-    // Use shared cleanup function (includes platform executables)
-    DeletedCount := CleanBuildArtifacts(AProjectDir, nil, True);
-    LO.WriteLn(_Fmt(CMD_PROJECT_CLEANED, [DeletedCount, AProjectDir]));
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      LE.WriteLn(_(MSG_ERROR) + ': ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteProjectCleanCore(AProjectDir, LO, LE);
 end;
 
 function TProjectManager.TestProject(const AProjectDir: string): Boolean;
@@ -564,83 +422,13 @@ begin
 end;
 
 function TProjectManager.InstallTemplate(const Outp, Errp: IOutput; const ATemplatePath: string): Boolean;
-var
-  TemplateName: string;
-  DestDir: string;
-  SR: TSearchRec;
-  SrcFile, DstFile: string;
-  SrcStream, DstStream: TFileStream;
-  LO, LE: IOutput;
 begin
-  Result := False;
-
-  LO := Outp;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-  LE := Errp;
-  if LE = nil then
-    LE := TConsoleOutput.Create(True) as IOutput;
-
-  if not DirectoryExists(ATemplatePath) then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_PATH_NOT_EXIST, [ATemplatePath]));
-    Exit;
-  end;
-
-  // Extract template name from path
-  TemplateName := ExtractFileName(ExcludeTrailingPathDelimiter(ATemplatePath));
-  if TemplateName = '' then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PROJECT_TPL_INVALID_PATH));
-    Exit;
-  end;
-
-  // Create destination directory
-  DestDir := FTemplatesRoot + PathDelim + TemplateName;
-  if DirectoryExists(DestDir) then
-  begin
-    LO.WriteLn(_(MSG_WARNING) + ': ' + _Fmt(CMD_PROJECT_TPL_OVERWRITING, [TemplateName]));
-  end;
-
-  try
-    EnsureDir(DestDir);
-
-    // Copy all files from source to destination
-    if FindFirst(ATemplatePath + PathDelim + '*', faAnyFile, SR) = 0 then
-    begin
-      repeat
-        if (SR.Name <> '.') and (SR.Name <> '..') and
-           ((SR.Attr and faDirectory) = 0) then
-        begin
-          SrcFile := ATemplatePath + PathDelim + SR.Name;
-          DstFile := DestDir + PathDelim + SR.Name;
-
-          SrcStream := TFileStream.Create(SrcFile, fmOpenRead or fmShareDenyWrite);
-          try
-            DstStream := TFileStream.Create(DstFile, fmCreate);
-            try
-              DstStream.CopyFrom(SrcStream, SrcStream.Size);
-            finally
-              DstStream.Free;
-            end;
-          finally
-            SrcStream.Free;
-          end;
-        end;
-      until FindNext(SR) <> 0;
-      FindClose(SR);
-    end;
-
-    LO.WriteLn(_Fmt(CMD_PROJECT_TPL_INSTALLED, [TemplateName]));
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      LE.WriteLn(_Fmt(CMD_PROJECT_TPL_INSTALL_ERROR, [E.Message]));
-      Result := False;
-    end;
-  end;
+  Result := ExecuteProjectTemplateInstallCore(
+    ATemplatePath,
+    FTemplatesRoot,
+    Outp,
+    Errp
+  );
 end;
 
 function TProjectManager.RemoveTemplate(const ATemplateName: string): Boolean;
@@ -649,64 +437,14 @@ begin
 end;
 
 function TProjectManager.RemoveTemplate(const Outp, Errp: IOutput; const ATemplateName: string): Boolean;
-var
-  TemplateDir: string;
-  i: Integer;
-  IsBuiltin: Boolean;
-  LO, LE: IOutput;
 begin
-  Result := False;
-
-  LO := Outp;
-  if LO = nil then
-    LO := TConsoleOutput.Create(False) as IOutput;
-  LE := Errp;
-  if LE = nil then
-    LE := TConsoleOutput.Create(True) as IOutput;
-
-  if ATemplateName = '' then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_PROJECT_TPL_NAME_REQUIRED));
-    Exit;
-  end;
-
-  // Check if it's a built-in template
-  IsBuiltin := False;
-  for i := 0 to High(BUILTIN_TEMPLATES) do
-  begin
-    if SameText(BUILTIN_TEMPLATES[i].Name, ATemplateName) then
-    begin
-      IsBuiltin := True;
-      Break;
-    end;
-  end;
-
-  if IsBuiltin then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_BUILTIN_REMOVE, [ATemplateName]));
-    Exit;
-  end;
-
-  // Check if template exists
-  TemplateDir := FTemplatesRoot + PathDelim + ATemplateName;
-  if not DirectoryExists(TemplateDir) then
-  begin
-    LE.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PROJECT_TPL_NOT_FOUND, [ATemplateName]));
-    Exit;
-  end;
-
-  try
-    DeleteDirRecursive(TemplateDir);
-    LO.WriteLn(_Fmt(CMD_PROJECT_TPL_REMOVED, [ATemplateName]));
-    Result := True;
-
-  except
-    on E: Exception do
-    begin
-      LE.WriteLn(_Fmt(CMD_PROJECT_TPL_REMOVE_ERROR, [E.Message]));
-      Result := False;
-    end;
-  end;
+  Result := ExecuteProjectTemplateRemoveCore(
+    ATemplateName,
+    FTemplatesRoot,
+    GetAvailableTemplates,
+    Outp,
+    Errp
+  );
 end;
 
 function TProjectManager.UpdateTemplates: Boolean;
@@ -718,15 +456,9 @@ function TProjectManager.UpdateTemplates(const Outp, Errp: IOutput): Boolean;
 var
   Repo: TResourceRepository;
   RepoConfig: TResourceRepoConfig;
-  TemplatesDir, TemplateSrc, TemplateDest: string;
-  SR: TSearchRec;
-  UpdatedCount, AddedCount: Integer;
-  MetaPath: string;
   LO, LE: IOutput;
 begin
   Result := False;
-  UpdatedCount := 0;
-  AddedCount := 0;
 
   LO := Outp;
   if LO = nil then
@@ -740,74 +472,13 @@ begin
     RepoConfig := CreateDefaultConfig;
     Repo := TResourceRepository.Create(RepoConfig);
     try
-      // Initialize and update repository
-      if not Repo.Initialize then
-      begin
-        LO.WriteLn(_(MSG_INFO) + ': ' + _(CMD_PROJECT_TPL_REPO_UNAVAIL));
-        Exit(True);  // Non-fatal - just skip online update
-      end;
-
-      // Force update to get latest templates
-      if not Repo.Update(True) then
-      begin
-        LO.WriteLn(_(MSG_WARNING) + ': ' + _(CMD_PROJECT_TPL_UPDATE_FAILED));
-        // Continue anyway - we may have local templates
-      end;
-
-      // Look for templates directory in repo
-      TemplatesDir := Repo.LocalPath + PathDelim + 'templates';
-      if not DirectoryExists(TemplatesDir) then
-      begin
-        LO.WriteLn(_(MSG_INFO) + ': ' + _(CMD_PROJECT_TPL_NO_TEMPLATES));
-        Exit(True);  // Non-fatal - templates may not be in repo yet
-      end;
-
-      // Ensure local templates directory exists
-      if not DirectoryExists(FTemplatesRoot) then
-        EnsureDir(FTemplatesRoot);
-
-      // Scan templates in repo and copy to local
-      if FindFirst(TemplatesDir + PathDelim + '*', faDirectory, SR) = 0 then
-      begin
-        repeat
-          if (SR.Name <> '.') and (SR.Name <> '..') and ((SR.Attr and faDirectory) <> 0) then
-          begin
-            TemplateSrc := TemplatesDir + PathDelim + SR.Name;
-            TemplateDest := FTemplatesRoot + PathDelim + SR.Name;
-
-            // Check if template has metadata file (required for valid template)
-            MetaPath := TemplateSrc + PathDelim + 'template.json';
-            if not FileExists(MetaPath) then
-              Continue;  // Skip directories without template.json
-
-            // Check if template needs update (simple: compare existence)
-            if DirectoryExists(TemplateDest) then
-            begin
-              // Template exists, could add version comparison here
-              // For now, always update
-              Inc(UpdatedCount);
-            end
-            else
-            begin
-              // New template
-              EnsureDir(TemplateDest);
-              Inc(AddedCount);
-            end;
-
-            // Copy template files
-            CopyTemplateDirectory(TemplateSrc, TemplateDest);
-          end;
-        until FindNext(SR) <> 0;
-        FindClose(SR);
-      end;
-
-      // Report results
-      if (AddedCount > 0) or (UpdatedCount > 0) then
-        LO.WriteLn(_Fmt(CMD_PROJECT_TPL_UPDATED, [AddedCount, UpdatedCount]))
-      else
-        LO.WriteLn(_(CMD_PROJECT_TPL_UP_TO_DATE));
-
-      Result := True;
+      Result := ExecuteProjectTemplateUpdateCore(
+        Repo.LocalPath,
+        FTemplatesRoot,
+        LO,
+        @Repo.Initialize,
+        @Repo.Update
+      );
     finally
       Repo.Free;
     end;

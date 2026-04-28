@@ -1,12 +1,25 @@
 # Task Plan
 
 ## Active Goal
-完成 2026-04-19 fresh hotspot re-rank checkpoint：确认 `CLI commandflow wave pack` 收口后当前工作树里暂不存在新的高 ROI、低爆炸半径 helper wave。
+完成 2026-04-29 continuous repo closeout：修复当前已知 test inventory truth drift，复核关键 contract/boundary/full verification，并将本轮收口 review 后提交。
 
 ## Current Phase
-Phase 116 complete
+Phase 117 complete
 
 ## Active Phases
+### Phase 117: Continuous Repo Closeout And Test Inventory Truth Sync
+- [x] 创建连续收口实施计划：`docs/plans/2026-04-29-continuous-repo-closeout.md`
+- [x] 确认当前工作树仍是大 dirty tree，且 prior planning state 已停在 Phase 116 checkpoint
+- [x] 修复 `scripts/update_test_stats.py --check` 暴露的 335 vs 275 test inventory drift
+- [x] 运行 focused docs/test-inventory contracts
+- [x] 运行 facade boundary bundle，确认已完成 helper/facade 边界没有回退
+- [x] 运行 Python 全量回归
+- [x] 运行 Pascal 全量回归：`bash scripts/run_all_tests.sh`
+- [x] 运行 Release build：`lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 closeout 改动
+- **Status:** complete
+
 ### Phase 116: Fresh Hotspot Re-rank Checkpoint After CLI Wave Pack
 - [x] 基于最新工作树重新扫描剩余大体量单元与 command/facade/helper 分布
 - [x] 运行轻量 boundary bundle：

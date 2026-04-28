@@ -1,4 +1,4 @@
-unit fpdev.utils.git;
+unit fpdev.git.operations.impl;
 
 {$mode objfpc}{$H+}
 // acq:allow-debug-output-file
@@ -21,17 +21,10 @@ unit fpdev.utils.git;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils, fpdev.utils.process, git2.api, git2.types;
+  SysUtils, Classes, fpdev.utils.process, fpdev.git.types,
+  fpdev.git.errors, git2.api, git2.types;
 
 type
-  TGitBackend = (gbLibgit2, gbCommandLine, gbNone);
-  TGitPullFailureKind = (
-    gpfkUnknown,
-    gpfkDirtyWorktree,
-    gpfkDetachedHead,
-    gpfkDivergedHistory
-  );
-
   IGitCliRunner = interface
     ['{7D40CB2F-5C75-4B33-98D7-9E7138A50A8B}']
     function Execute(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
@@ -40,7 +33,7 @@ type
   { TGitOperations - Unified Git operations with libgit2 + CLI fallback }
   TGitOperations = class
   private
-    FBackend: TGitBackend;
+    FBackend: fpdev.git.types.TGitBackend;
     FLastError: string;
     FVerbose: Boolean;
     FGitManager: IGitManager;
@@ -97,21 +90,17 @@ type
     function GetVersion: string;
     function ListRemoteBranches(const ARepoPath: string; const ARemote: string = 'origin'): TStringArray;
 
-    property Backend: TGitBackend read FBackend;
+    property Backend: fpdev.git.types.TGitBackend read FBackend;
     property LastError: string read FLastError;
     property Verbose: Boolean read FVerbose write FVerbose;
   end;
 
-// Helper function to get backend name
-function GitBackendToString(ABackend: TGitBackend): string;
-function ClassifyGitPullFailure(const AError: string): TGitPullFailureKind;
-procedure ResolveGitCredentialEnv(out AUsername, APassword, ASshUsername: string);
-procedure ResolveGitIdentityEnv(var AAuthorName, AAuthorEmail, ACommitterName, ACommitterEmail: string);
+// Concrete implementation behind fpdev.git.operations.
 
 implementation
 
 uses
-  git2.impl, libgit2, ctypes;
+  git2.impl, libgit2, ctypes, fpdev.git.env;
 
 var
   Libgit2Available: Boolean = False;
@@ -151,50 +140,6 @@ type
 
 // Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
-
-function GitBackendToString(ABackend: TGitBackend): string;
-begin
-  case ABackend of
-    gbLibgit2: Result := 'libgit2';
-    gbCommandLine: Result := 'git (command-line)';
-    gbNone: Result := 'none';
-  end;
-end;
-
-function ClassifyGitPullFailure(const AError: string): TGitPullFailureKind;
-var
-  LError: string;
-begin
-  LError := LowerCase(Trim(AError));
-  if LError = '' then
-    Exit(gpfkUnknown);
-
-  if (Pos('detached head', LError) > 0) or
-     (Pos('not currently on a branch', LError) > 0) or
-     (Pos('specify which branch you want to merge with', LError) > 0) then
-    Exit(gpfkDetachedHead);
-
-  if (Pos('working tree has local changes', LError) > 0) or
-     (Pos('your local changes to the following files would be overwritten by merge', LError) > 0) or
-     (Pos('untracked working tree files would be overwritten by merge', LError) > 0) or
-     (Pos('please commit your changes or stash them before you merge', LError) > 0) or
-     (Pos('please move or remove them before you merge', LError) > 0) then
-    Exit(gpfkDirtyWorktree);
-
-  if (Pos('non-fast-forward update requires merge/rebase', LError) > 0) or
-     (Pos('not possible to fast-forward', LError) > 0) or
-     (Pos('merge has conflicts', LError) > 0) or
-     (Pos('manual resolution required', LError) > 0) or
-     (Pos('automatic merge failed', LError) > 0) or
-     (Pos('merge conflict', LError) > 0) or
-     (Pos('conflict (content)', LError) > 0) or
-     (Pos('reconcile divergent branches', LError) > 0) or
-     (Pos('branches diverged', LError) > 0) or
-     (Pos('refusing to merge unrelated histories', LError) > 0) then
-    Exit(gpfkDivergedHistory);
-
-  Result := gpfkUnknown;
-end;
 
 function Libgit2LastErrorText: string;
 var
@@ -294,45 +239,6 @@ begin
     Inc(P^.MatchCount);
 end;
 
-procedure ResolveGitCredentialEnv(out AUsername, APassword, ASshUsername: string);
-begin
-  AUsername := Trim(get_env('FPDEV_GIT_USERNAME'));
-  APassword := Trim(get_env('FPDEV_GIT_PASSWORD'));
-  if AUsername = '' then
-    AUsername := Trim(get_env('GIT_USERNAME'));
-  if APassword = '' then
-    APassword := Trim(get_env('GIT_PASSWORD'));
-
-  if APassword = '' then
-    APassword := Trim(get_env('FPDEV_GIT_TOKEN'));
-  if APassword = '' then
-    APassword := Trim(get_env('GIT_TOKEN'));
-
-  ASshUsername := Trim(get_env('FPDEV_GIT_SSH_USERNAME'));
-  if ASshUsername = '' then
-    ASshUsername := Trim(get_env('GIT_SSH_USERNAME'));
-end;
-
-procedure ResolveGitIdentityEnv(var AAuthorName, AAuthorEmail, ACommitterName, ACommitterEmail: string);
-var
-  EnvAuthorName: string;
-  EnvAuthorEmail: string;
-begin
-  EnvAuthorName := Trim(get_env('GIT_AUTHOR_NAME'));
-  EnvAuthorEmail := Trim(get_env('GIT_AUTHOR_EMAIL'));
-  if AAuthorName = '' then
-    AAuthorName := EnvAuthorName;
-  if AAuthorEmail = '' then
-    AAuthorEmail := EnvAuthorEmail;
-
-  ACommitterName := Trim(get_env('GIT_COMMITTER_NAME'));
-  ACommitterEmail := Trim(get_env('GIT_COMMITTER_EMAIL'));
-  if ACommitterName = '' then
-    ACommitterName := AAuthorName;
-  if ACommitterEmail = '' then
-    ACommitterEmail := AAuthorEmail;
-end;
-
 procedure LoadCredentialPayloadFromEnv(out APayload: TGitCredentialPayload);
 var
   U: string;
@@ -347,7 +253,7 @@ begin
   APayload.Password := '';
   APayload.SshUsername := '';
 
-  ResolveGitCredentialEnv(U, P, SU);
+  fpdev.git.env.ResolveGitCredentialEnv(U, P, SU);
 
   APayload.Username := AnsiString(U);
   APayload.Password := AnsiString(P);
@@ -761,7 +667,7 @@ begin
 
       // Keep known worktree/ref-state failures stable instead of replacing them
       // with backend-specific CLI stderr.
-      if ClassifyGitPullFailure(FLastError) <> gpfkUnknown then
+      if fpdev.git.errors.ClassifyGitPullFailure(FLastError) <> fpdev.git.errors.gpfkUnknown then
         Exit(False);
 
       if not CommandLineGitAvailable then
@@ -1390,7 +1296,8 @@ begin
     EnvAuthorEmail := '';
     EnvCommitterName := '';
     EnvCommitterEmail := '';
-    ResolveGitIdentityEnv(EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
+    fpdev.git.env.ResolveGitIdentityEnv(
+      EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
     if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
     begin
       AuthorName := EnvAuthorName;
@@ -2515,7 +2422,8 @@ var
     EnvAuthorEmail := '';
     EnvCommitterName := '';
     EnvCommitterEmail := '';
-    ResolveGitIdentityEnv(EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
+    fpdev.git.env.ResolveGitIdentityEnv(
+      EnvAuthorName, EnvAuthorEmail, EnvCommitterName, EnvCommitterEmail);
     if not TryLoadUserFromConfig(AuthorName, AuthorEmail) then
     begin
       if not TryLoadUserFromLocalConfig(AuthorName, AuthorEmail) then

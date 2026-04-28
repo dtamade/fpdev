@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.lazarus.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.lazarus.leafcommandflow;
 
 type
   { TLazCurrentCommand }
@@ -21,83 +21,33 @@ type
 
 implementation
 
-uses fpdev.command.utils, fpjson;
-
 function TLazCurrentCommand.Name: string; begin Result := 'current'; end;
 function TLazCurrentCommand.Aliases: TStringArray; begin Result := nil; end;
 function TLazCurrentCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
 function TLazCurrentCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LVer: string;
   LMgr: TLazarusManager;
-  LJsonOutput: Boolean;
-  LJson: TJSONObject;
+  LPlan: TLazarusCurrentCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := EXIT_OK;
-
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    if Length(AParams) > 1 then
-    begin
-      Ctx.Err.WriteLn(_(HELP_LAZARUS_CURRENT_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_JSON));
-    Ctx.Out.WriteLn(_(HELP_LAZARUS_CURRENT_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if Length(AParams) > 1 then
-  begin
-    Ctx.Err.WriteLn(_(HELP_LAZARUS_CURRENT_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LJsonOutput := HasFlag(AParams, 'json');
-  if (Length(AParams) = 1) and (not LJsonOutput) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_LAZARUS_CURRENT_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
+  Result := PrepareLazarusCurrentCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
   LMgr := TLazarusManager.Create(Ctx.Config);
   try
-    LVer := LMgr.GetCurrentVersion;
-
-    if LJsonOutput then
-    begin
-      // JSON output mode
-      LJson := TJSONObject.Create;
-      try
-        if LVer <> '' then
-        begin
-          LJson.Add('version', LVer);
-          LJson.Add('has_default', True);
-        end
-        else
-        begin
-          LJson.Add('version', TJSONNull.Create);
-          LJson.Add('has_default', False);
-        end;
-        Ctx.Out.WriteLn(LJson.FormatJSON);
-      finally
-        LJson.Free;
-      end;
-    end
-    else
-    begin
-      // Normal text output
-      if LVer <> '' then
-        Ctx.Out.WriteLn(_Fmt(CMD_LAZARUS_CURRENT_VERSION, [LVer]))
-      else
-        Ctx.Out.WriteLn(_(CMD_LAZARUS_CURRENT_NONE));
-    end;
+    Result := ExecuteLazarusCurrentCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      @LMgr.GetCurrentVersion
+    );
   finally
     LMgr.Free;
   end;

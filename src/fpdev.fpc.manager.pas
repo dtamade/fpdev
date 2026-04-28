@@ -31,14 +31,16 @@ QQ group: 685403987  QQ:179033731
 interface
 
 uses
-  SysUtils, Classes, Process, StrUtils, fpjson, jsonparser,
-  fpdev.output.intf, fpdev.config, fpdev.config.interfaces, fpdev.fpc.source,
+  SysUtils, Classes, Process,
+  fpdev.output.intf, fpdev.config.interfaces, fpdev.fpc.source,
   fpdev.types, fpdev.fpc.types, fpdev.fpc.metadata, fpdev.resource.repo, fpdev.utils.fs, fpdev.utils.process,
   fpdev.git.runtime, fpdev.i18n, fpdev.i18n.strings,
   fpdev.fpc.activation, fpdev.fpc.validator, fpdev.fpc.version, fpdev.fpc.installer,
-  fpdev.fpc.installer.environmentflow, fpdev.fpc.installversionflow,
+  fpdev.fpc.installsurfaceflow,
+  fpdev.fpc.maintenanceflow,
+  fpdev.fpc.residualflow,
   fpdev.fpc.runtimeflow,
-  fpdev.fpc.builder, fpdev.fpc.verify,
+  fpdev.fpc.builder,
   fpdev.build.cache, fpdev.paths;
 
 type
@@ -65,6 +67,9 @@ type
     function SourceDirExists(const APath: string): Boolean;
     function CleanSourceArtifacts(const ASourceDir: string): Integer;
     function LookupToolchainInfo(const AVersion: string; out AInfo: TToolchainInfo): Boolean;
+    function TryReadStatusMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
+    function TrySetDefaultVersionSilently(const AVersion: string): Boolean;
+    function ActivateVersionWithBinPath(const AVersion, ABinPath: string): TActivationResult;
     function ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
     procedure EnsureManagedCompilerLayout(const AVersion, AInstallPath: string);
     function ResolveMetadataScope(const AVersion, AInstallPath: string): TInstallScope;
@@ -75,12 +80,18 @@ type
       const AVerifResult: TVerificationResult): Boolean;
     function RefreshInstallVerificationMetadata(const AVersion,
       AInstallPath: string): Boolean;
+    procedure ConfigureInstaller(ANoCache, AOfflineMode: Boolean);
+    procedure DeleteManagedPath(const APath: string);
+    procedure RemoveToolchainFromConfig(const AName: string);
+    function CreateGitRuntime: IFPCGitRuntime;
 
     // Bootstrap compiler management (delegated to FBuilderMgr)
     function GetRequiredBootstrapVersion(const ATargetVersion: string): string;
     function GetCurrentFPCVersion: string;
     function GetBootstrapCompilerPath(const AVersion: string): string;
     function IsBootstrapAvailable(const AVersion: string): Boolean;
+    function EnsureBootstrapWithBuilder(const ATargetVersion: string): Boolean;
+    function InstallBinaryBootstrapFallback(const ATargetVersion: string): Boolean;
     function EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
     function VerifyInstalledExecutableVersion(const AFPCExe, AVersion: string;
       out AError: string): Boolean;
@@ -97,7 +108,8 @@ type
       const AFromSource: Boolean = False;
       const APrefix: string = '';
       const AEnsure: Boolean = False;
-      const ANoCache: Boolean = False
+      const ANoCache: Boolean = False;
+      const AOfflineMode: Boolean = False
     ): Boolean;
     function UninstallVersion(const AVersion: string): Boolean;
     function ListVersions(const AShowAll: Boolean = False): Boolean; overload;
@@ -145,7 +157,10 @@ implementation
 
 uses
   fpdev.output.console, fpdev.version.registry, fpdev.fpc.installer.config,
-  fpdev.constants, fpdev.fpc.utils;
+  fpdev.fpc.metadataflow, fpdev.fpc.utils,
+  fpdev.fpc.verifyflow, fpdev.fpc.statusflow, fpdev.fpc.versionflow,
+  fpdev.fpc.bootstrapflow,
+  fpdev.fpc.indexflow;
 
 type
   TFPCGitRuntimeAdapter = class(TInterfacedObject, IFPCGitRuntime)
@@ -166,7 +181,7 @@ begin
   if AGit <> nil then
     FGit := AGit
   else
-    FGit := TGitRuntime.Create;
+    FGit := NewGitRuntime;
 end;
 
 function TFPCGitRuntimeAdapter.BackendAvailable: Boolean;
@@ -194,171 +209,11 @@ begin
   Result := FGit.LastError;
 end;
 
-procedure SafeWriteAllText(const APath, AText: string);
-var
-  Dir: string;
-  L: TStringList;
-begin
-  Dir := ExtractFileDir(APath);
-  if (Dir <> '') and (not DirectoryExists(Dir)) then
-    EnsureDir(Dir);
-  L := TStringList.Create;
-  try
-    L.Text := AText;
-    L.SaveToFile(APath);
-  finally
-    L.Free;
-  end;
-end;
-
-function ReadAllTextIfExists(const APath: string): string;
-var
-  L: TStringList;
-begin
-  Result := '';
-  if not FileExists(APath) then Exit;
-  L := TStringList.Create;
-  try
-    L.LoadFromFile(APath);
-    Result := Trim(L.Text);
-  finally
-    L.Free;
-  end;
-end;
-
-var
-  FPDEV_LOGFILE: string = '';
-
-procedure LogLine(const S: string);
-begin
-  if FPDEV_LOGFILE <> '' then
-  begin
-    try
-      with TStringList.Create do
-      try
-        if FileExists(FPDEV_LOGFILE) then
-          LoadFromFile(FPDEV_LOGFILE);
-        Add(S);
-        SaveToFile(FPDEV_LOGFILE);
-      finally
-        Free;
-      end;
-    except
-      // Ignore log write exceptions
-    end;
-  end;
-end;
-
-
-function TryParseInt(const S: string; out N: Integer): Boolean;
-var
-  Code: Integer;
-begin
-  Val(S, N, Code);
-  Result := Code = 0;
-end;
-
-procedure ParseVersion(const Ver: string; out A, B, C: Integer);
-var
-  i, p1, p2: Integer;
-  s: string;
-begin
-  A := 0; B := 0; C := 0;
-  s := Ver;
-  p1 := Pos('.', s);
-  if p1 > 0 then
-  begin
-    if not TryParseInt(Copy(s, 1, p1-1), A) then A := 0;
-    Delete(s, 1, p1);
-    p2 := Pos('.', s);
-    if p2 > 0 then
-    begin
-      if not TryParseInt(Copy(s, 1, p2-1), B) then B := 0;
-      Delete(s, 1, p2);
-      // Rest is patch (may contain suffix, take numeric prefix)
-      i := 1;
-      while (i <= Length(s)) and (s[i] in ['0'..'9']) do Inc(i);
-      if i > 1 then
-        if not TryParseInt(Copy(s, 1, i-1), C) then C := 0;
-    end
-    else
-    begin
-      if not TryParseInt(s, B) then B := 0;
-    end;
-  end
-  else
-  begin
-    TryParseInt(s, A);
-  end;
-end;
-
-function CompareSemVer(const V1, V2: string): Integer;
-var
-  a1,b1,c1,a2,b2,c2: Integer;
-begin
-  ParseVersion(V1, a1,b1,c1);
-  ParseVersion(V2, a2,b2,c2);
-  if a1 <> a2 then Exit(Ord(a1 > a2) - Ord(a1 < a2));
-  if b1 <> b2 then Exit(Ord(b1 > b2) - Ord(b1 < b2));
-  if c1 <> c2 then Exit(Ord(c1 > c2) - Ord(c1 < c2));
-  Result := 0;
-end;
-
-function SameMajorMinor(const V1, V2: string): Boolean;
-var
-  a1,b1,c1,a2,b2,c2: Integer;
-begin
-  ParseVersion(V1, a1,b1,c1);
-  ParseVersion(V2, a2,b2,c2);
-  Result := (a1=a2) and (b1=b2);
-end;
-
 // --- FPC command helpers (no inline vars) ----------------------------------
 
 procedure FPC_UpdateIndex(const AConfigPath: string);
-var
-  Cfg: TFPDevConfigManager;
-  S: TStringList;
-  CacheDir, IndexPath, NowIso, Channel: string;
-  i: Integer;
-  Releases: TFPCReleaseArray;
 begin
-  LogLine('[update] begin');
-  Cfg := TFPDevConfigManager.Create(AConfigPath);
-  try
-    Cfg.LoadConfig;
-    CacheDir := Cfg.GetSettings.InstallRoot + PathDelim + 'cache' + PathDelim + 'fpc';
-    EnsureDir(CacheDir);
-    IndexPath := CacheDir + PathDelim + 'index.json';
-    NowIso := FormatDateTime('yyyy"-"mm"-"dd"T"hh":"nn":"ss"Z"', Now);
-    Releases := TVersionRegistry.Instance.GetFPCReleases;
-    S := TStringList.Create;
-    try
-      S.Add('{');
-      S.Add('  "version": "1",');
-      S.Add('  "updated_at": "' + NowIso + '",');
-      S.Add('  "items": [');
-      for i := 0 to High(Releases) do
-      begin
-        Channel := Releases[i].Channel;
-        S.Add('    {');
-        S.Add('      "version": "' + Releases[i].Version + '",');
-        S.Add('      "tag": "' + Releases[i].GitTag + '",');
-        S.Add('      "branch": "' + Releases[i].Branch + '",');
-        S.Add('      "channel": "' + Channel + '"');
-        if i < High(Releases) then S.Add('    },') else S.Add('    }');
-      end;
-      S.Add('  ]');
-      S.Add('}');
-      S.SaveToFile(IndexPath);
-      LogLine('[update] index: ' + IndexPath);
-    finally
-      S.Free;
-    end;
-  finally
-    Cfg.Free;
-  end;
-  LogLine('[update] done');
+  ExecuteFPCUpdateIndexCore(AConfigPath);
 end;
 
 
@@ -486,19 +341,23 @@ end;
 
 function TFPCManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 begin
-  Result := FBuilderMgr.EnsureBootstrapCompiler(ATargetVersion);
-  if Result then
-    Exit;
+  Result := ExecuteManagedFPCBootstrapEnsureCore(
+    ATargetVersion,
+    FOut,
+    @EnsureBootstrapWithBuilder,
+    @InstallBinaryBootstrapFallback
+  );
+end;
 
-  if Assigned(FInstallerMgr) then
-  begin
-    FOut.WriteLn('Attempting binary bootstrap fallback for FPC ' + ATargetVersion + '...');
-    if FInstallerMgr.InstallFromBinary(ATargetVersion) then
-    begin
-      FOut.WriteLn('Binary bootstrap fallback installed FPC ' + ATargetVersion);
-      Result := FBuilderMgr.EnsureBootstrapCompiler(ATargetVersion);
-    end;
-  end;
+function TFPCManager.EnsureBootstrapWithBuilder(const ATargetVersion: string): Boolean;
+begin
+  Result := Assigned(FBuilderMgr) and FBuilderMgr.EnsureBootstrapCompiler(ATargetVersion);
+end;
+
+function TFPCManager.InstallBinaryBootstrapFallback(
+  const ATargetVersion: string): Boolean;
+begin
+  Result := Assigned(FInstallerMgr) and FInstallerMgr.InstallFromBinary(ATargetVersion);
 end;
 
 function TFPCManager.GetCurrentFPCVersion: string;
@@ -540,6 +399,32 @@ begin
   Result := FConfigManager.GetToolchainManager.GetToolchain('fpc-' + AVersion, AInfo);
 end;
 
+function TFPCManager.TryReadStatusMetadata(const AInstallPath: string;
+  out AMeta: TFPDevMetadata): Boolean;
+begin
+  Result := ReadFPCMetadata(AInstallPath, AMeta);
+end;
+
+function TFPCManager.TrySetDefaultVersionSilently(const AVersion: string): Boolean;
+begin
+  Result := FVersionMgr.SetDefaultVersion(AVersion);
+end;
+
+function TFPCManager.ActivateVersionWithBinPath(const AVersion,
+  ABinPath: string): TActivationResult;
+var
+  ActivationResult: fpdev.fpc.activation.TActivationResult;
+begin
+  ActivationResult := FActivationMgr.ActivateVersion(AVersion, ABinPath);
+  Result := Default(TActivationResult);
+  Result.Success := ActivationResult.Success;
+  Result.Scope := ActivationResult.Scope;
+  Result.ActivationScript := ActivationResult.ActivationScript;
+  Result.VSCodeSettings := ActivationResult.VSCodeSettings;
+  Result.ShellCommand := ActivationResult.ShellCommand;
+  Result.ErrorMessage := ActivationResult.ErrorMessage;
+end;
+
 function TFPCManager.ExecuteInstalledFPCInfo(const AExecutable: string): TProcessResult;
 begin
   Result := TProcessExecutor.Execute(AExecutable, ['-i'], '');
@@ -547,18 +432,8 @@ end;
 
 function TFPCManager.VerifyInstalledExecutableVersion(const AFPCExe, AVersion: string;
   out AError: string): Boolean;
-var
-  Verifier: TFPCVerifier;
 begin
-  AError := '';
-  Verifier := TFPCVerifier.Create;
-  try
-    Result := Verifier.VerifyVersion(AFPCExe, AVersion);
-    if not Result then
-      AError := Verifier.GetLastError;
-  finally
-    Verifier.Free;
-  end;
+  Result := VerifyInstalledExecutableVersionCore(AFPCExe, AVersion, AError);
 end;
 
 procedure TFPCManager.EnsureManagedCompilerLayout(const AVersion, AInstallPath: string);
@@ -567,213 +442,93 @@ begin
 end;
 
 function TFPCManager.ResolveMetadataScope(const AVersion, AInstallPath: string): TInstallScope;
-var
-  ExpectedInstallPath: string;
-  NormalizedInstallPath: string;
 begin
-  Result := isUser;
-
-  NormalizedInstallPath := ExcludeTrailingPathDelimiter(ExpandFileName(AInstallPath));
-  ExpectedInstallPath := ExcludeTrailingPathDelimiter(
-    ExpandFileName(GetVersionInstallPath(AVersion))
+  Result := ResolveFPCMetadataScopeCore(
+    AInstallPath,
+    GetVersionInstallPath(AVersion),
+    FActivationMgr.DetectInstallScope(GetCurrentDir)
   );
-
-  if SameText(NormalizedInstallPath, ExpectedInstallPath) then
-    Result := FActivationMgr.DetectInstallScope(GetCurrentDir);
 end;
 
 function TFPCManager.InferStatusScope(const AVersion, AInstallPath: string): TFPCStatusScope;
-var
-  ProjectRoot: string;
-  ProjectInstallPath: string;
-  UserInstallPath: string;
-  NormalizedInstallPath: string;
 begin
-  Result := fssNone;
-  if AInstallPath = '' then
-    Exit;
-
-  NormalizedInstallPath := ExcludeTrailingPathDelimiter(ExpandFileName(AInstallPath));
-  ProjectRoot := fpdev.fpc.utils.FindProjectRoot(GetCurrentDir);
-  if ProjectRoot <> '' then
-  begin
-    ProjectInstallPath := ExcludeTrailingPathDelimiter(
-      ExpandFileName(
-        ProjectRoot + PathDelim + FPDEV_CONFIG_DIR + PathDelim +
-        'toolchains' + PathDelim + 'fpc' + PathDelim + AVersion
-      )
-    );
-    if SameText(NormalizedInstallPath, ProjectInstallPath) then
-      Exit(fssProject);
-  end;
-
-  UserInstallPath := ExcludeTrailingPathDelimiter(
-    ExpandFileName(BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion))
+  Result := InferFPCStatusScopeCore(
+    AVersion,
+    AInstallPath,
+    fpdev.fpc.utils.FindProjectRoot(GetCurrentDir),
+    FInstallRoot
   );
-  if SameText(NormalizedInstallPath, UserInstallPath) then
-    Exit(fssUser);
-
-  Result := fssUser;
 end;
 
 function TFPCManager.WriteInstallMetadata(const AVersion, AInstallPath: string;
   AFromSource: Boolean): Boolean;
-var
-  Meta: TFPDevMetadata;
-  ReleaseInfo: TFPCReleaseInfo;
 begin
-  Result := False;
-
-  try
-    Meta := Default(TFPDevMetadata);
-    Meta.Version := AVersion;
-    Meta.Scope := ResolveMetadataScope(AVersion, AInstallPath);
-    if AFromSource then
-      Meta.SourceMode := smSource
-    else
-      Meta.SourceMode := smBinary;
-    ReleaseInfo := TVersionRegistry.Instance.GetFPCRelease(AVersion);
-    Meta.Channel := ReleaseInfo.Channel;
-    Meta.Prefix := ExpandFileName(AInstallPath);
-    Meta.Origin.BuiltFromSource := AFromSource;
-    if AFromSource then
-      Meta.Origin.RepoURL := TVersionRegistry.Instance.GetFPCRepository;
-    Meta.InstalledAt := Now;
-
-    Result := WriteFPCMetadata(AInstallPath, Meta);
-    if not Result then
-      FErr.WriteLn('Warning: Failed to write installation metadata');
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn('Warning: Failed to write installation metadata - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteManagedFPCWriteInstallMetadataCore(
+    AVersion,
+    AInstallPath,
+    AFromSource,
+    FErr,
+    @ResolveMetadataScope
+  );
 end;
 
 function TFPCManager.UpdateVerificationMetadata(const AVersion, AInstallPath: string;
   const AVerifResult: TVerificationResult): Boolean;
-var
-  Meta: TFPDevMetadata;
-  ReleaseInfo: TFPCReleaseInfo;
-  MetaLoaded: Boolean;
 begin
-  Result := False;
-
-  if not DirectoryExists(AInstallPath) then
-    Exit(False);
-
-  try
-    MetaLoaded := ReadFPCMetadata(AInstallPath, Meta);
-    if not MetaLoaded then
-      Meta := Default(TFPDevMetadata);
-
-    ReleaseInfo := TVersionRegistry.Instance.GetFPCRelease(AVersion);
-
-    if Meta.Version = '' then
-      Meta.Version := AVersion;
-    if not MetaLoaded then
-      Meta.Scope := ResolveMetadataScope(AVersion, AInstallPath);
-    if Meta.Channel = '' then
-      Meta.Channel := ReleaseInfo.Channel;
-    if Meta.Prefix = '' then
-      Meta.Prefix := ExpandFileName(AInstallPath);
-    if Meta.InstalledAt = 0 then
-      Meta.InstalledAt := Now;
-
-    Meta.Verify.Timestamp := Now;
-    Meta.Verify.OK := AVerifResult.Verified;
-    Meta.Verify.DetectedVersion := AVerifResult.DetectedVersion;
-    Meta.Verify.SmokeTestPassed := AVerifResult.SmokeTestPassed;
-
-    Result := WriteFPCMetadata(AInstallPath, Meta);
-    if not Result then
-      FErr.WriteLn('Warning: Failed to update verification metadata');
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn('Warning: Failed to update verification metadata - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteManagedFPCUpdateVerificationMetadataCore(
+    AVersion,
+    AInstallPath,
+    AVerifResult,
+    FErr,
+    @ResolveMetadataScope
+  );
 end;
 
 function TFPCManager.RefreshInstallVerificationMetadata(const AVersion,
   AInstallPath: string): Boolean;
-var
-  Verifier: TFPCVerifier;
-  VerifResult: TVerificationResult;
-  FPCExe: string;
 begin
-  Result := False;
+  Result := ExecuteManagedFPCRefreshVerificationMetadataCore(
+    AVersion,
+    AInstallPath,
+    FErr,
+    @UpdateVerificationMetadata
+  );
+end;
 
-  if not DirectoryExists(AInstallPath) then
-    Exit(False);
-
-  Initialize(VerifResult);
-  FPCExe := BuildFPCInstalledExecutablePathCore(AInstallPath);
-  VerifResult.ExecutableExists := FileExists(FPCExe);
-
-  if not VerifResult.ExecutableExists then
+procedure TFPCManager.ConfigureInstaller(ANoCache, AOfflineMode: Boolean);
+begin
+  if Assigned(FInstallerMgr) then
   begin
-    FErr.WriteLn('Warning: Post-install verification skipped - FPC executable not found: ' + FPCExe);
-    UpdateVerificationMetadata(AVersion, AInstallPath, VerifResult);
-    Exit(False);
+    FInstallerMgr.SetNoCache(ANoCache);
+    FInstallerMgr.SetOfflineMode(AOfflineMode);
   end;
+end;
 
-  Verifier := TFPCVerifier.Create;
-  try
-    if not Verifier.VerifyVersion(FPCExe, AVersion) then
-    begin
-      VerifResult.ErrorMessage := Verifier.GetLastError;
-      FErr.WriteLn('Warning: Post-install version verification failed - ' +
-        VerifResult.ErrorMessage);
-    end
-    else
-    begin
-      VerifResult.DetectedVersion := AVersion;
-      if not Verifier.CompileHelloWorld(FPCExe) then
-      begin
-        VerifResult.ErrorMessage := Verifier.GetLastError;
-        FErr.WriteLn('Warning: Post-install smoke test failed - ' +
-          VerifResult.ErrorMessage);
-      end
-      else
-      begin
-        VerifResult.SmokeTestPassed := True;
-        VerifResult.Verified := True;
-        Result := True;
-      end;
-    end;
-  finally
-    Verifier.Free;
-  end;
+procedure TFPCManager.DeleteManagedPath(const APath: string);
+begin
+  DeleteDirRecursive(APath);
+end;
 
-  UpdateVerificationMetadata(AVersion, AInstallPath, VerifResult);
+procedure TFPCManager.RemoveToolchainFromConfig(const AName: string);
+begin
+  FConfigManager.GetToolchainManager.RemoveToolchain(AName);
+end;
+
+function TFPCManager.CreateGitRuntime: IFPCGitRuntime;
+begin
+  Result := TFPCGitRuntimeAdapter.Create;
 end;
 
 function TFPCManager.SetupEnvironment(const AVersion, AInstallPath: string): Boolean;
-var
-  InstallPath: string;
 begin
-  if AInstallPath <> '' then
-    InstallPath := AInstallPath
-  else
-    InstallPath := GetVersionInstallPath(AVersion);
-
-  try
-    if not EnsureManagedFPCInstallLayout(InstallPath, AVersion, FOut) then
-      Exit(False);
-    Result := ExecuteFPCEnvironmentRegistrationFlow(AVersion, InstallPath, FErr,
-      @AddToolchainToConfig);
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': SetupEnvironment failed - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteManagedFPCSetupEnvironmentCore(
+    AVersion,
+    AInstallPath,
+    FOut,
+    FErr,
+    @GetVersionInstallPath,
+    @AddToolchainToConfig
+  );
 end;
 
 function TFPCManager.AddToolchainToConfig(const AName: string; const AInfo: TToolchainInfo): Boolean;
@@ -786,62 +541,52 @@ function TFPCManager.InstallVersion(
   const AFromSource: Boolean;
   const APrefix: string;
   const AEnsure: Boolean;
-  const ANoCache: Boolean
+  const ANoCache: Boolean;
+  const AOfflineMode: Boolean
 ): Boolean;
 var
-  InstallPath: string;
-  HasCachedArtifacts: TFPCInstallHasArtifactsFunc;
-  RestoreCachedArtifacts: TFPCInstallRestoreArtifactsFunc;
-  SaveBuildArtifacts: TFPCInstallSaveArtifactsFunc;
+  State: TFPCInstallSurfaceState;
+  Callbacks: TFPCInstallSurfaceCallbacks;
 begin
   Result := False;
 
-  if not ValidateVersion(AVersion) then
-  begin
-    FErr.WriteLn(_Fmt(ERR_INVALID_VERSION, [AVersion]));
-    Exit;
-  end;
-
-  HasCachedArtifacts := nil;
-  RestoreCachedArtifacts := nil;
-  SaveBuildArtifacts := nil;
-  if Assigned(FBuildCache) then
-  begin
-    HasCachedArtifacts := @FBuildCache.HasArtifacts;
-    RestoreCachedArtifacts := @FBuildCache.RestoreArtifacts;
-    SaveBuildArtifacts := @FBuildCache.SaveArtifacts;
-  end;
-
   try
-    if Assigned(FInstallerMgr) then
-      FInstallerMgr.SetNoCache(ANoCache);
+    State := Default(TFPCInstallSurfaceState);
+    State.Version := AVersion;
+    State.InstallRoot := FInstallRoot;
+    State.Prefix := APrefix;
+    State.FromSource := AFromSource;
+    State.Ensure := AEnsure;
+    State.NoCache := ANoCache;
+    State.OfflineMode := AOfflineMode;
 
-    InstallPath := ResolveFPCInstallPathCore(APrefix, GetVersionInstallPath(AVersion));
-    Result := ExecuteFPCInstallVersionCore(
-      AVersion,
-      FInstallRoot,
-      GetVersionInstallPath(AVersion),
-      APrefix,
-      AFromSource,
-      AEnsure,
-      IsVersionInstalled(AVersion),
-      not ANoCache,
+    Callbacks := Default(TFPCInstallSurfaceCallbacks);
+    Callbacks.ValidateVersion := @ValidateVersion;
+    Callbacks.GetVersionInstallPath := @GetVersionInstallPath;
+    Callbacks.IsVersionInstalled := @IsVersionInstalled;
+    Callbacks.ConfigureInstaller := @ConfigureInstaller;
+    Callbacks.RefreshInstallVerificationMetadata := @RefreshInstallVerificationMetadata;
+    Callbacks.VerifyInstalledExecutable := @VerifyInstalledExecutableVersion;
+    Callbacks.DownloadSource := @DownloadSource;
+    Callbacks.EnsureBootstrap := @EnsureBootstrapCompiler;
+    Callbacks.BuildFromSource := @BuildFromSource;
+    Callbacks.WriteMetadata := @WriteInstallMetadata;
+    Callbacks.SetupEnvironment := @SetupEnvironment;
+    Callbacks.InstallBinary := @InstallFromBinary;
+
+    if Assigned(FBuildCache) then
+    begin
+      Callbacks.HasCachedArtifacts := @FBuildCache.HasArtifacts;
+      Callbacks.RestoreCachedArtifacts := @FBuildCache.RestoreArtifacts;
+      Callbacks.SaveBuildArtifacts := @FBuildCache.SaveArtifacts;
+    end;
+
+    Result := ExecuteManagedFPCInstallSurfaceCore(
+      State,
       FOut,
       FErr,
-      @VerifyInstalledExecutableVersion,
-      HasCachedArtifacts,
-      RestoreCachedArtifacts,
-      SaveBuildArtifacts,
-      @DownloadSource,
-      @EnsureBootstrapCompiler,
-      @BuildFromSource,
-      @WriteInstallMetadata,
-      @SetupEnvironment,
-      @InstallFromBinary
+      Callbacks
     );
-
-    if Result then
-      RefreshInstallVerificationMetadata(AVersion, InstallPath);
   except
     on E: Exception do
     begin
@@ -852,28 +597,17 @@ begin
 end;
 
 function TFPCManager.UninstallVersion(const AVersion: string): Boolean;
-var
-  InstallPath: string;
 begin
   Result := False;
 
-  if not IsVersionInstalled(AVersion) then
-  begin
-    Result := True;
-    Exit;
-  end;
-
   try
-    InstallPath := GetVersionInstallPath(AVersion);
-
-    // Delete installation directory
-    if DirectoryExists(InstallPath) then
-      DeleteDirRecursive(InstallPath);
-
-    // Remove from configuration
-    FConfigManager.GetToolchainManager.RemoveToolchain('fpc-' + AVersion);
-
-    Result := True;
+    Result := ExecuteManagedFPCUninstallCore(
+      AVersion,
+      @IsVersionInstalled,
+      @GetVersionInstallPath,
+      @DeleteManagedPath,
+      @RemoveToolchainFromConfig
+    );
 
   except
     on E: Exception do
@@ -891,10 +625,8 @@ end;
 
 function TFPCManager.ListVersions(const Outp: IOutput; const AShowAll: Boolean): Boolean;
 var
-  Versions: TFPCVersionArray;
-  i: Integer;
-  DefaultVersion: string;
-  Line: string;
+  Versions: fpdev.fpc.types.TFPCVersionArray;
+  TargetOut: IOutput;
 begin
   Result := True;
 
@@ -904,63 +636,17 @@ begin
     else
       Versions := GetInstalledVersions;
 
-    DefaultVersion := FConfigManager.GetToolchainManager.GetDefaultToolchain;
-    if DefaultVersion <> '' then
-      DefaultVersion := StringReplace(DefaultVersion, 'fpc-', '', [rfReplaceAll]);
-
-    if AShowAll then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_(CMD_FPC_LIST_ALL_HEADER))
-      else
-        FOut.WriteLn(_(CMD_FPC_LIST_ALL_HEADER));
-    end
+    if Outp <> nil then
+      TargetOut := Outp
     else
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_(CMD_FPC_LIST_HEADER))
-      else
-        FOut.WriteLn(_(CMD_FPC_LIST_HEADER));
-    end;
+      TargetOut := FOut;
 
-
-    for i := 0 to High(Versions) do
-    begin
-      Line := Format('%-8s  ', [Versions[i].Version]);
-
-      if Versions[i].Installed then
-      begin
-        if SameText(Versions[i].Version, DefaultVersion) then
-          Line := Line + 'Installed*  '
-        else
-          Line := Line + 'Installed   ';
-      end
-      else
-        Line := Line + 'Available   ';
-
-      Line := Line + Format('%-10s  ', [Versions[i].ReleaseDate]);
-      Line := Line + Versions[i].Branch;
-
-      if Outp <> nil then
-        Outp.WriteLn(Line)
-      else
-        FOut.WriteLn(Line);
-    end;
-
-    if DefaultVersion <> '' then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_Fmt(CMD_FPC_CURRENT_VERSION, [DefaultVersion]))
-      else
-        FOut.WriteLn(_Fmt(CMD_FPC_CURRENT_VERSION, [DefaultVersion]));
-    end
-    else
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_(CMD_FPC_CURRENT_NONE))
-      else
-        FOut.WriteLn(_(CMD_FPC_CURRENT_NONE));
-    end;
+    Result := WriteManagedFPCVersionListCore(
+      Versions,
+      FConfigManager.GetToolchainManager.GetDefaultToolchain,
+      AShowAll,
+      TargetOut
+    );
 
   except
     on E: Exception do
@@ -978,28 +664,14 @@ end;
 
 function TFPCManager.SetDefaultVersion(const Outp, Errp: IOutput; const AVersion: string): Boolean;
 begin
-  Result := False;
-
-  if not IsVersionInstalled(AVersion) then
-  begin
-    if Errp <> nil then
-      Errp.WriteLn(_Fmt(CMD_FPC_USE_NOT_FOUND, [AVersion]));
-    Exit;
-  end;
-
   try
-    Result := FConfigManager.GetToolchainManager.SetDefaultToolchain('fpc-' + AVersion);
-    if Result then
-    begin
-      if Outp <> nil then
-        Outp.WriteLn(_Fmt(CMD_FPC_USE_ACTIVATED, [AVersion]));
-    end
-    else
-    begin
-      if Errp <> nil then
-        Errp.WriteLn(_(MSG_FAILED) + ': set default version');
-    end;
-
+    Result := SetManagedFPCDefaultVersionCore(
+      AVersion,
+      Outp,
+      Errp,
+      @IsVersionInstalled,
+      @TrySetDefaultVersionSilently
+    );
   except
     on E: Exception do
     begin
@@ -1019,124 +691,59 @@ end;
 function TFPCManager.GetStatus(out AStatus: TFPCStatusInfo; out AError: string): Boolean;
 var
   Version: string;
-  PreferredInstallPath: string;
-  InstallPath: string;
-  ToolchainInfo: TToolchainInfo;
-  Meta: TFPDevMetadata;
+  DefaultInstallPath: string;
 begin
-  AStatus := Default(TFPCStatusInfo);
-  AStatus.ActiveScope := fssNone;
-  AStatus.VerifyStatus := fvsUnknown;
-  AStatus.SourceMode := smAuto;
-  AStatus.HasSourceMode := False;
-  AStatus.ConfiguredDefaultInstalled := False;
-  AError := '';
-
   Version := GetCurrentVersion;
-  AStatus.ConfiguredDefault := Version;
-  if Version = '' then
-    Exit(True);
+  DefaultInstallPath := '';
+  if Version <> '' then
+    DefaultInstallPath := GetVersionInstallPath(Version);
 
-  AStatus.EffectiveVersion := Version;
-  PreferredInstallPath := '';
-  if LookupToolchainInfo(Version, ToolchainInfo) then
-    PreferredInstallPath := Trim(ToolchainInfo.InstallPath);
-  if PreferredInstallPath = '' then
-    PreferredInstallPath := GetVersionInstallPath(Version);
-
-  InstallPath := ResolveInstalledFPCInstallPathCore(PreferredInstallPath, Version);
-  AStatus.ManagedPrefix := InstallPath;
-  AStatus.ConfiguredDefaultInstalled := FileExists(
-    BuildFPCInstalledExecutablePathCore(InstallPath)
+  Result := BuildManagedFPCStatusCore(
+    Version,
+    DefaultInstallPath,
+    @LookupToolchainInfo,
+    @TryReadStatusMetadata,
+    @InferStatusScope,
+    AStatus,
+    AError
   );
-  if not AStatus.ConfiguredDefaultInstalled then
-  begin
-    AError := 'Configured default FPC ' + Version + ' is missing: ' + InstallPath;
-    Exit(False);
-  end;
-
-  if ReadFPCMetadata(InstallPath, Meta) then
-  begin
-    case Meta.Scope of
-      isProject: AStatus.ActiveScope := fssProject;
-      isUser: AStatus.ActiveScope := fssUser;
-      isSystem: AStatus.ActiveScope := fssSystem;
-    end;
-    AStatus.SourceMode := Meta.SourceMode;
-    AStatus.HasSourceMode := True;
-    if Meta.Verify.OK then
-      AStatus.VerifyStatus := fvsOk
-    else if Meta.Verify.Timestamp > 0 then
-      AStatus.VerifyStatus := fvsFail
-    else
-      AStatus.VerifyStatus := fvsUnknown;
-  end
-  else
-    AStatus.ActiveScope := InferStatusScope(Version, InstallPath);
-
-  if AStatus.ActiveScope = fssNone then
-    AStatus.ActiveScope := InferStatusScope(Version, InstallPath);
-
-  Result := True;
 end;
 
 function TFPCManager.ActivateVersion(const AVersion: string): TActivationResult;
-var
-  InstallPath, BinPath: string;
 begin
-  // Initialize result
-  Initialize(Result);
-  Result.Success := False;
-
-  // Check if version is installed
-  if not IsVersionInstalled(AVersion) then
-  begin
-    Result.ErrorMessage := 'FPC version ' + AVersion + ' is not installed';
-    Exit;
-  end;
-
-  // Get install path and bin path
-  InstallPath := GetVersionInstallPath(AVersion);
-  BinPath := InstallPath + PathDelim + 'bin';
-
-  // Delegate to activation manager service
-  Result := FActivationMgr.ActivateVersion(AVersion, BinPath);
-  if not Result.Success then
-    Exit;
-
-  // Set as default version
-  if not SetDefaultVersion(AVersion) then
-  begin
-    Result.ErrorMessage := 'Failed to set default version';
-    Result.Success := False;
-    Exit;
-  end;
+  Result := ActivateManagedFPCVersionCore(
+    AVersion,
+    @IsVersionInstalled,
+    @GetVersionInstallPath,
+    @ActivateVersionWithBinPath,
+    @TrySetDefaultVersionSilently
+  );
 end;
 
 function TFPCManager.UpdateSources(const AVersion: string): Boolean;
-var
-  Plan: TFPCSourcePlan;
-  GitRuntime: IFPCGitRuntime;
-  Version: string;
 begin
-  Version := AVersion;
-  if Version = '' then
-    Version := GetCurrentVersion;
-  Plan := CreateFPCSourcePlanCore(FInstallRoot, Version);
-  GitRuntime := TFPCGitRuntimeAdapter.Create;
-  Result := ExecuteFPCUpdatePlanCore(Plan, FOut, FErr, @SourceDirExists, GitRuntime);
+  Result := ExecuteManagedFPCUpdateSourcesCore(
+    AVersion,
+    FInstallRoot,
+    FOut,
+    FErr,
+    @GetCurrentVersion,
+    @SourceDirExists,
+    @CreateGitRuntime
+  );
 end;
 
 function TFPCManager.CleanSources(const AVersion: string): Boolean;
-var
-  Plan: TFPCSourcePlan;
-  Version: string;
 begin
-  Version := AVersion;
-  if Version = '' then
-    Version := GetCurrentVersion;
-  Plan := CreateFPCSourcePlanCore(FInstallRoot, Version);
-  Result := ExecuteFPCCleanPlanCore(Plan, FOut, FErr, @SourceDirExists, @CleanSourceArtifacts);
+  Result := ExecuteManagedFPCCleanSourcesCore(
+    AVersion,
+    FInstallRoot,
+    FOut,
+    FErr,
+    @GetCurrentVersion,
+    @SourceDirExists,
+    @CleanSourceArtifacts
+  );
 end;
 
 function TFPCManager.ShowVersionInfo(const AVersion: string): Boolean;
@@ -1179,18 +786,14 @@ begin
 end;
 
 function TFPCManager.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
-var
-  InstallPath: string;
 begin
-  // Delegate to validator service
-  Result := FValidatorMgr.VerifyInstallation(AVersion, VerifResult);
-
-  InstallPath := ResolveInstalledFPCInstallPathCore(
+  Result := ExecuteManagedFPCVerificationSurfaceCore(
+    AVersion,
     GetVersionInstallPath(AVersion),
-    AVersion
+    @FValidatorMgr.VerifyInstallation,
+    @UpdateVerificationMetadata,
+    VerifResult
   );
-  if DirectoryExists(InstallPath) then
-    UpdateVerificationMetadata(AVersion, InstallPath, VerifResult);
 end;
 
 // ============================================================================

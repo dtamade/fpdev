@@ -3,9 +3,10 @@ program test_fpc_verify;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, test_config_isolation, Classes, Process, fpdev.fpc.manager, fpdev.config,
-  fpdev.types, fpdev.fpc.validator, fpdev.fpc.metadata, fpdev.fpc.types,
-  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths, test_temp_paths;
+  SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config,
+  fpdev.types, fpdev.fpc.metadata, fpdev.fpc.types,
+  fpdev.config.interfaces, fpdev.config.managers, fpdev.paths,
+  test_temp_paths, test_fpc_mock_helpers, fpdev.fpc.verifyflow;
 
 var
   TestInstallRoot: string;
@@ -13,28 +14,40 @@ var
   ConfigManager: IConfigManager;
   FPCManager: TFPCManager;
 
-procedure CompileMockFPCExecutable(const ATargetPath: string);
-var
-  MockFPCSource: string;
-  CompileProcess: TProcess;
-begin
-  MockFPCSource := ExtractFileDir(ParamStr(0)) + PathDelim + '..' + PathDelim +
-    'tests' + PathDelim + 'mock_fpc.pas';
+type
+  TVerifyFlowProbe = class
+  public
+    VerifyCalled: Boolean;
+    WriterCalled: Boolean;
+    VerifyReturnValue: Boolean;
+    VerifyResultToReturn: TVerificationResult;
+    WriterVersion: string;
+    WriterInstallPath: string;
+    WriterResult: TVerificationResult;
 
-  CompileProcess := TProcess.Create(nil);
-  try
-    CompileProcess.Executable := 'fpc';
-    CompileProcess.Parameters.Add('-o' + ATargetPath);
-    CompileProcess.Parameters.Add(MockFPCSource);
-    CompileProcess.Options := CompileProcess.Options + [poWaitOnExit];
-    CompileProcess.Execute;
-
-    if CompileProcess.ExitStatus <> 0 then
-      raise Exception.Create('Failed to compile mock FPC executable');
-  finally
-    CompileProcess.Free;
+    function RunVerify(const AVersion: string; out AVerifResult: TVerificationResult): Boolean;
+    function WriteMetadata(const AVersion, AInstallPath: string;
+      const AVerifResult: TVerificationResult): Boolean;
   end;
+
+function TVerifyFlowProbe.RunVerify(const AVersion: string;
+  out AVerifResult: TVerificationResult): Boolean;
+begin
+  VerifyCalled := True;
+  AVerifResult := VerifyResultToReturn;
+  Result := VerifyReturnValue;
 end;
+
+function TVerifyFlowProbe.WriteMetadata(const AVersion, AInstallPath: string;
+  const AVerifResult: TVerificationResult): Boolean;
+begin
+  WriterCalled := True;
+  WriterVersion := AVersion;
+  WriterInstallPath := AInstallPath;
+  WriterResult := AVerifResult;
+  Result := True;
+end;
+
 
 procedure SetupTestEnvironment;
 var
@@ -63,7 +76,7 @@ begin
   {$ELSE}
   MockFPCTarget := TestFPCInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
-  CompileMockFPCExecutable(MockFPCTarget);
+  CompileMockFPCBinary(MockFPCTarget);
 
   // Create a hello.pas for smoke test
   HelloPas := TestInstallRoot + PathDelim + 'hello.pas';
@@ -89,7 +102,7 @@ var
   LocalSettings: TFPDevSettings;
   LocalManager: TFPCManager;
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
   Meta: TFPDevMetadata;
 begin
   WriteLn;
@@ -113,7 +126,7 @@ begin
   {$ELSE}
   LegacyFPCExecutable := LegacyInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
   {$ENDIF}
-  CompileMockFPCExecutable(LegacyFPCExecutable);
+  CompileMockFPCBinary(LegacyFPCExecutable);
 
   LocalManager := TFPCManager.Create(LocalConfigManager);
   try
@@ -174,7 +187,7 @@ var
   LocalToolchain: TToolchainInfo;
   LocalManager: TFPCManager;
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
   Meta: TFPDevMetadata;
 begin
   WriteLn;
@@ -201,7 +214,7 @@ begin
   ConfiguredFPCExecutable := ConfiguredInstallDir + PathDelim + 'bin' +
     PathDelim + 'fpc';
   {$ENDIF}
-  CompileMockFPCExecutable(ConfiguredFPCExecutable);
+  CompileMockFPCBinary(ConfiguredFPCExecutable);
 
   LocalToolchain := Default(TToolchainInfo);
   LocalToolchain.Version := '3.2.2';
@@ -268,6 +281,158 @@ begin
   WriteLn('Passed: VerifyInstallation backfills metadata at configured install path');
 end;
 
+procedure TestManagedVerifySurfaceHelperPersistsUsingResolvedLegacyInstallPath;
+var
+  Probe: TVerifyFlowProbe;
+  LegacyRoot: string;
+  PreferredInstallDir: string;
+  LegacyInstallDir: string;
+  LegacyFPCExecutable: string;
+  VerificationResult: TVerificationResult;
+  Success: Boolean;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: managed verify helper persists using resolved legacy install path');
+  WriteLn('==================================================');
+
+  LegacyRoot := CreateUniqueTempDir('test_verifyflow_legacy_helper');
+  PreferredInstallDir := BuildFPCInstallDirFromInstallRoot(LegacyRoot, '3.2.2');
+  LegacyInstallDir := LegacyRoot + PathDelim + 'fpc' + PathDelim + '3.2.2';
+  ForceDirectories(LegacyInstallDir + PathDelim + 'bin');
+  {$IFDEF MSWINDOWS}
+  LegacyFPCExecutable := LegacyInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+  {$ELSE}
+  LegacyFPCExecutable := LegacyInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+  {$ENDIF}
+  CompileMockFPCBinary(LegacyFPCExecutable);
+
+  Probe := TVerifyFlowProbe.Create;
+  try
+    Probe.VerifyReturnValue := True;
+    Probe.VerifyResultToReturn := Default(TVerificationResult);
+    Probe.VerifyResultToReturn.Verified := True;
+    Probe.VerifyResultToReturn.ExecutableExists := True;
+    Probe.VerifyResultToReturn.DetectedVersion := '3.2.2';
+    Probe.VerifyResultToReturn.SmokeTestPassed := True;
+
+    Success := ExecuteManagedFPCVerificationSurfaceCore(
+      '3.2.2',
+      PreferredInstallDir,
+      @Probe.RunVerify,
+      @Probe.WriteMetadata,
+      VerificationResult
+    );
+
+    if not Success then
+    begin
+      WriteLn('Failed: managed verify helper should keep successful verify result');
+      Halt(1);
+    end;
+
+    if not Probe.VerifyCalled then
+    begin
+      WriteLn('Failed: managed verify helper should call verify callback');
+      Halt(1);
+    end;
+
+    if not Probe.WriterCalled then
+    begin
+      WriteLn('Failed: managed verify helper should persist verification metadata');
+      Halt(1);
+    end;
+
+    if ExpandFileName(Probe.WriterInstallPath) <> ExpandFileName(LegacyInstallDir) then
+    begin
+      WriteLn('Failed: managed verify helper should resolve legacy install path before persisting');
+      Halt(1);
+    end;
+
+    if not VerificationResult.Verified then
+    begin
+      WriteLn('Failed: managed verify helper should preserve successful verification result');
+      Halt(1);
+    end;
+  finally
+    Probe.Free;
+    CleanupTempDir(LegacyRoot);
+  end;
+
+  WriteLn('Passed: managed verify helper persists using resolved legacy install path');
+end;
+
+procedure TestManagedVerifySurfaceHelperPreservesFailureWhilePersistingMetadata;
+var
+  Probe: TVerifyFlowProbe;
+  ConfiguredRoot: string;
+  PreferredInstallDir: string;
+  VerificationResult: TVerificationResult;
+  Success: Boolean;
+begin
+  WriteLn;
+  WriteLn('==================================================');
+  WriteLn('Test: managed verify helper preserves failure while persisting metadata');
+  WriteLn('==================================================');
+
+  ConfiguredRoot := CreateUniqueTempDir('test_verifyflow_failure_helper');
+  PreferredInstallDir := BuildFPCInstallDirFromInstallRoot(ConfiguredRoot, '3.2.2');
+  ForceDirectories(PreferredInstallDir + PathDelim + 'bin');
+
+  Probe := TVerifyFlowProbe.Create;
+  try
+    Probe.VerifyReturnValue := False;
+    Probe.VerifyResultToReturn := Default(TVerificationResult);
+    Probe.VerifyResultToReturn.Verified := False;
+    Probe.VerifyResultToReturn.ExecutableExists := True;
+    Probe.VerifyResultToReturn.DetectedVersion := '3.2.2';
+    Probe.VerifyResultToReturn.SmokeTestPassed := False;
+    Probe.VerifyResultToReturn.ErrorMessage := 'smoke failed';
+
+    Success := ExecuteManagedFPCVerificationSurfaceCore(
+      '3.2.2',
+      PreferredInstallDir,
+      @Probe.RunVerify,
+      @Probe.WriteMetadata,
+      VerificationResult
+    );
+
+    if Success then
+    begin
+      WriteLn('Failed: managed verify helper should preserve failed verify result');
+      Halt(1);
+    end;
+
+    if not Probe.VerifyCalled then
+    begin
+      WriteLn('Failed: managed verify helper should call verify callback on failure');
+      Halt(1);
+    end;
+
+    if not Probe.WriterCalled then
+    begin
+      WriteLn('Failed: managed verify helper should still persist metadata after failure');
+      Halt(1);
+    end;
+
+    if ExpandFileName(Probe.WriterInstallPath) <> ExpandFileName(PreferredInstallDir) then
+    begin
+      WriteLn('Failed: managed verify helper should persist using preferred install path when it exists');
+      Halt(1);
+    end;
+
+    if VerificationResult.ErrorMessage <> 'smoke failed' then
+    begin
+      WriteLn('Failed: managed verify helper should preserve failure details');
+      Halt(1);
+    end;
+  finally
+    Probe.Free;
+    CleanupTempDir(ConfiguredRoot);
+  end;
+
+  WriteLn('Passed: managed verify helper preserves failure while persisting metadata');
+end;
+
 procedure TeardownTestEnvironment;
 begin
   // Cleanup test install root directory
@@ -313,7 +478,7 @@ end;
 procedure TestVerifyExistingInstallation;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -358,7 +523,7 @@ end;
 procedure TestVerifyNonExistentInstallation;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -394,7 +559,7 @@ end;
 procedure TestVerifySavesResults;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -421,7 +586,7 @@ end;
 procedure TestVerifyBackfillsMissingMetadata;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
   Meta: TFPDevMetadata;
   MetaPath: string;
 begin
@@ -477,7 +642,7 @@ end;
 procedure TestVerifyPreservesInstallMetadataWhenUpdatingVerification;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
   Meta, ReadMeta: TFPDevMetadata;
 begin
   WriteLn;
@@ -574,7 +739,7 @@ end;
 procedure TestSmokeTestCompilation;
 var
   Success: Boolean;
-  VerificationResult: fpdev.fpc.validator.TVerificationResult;
+  VerificationResult: TVerificationResult;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -642,6 +807,12 @@ begin
 
           // Test 8: Run smoke test
           TestSmokeTestCompilation;
+
+          // Test 9: Managed verify surface helper keeps success semantics
+          TestManagedVerifySurfaceHelperPersistsUsingResolvedLegacyInstallPath;
+
+          // Test 10: Managed verify surface helper keeps failure semantics
+          TestManagedVerifySurfaceHelperPreservesFailureWhilePersistingMetadata;
 
           WriteLn;
           WriteLn('========================================');

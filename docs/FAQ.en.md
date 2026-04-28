@@ -26,13 +26,23 @@ bash scripts/build_release.sh
 
 ### Q: What if binary installation fails?
 
-**A**: Use source installation:
+**A**: The default command is already binary-first. Narrow the failure down in this order:
 
 ```bash
+# Use cached artifacts only (fully offline)
+fpdev fpc install 3.2.2 --offline
+
+# Inspect what is currently cached
+fpdev fpc cache list
+
+# Skip cache and force a fresh binary download
+fpdev fpc install 3.2.2 --no-cache
+
+# Switch to an explicit source build only when you need to bypass the binary path entirely
 fpdev fpc install 3.2.2 --from-source
 ```
 
-Binary installation depends on the manifest system. If unavailable, source installation is the most reliable method.
+The binary acquisition chain goes through manifest metadata first, then falls back to fpdev-repo / SourceForge style recovery. Use `--from-source` only when those paths are unavailable or when you need a source build on purpose.
 
 ---
 
@@ -43,8 +53,14 @@ Binary installation depends on the manifest system. If unavailable, source insta
 **A**: Prefer binary installation first for a faster setup. Fall back to source installation when you need a custom build or the binary path is unavailable:
 
 ```bash
-# Preferred: binary install
+# Default: binary-first install
 fpdev fpc install 3.2.2
+
+# Cached artifacts only
+fpdev fpc install 3.2.2 --offline
+
+# Skip cache and force a fresh binary download
+fpdev fpc install 3.2.2 --no-cache
 
 # Use source build when needed
 fpdev fpc install 3.2.2 --from-source
@@ -163,14 +179,25 @@ This removes:
 
 **A**: This is usually a network issue. Solutions:
 
-1. **Use source installation** (doesn't depend on binary download):
+1. **Check whether the required version is already cached**:
+   ```bash
+   fpdev fpc cache list
+   fpdev fpc install 3.2.2 --offline
+   ```
+
+2. **Skip cache and retry the binary path**:
+   ```bash
+   fpdev fpc install 3.2.2 --no-cache
+   ```
+
+3. **Switch to source mode only when needed**:
    ```bash
    fpdev fpc install 3.2.2 --from-source
    ```
 
-2. **Check network connection**
+4. **Check network connection**
 
-3. **Use a proxy** (if behind a firewall)
+5. **Use a proxy** (if behind a firewall)
 
 ### Q: Compilation error: unit not found
 
@@ -205,7 +232,7 @@ fpc -vut
 **A**: Use the `--prefix` parameter:
 
 ```bash
-fpdev fpc install 3.2.2 --from-source --prefix=/custom/path
+fpdev fpc install 3.2.2 --prefix=/custom/path
 ```
 
 ### Q: How do I use project-scoped installation?

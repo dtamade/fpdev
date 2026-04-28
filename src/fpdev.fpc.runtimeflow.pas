@@ -87,7 +87,7 @@ uses
   fpdev.i18n,
   fpdev.i18n.strings,
   fpdev.fpc.installversionflow,
-  fpdev.utils.git;
+  fpdev.git.errors;
 
 function FormatToolchainInstallDate(const AInstallDate: TDateTime): string;
 begin
@@ -101,28 +101,6 @@ procedure WriteLine(const AOut: IOutput; const AText: string = '');
 begin
   if AOut <> nil then
     AOut.WriteLn(AText);
-end;
-
-function NormalizeGitPullErrorDetail(const AError: string): string;
-var
-  LError: string;
-begin
-  LError := Trim(AError);
-  case ClassifyGitPullFailure(LError) of
-    gpfkDirtyWorktree:
-      Exit(_(MSG_GIT_UPDATE_DIRTY_WORKTREE));
-    gpfkDetachedHead:
-      Exit(_(MSG_GIT_UPDATE_DETACHED_HEAD));
-    gpfkDivergedHistory:
-      Exit(_(MSG_GIT_UPDATE_DIVERGED_HISTORY));
-    gpfkUnknown:
-      ;
-  end;
-
-  if LError = '' then
-    Result := _(MSG_FAILED)
-  else
-    Result := LError;
 end;
 
 function CreateFPCSourcePlanCore(

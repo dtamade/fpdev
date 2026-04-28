@@ -24,27 +24,14 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces;
+  fpdev.config.interfaces, fpdev.cross.searchdiag, fpdev.cross.searchflow;
 
 type
   { Search result from a single strategy layer }
-  TCrossSearchResult = record
-    Found: Boolean;
-    BinutilsPath: string;    // Directory containing binutils
-    BinutilsPrefix: string;  // Tool prefix (e.g. arm-linux-gnueabihf-)
-    LibrariesPath: string;   // Cross-compilation libraries path
-    Layer: Integer;           // Which layer found it (1-6)
-    LayerName: string;        // Human-readable layer name
-  end;
+  TCrossSearchResult = fpdev.cross.searchflow.TCrossSearchResult;
 
   { Search log entry for diagnostics }
-  TCrossSearchLogEntry = record
-    Layer: Integer;
-    LayerName: string;
-    Path: string;
-    Prefix: string;
-    Found: Boolean;
-  end;
+  TCrossSearchLogEntry = fpdev.cross.searchdiag.TCrossSearchLogLine;
 
   { TCrossToolchainSearch - 6-layer cross-compilation toolchain search }
   TCrossToolchainSearch = class
@@ -85,7 +72,8 @@ type
 implementation
 
 uses
-  fpdev.paths;
+  fpdev.paths,
+  fpdev.cross.searchpaths;
 
 const
   TOOL_AS = 'as';
@@ -131,143 +119,8 @@ begin
 end;
 
 function TCrossToolchainSearch.GetPrefixCandidates(const ATarget: TCrossTarget): TStringArray;
-var
-  CPU, OS: string;
 begin
-  Result := nil;
-  CPU := ATarget.CPU;
-  OS := ATarget.OS;
-
-  // If target already has a configured prefix, try it first
-  if ATarget.BinutilsPrefix <> '' then
-  begin
-    SetLength(Result, 1);
-    Result[0] := ATarget.BinutilsPrefix;
-    Exit;
-  end;
-
-  if CPU = 'arm' then
-  begin
-    if OS = 'linux' then
-    begin
-      SetLength(Result, 4);
-      Result[0] := 'arm-linux-gnueabihf-';
-      Result[1] := 'arm-linux-gnueabi-';
-      Result[2] := 'arm-none-eabi-';
-      Result[3] := 'arm-linux-musleabihf-';
-    end
-    else if OS = 'android' then
-    begin
-      SetLength(Result, 2);
-      Result[0] := 'arm-linux-androideabi-';
-      Result[1] := 'armv7a-linux-androideabi-';
-    end
-    else
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'arm-' + OS + '-';
-    end;
-  end
-  else if CPU = 'aarch64' then
-  begin
-    if OS = 'linux' then
-    begin
-      SetLength(Result, 2);
-      Result[0] := 'aarch64-linux-gnu-';
-      Result[1] := 'aarch64-linux-musl-';
-    end
-    else if OS = 'android' then
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'aarch64-linux-android-';
-    end
-    else if OS = 'darwin' then
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'aarch64-apple-darwin-';
-    end
-    else
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'aarch64-' + OS + '-';
-    end;
-  end
-  else if CPU = 'i386' then
-  begin
-    if (OS = 'win32') or (OS = 'win64') then
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'i686-w64-mingw32-';
-    end
-    else
-    begin
-      SetLength(Result, 2);
-      Result[0] := 'i686-linux-gnu-';
-      Result[1] := 'i386-linux-gnu-';
-    end;
-  end
-  else if CPU = 'x86_64' then
-  begin
-    if (OS = 'win64') or (OS = 'win32') then
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'x86_64-w64-mingw32-';
-    end
-    else if OS = 'darwin' then
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'x86_64-apple-darwin-';
-    end
-    else
-    begin
-      SetLength(Result, 1);
-      Result[0] := 'x86_64-linux-gnu-';
-    end;
-  end
-  else if CPU = 'mipsel' then
-  begin
-    SetLength(Result, 2);
-    Result[0] := 'mipsel-linux-gnu-';
-    Result[1] := 'mipsel-linux-musl-';
-  end
-  else if CPU = 'mips' then
-  begin
-    SetLength(Result, 2);
-    Result[0] := 'mips-linux-gnu-';
-    Result[1] := 'mips-linux-musl-';
-  end
-  else if CPU = 'powerpc' then
-  begin
-    SetLength(Result, 1);
-    Result[0] := 'powerpc-linux-gnu-';
-  end
-  else if CPU = 'powerpc64' then
-  begin
-    SetLength(Result, 2);
-    Result[0] := 'powerpc64le-linux-gnu-';
-    Result[1] := 'powerpc64-linux-gnu-';
-  end
-  else if CPU = 'riscv64' then
-  begin
-    SetLength(Result, 1);
-    Result[0] := 'riscv64-linux-gnu-';
-  end
-  else if CPU = 'riscv32' then
-  begin
-    SetLength(Result, 1);
-    Result[0] := 'riscv32-linux-gnu-';
-  end
-  else if CPU = 'sparc' then
-  begin
-    SetLength(Result, 1);
-    Result[0] := 'sparc64-linux-gnu-';
-  end
-  else
-  begin
-    // Generic fallback
-    SetLength(Result, 1);
-    Result[0] := CPU + '-' + OS + '-';
-  end;
+  Result := GetCrossPrefixCandidatesCore(ATarget);
 end;
 
 function TCrossToolchainSearch.SearchLayer1_FPDevManaged(
@@ -613,227 +466,61 @@ end;
 
 function TCrossToolchainSearch.SearchBinutilsWithConfig(const ATarget: TCrossTarget;
   const AFpcCfgPath: string): TCrossSearchResult;
+var
+  Callbacks: TCrossSearchCallbacks;
 begin
-  ClearLog;
-
-  // If target already has a configured path, verify it directly
-  if ATarget.BinutilsPath <> '' then
-  begin
-    if CheckTool(ATarget.BinutilsPath, ATarget.BinutilsPrefix, TOOL_AS) then
-    begin
-      Result.Found := True;
-      Result.BinutilsPath := ATarget.BinutilsPath;
-      Result.BinutilsPrefix := ATarget.BinutilsPrefix;
-      Result.Layer := 0;
-      Result.LayerName := 'configured';
-      AddLog(0, 'configured', ATarget.BinutilsPath, ATarget.BinutilsPrefix, True);
-      Exit;
-    end;
-    AddLog(0, 'configured', ATarget.BinutilsPath, ATarget.BinutilsPrefix, False);
-  end;
-
-  // Layer 1: fpdev-managed
-  Result := SearchLayer1_FPDevManaged(ATarget);
-  if Result.Found then Exit;
-
-  // Layer 2: System paths
-  Result := SearchLayer2_SystemPaths(ATarget);
-  if Result.Found then Exit;
-
-  // Layer 3: PATH environment
-  Result := SearchLayer3_EnvPath(ATarget);
-  if Result.Found then Exit;
-
-  // Layer 4: Platform-specific
-  Result := SearchLayer4_PlatformSpecific(ATarget);
-  if Result.Found then Exit;
-
-  // Layer 5: Linker-based discovery
-  Result := SearchLayer5_LinkerDiscovery(ATarget);
-  if Result.Found then Exit;
-
-  // Layer 6: Config file hints
-  Result := SearchLayer6_ConfigHints(ATarget, AFpcCfgPath);
+  Callbacks := Default(TCrossSearchCallbacks);
+  Callbacks.ClearLog := @ClearLog;
+  Callbacks.CheckTool := @CheckTool;
+  Callbacks.AddLog := @AddLog;
+  Callbacks.SearchLayer1 := @SearchLayer1_FPDevManaged;
+  Callbacks.SearchLayer2 := @SearchLayer2_SystemPaths;
+  Callbacks.SearchLayer3 := @SearchLayer3_EnvPath;
+  Callbacks.SearchLayer4 := @SearchLayer4_PlatformSpecific;
+  Callbacks.SearchLayer5 := @SearchLayer5_LinkerDiscovery;
+  Callbacks.SearchLayer6 := @SearchLayer6_ConfigHints;
+  Result := ExecuteCrossBinutilsSearchCore(ATarget, AFpcCfgPath, TOOL_AS, Callbacks);
 end;
 
 function TCrossToolchainSearch.SearchLibraries(const ATarget: TCrossTarget): TStringArray;
 var
-  Candidates: array of string;
-  CandCount: Integer;
-  I: Integer;
-  Prefix: string;
   Prefixes: TStringArray;
-
-  procedure AddCandidate(const ADir: string);
-  var
-    J: Integer;
-  begin
-    if (ADir = '') or not DirectoryExists(ADir) then Exit;
-    // Deduplicate
-    for J := 0 to CandCount - 1 do
-      if Candidates[J] = ADir then Exit;
-    if CandCount >= Length(Candidates) then
-      SetLength(Candidates, Length(Candidates) + 8);
-    Candidates[CandCount] := ADir;
-    Inc(CandCount);
-  end;
-
 begin
-  Result := nil;
-  Candidates := nil;
-  SetLength(Candidates, 16);
-  CandCount := 0;
-
   Prefixes := GetPrefixCandidates(ATarget);
-
-  // Priority 0: Configured library path
-  if ATarget.LibrariesPath <> '' then
-    AddCandidate(ATarget.LibrariesPath);
-
-  // Priority 1: fpdev-managed
-  AddCandidate(GetDataRoot + PathDelim + 'cross' + PathDelim +
-    ATarget.CPU + '-' + ATarget.OS + PathDelim + 'lib');
-
-  {$IFDEF LINUX}
-  // Priority 2: Debian/Ubuntu multiarch — /usr/<triple>/lib
-  for I := 0 to High(Prefixes) do
-  begin
-    Prefix := Copy(Prefixes[I], 1, Length(Prefixes[I]) - 1);
-    AddCandidate('/usr/' + Prefix + '/lib');
-    // multiarch variant: /usr/lib/<triple>
-    AddCandidate('/usr/lib/' + Prefix);
-    // 32/64 multilib: /usr/<triple>/lib32, /usr/<triple>/lib64
-    AddCandidate('/usr/' + Prefix + '/lib32');
-    AddCandidate('/usr/' + Prefix + '/lib64');
-  end;
-
-  // Priority 3: Generic cross paths
-  AddCandidate('/usr/' + ATarget.CPU + '-' + ATarget.OS + '/lib');
-
-  // Priority 4: NDK sysroot for Android
-  if ATarget.OS = 'android' then
-  begin
-    AddCandidate(GetEnvironmentVariable('ANDROID_NDK_HOME') +
-      '/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/' +
-      ATarget.CPU + '-linux-android');
-    AddCandidate(GetUserDir + 'Android/Sdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/' +
-      ATarget.CPU + '-linux-android');
-  end;
-
-  // Priority 5: Linaro / ARM-specific
-  if (ATarget.CPU = 'arm') or (ATarget.CPU = 'aarch64') then
-  begin
-    AddCandidate('/opt/gcc-arm/lib');
-    AddCandidate('/opt/gcc-linaro/lib');
-  end;
-
-  // Priority 6: Windows cross-lib (mingw sysroot)
-  if (ATarget.OS = 'win64') or (ATarget.OS = 'win32') then
-  begin
-    for I := 0 to High(Prefixes) do
-    begin
-      Prefix := Copy(Prefixes[I], 1, Length(Prefixes[I]) - 1);
-      AddCandidate('/usr/' + Prefix + '/lib');
-    end;
-  end;
-  {$ENDIF}
-
-  {$IFDEF DARWIN}
-  // macOS SDK
-  AddCandidate('/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib');
-  // Homebrew cross-compilation
-  AddCandidate('/opt/homebrew/opt/' + ATarget.CPU + '-' + ATarget.OS + '/lib');
-  {$ENDIF}
-
-  {$IFDEF MSWINDOWS}
-  // MSYS2 cross-lib directories
-  if (ATarget.OS = 'linux') or (ATarget.OS = 'darwin') then
-  begin
-    AddCandidate('C:\msys64\usr\lib');
-  end;
-  {$ENDIF}
-
-  // Build result array
-  SetLength(Result, CandCount);
-  for I := 0 to CandCount - 1 do
-    Result[I] := Candidates[I];
+  Result := BuildCrossLibraryCandidatesCore(ATarget, Prefixes);
 end;
 
 function TCrossToolchainSearch.DiagnoseTarget(const ATarget: TCrossTarget): TStringArray;
 var
   BinRes: TCrossSearchResult;
   Libs, Log: TStringArray;
-  Lines: array of string;
-  LineCount: Integer;
-  I: Integer;
-
-  procedure AddLine(const ALine: string);
-  begin
-    if LineCount >= Length(Lines) then
-      SetLength(Lines, Length(Lines) + 16);
-    Lines[LineCount] := ALine;
-    Inc(LineCount);
-  end;
-
 begin
-  Result := nil;
-  Lines := nil;
-  SetLength(Lines, 16);
-  LineCount := 0;
-
-  AddLine('Target: ' + ATarget.CPU + '-' + ATarget.OS);
-
-  // Search binutils
   BinRes := SearchBinutils(ATarget);
-  if BinRes.Found then
-  begin
-    AddLine('[OK] Binutils found (layer ' + IntToStr(BinRes.Layer) + ': ' + BinRes.LayerName + ')');
-    AddLine('     Path: ' + BinRes.BinutilsPath);
-    if BinRes.BinutilsPrefix <> '' then
-      AddLine('     Prefix: ' + BinRes.BinutilsPrefix);
-  end
-  else
-    AddLine('[X] Binutils not found');
-
-  // Search libraries
   Libs := SearchLibraries(ATarget);
-  if Length(Libs) > 0 then
-  begin
-    AddLine('[OK] Libraries found (' + IntToStr(Length(Libs)) + ' path(s))');
-    for I := 0 to High(Libs) do
-      AddLine('     ' + Libs[I]);
-  end
-  else
-    AddLine('[!] No library paths found');
-
-  // Search log summary
-  AddLine('Search log (' + IntToStr(GetSearchLogCount) + ' entries):');
   Log := GetSearchLog;
-  for I := 0 to High(Log) do
-    AddLine('  ' + Log[I]);
-
-  SetLength(Result, LineCount);
-  for I := 0 to LineCount - 1 do
-    Result[I] := Lines[I];
+  Result := BuildCrossDiagnoseLinesCore(
+    ATarget.CPU,
+    ATarget.OS,
+    BinRes.Found,
+    BinRes.Layer,
+    BinRes.LayerName,
+    BinRes.BinutilsPath,
+    BinRes.BinutilsPrefix,
+    Libs,
+    Log
+  );
 end;
 
 function TCrossToolchainSearch.GetSearchLog: TStringArray;
 var
   I: Integer;
-  StatusStr: string;
+  Entries: TCrossSearchLogLineArray;
 begin
-  Result := nil;
-  SetLength(Result, FLogCount);
+  Entries := nil;
+  SetLength(Entries, FLogCount);
   for I := 0 to FLogCount - 1 do
-  begin
-    if FLog[I].Found then
-      StatusStr := 'FOUND'
-    else
-      StatusStr := 'miss';
-    Result[I] := Format('[L%d:%s] %s prefix=%s => %s',
-      [FLog[I].Layer, FLog[I].LayerName, FLog[I].Path,
-       FLog[I].Prefix, StatusStr]);
-  end;
+    Entries[I] := FLog[I];
+  Result := BuildCrossSearchLogLinesCore(Entries);
 end;
 
 function TCrossToolchainSearch.GetSearchLogCount: Integer;

@@ -23,6 +23,17 @@ EOF
 }
 
 STRICT="${FPDEV_TOOLCHAIN_STRICT:-0}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${FPDEV_TOOLCHAIN_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+REPO_BUILD_OUTPUTS_ENABLED=0
+REPO_OUTPUT_LAST_STATUS=""
+REPO_OUTPUT_LAST_NOTES=""
+REPO_BIN_PATH="${REPO_ROOT}/bin"
+REPO_BIN_STATUS="SKIPPED"
+REPO_BIN_NOTES=""
+REPO_LIB_PATH="${REPO_ROOT}/lib"
+REPO_LIB_STATUS="SKIPPED"
+REPO_LIB_NOTES=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -99,6 +110,39 @@ detect_lazarus_root() {
   return 1
 }
 
+probe_repo_build_output() {
+  local name="$1"
+  local path="$2"
+  local parent_dir=""
+
+  REPO_OUTPUT_LAST_STATUS="MISSING"
+  REPO_OUTPUT_LAST_NOTES=""
+
+  if [[ -d "${path}" ]]; then
+    if [[ -w "${path}" ]]; then
+      REPO_OUTPUT_LAST_STATUS="found"
+      echo "[ OK ] ${name}: ${path}"
+      return 0
+    fi
+
+    REPO_OUTPUT_LAST_NOTES="directory exists but is not writable"
+    echo "[MISS] ${name}: ${path} (${REPO_OUTPUT_LAST_NOTES})"
+    return 1
+  fi
+
+  parent_dir="$(dirname "${path}")"
+  if [[ -d "${parent_dir}" && -w "${parent_dir}" ]]; then
+    REPO_OUTPUT_LAST_STATUS="found"
+    REPO_OUTPUT_LAST_NOTES="creatable"
+    echo "[ OK ] ${name}: ${path} (${REPO_OUTPUT_LAST_NOTES})"
+    return 0
+  fi
+
+  REPO_OUTPUT_LAST_NOTES="parent directory is not writable"
+  echo "[MISS] ${name}: ${path} (${REPO_OUTPUT_LAST_NOTES})"
+  return 1
+}
+
 echo "=================================="
 echo "Toolchain Check @ $(date)"
 echo "=================================="
@@ -130,6 +174,26 @@ else
     echo "[MISS] lazarus_root (set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/)"
   fi
   REQ_MISS=$((REQ_MISS + 1))
+fi
+
+if [[ -f "${REPO_ROOT}/fpdev.lpi" ]]; then
+  REPO_BUILD_OUTPUTS_ENABLED=1
+
+  if probe_repo_build_output "repo_bin_writable" "${REPO_BIN_PATH}"; then
+    OK=$((OK + 1))
+  else
+    REQ_MISS=$((REQ_MISS + 1))
+  fi
+  REPO_BIN_STATUS="${REPO_OUTPUT_LAST_STATUS}"
+  REPO_BIN_NOTES="${REPO_OUTPUT_LAST_NOTES}"
+
+  if probe_repo_build_output "repo_lib_writable" "${REPO_LIB_PATH}"; then
+    OK=$((OK + 1))
+  else
+    REQ_MISS=$((REQ_MISS + 1))
+  fi
+  REPO_LIB_STATUS="${REPO_OUTPUT_LAST_STATUS}"
+  REPO_LIB_NOTES="${REPO_OUTPUT_LAST_NOTES}"
 fi
 
 for t in "${OPTIONAL_TOOLS[@]}"; do
@@ -168,6 +232,16 @@ OUT="$OUTDIR/toolchain_$TS.txt"
     echo "  lazarus_root : MISSING (FPDEV_LAZARUSDIR does not contain lcl/)"
   else
     echo "  lazarus_root : MISSING (set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/)"
+  fi
+  echo ""
+
+  echo "Build outputs:"
+  if (( REPO_BUILD_OUTPUTS_ENABLED == 1 )); then
+    echo "  repo_root : ${REPO_ROOT}"
+    echo "  repo_bin_writable : ${REPO_BIN_STATUS} ${REPO_BIN_PATH} ${REPO_BIN_NOTES}"
+    echo "  repo_lib_writable : ${REPO_LIB_STATUS} ${REPO_LIB_PATH} ${REPO_LIB_NOTES}"
+  else
+    echo "  skipped : repo root not detected (${REPO_ROOT}/fpdev.lpi missing)"
   fi
   echo ""
 

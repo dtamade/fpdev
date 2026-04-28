@@ -9,10 +9,16 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.templatecommandflow;
 
 type
   TProjectTemplateRemoveCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunRemoveTemplate(
+      const Outp, Errp: IOutput;
+      const ATemplateName: string
+    ): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -21,8 +27,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils;
 
 function TProjectTemplateRemoveCommand.Name: string; begin Result := 'remove'; end;
 function TProjectTemplateRemoveCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -37,51 +41,40 @@ begin
   Result := TProjectTemplateRemoveCommand.Create;
 end;
 
+function TProjectTemplateRemoveCommand.RunRemoveTemplate(
+  const Outp, Errp: IOutput;
+  const ATemplateName: string
+): Boolean;
+begin
+  Result := Assigned(FManager) and FManager.RemoveTemplate(Outp, Errp, ATemplateName);
+end;
+
 function TProjectTemplateRemoveCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LName: string;
-  LMgr: TProjectManager;
-  UnknownOption: string;
+  LPlan: TProjectTemplateRemoveCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectTemplateRemoveCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn('Usage: fpdev project template remove <name>');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Remove a custom project template.');
-    Ctx.Out.WriteLn('Built-in templates (console, gui, library, etc.) cannot be removed.');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Arguments:');
-    Ctx.Out.WriteLn('  <name>        Name of the template to remove');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --help, -h    Show this help message');
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template remove <name>');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) < 1 then
-    Exit(MissingArgError(Ctx, 'name', 'Usage: fpdev project template remove <name>'));
-
-  if CountPositionalArgs(AParams) > 1 then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template remove <name>');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LName := GetPositionalArg(AParams, 0);
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.RemoveTemplate(Ctx.Out, Ctx.Err, LName) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecuteProjectTemplateRemoveCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @RunRemoveTemplate
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

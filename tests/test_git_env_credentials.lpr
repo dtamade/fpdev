@@ -5,7 +5,7 @@ program test_git_env_credentials;
 uses
   SysUtils,
   fpdev.utils,
-  fpdev.utils.git;
+  fpdev.git.env;
 
 var
   TestsPassed: Integer = 0;
@@ -72,7 +72,7 @@ begin
       set_env('FPDEV_GIT_SSH_USERNAME', 'fpdev-ssh'));
     unset_env('FPDEV_GIT_TOKEN');
 
-    ResolveGitCredentialEnv(UserName, Password, SshUser);
+    fpdev.git.env.ResolveGitCredentialEnv(UserName, Password, SshUser);
     Check('same-process FPDEV_GIT_USERNAME is visible',
       UserName = 'fpdev-user', 'got="' + UserName + '"');
     Check('same-process FPDEV_GIT_PASSWORD is visible',
@@ -128,7 +128,7 @@ begin
     Check('set FPDEV_GIT_TOKEN',
       set_env('FPDEV_GIT_TOKEN', 'fpdev-token'));
 
-    ResolveGitCredentialEnv(UserName, Password, SshUser);
+    fpdev.git.env.ResolveGitCredentialEnv(UserName, Password, SshUser);
     Check('generic username fallback stays visible',
       UserName = 'generic-user', 'got="' + UserName + '"');
     Check('generic password keeps precedence over tokens',
@@ -137,7 +137,7 @@ begin
       SshUser = 'generic-ssh', 'got="' + SshUser + '"');
 
     unset_env('GIT_PASSWORD');
-    ResolveGitCredentialEnv(UserName, Password, SshUser);
+    fpdev.git.env.ResolveGitCredentialEnv(UserName, Password, SshUser);
     Check('FPDEV_GIT_TOKEN beats generic GIT_TOKEN when password missing',
       Password = 'fpdev-token', 'got="' + Password + '"');
   finally

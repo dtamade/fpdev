@@ -32,7 +32,7 @@ begin
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', LNested]);
     {$ELSE}
-    ExecuteProcess('rm', ['-rf', LNested]);
+    ExecuteProcess('/bin/rm', ['-rf', LNested]);
     {$ENDIF}
   end;
 end;
@@ -69,4 +69,3 @@ begin
     end;
   end;
 end.
-

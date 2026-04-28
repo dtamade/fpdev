@@ -10,7 +10,7 @@ fpc -Fu..\..\src -Fu..\..\src\git2 -Fu. -obin\fpdev.git2.fpcunit.exe fpdev.git2.
 set ERR=%ERRORLEVEL%
 if not %ERR%==0 goto :end
 
-bin\fpdev.git2.fpcunit.exe --format=plain
+bin\fpdev.git2.fpcunit.exe --all --format=plain
 
 :end
 popd

@@ -6,9 +6,11 @@ interface
 
 uses
   Classes, SysUtils, fpjson, jsonparser, DateUtils, fpdev.utils.fs,
-  fpdev.utils.process, fpdev.utils.git, fpdev.git.runtime,
+  fpdev.utils.process, fpdev.git.types, fpdev.git.runtime,
   fpdev.output.intf,
   fpdev.resource.repo.bootstrapquery,
+  fpdev.resource.repo.mirror,
+  fpdev.resource.repo.mirrorflow,
   fpdev.resource.repo.types;  // TMirrorInfo, TResourceRepoConfig, TPlatformInfo, etc.
 
 type
@@ -37,10 +39,7 @@ type
     FGitOps: IGitRuntime;
     FCachedBestMirror: string;      // Cached best mirror
     FMirrorCacheTime: TDateTime;    // Mirror cache time
-    FMirrorLatencies: array of record
-      URL: string;
-      Latency: Integer;  // Milliseconds, -1 means unreachable
-    end;
+    FMirrorLatencies: TResourceRepoMirrorLatencyStateArray;
     FOutput: IOutput;               // Optional output interface
 
     procedure Log(const AMsg: string);
@@ -52,13 +51,26 @@ type
     function GetLastCommitHash: string;
     function NeedsUpdate: Boolean;
     procedure MarkUpdateCheckNow;
+    procedure EnsureLocalDir(const APath: string);
     function DetectUserRegion: string;
     function SelectBestMirror: string;
     function TestMirrorLatency(const AURL: string; ATimeoutMS: Integer = 5000): Integer;
+    function ParseMirrorsFromManifest(
+      const AManifestData: TJSONObject
+    ): TResourceRepoMirrorInfoArray;
+    function GetGitBackendValue: TGitBackend;
+    function CloneRepositoryRuntime(const AURL, ALocalPath,
+      ABranch: string): Boolean;
+    function PullRepositoryRuntime(const ALocalPath: string): Boolean;
+    function GetGitLastErrorValue: string;
+    function QueryHasPackageSurface(const ALocalPath, AName,
+      AVersion: string): Boolean;
     { B066: Lazy loading helper - returns Boolean because manifest is a required resource
       Caller must check return value: if not EnsureManifestLoaded then Exit;
       Unlike TBuildCache.EnsureIndexLoaded, manifest loading failure needs explicit handling }
     function EnsureManifestLoaded: Boolean;
+    function InstallBootstrapWithInfo(const AInfo: TPlatformInfo;
+      const AVersion, APlatform, ADestDir: string): Boolean;
     function InstallBinaryReleaseWithInfo(const AInfo: TPlatformInfo;
       const AVersion, APlatform, ADestDir: string): Boolean;
     function InstallCrossToolchainWithInfo(const AInfo: TCrossToolchainInfo;
@@ -139,14 +151,17 @@ implementation
 uses
   fpdev.resource.repo.config,
   fpdev.resource.repo.bootstrap,
-  fpdev.resource.repo.mirror,
+  fpdev.resource.repo.bootstrapflow,
   fpdev.resource.repo.package,
+  fpdev.resource.repo.packageflow,
   fpdev.resource.repo.search,
   fpdev.resource.repo.binary,
   fpdev.resource.repo.cross,
   fpdev.resource.repo.distributionflow,
   fpdev.resource.repo.install,
   fpdev.resource.repo.lifecycle,
+  fpdev.resource.repo.lifecycleflow,
+  fpdev.resource.repo.queryflow,
   fpdev.resource.repo.statusflow;
 
 { Helper function implementation }
@@ -180,6 +195,11 @@ begin
     FOutput.WriteLn(Format(AFormat, AArgs));
 end;
 
+procedure TResourceRepository.EnsureLocalDir(const APath: string);
+begin
+  EnsureDir(APath);
+end;
+
 constructor TResourceRepository.Create(const AConfig: TResourceRepoConfig);
 begin
   inherited Create;
@@ -188,7 +208,7 @@ begin
   FLastUpdateCheck := 0;
   FManifestData := nil;
   FManifestLoaded := False;
-  FGitOps := TGitRuntime.Create;
+  FGitOps := NewGitRuntime;
   FCachedBestMirror := '';
   FMirrorCacheTime := 0;
   SetLength(FMirrorLatencies, 0);
@@ -204,56 +224,66 @@ end;
 
 function TResourceRepository.IsGitRepository: Boolean;
 begin
-  // Use TGitOperations for more accurate detection (supports libgit2)
+  // Use the unified git runtime for accurate repository detection.
   Result := FGitOps.IsRepository(FLocalPath);
 end;
 
-function TResourceRepository.GitClone(const AURL: string): Boolean;
-var
-  ParentDir: string;
+function TResourceRepository.GetGitBackendValue: TGitBackend;
 begin
-  Result := False;
-
-  // Check if git backend is available
-  if FGitOps.Backend = gbNone then
-  begin
-    Log('Error: No Git backend available (neither libgit2 nor git command found)');
-    Exit;
-  end;
-
-  LogFmt('Cloning resource repository from %s...', [AURL]);
-  LogFmt('  Using backend: %s', [GitBackendToString(FGitOps.Backend)]);
-
-  // Ensure parent directory exists
-  ParentDir := ExtractFileDir(FLocalPath);
-  if not DirectoryExists(ParentDir) then
-    EnsureDir(ParentDir);
-
-  // Clone repository - use TGitOperations
-  Result := FGitOps.Clone(AURL, FLocalPath, FConfig.Branch);
-
-  if Result then
-    Log('Resource repository cloned successfully')
+  if FGitOps <> nil then
+    Result := FGitOps.Backend
   else
-    LogFmt('Failed to clone from %s: %s', [AURL, FGitOps.LastError]);
+    Result := gbNone;
+end;
+
+function TResourceRepository.CloneRepositoryRuntime(const AURL, ALocalPath,
+  ABranch: string): Boolean;
+begin
+  Result := (FGitOps <> nil) and FGitOps.Clone(AURL, ALocalPath, ABranch);
+end;
+
+function TResourceRepository.PullRepositoryRuntime(const ALocalPath: string): Boolean;
+begin
+  Result := (FGitOps <> nil) and FGitOps.PullFastForwardOnly(ALocalPath);
+end;
+
+function TResourceRepository.GetGitLastErrorValue: string;
+begin
+  if FGitOps <> nil then
+    Result := FGitOps.LastError
+  else
+    Result := '';
+end;
+
+function TResourceRepository.QueryHasPackageSurface(const ALocalPath, AName,
+  AVersion: string): Boolean;
+begin
+  Result := ResourceRepoHasPackageCore(ALocalPath, AName, AVersion);
+end;
+
+function TResourceRepository.GitClone(const AURL: string): Boolean;
+begin
+  Result := ExecuteResourceRepoGitCloneCore(
+    AURL,
+    FLocalPath,
+    FConfig.Branch,
+    GetGitBackendValue,
+    @CloneRepositoryRuntime,
+    @GetGitLastErrorValue,
+    @EnsureLocalDir,
+    @Log
+  );
 end;
 
 function TResourceRepository.GitPull: Boolean;
 begin
-  // Check if git backend is available
-  if FGitOps.Backend = gbNone then
-  begin
-    Log('Warning: No Git backend available, skipping update');
-    Exit(False);
-  end;
-
-  Log('Updating resource repository...');
-  Result := FGitOps.PullFastForwardOnly(FLocalPath);
-
-  if Result then
-    Log('Resource repository updated')
-  else
-    LogFmt('Warning: Failed to update (using cached version): %s', [FGitOps.LastError]);
+  Result := ExecuteResourceRepoGitPullCore(
+    FLocalPath,
+    GetGitBackendValue,
+    @PullRepositoryRuntime,
+    @GetGitLastErrorValue,
+    @Log
+  );
 end;
 
 function TResourceRepository.QueryShortHead(const AWorkDir: string): TProcessResult;
@@ -338,24 +368,25 @@ end;
 
 function TResourceRepository.LoadManifest: Boolean;
 var
-  ManifestPath: string;
   ManifestData: TJSONObject;
   ManifestLoaded: Boolean;
 begin
-  ManifestPath := FLocalPath + PathDelim + 'manifest.json';
   ManifestData := nil;
   ManifestLoaded := False;
 
-  Result := LoadResourceRepoManifestCore(
-    ManifestPath,
+  Result := LoadResourceRepoManifestSurfaceCore(
+    FLocalPath,
     @Log,
     ManifestData,
     ManifestLoaded
   );
 
-  FreeAndNil(FManifestData);
-  FManifestData := ManifestData;
-  FManifestLoaded := ManifestLoaded;
+  ApplyLoadedResourceRepoManifestStateCore(
+    FManifestData,
+    FManifestLoaded,
+    ManifestData,
+    ManifestLoaded
+  );
 end;
 
 function TResourceRepository.EnsureManifestLoaded: Boolean;
@@ -374,6 +405,13 @@ begin
   Result.Log := @ARepo.Log;
   Result.LogFmt := @ARepo.LogFmt;
   Result.VerifyChecksum := @ARepo.VerifyChecksum;
+end;
+
+function TResourceRepository.InstallBootstrapWithInfo(const AInfo: TPlatformInfo;
+  const AVersion, APlatform, ADestDir: string): Boolean;
+begin
+  Result := RepoInstallBootstrapCompiler(BuildInstallContext(Self), AInfo,
+    AVersion, APlatform, ADestDir);
 end;
 
 function TResourceRepository.InstallBinaryReleaseWithInfo(const AInfo: TPlatformInfo;
@@ -399,47 +437,37 @@ end;
 
 function TResourceRepository.GetManifestVersion: string;
 begin
-  Result := 'unknown';
-  if not EnsureManifestLoaded then
-    Exit;
-  Result := FManifestData.Get('version', 'unknown');
+  Result := GetResourceRepoManifestVersionSurfaceCore(
+    FManifestData,
+    @EnsureManifestLoaded
+  );
 end;
 
 function TResourceRepository.HasBootstrapCompiler(const AVersion, APlatform: string): Boolean;
 begin
-  Result := False;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    Result := ResourceRepoHasBootstrapCompiler(FManifestData, AVersion, APlatform);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error checking bootstrap compiler: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoBooleanQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error checking bootstrap compiler: %s',
+    AVersion,
+    APlatform,
+    @ResourceRepoHasBootstrapCompiler
+  );
 end;
 
 function TResourceRepository.GetBootstrapInfo(const AVersion, APlatform: string; out AInfo: TPlatformInfo): Boolean;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    Result := ResourceRepoGetBootstrapCompilerInfo(FManifestData, AVersion, APlatform, AInfo);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error getting bootstrap info: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoPlatformInfoQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error getting bootstrap info: %s',
+    AVersion,
+    APlatform,
+    AInfo,
+    @ResourceRepoGetBootstrapCompilerInfo
+  );
 end;
 
 function TResourceRepository.GetBootstrapExecutable(const AVersion, APlatform: string): string;
@@ -453,21 +481,15 @@ end;
 
 function TResourceRepository.GetRequiredBootstrapVersion(const AFPCVersion: string): string;
 begin
-  // B064: Check return value, use fallback on failure
-  if not EnsureManifestLoaded then
-  begin
-    Result := ResourceRepoGetRequiredBootstrapVersion(nil, AFPCVersion);
-    Exit;
-  end;
-  try
-    Result := ResourceRepoGetRequiredBootstrapVersion(FManifestData, AFPCVersion);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error getting bootstrap version from manifest: %s', [E.Message]);
-      Result := ResourceRepoGetRequiredBootstrapVersion(nil, AFPCVersion);
-    end;
-  end;
+  Result := ExecuteResourceRepoStringQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error getting bootstrap version from manifest: %s',
+    AFPCVersion,
+    @ResourceRepoGetRequiredBootstrapVersion,
+    @ResourceRepoGetRequiredBootstrapVersion
+  );
 end;
 
 function TResourceRepository.GetBootstrapVersionFromMakefile(const ASourcePath: string): string;
@@ -485,114 +507,62 @@ end;
 
 function TResourceRepository.ListBootstrapVersions: SysUtils.TStringArray;
 begin
-  Result := nil;  // B064: Initialize managed type
-  // B064: Check return value, return empty array on failure
-  if not EnsureManifestLoaded then
-    Exit;
-  try
-    Result := ResourceRepoListBootstrapVersions(FManifestData);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error listing bootstrap versions: %s', [E.Message]);
-      SetLength(Result, 0);
-    end;
-  end;
+  Result := ExecuteResourceRepoStringArrayQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error listing bootstrap versions: %s',
+    @ResourceRepoListBootstrapVersions
+  );
 end;
 
 function TResourceRepository.FindBestBootstrapVersion(const AFPCVersion, APlatform: string): string;
-var
-  RequiredVersion: string;
-  AvailableVersions: SysUtils.TStringArray;
-  LogLines: SysUtils.TStringArray;
-  Index: Integer;
 begin
-  RequiredVersion := GetRequiredBootstrapVersion(AFPCVersion);
-  LogLines := Default(SysUtils.TStringArray);
-  SetLength(LogLines, 0);
-  AvailableVersions := ListBootstrapVersions;
-  Result := SelectBestBootstrapVersionCore(
-    RequiredVersion,
+  Result := ExecuteResourceRepoFindBestBootstrapVersionCore(
+    AFPCVersion,
     APlatform,
-    AvailableVersions,
+    @GetRequiredBootstrapVersion,
+    @ListBootstrapVersions,
     @HasBootstrapCompiler,
-    LogLines
+    @Log
   );
-  for Index := 0 to High(LogLines) do
-    Log(LogLines[Index]);
 end;
 
 function TResourceRepository.VerifyChecksum(const AFile, AExpectedSHA256: string): Boolean;
-var
-  LResult: TProcessResult;
-  ActualSHA256: string;
 begin
-  Result := False;
-
-  if AExpectedSHA256 = '' then
-  begin
-    Log('Warning: No checksum provided, skipping verification');
-    Exit(True);  // No checksum required, consider it passed
-  end;
-
-  LResult := TProcessExecutor.Execute('sha256sum', [AFile], '');
-  if LResult.Success then
-  begin
-    // Extract hash value (first field)
-    ActualSHA256 := Trim(Copy(LResult.StdOut, 1, Pos(' ', LResult.StdOut) - 1));
-
-    Result := SameText(ActualSHA256, AExpectedSHA256);
-
-    if Result then
-      LogFmt('Checksum verified: %s', [AFile])
-    else
-    begin
-      LogFmt('Checksum mismatch for: %s', [AFile]);
-      LogFmt('  Expected: %s', [AExpectedSHA256]);
-      LogFmt('  Got:      %s', [ActualSHA256]);
-    end;
-  end
-  else if LResult.ErrorMessage <> '' then
-    LogFmt('Error verifying checksum: %s', [LResult.ErrorMessage]);
+  Result := ExecuteResourceRepoVerifyChecksumCore(
+    AFile,
+    AExpectedSHA256,
+    @Log,
+    @LogFmt
+  );
 end;
 
 function TResourceRepository.HasBinaryRelease(const AVersion, APlatform: string): Boolean;
 begin
-  Result := False;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    // B067: Use helper function
-    Result := ResourceRepoHasBinaryRelease(FManifestData, AVersion, APlatform);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error checking binary release: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoBooleanQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error checking binary release: %s',
+    AVersion,
+    APlatform,
+    @ResourceRepoHasBinaryRelease
+  );
 end;
 
 function TResourceRepository.GetBinaryReleaseInfo(const AVersion, APlatform: string; out AInfo: TPlatformInfo): Boolean;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    Result := ResourceRepoGetBinaryReleaseInfoCore(FManifestData,
-      AVersion, APlatform, AInfo);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error getting binary release info: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoPlatformInfoQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error getting binary release info: %s',
+    AVersion,
+    APlatform,
+    AInfo,
+    @ResourceRepoGetBinaryReleaseInfoCore
+  );
 end;
 
 function TResourceRepository.GetBinaryReleasePath(const AVersion, APlatform: string): string;
@@ -615,20 +585,15 @@ begin
 end;
 
 function TResourceRepository.InstallBootstrap(const AVersion, APlatform, ADestDir: string): Boolean;
-var
-  Info: TPlatformInfo;
 begin
-  Result := False;
-
-  // Get bootstrap info
-  if not GetBootstrapInfo(AVersion, APlatform, Info) then
-  begin
-    Log('Error: Bootstrap compiler info not found');
-    Exit;
-  end;
-
-  // B226: Delegate to install helper
-  Result := RepoInstallBootstrapCompiler(BuildInstallContext(Self), Info, AVersion, APlatform, ADestDir);
+  Result := ExecuteResourceRepoInstallBootstrapCore(
+    AVersion,
+    APlatform,
+    ADestDir,
+    @GetBootstrapInfo,
+    @InstallBootstrapWithInfo,
+    @Log
+  );
 end;
 
 { Mirror Management }
@@ -636,6 +601,13 @@ end;
 function TResourceRepository.DetectUserRegion: string;
 begin
   Result := ResourceRepoDetectUserRegion(@Log);
+end;
+
+function TResourceRepository.ParseMirrorsFromManifest(
+  const AManifestData: TJSONObject
+): TResourceRepoMirrorInfoArray;
+begin
+  Result := ResourceRepoGetMirrorsFromManifest(AManifestData);
 end;
 
 function TResourceRepository.TestMirrorLatency(const AURL: string; ATimeoutMS: Integer): Integer;
@@ -646,96 +618,32 @@ end;
 function TResourceRepository.SelectBestMirror: string;
 const
   CACHE_TTL_HOURS = 1;  // Mirror cache 1 hour
-var
-  Region: string;
-  i: Integer;
-  CandidateMirrors: array of string;
-  CandidateLatencies: TResourceRepoMirrorLatencyArray;
-  CandidateCount: Integer;
-  BestMirror: string;
 begin
-  Result := FConfig.URL;  // Default to primary URL
-
-  // Check cache
-  if ResourceRepoTryGetCachedMirror(FCachedBestMirror, FMirrorCacheTime,
-    CACHE_TTL_HOURS, Now, Result) then
-    Exit;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  // Detect or use configured region
-  if FUserRegion <> '' then
-    Region := FUserRegion
-  else
-    Region := DetectUserRegion;
-
-  CandidateMirrors := nil;
-  CandidateLatencies := nil;
-
-  try
-    CandidateMirrors := ResourceRepoBuildCandidateMirrors(
-      FManifestData, Region, FConfig.URL, FConfig.Mirrors);
-
-    BestMirror := ResourceRepoSelectBestMirrorFromCandidates(
-      CandidateMirrors, @TestMirrorLatency, 3000, CandidateLatencies);
-
-    CandidateCount := Length(CandidateMirrors);
-    SetLength(FMirrorLatencies, CandidateCount);
-
-    for i := 0 to CandidateCount - 1 do
-    begin
-      FMirrorLatencies[i].URL := CandidateMirrors[i];
-      if i <= High(CandidateLatencies) then
-        FMirrorLatencies[i].Latency := CandidateLatencies[i]
-      else
-        FMirrorLatencies[i].Latency := -1;
-    end;
-
-    if BestMirror <> '' then
-      Result := BestMirror;
-
-    // Cache result
-    ResourceRepoSetCachedMirror(Result, Now, FCachedBestMirror, FMirrorCacheTime);
-
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error selecting best mirror: %s', [E.Message]);
-      // Fall back to primary URL on any error
-      Result := FConfig.URL;
-    end;
-  end;
+  Result := ExecuteResourceRepoSelectBestMirrorSurfaceCore(
+    FManifestData,
+    FUserRegion,
+    FConfig.URL,
+    FConfig.Mirrors,
+    FCachedBestMirror,
+    FMirrorCacheTime,
+    FMirrorLatencies,
+    CACHE_TTL_HOURS,
+    Now,
+    @EnsureManifestLoaded,
+    @DetectUserRegion,
+    @TestMirrorLatency,
+    @LogFmt
+  );
 end;
 
 function TResourceRepository.GetMirrors: TMirrorArray;
-var
-  ParsedMirrors: TResourceRepoMirrorInfoArray;
-  i: Integer;
 begin
-  Result := nil;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    ParsedMirrors := ResourceRepoGetMirrorsFromManifest(FManifestData);
-    SetLength(Result, Length(ParsedMirrors));
-
-    for i := 0 to High(ParsedMirrors) do
-    begin
-      Result[i].Name := ParsedMirrors[i].Name;
-      Result[i].URL := ParsedMirrors[i].URL;
-      Result[i].Region := ParsedMirrors[i].Region;
-      Result[i].Priority := ParsedMirrors[i].Priority;
-    end;
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error getting mirrors: %s', [E.Message]);
-      SetLength(Result, 0);
-    end;
-  end;
+  Result := ExecuteResourceRepoGetMirrorsSurfaceCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @ParseMirrorsFromManifest,
+    @LogFmt
+  );
 end;
 
 function TResourceRepository.GetBestMirrorURL: string;
@@ -747,21 +655,15 @@ end;
 
 function TResourceRepository.HasCrossToolchain(const ATarget, AHostPlatform: string): Boolean;
 begin
-  Result := False;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    // B069: Use helper function
-    Result := ResourceRepoHasCrossToolchain(FManifestData, ATarget, AHostPlatform);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error checking cross toolchain: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoBooleanQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error checking cross toolchain: %s',
+    ATarget,
+    AHostPlatform,
+    @ResourceRepoHasCrossToolchain
+  );
 end;
 
 function TResourceRepository.GetCrossToolchainInfo(
@@ -769,41 +671,27 @@ function TResourceRepository.GetCrossToolchainInfo(
   out AInfo: TCrossToolchainInfo
 ): Boolean;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    Result := ResourceRepoGetCrossToolchainInfoCore(FManifestData,
-      ATarget, AHostPlatform, AInfo);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error getting cross toolchain info: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoCrossInfoQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error getting cross toolchain info: %s',
+    ATarget,
+    AHostPlatform,
+    AInfo,
+    @ResourceRepoGetCrossToolchainInfoCore
+  );
 end;
 
 function TResourceRepository.ListCrossTargets: SysUtils.TStringArray;
 begin
-  Result := nil;
-
-  if not EnsureManifestLoaded then
-    Exit;
-
-  try
-    // B069: Use helper function
-    Result := ResourceRepoListCrossTargets(FManifestData);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error listing cross targets: %s', [E.Message]);
-      SetLength(Result, 0);
-    end;
-  end;
+  Result := ExecuteResourceRepoStringArrayQueryCore(
+    FManifestData,
+    @EnsureManifestLoaded,
+    @LogFmt,
+    'Error listing cross targets: %s',
+    @ResourceRepoListCrossTargets
+  );
 end;
 
 function TResourceRepository.InstallCrossToolchain(const ATarget, AHostPlatform, ADestDir: string): Boolean;
@@ -820,46 +708,44 @@ end;
 
 function TResourceRepository.HasPackage(const AName, AVersion: string): Boolean;
 begin
-  Result := False;
-
-  try
-    Result := ResourceRepoHasPackageCore(FLocalPath, AName, AVersion);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error checking package availability: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoHasPackageSurfaceCore(
+    FLocalPath,
+    AName,
+    AVersion,
+    @LogFmt,
+    @QueryHasPackageSurface
+  );
 end;
 
 function TResourceRepository.GetPackageInfo(const AName, AVersion: string; out AInfo: TPackageInfo): Boolean;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  try
-    Result := ResourceRepoGetPackageInfoCore(FLocalPath, AName, AVersion, AInfo);
-  except
-    on E: Exception do
-    begin
-      LogFmt('Error checking package availability: %s', [E.Message]);
-      Result := False;
-    end;
-  end;
+  Result := ExecuteResourceRepoPackageInfoSurfaceCore(
+    FLocalPath,
+    AName,
+    AVersion,
+    AInfo,
+    @LogFmt,
+    @ResourceRepoGetPackageInfoCore
+  );
 end;
 
 function TResourceRepository.ListPackages(const ACategory: string): SysUtils.TStringArray;
 begin
-  Result := ResourceRepoListPackagesCore(FLocalPath, ACategory);
+  Result := ExecuteResourceRepoPackageListSurfaceCore(
+    FLocalPath,
+    ACategory,
+    @ResourceRepoListPackagesCore
+  );
 end;
 
 function TResourceRepository.SearchPackages(const AKeyword: string): SysUtils.TStringArray;
-var
-  AllPackages: SysUtils.TStringArray;
 begin
-  AllPackages := ListPackages('');
-  Result := ResourceRepoSearchPackagesCore(AllPackages, AKeyword, @GetPackageInfo);
+  Result := ExecuteResourceRepoPackageSearchSurfaceCore(
+    AKeyword,
+    @ListPackages,
+    @GetPackageInfo,
+    @ResourceRepoSearchPackagesCore
+  );
 end;
 
 function TResourceRepository.InstallPackage(const AName, AVersion, ADestDir: string): Boolean;

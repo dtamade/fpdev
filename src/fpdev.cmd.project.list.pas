@@ -7,10 +7,13 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.commandflow;
 
 type
   TProjectListCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunListTemplates(const Outp: IOutput): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -19,8 +22,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils, fpjson, fpdev.project.generator;
 
 function TProjectListCommand.Name: string; begin Result := 'list'; end;
 function TProjectListCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -31,101 +32,38 @@ begin
   Result := TProjectListCommand.Create;
 end;
 
-function ProjectTypeToString(AType: TProjectType): string;
+function TProjectListCommand.RunListTemplates(const Outp: IOutput): Boolean;
 begin
-  case AType of
-    ptConsole: Result := 'console';
-    ptGUI: Result := 'gui';
-    ptLibrary: Result := 'library';
-    ptPackage: Result := 'package';
-    ptWebApp: Result := 'webapp';
-    ptService: Result := 'service';
-    ptGame: Result := 'game';
-    ptCustom: Result := 'custom';
-  end;
-end;
-
-function TemplateToJson(const ATemplate: TProjectTemplate): TJSONObject;
-begin
-  Result := TJSONObject.Create;
-  Result.Add('name', ATemplate.Name);
-  Result.Add('display_name', ATemplate.DisplayName);
-  Result.Add('description', ATemplate.Description);
-  Result.Add('type', ProjectTypeToString(ATemplate.ProjectType));
-  Result.Add('available', ATemplate.Available);
+  Result := Assigned(FManager) and FManager.ListTemplates(Outp);
 end;
 
 function TProjectListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LMgr: TProjectManager;
-  LJsonOutput: Boolean;
-  LTemplates: TProjectTemplateArray;
-  LJson: TJSONObject;
-  LArr: TJSONArray;
-  I: Integer;
-  LUnknownOption: string;
+  LPlan: TProjectListCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectListCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    if Length(AParams) > 1 then
-    begin
-      Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_JSON));
-    Ctx.Out.WriteLn(_(HELP_PROJECT_LIST_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, ['--json'], LUnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) > 0 then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PROJECT_LIST_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LJsonOutput := HasFlag(AParams, 'json');
-
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LJsonOutput then
-    begin
-      // JSON output mode
-      LTemplates := LMgr.GetTemplateList;
-
-      LJson := TJSONObject.Create;
-      try
-        LArr := TJSONArray.Create;
-        for I := 0 to High(LTemplates) do
-          LArr.Add(TemplateToJson(LTemplates[I]));
-        LJson.Add('templates', LArr);
-        Ctx.Out.WriteLn(LJson.FormatJSON);
-      finally
-        LJson.Free;
-      end;
-      Exit(EXIT_OK);
-    end
-    else
-    begin
-      // Normal text output
-      if LMgr.ListTemplates(Ctx.Out) then
-        Exit(EXIT_OK);
-      Result := EXIT_ERROR;
-    end;
+    Result := ExecuteProjectListCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @RunListTemplates,
+      @FManager.GetTemplateList
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

@@ -5,7 +5,6 @@ program fpdev_git2_status_entries_test;
 uses
   SysUtils, Classes,
   git2.types,
-  git2.api, git2.impl,
   fpdev.git2;
 
 procedure AssertTrue(const AMsg: string; ACond: Boolean);
@@ -21,7 +20,7 @@ end;
 
 procedure Run;
 var
-  LMgr: IGitManager;
+  LMgr: TGitManager;
   LHasDll: Boolean;
   LRepoDir, LFileUntracked, LFileTracked: string;
   LRepo: TGitRepository;
@@ -31,8 +30,8 @@ var
   i: Integer;
 begin
   LHasDll := False;
+  LMgr := TGitManager.Create;
   try
-    LMgr := NewGitManager;
     LHasDll := LMgr.Initialize;
   except
     LHasDll := False;
@@ -40,6 +39,7 @@ begin
   if not LHasDll then
   begin
     WriteLn('! 跳过：未找到 libgit2（Initialize 失败）');
+    LMgr.Free;
     Exit;
   end
   else
@@ -51,7 +51,7 @@ begin
 
   LRepo := nil;
   try
-    LRepo := GitManager.InitRepository(LRepoDir, False);
+    LRepo := LMgr.InitRepository(LRepoDir, False);
 
     // 创建未跟踪文件
     LFileUntracked := LRepoDir + PathDelim + 'untracked.txt';
@@ -102,10 +102,11 @@ begin
 
   finally
     if Assigned(LRepo) then LRepo.Free;
+    LMgr.Free;
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', LRepoDir]);
     {$ELSE}
-    ExecuteProcess('rm', ['-rf', LRepoDir]);
+    ExecuteProcess('/bin/rm', ['-rf', LRepoDir]);
     {$ENDIF}
   end;
 end;
@@ -121,4 +122,3 @@ begin
     end;
   end;
 end.
-

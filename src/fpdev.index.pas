@@ -32,7 +32,7 @@ interface
 
 uses
   Classes, SysUtils, fpjson, jsonparser, fphttpclient,
-  fpdev.constants, fpdev.output.intf, fpdev.utils.fs;
+  fpdev.constants, fpdev.output.intf;
 
 type
   { Repository type enumeration }
@@ -80,6 +80,25 @@ type
 
     function FetchJSON(const AURL: string): TJSONObject;
     function GetRawURL(const ARepoURL, ABranch, AFilePath: string): string;
+    function SelectPrimaryURL(
+      const AGitHubURL, AGiteeURL, AFilePath: string
+    ): string;
+    function SelectFallbackURL(
+      const AGitHubURL, AGiteeURL, APrimaryURL, AFilePath: string
+    ): string;
+    function LoadManifestData(
+      AType: TRepoType;
+      const ADisplayName, ACacheStem: string
+    ): TJSONObject;
+    function ResolveRepoDownloadInfo(
+      AType: TRepoType;
+      const ADisplayName, ACacheStem, AVersion, APlatform: string;
+      out AInfo: TDownloadInfo
+    ): Boolean;
+    function ListRepoVersions(
+      AType: TRepoType;
+      const ADisplayName, ACacheStem: string
+    ): TStringArray;
     function RepoTypeToString(AType: TRepoType): string;
     function StringToRepoType(const AStr: string): TRepoType;
 
@@ -88,26 +107,26 @@ type
     destructor Destroy; override;
 
     { Initialize index from remote }
-    function Initialize: Boolean;
+    function Initialize: Boolean; virtual;
 
     { Get repository info by type }
-    function GetRepoInfo(AType: TRepoType): TRepoInfo;
+    function GetRepoInfo(AType: TRepoType): TRepoInfo; virtual;
 
     { Get channel info }
-    function GetChannelInfo(const AChannel: string): TChannelInfo;
+    function GetChannelInfo(const AChannel: string): TChannelInfo; virtual;
 
     { Get download info for a specific version and platform }
     function GetBootstrapDownloadInfo(const AVersion, APlatform: string;
-      out AInfo: TDownloadInfo): Boolean;
+      out AInfo: TDownloadInfo): Boolean; virtual;
     function GetFPCDownloadInfo(const AVersion, APlatform: string;
-      out AInfo: TDownloadInfo): Boolean;
+      out AInfo: TDownloadInfo): Boolean; virtual;
     function GetLazarusDownloadInfo(const AVersion, APlatform: string;
-      out AInfo: TDownloadInfo): Boolean;
+      out AInfo: TDownloadInfo): Boolean; virtual;
 
     { List available versions }
-    function ListBootstrapVersions: TStringArray;
-    function ListFPCVersions: TStringArray;
-    function ListLazarusVersions: TStringArray;
+    function ListBootstrapVersions: TStringArray; virtual;
+    function ListFPCVersions: TStringArray; virtual;
+    function ListLazarusVersions: TStringArray; virtual;
 
     { Properties }
     property MirrorPreference: string read FMirrorPreference write FMirrorPreference;
@@ -118,6 +137,10 @@ type
   function GetPlatformIdentifier: string;
 
 implementation
+
+uses
+  fpdev.index.serviceflow,
+  fpdev.paths;
 
 const
   URL_PATH_SEPARATOR = '/';
@@ -169,14 +192,7 @@ begin
   FIndexData := nil;
   FMirrorPreference := AMirrorPreference;
   FOutput := nil;
-
-  {$IFDEF MSWINDOWS}
-  FCacheDir := IncludeTrailingPathDelimiter(GetEnvironmentVariable('APPDATA')) +
-               FPDEV_CONFIG_DIR + PathDelim + 'cache';
-  {$ELSE}
-  FCacheDir := IncludeTrailingPathDelimiter(GetEnvironmentVariable('HOME')) +
-               FPDEV_CONFIG_DIR + PathDelim + 'cache';
-  {$ENDIF}
+  FCacheDir := GetCacheDir;
 end;
 
 destructor TFPDevIndex.Destroy;
@@ -226,6 +242,41 @@ begin
       URL_PATH_SEPARATOR + AFilePath;
 end;
 
+function TFPDevIndex.SelectPrimaryURL(
+  const AGitHubURL, AGiteeURL, AFilePath: string
+): string;
+begin
+  Result := '';
+
+  if ((FMirrorPreference = 'gitee') or (FMirrorPreference = 'china')) and
+     (AGiteeURL <> '') then
+    Exit(GetRawURL(AGiteeURL, 'main', AFilePath));
+
+  if AGitHubURL <> '' then
+    Exit(GetRawURL(AGitHubURL, 'main', AFilePath));
+
+  if AGiteeURL <> '' then
+    Exit(GetRawURL(AGiteeURL, 'main', AFilePath));
+end;
+
+function TFPDevIndex.SelectFallbackURL(
+  const AGitHubURL, AGiteeURL, APrimaryURL, AFilePath: string
+): string;
+begin
+  Result := '';
+
+  if ((FMirrorPreference = 'gitee') or (FMirrorPreference = 'china')) then
+  begin
+    if AGitHubURL <> '' then
+      Result := GetRawURL(AGitHubURL, 'main', AFilePath);
+  end
+  else if AGiteeURL <> '' then
+    Result := GetRawURL(AGiteeURL, 'main', AFilePath);
+
+  if Result = APrimaryURL then
+    Result := '';
+end;
+
 function TFPDevIndex.FetchJSON(const AURL: string): TJSONObject;
 var
   HTTPClient: TFPHTTPClient;
@@ -261,6 +312,115 @@ begin
   end;
 end;
 
+function TFPDevIndex.LoadManifestData(
+  AType: TRepoType;
+  const ADisplayName, ACacheStem: string
+): TJSONObject;
+var
+  RepoInfo: TRepoInfo;
+  PrimaryURL: string;
+  FallbackURL: string;
+  CachePath: string;
+  UsedCache: Boolean;
+  RemoteSucceeded: Boolean;
+begin
+  Result := nil;
+  RepoInfo := GetRepoInfo(AType);
+  if (RepoInfo.GitHubURL = '') and (RepoInfo.GiteeURL = '') then
+    Exit;
+
+  PrimaryURL := SelectPrimaryURL(RepoInfo.GitHubURL, RepoInfo.GiteeURL, 'manifest.json');
+  if PrimaryURL = '' then
+    Exit;
+
+  FallbackURL := SelectFallbackURL(
+    RepoInfo.GitHubURL,
+    RepoInfo.GiteeURL,
+    PrimaryURL,
+    'manifest.json'
+  );
+  CachePath := BuildManifestCachePathCore(FCacheDir, ACacheStem);
+  Result := LoadRemoteJSONWithCacheCore(
+    ADisplayName,
+    PrimaryURL,
+    FallbackURL,
+    CachePath,
+    @FetchJSON,
+    @Log,
+    UsedCache,
+    RemoteSucceeded
+  );
+end;
+
+function TFPDevIndex.ResolveRepoDownloadInfo(
+  AType: TRepoType;
+  const ADisplayName, ACacheStem, AVersion, APlatform: string;
+  out AInfo: TDownloadInfo
+): Boolean;
+var
+  ManifestData: TJSONObject;
+  URL: string;
+  Mirrors: TStringArray;
+  Format: string;
+  SHA256: string;
+  Executable: string;
+  Size: Int64;
+  I: Integer;
+begin
+  Result := False;
+  System.Initialize(AInfo);
+
+  ManifestData := LoadManifestData(AType, ADisplayName, ACacheStem);
+  if ManifestData = nil then
+    Exit(False);
+
+  try
+    Result := ResolveManifestDownloadCore(
+      ManifestData,
+      AVersion,
+      APlatform,
+      URL,
+      Mirrors,
+      Format,
+      SHA256,
+      Executable,
+      Size
+    );
+    if not Result then
+      Exit(False);
+
+    AInfo.URL := URL;
+    AInfo.Format := Format;
+    AInfo.SHA256 := SHA256;
+    AInfo.Size := Size;
+    AInfo.Layout.Executable := Executable;
+    SetLength(AInfo.Mirrors, Length(Mirrors));
+    for I := 0 to High(Mirrors) do
+      AInfo.Mirrors[I] := Mirrors[I];
+  finally
+    ManifestData.Free;
+  end;
+end;
+
+function TFPDevIndex.ListRepoVersions(
+  AType: TRepoType;
+  const ADisplayName, ACacheStem: string
+): TStringArray;
+var
+  ManifestData: TJSONObject;
+begin
+  Result := nil;
+  ManifestData := LoadManifestData(AType, ADisplayName, ACacheStem);
+  if ManifestData = nil then
+    Exit;
+
+  try
+    Result := BuildManifestVersionsCore(ManifestData);
+  finally
+    ManifestData.Free;
+  end;
+end;
+
 function TFPDevIndex.RepoTypeToString(AType: TRepoType): string;
 begin
   case AType of
@@ -290,46 +450,52 @@ end;
 
 function TFPDevIndex.Initialize: Boolean;
 var
-  IndexURL: string;
+  PrimaryURL: string;
+  FallbackURL: string;
+  CachePath: string;
+  UsedCache: Boolean;
+  RemoteSucceeded: Boolean;
 begin
   Result := False;
 
   Log('Initializing fpdev index...');
 
-  // Determine which mirror to use
-  if (FMirrorPreference = 'gitee') or (FMirrorPreference = 'china') then
-    IndexURL := GetRawURL(FPDEV_INDEX_GITEE, 'main', 'index.json')
-  else
-    IndexURL := GetRawURL(FPDEV_INDEX_GITHUB, 'main', 'index.json');
-
-  LogFmt('Fetching index from: %s', [IndexURL]);
-
-  // Free existing data
   if Assigned(FIndexData) then
   begin
     FIndexData.Free;
     FIndexData := nil;
   end;
 
-  // Fetch index.json
-  FIndexData := FetchJSON(IndexURL);
-
-  if not Assigned(FIndexData) then
-  begin
-    // Try fallback mirror
-    if Pos('github', IndexURL) > 0 then
-      IndexURL := GetRawURL(FPDEV_INDEX_GITEE, 'main', 'index.json')
-    else
-      IndexURL := GetRawURL(FPDEV_INDEX_GITHUB, 'main', 'index.json');
-
-    LogFmt('Primary failed, trying fallback: %s', [IndexURL]);
-    FIndexData := FetchJSON(IndexURL);
-  end;
+  PrimaryURL := SelectPrimaryURL(FPDEV_INDEX_GITHUB, FPDEV_INDEX_GITEE, 'index.json');
+  FallbackURL := SelectFallbackURL(
+    FPDEV_INDEX_GITHUB,
+    FPDEV_INDEX_GITEE,
+    PrimaryURL,
+    'index.json'
+  );
+  CachePath := BuildIndexCachePathCore(FCacheDir);
+  FIndexData := LoadRemoteJSONWithCacheCore(
+    'index',
+    PrimaryURL,
+    FallbackURL,
+    CachePath,
+    @FetchJSON,
+    @Log,
+    UsedCache,
+    RemoteSucceeded
+  );
 
   Result := Assigned(FIndexData);
 
   if Result then
-    Log('Index initialized successfully')
+  begin
+    if UsedCache then
+      Log('Index initialized from cache')
+    else if RemoteSucceeded then
+      Log('Index initialized successfully')
+    else
+      Log('Index initialized');
+  end
   else
     Log('Failed to initialize index from any source');
 end;
@@ -408,350 +574,56 @@ end;
 
 function TFPDevIndex.GetBootstrapDownloadInfo(const AVersion, APlatform: string;
   out AInfo: TDownloadInfo): Boolean;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases, VersionData, Platforms, PlatformData: TJSONObject;
-  LayoutObj: TJSONObject;
-  MirrorsArray: TJSONArray;
-  i: Integer;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  RepoInfo := GetRepoInfo(rtBootstrap);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  // Fetch manifest from sub-repository
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  LogFmt('Fetching bootstrap manifest from: %s', [ManifestURL]);
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-  begin
-    // Try fallback
-    if Pos('github', ManifestURL) > 0 then
-      ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-    else
-      ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-    ManifestData := FetchJSON(ManifestURL);
-  end;
-
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    VersionData := Releases.Objects[AVersion];
-    if not Assigned(VersionData) then
-      Exit;
-
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
-      Exit;
-
-    PlatformData := Platforms.Objects[APlatform];
-    if not Assigned(PlatformData) then
-      Exit;
-
-    // Extract download info
-    AInfo.URL := PlatformData.Get('url', '');
-    AInfo.Format := PlatformData.Get('format', 'tar.gz');
-    AInfo.SHA256 := PlatformData.Get('sha256', '');
-    AInfo.Size := PlatformData.Get('size', Int64(0));
-
-    // Extract mirrors
-    MirrorsArray := PlatformData.Arrays['mirrors'];
-    if Assigned(MirrorsArray) then
-    begin
-      SetLength(AInfo.Mirrors, MirrorsArray.Count);
-      for i := 0 to MirrorsArray.Count - 1 do
-        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
-    end;
-
-    // Extract layout info
-    LayoutObj := PlatformData.Objects['layout'];
-    if Assigned(LayoutObj) then
-      AInfo.Layout.Executable := LayoutObj.Get('executable', '');
-
-    Result := AInfo.URL <> '';
-  finally
-    ManifestData.Free;
-  end;
+  Result := ResolveRepoDownloadInfo(
+    rtBootstrap,
+    'bootstrap manifest',
+    'bootstrap',
+    AVersion,
+    APlatform,
+    AInfo
+  );
 end;
 
 function TFPDevIndex.GetFPCDownloadInfo(const AVersion, APlatform: string;
   out AInfo: TDownloadInfo): Boolean;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases, VersionData, Platforms, PlatformData: TJSONObject;
-  MirrorsArray: TJSONArray;
-  i: Integer;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  RepoInfo := GetRepoInfo(rtFPC);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  // Fetch manifest from sub-repository
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  LogFmt('Fetching FPC manifest from: %s', [ManifestURL]);
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-  begin
-    // Try fallback
-    if Pos('github', ManifestURL) > 0 then
-      ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-    else
-      ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-    ManifestData := FetchJSON(ManifestURL);
-  end;
-
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    VersionData := Releases.Objects[AVersion];
-    if not Assigned(VersionData) then
-      Exit;
-
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
-      Exit;
-
-    PlatformData := Platforms.Objects[APlatform];
-    if not Assigned(PlatformData) then
-      Exit;
-
-    // Extract download info
-    AInfo.URL := PlatformData.Get('url', '');
-    AInfo.Format := PlatformData.Get('format', 'tar.gz');
-    AInfo.SHA256 := PlatformData.Get('sha256', '');
-    AInfo.Size := PlatformData.Get('size', Int64(0));
-
-    // Extract mirrors
-    MirrorsArray := PlatformData.Arrays['mirrors'];
-    if Assigned(MirrorsArray) then
-    begin
-      SetLength(AInfo.Mirrors, MirrorsArray.Count);
-      for i := 0 to MirrorsArray.Count - 1 do
-        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
-    end;
-
-    Result := AInfo.URL <> '';
-  finally
-    ManifestData.Free;
-  end;
+  Result := ResolveRepoDownloadInfo(
+    rtFPC,
+    'FPC manifest',
+    'fpc',
+    AVersion,
+    APlatform,
+    AInfo
+  );
 end;
 
 function TFPDevIndex.GetLazarusDownloadInfo(const AVersion, APlatform: string;
   out AInfo: TDownloadInfo): Boolean;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases, VersionData, Platforms, PlatformData: TJSONObject;
-  MirrorsArray: TJSONArray;
-  i: Integer;
 begin
-  Result := False;
-  System.Initialize(AInfo);
-
-  RepoInfo := GetRepoInfo(rtLazarus);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  // Fetch manifest from sub-repository
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  LogFmt('Fetching Lazarus manifest from: %s', [ManifestURL]);
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-  begin
-    // Try fallback
-    if Pos('github', ManifestURL) > 0 then
-      ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-    else
-      ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-    ManifestData := FetchJSON(ManifestURL);
-  end;
-
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    VersionData := Releases.Objects[AVersion];
-    if not Assigned(VersionData) then
-      Exit;
-
-    Platforms := VersionData.Objects['platforms'];
-    if not Assigned(Platforms) then
-      Exit;
-
-    PlatformData := Platforms.Objects[APlatform];
-    if not Assigned(PlatformData) then
-      Exit;
-
-    // Extract download info
-    AInfo.URL := PlatformData.Get('url', '');
-    AInfo.Format := PlatformData.Get('format', 'tar.gz');
-    AInfo.SHA256 := PlatformData.Get('sha256', '');
-    AInfo.Size := PlatformData.Get('size', Int64(0));
-
-    // Extract mirrors
-    MirrorsArray := PlatformData.Arrays['mirrors'];
-    if Assigned(MirrorsArray) then
-    begin
-      SetLength(AInfo.Mirrors, MirrorsArray.Count);
-      for i := 0 to MirrorsArray.Count - 1 do
-        AInfo.Mirrors[i] := MirrorsArray.Strings[i];
-    end;
-
-    Result := AInfo.URL <> '';
-  finally
-    ManifestData.Free;
-  end;
+  Result := ResolveRepoDownloadInfo(
+    rtLazarus,
+    'Lazarus manifest',
+    'lazarus',
+    AVersion,
+    APlatform,
+    AInfo
+  );
 end;
 
 function TFPDevIndex.ListBootstrapVersions: TStringArray;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases: TJSONObject;
-  i: Integer;
 begin
-  Result := nil;
-
-  RepoInfo := GetRepoInfo(rtBootstrap);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    SetLength(Result, Releases.Count);
-    for i := 0 to Releases.Count - 1 do
-      Result[i] := Releases.Names[i];
-  finally
-    ManifestData.Free;
-  end;
+  Result := ListRepoVersions(rtBootstrap, 'bootstrap manifest', 'bootstrap');
 end;
 
 function TFPDevIndex.ListFPCVersions: TStringArray;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases: TJSONObject;
-  i: Integer;
 begin
-  Result := nil;
-
-  RepoInfo := GetRepoInfo(rtFPC);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    SetLength(Result, Releases.Count);
-    for i := 0 to Releases.Count - 1 do
-      Result[i] := Releases.Names[i];
-  finally
-    ManifestData.Free;
-  end;
+  Result := ListRepoVersions(rtFPC, 'FPC manifest', 'fpc');
 end;
 
 function TFPDevIndex.ListLazarusVersions: TStringArray;
-var
-  RepoInfo: TRepoInfo;
-  ManifestURL: string;
-  ManifestData: TJSONObject;
-  Releases: TJSONObject;
-  i: Integer;
 begin
-  Result := nil;
-
-  RepoInfo := GetRepoInfo(rtLazarus);
-  if RepoInfo.GitHubURL = '' then
-    Exit;
-
-  if (FMirrorPreference = 'gitee') and (RepoInfo.GiteeURL <> '') then
-    ManifestURL := GetRawURL(RepoInfo.GiteeURL, 'main', 'manifest.json')
-  else
-    ManifestURL := GetRawURL(RepoInfo.GitHubURL, 'main', 'manifest.json');
-
-  ManifestData := FetchJSON(ManifestURL);
-  if not Assigned(ManifestData) then
-    Exit;
-
-  try
-    Releases := ManifestData.Objects['releases'];
-    if not Assigned(Releases) then
-      Exit;
-
-    SetLength(Result, Releases.Count);
-    for i := 0 to Releases.Count - 1 do
-      Result[i] := Releases.Names[i];
-  finally
-    ManifestData.Free;
-  end;
+  Result := ListRepoVersions(rtLazarus, 'Lazarus manifest', 'lazarus');
 end;
 
 end.

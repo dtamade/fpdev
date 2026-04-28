@@ -10,17 +10,17 @@
 
 Based on comprehensive code analysis, FPDev has the following completion status:
 
-| Module | Status | Completion |
-|--------|--------|------------|
-| CLI Framework | Working | 95% |
-| Command Registry | Working | 100% |
-| Configuration System | Working | 90% |
-| FPC Version Management | Partial | 60% |
-| FPC Source Installation | Broken | 30% |
-| FPC Binary Installation | Not Implemented | 10% |
-| Lazarus Management | Skeleton | 20% |
-| Cross-Compilation | Framework Only | 40% |
-| Package Management | Skeleton | 15% |
+| Module                  | Status          | Completion |
+| ----------------------- | --------------- | ---------- |
+| CLI Framework           | Working         | 95%        |
+| Command Registry        | Working         | 100%       |
+| Configuration System    | Working         | 90%        |
+| FPC Version Management  | Partial         | 60%        |
+| FPC Source Installation | Broken          | 30%        |
+| FPC Binary Installation | Not Implemented | 10%        |
+| Lazarus Management      | Skeleton        | 20%        |
+| Cross-Compilation       | Framework Only  | 40%        |
+| Package Management      | Skeleton        | 15%        |
 
 ### Critical Issues Identified
 
@@ -41,10 +41,14 @@ end;
 **Problem**: `IsVersionInstalled` checks for `fpc.exe` in the install path, but the path doesn't exist. The function returns `False`, but subsequent steps fail silently.
 
 **Root Cause Chain**:
-1. `DownloadSource` calls `TGitOperations.Clone`
+
+1. `DownloadSource` reaches the default Git operations facade (`fpdev.git.operations`), with builder-specific CLI fallback isolated in `src/fpdev.fpc.builder.gitruntime.pas`
 2. Git clone may fail silently if no git backend is available
 3. `BuildFromSource` checks `DirectoryExists(ASourceDir)` - fails if clone failed
 4. Error messages are written but `Result := False` doesn't propagate properly
+
+> Git integration note (current worktree): the concrete implementation now lives in `src/fpdev.git.operations.impl.pas`.
+> `src/fpdev.utils.git.pas` has been removed; keep migration references only and use `src/fpdev.git.operations.pas` for backend work.
 
 #### Issue #2: No Binary Installation Path (P1)
 
@@ -72,6 +76,7 @@ The bootstrap download from SourceForge is implemented but untested.
 ### MVP Scope: "Install and Use FPC"
 
 A user should be able to:
+
 1. Install FPDev
 2. Run `fpdev fpc install 3.2.2` (binary or source)
 3. Run `fpdev fpc use 3.2.2`
@@ -80,6 +85,7 @@ A user should be able to:
 ### MVP Acceptance Criteria
 
 #### AC-1: Binary Installation (Primary Path)
+
 ```bash
 # User runs:
 fpdev fpc install 3.2.2
@@ -102,6 +108,7 @@ fpdev fpc current
 ```
 
 #### AC-2: Source Installation (Secondary Path)
+
 ```bash
 # User runs:
 fpdev fpc install 3.2.2 --from-source
@@ -122,6 +129,7 @@ fpdev fpc doctor
 ```
 
 #### AC-3: Version Switching
+
 ```bash
 fpdev fpc use 3.2.2
 # Sets active version
@@ -133,6 +141,7 @@ fpdev fpc current
 ```
 
 #### AC-4: Error Handling
+
 ```bash
 fpdev fpc install 9.9.9
 # Output: Error: Unknown FPC version '9.9.9'
@@ -153,6 +162,7 @@ fpdev fpc install 3.2.2 --from-source
 **Goal**: Make `fpdev fpc install 3.2.2` actually work
 
 **Tasks**:
+
 1. [ ] Implement `InstallFromBinary` function
    - Download from SourceForge/official mirrors
    - Extract tar.gz/zip based on platform
@@ -167,6 +177,7 @@ fpdev fpc install 3.2.2 --from-source
    - Verify expected files exist
 
 **Files to modify**:
+
 - `src/fpdev.cmd.fpc.pas` - InstallFromBinary implementation
 - `src/fpdev.fpc.builder.pas` - Error handling improvements
 - `src/fpdev.utils.fs.pas` - Add tar.gz extraction
@@ -176,6 +187,7 @@ fpdev fpc install 3.2.2 --from-source
 **Goal**: Make `--from-source` reliable
 
 **Tasks**:
+
 1. [ ] Fix Git backend detection and fallback
    - Prefer libgit2, fallback to CLI git
    - Clear error when neither available
@@ -189,7 +201,9 @@ fpdev fpc install 3.2.2 --from-source
    - Show percentage/stage indicators
 
 **Files to modify**:
-- `src/fpdev.utils.git.pas` - Backend detection
+
+- `src/fpdev.git.operations.impl.pas` - Backend detection and fallback
+- `src/fpdev.git.operations.pas` - Default public entrypoint if the facade contract changes
 - `src/fpdev.fpc.builder.pas` - Bootstrap download
 - `src/fpdev.build.manager.pas` - Progress reporting
 
@@ -198,12 +212,14 @@ fpdev fpc install 3.2.2 --from-source
 **Goal**: Reliable version switching and listing
 
 **Tasks**:
+
 1. [ ] Fix `fpdev fpc list` to show installed versions
 2. [ ] Implement `fpdev fpc use <version>` properly
 3. [ ] Add `fpdev fpc uninstall <version>`
 4. [ ] Add `fpdev fpc update` for source builds
 
 **Files to modify**:
+
 - `src/fpdev.cmd.fpc.pas` - Version management
 - `src/fpdev.fpc.version.pas` - Version detection
 - `src/fpdev.config.managers.pas` - Toolchain registration
@@ -213,6 +229,7 @@ fpdev fpc install 3.2.2 --from-source
 **Goal**: Work reliably on Windows, Linux, macOS
 
 **Tasks**:
+
 1. [ ] Test and fix Windows-specific paths
 2. [ ] Test and fix macOS-specific issues
 3. [ ] Add platform-specific binary URLs
@@ -223,6 +240,7 @@ fpdev fpc install 3.2.2 --from-source
 **Goal**: Basic Lazarus installation
 
 **Tasks**:
+
 1. [ ] Implement `fpdev lazarus install`
 2. [ ] Implement `fpdev lazarus use`
 3. [ ] Link Lazarus to installed FPC version
@@ -280,15 +298,15 @@ echo "MVP tests passed!"
 
 ## Comparison with rustup
 
-| Feature | rustup | fpdev | Gap |
-|---------|--------|-------|-----|
+| Feature           | rustup                  | fpdev                     | Gap                  |
+| ----------------- | ----------------------- | ------------------------- | -------------------- |
 | Install toolchain | `rustup install stable` | `fpdev fpc install 3.2.2` | Needs implementation |
-| Switch version | `rustup default stable` | `fpdev fpc use 3.2.2` | Partial |
-| List installed | `rustup show` | `fpdev fpc list` | Working |
-| Update | `rustup update` | `fpdev fpc update` | Not implemented |
-| Cross-compile | `rustup target add` | `fpdev cross install` | Framework only |
-| Component add | `rustup component add` | N/A | Not planned for MVP |
-| Self-update | `rustup self update` | N/A | Not planned for MVP |
+| Switch version    | `rustup default stable` | `fpdev fpc use 3.2.2`     | Partial              |
+| List installed    | `rustup show`           | `fpdev fpc list`          | Working              |
+| Update            | `rustup update`         | `fpdev fpc update`        | Not implemented      |
+| Cross-compile     | `rustup target add`     | `fpdev cross install`     | Framework only       |
+| Component add     | `rustup component add`  | N/A                       | Not planned for MVP  |
+| Self-update       | `rustup self update`    | N/A                       | Not planned for MVP  |
 
 ---
 
@@ -304,6 +322,7 @@ echo "MVP tests passed!"
 ### Quality Gates
 
 Before declaring MVP complete:
+
 - [ ] All unit tests pass
 - [ ] Integration test script passes on Linux
 - [ ] Integration test script passes on Windows
@@ -322,5 +341,5 @@ Before declaring MVP complete:
 
 ---
 
-*Document created: 2026-01-13*
-*Last updated: 2026-01-13*
+_Document created: 2026-01-13_
+_Last updated: 2026-01-13_

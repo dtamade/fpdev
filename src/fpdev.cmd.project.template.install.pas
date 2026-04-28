@@ -9,10 +9,16 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.templatecommandflow;
 
 type
   TProjectTemplateInstallCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunInstallTemplate(
+      const Outp, Errp: IOutput;
+      const ATemplatePath: string
+    ): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -21,8 +27,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils;
 
 function TProjectTemplateInstallCommand.Name: string; begin Result := 'install'; end;
 function TProjectTemplateInstallCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -37,50 +41,40 @@ begin
   Result := TProjectTemplateInstallCommand.Create;
 end;
 
+function TProjectTemplateInstallCommand.RunInstallTemplate(
+  const Outp, Errp: IOutput;
+  const ATemplatePath: string
+): Boolean;
+begin
+  Result := Assigned(FManager) and FManager.InstallTemplate(Outp, Errp, ATemplatePath);
+end;
+
 function TProjectTemplateInstallCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LPath: string;
-  LMgr: TProjectManager;
-  UnknownOption: string;
+  LPlan: TProjectTemplateInstallCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectTemplateInstallCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn('Usage: fpdev project template install <path>');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Install a custom project template from a directory.');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Arguments:');
-    Ctx.Out.WriteLn('  <path>        Path to the template directory');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --help, -h    Show this help message');
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template install <path>');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) < 1 then
-    Exit(MissingArgError(Ctx, 'path', 'Usage: fpdev project template install <path>'));
-
-  if CountPositionalArgs(AParams) > 1 then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template install <path>');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LPath := GetPositionalArg(AParams, 0);
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.InstallTemplate(Ctx.Out, Ctx.Err, LPath) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecuteProjectTemplateInstallCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @RunInstallTemplate
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

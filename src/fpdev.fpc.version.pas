@@ -36,21 +36,12 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.config.interfaces, fpdev.types, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
+  fpdev.config.interfaces, fpdev.types, fpdev.fpc.types, fpdev.output.intf, fpdev.utils.fs, fpdev.constants,
   fpdev.exitcodes, fpdev.paths, fpdev.fpc.utils;
 
 type
-  { TFPCVersionInfo - Information about an FPC version }
-  TFPCVersionInfo = record
-    Version: string;
-    ReleaseDate: string;
-    GitTag: string;
-    Branch: string;
-    Available: Boolean;
-    Installed: Boolean;
-  end;
-
-  TFPCVersionArray = array of TFPCVersionInfo;
+  TFPCVersionInfo = fpdev.fpc.types.TFPCVersionInfo;
+  TFPCVersionArray = fpdev.fpc.types.TFPCVersionArray;
 
   { TFPCVersionManager - FPC version management service }
   TFPCVersionManager = class
@@ -148,7 +139,8 @@ function SameMajorMinor(const AVersion1, AVersion2: string): Boolean;
 implementation
 
 uses
-  fpdev.i18n, fpdev.i18n.strings, fpdev.version.registry, fpdev.fpc.types;
+  fpdev.i18n, fpdev.i18n.strings, fpdev.version.registry,
+  fpdev.fpc.versionflow;
 
 function RegistryHasFPCReleases(const AReleases: TFPCReleaseArray): Boolean;
 var
@@ -439,8 +431,7 @@ begin
 
   try
     DefaultToolchain := FConfigManager.GetToolchainManager.GetDefaultToolchain;
-    if DefaultToolchain <> '' then
-      Result := StringReplace(DefaultToolchain, 'fpc-', '', [rfReplaceAll]);
+    Result := NormalizeDefaultFPCVersionCore(DefaultToolchain);
   except
     Result := '';
   end;

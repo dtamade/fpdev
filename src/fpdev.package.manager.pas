@@ -37,7 +37,7 @@ uses
   fpdev.resource.repo, fpdev.resource.repo.types,
   fpdev.utils.fs,
   fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes, fpdev.pkg.builder, fpdev.pkg.repository,
-  fpdev.pkg.version, fpdev.package.types, fpdev.package.fetch,
+  fpdev.pkg.version, fpdev.package.types, fpdev.package.fetch, fpdev.package.managerflow,
   fpdev.package.metadataio;
 
 type
@@ -86,29 +86,6 @@ type
     function PathExists(const APath: string): Boolean;
     function DeletePath(const APath: string): Boolean;
     function ResolveLocalPackageName(const AMetaPath, ADefaultName: string): string;
-    function EnsurePackageMetadataFile(
-      const APackageName, ASourceDir, AMetaPath: string;
-      out ACreated: Boolean;
-      out AError: string
-    ): Boolean;
-    function ResolvePublishMetadata(
-      const AInstallPath, ADefaultVersion: string;
-      out AVersion, AArchiveSourcePath, ASourcePathFromMeta: string;
-      out AStatus: TPackageMetadataLoadStatus;
-      out AError: string
-    ): Boolean;
-    function HandlePublishMetadataFailure(
-      AStatus: TPackageMetadataLoadStatus;
-      const AError: string;
-      Errp: IOutput
-    ): Integer;
-    function CreatePublishArchive(
-      const APackageName, AVersion, AArchiveSourcePath, AInstallRoot: string;
-      Outp: IOutput;
-      Errp: IOutput;
-      out AArchivePath: string;
-      out AExitCode: Integer
-    ): Boolean;
     function WritePackageMetadata(const AInstallPath: string; const Info: TPackageInfo): Boolean;
     function ParseLocalPackageIndex(const AIndexPath: string): TPackageArray;
 
@@ -184,7 +161,6 @@ implementation
 
 uses
   fpdev.package.cleanflow,
-  fpdev.package.depgraph,
   fpdev.package.facadeflow,
   fpdev.package.indexparser,
   fpdev.package.installflow,
@@ -194,8 +170,6 @@ uses
   fpdev.package.query.info,
   fpdev.package.query.installed,
   fpdev.package.queryflow,
-  fpdev.package.sourceinstall,
-  fpdev.package.sourceprep,
   fpdev.package.verification,
   fpdev.package.creation;
 
@@ -414,62 +388,6 @@ begin
   Result := ResolvePackageNameFromMetadataCore(AMetaPath, ADefaultName);
 end;
 
-function TPackageManager.EnsurePackageMetadataFile(
-  const APackageName, ASourceDir, AMetaPath: string;
-  out ACreated: Boolean;
-  out AError: string
-): Boolean;
-begin
-  Result := EnsurePackageMetadataFileCore(APackageName, ASourceDir, AMetaPath, ACreated, AError);
-end;
-
-function TPackageManager.ResolvePublishMetadata(
-  const AInstallPath, ADefaultVersion: string;
-  out AVersion, AArchiveSourcePath, ASourcePathFromMeta: string;
-  out AStatus: TPackageMetadataLoadStatus;
-  out AError: string
-): Boolean;
-begin
-  Result := TryResolvePublishMetadataCore(
-    AInstallPath,
-    ADefaultVersion,
-    AVersion,
-    AArchiveSourcePath,
-    ASourcePathFromMeta,
-    AStatus,
-    AError
-  );
-end;
-
-function TPackageManager.HandlePublishMetadataFailure(
-  AStatus: TPackageMetadataLoadStatus;
-  const AError: string;
-  Errp: IOutput
-): Integer;
-begin
-  Result := HandlePublishMetadataFailureCore(AStatus, AError, Errp);
-end;
-
-function TPackageManager.CreatePublishArchive(
-  const APackageName, AVersion, AArchiveSourcePath, AInstallRoot: string;
-  Outp: IOutput;
-  Errp: IOutput;
-  out AArchivePath: string;
-  out AExitCode: Integer
-): Boolean;
-begin
-  Result := CreatePublishArchiveCore(
-    APackageName,
-    AVersion,
-    AArchiveSourcePath,
-    AInstallRoot,
-    Outp,
-    Errp,
-    AArchivePath,
-    AExitCode
-  );
-end;
-
 function TPackageManager.WritePackageMetadata(const AInstallPath: string; const Info: TPackageInfo): Boolean;
 var
   BuildTool: string;
@@ -487,60 +405,31 @@ begin
 end;
 
 function TPackageManager.InstallPackageFromSource(const APackageName, ASourcePath: string): Boolean;
-var
-  ResolvedSourcePath: string;
-  ResolvedInstallPath: string;
 begin
-  Result := False;
-
-  try
-    ResolvedSourcePath := ExpandFileName(ASourcePath);
-    ResolvedInstallPath := ExpandFileName(GetPackageInstallPath(APackageName));
-
-    if not PreparePackageInstallSourceTreeCore(
-      ResolvedSourcePath,
-      ResolvedInstallPath,
-      @DeleteDirRecursive,
-      @CopyDirRecursive,
-      @EnsureDir
-    ) then
-      Exit;
-
-    Result := InstallPreparedPackageSourceCore(
-      APackageName,
-      ResolvedInstallPath,
-      @GetPackageInfo,
-      @BuildPackage,
-      @WritePackageMetadata
-    );
-  except
-    on E: Exception do
-      Result := False;
-  end;
+  Result := ExecutePackageInstallFromSourceCore(
+    APackageName,
+    ASourcePath,
+    GetPackageInstallPath(APackageName),
+    @DeleteDirRecursive,
+    @CopyDirRecursive,
+    @EnsureDir,
+    @GetPackageInfo,
+    @BuildPackage,
+    @WritePackageMetadata
+  );
 end;
 
 function TPackageManager.ResolveDependencies(const APackageName: string): TStringArray;
 var
   AvailablePackages: TPackageArray;
   InstalledPackages: TPackageArray;
-  AvailableDescriptors: TPackageDepDescriptorArray;
-  InstalledDescriptors: TPackageDepDescriptorArray;
 begin
-  Initialize(Result);
-  SetLength(Result, 0);
-
-  if APackageName = '' then
-    Exit;
-
   AvailablePackages := GetAvailablePackages;
   InstalledPackages := GetInstalledPackages;
-  AvailableDescriptors := PackageArrayToDepDescriptorsCore(AvailablePackages);
-  InstalledDescriptors := PackageArrayToDepDescriptorsCore(InstalledPackages);
-
-  Result := ResolvePackageDependencyOrderCore(
+  Result := ResolvePackageDependenciesCore(
     APackageName,
-    AvailableDescriptors,
-    InstalledDescriptors,
+    AvailablePackages,
+    InstalledPackages,
     @ExtractPackageName
   );
 end;
@@ -717,22 +606,14 @@ end;
 function TPackageManager.ShowPackageDependencies(const APackageName: string): Boolean;
 var
   Dependencies: TStringArray;
-  i: Integer;
+  LO: IOutput;
 begin
   Result := False;
 
   try
     Dependencies := ResolveDependencies(APackageName);
-
-    if Length(Dependencies) = 0 then
-    else
-    begin
-      for i := 0 to High(Dependencies) do
-      begin
-      end;
-    end;
-
-    Result := True;
+    LO := TConsoleOutput.Create(False) as IOutput;
+    Result := WritePackageDependencyLinesCore(APackageName, Dependencies, LO);
   except
     on E: Exception do
       Result := False;
@@ -827,7 +708,7 @@ begin
     Errp,
     @ValidatePackage,
     @PathExists,
-    @EnsurePackageMetadataFile
+    @EnsurePackageMetadataFileCore
   );
 end;
 
@@ -856,9 +737,9 @@ begin
     LE,
     @IsPackageInstalled,
     @GetPackageInstallPath,
-    @ResolvePublishMetadata,
-    @HandlePublishMetadataFailure,
-    @CreatePublishArchive,
+    @TryResolvePublishMetadataCore,
+    @HandlePublishMetadataFailureCore,
+    @CreatePublishArchiveCore,
     FLastPublishExitCode
   );
 end;

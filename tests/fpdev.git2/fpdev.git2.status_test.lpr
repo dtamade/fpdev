@@ -3,38 +3,39 @@ program fpdev_git2_status_test;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, fpdev.git2, git2.impl, git2.api;
+  SysUtils, Classes,
+  fpdev.git2;
 
 procedure Test_Status_Offline;
 var
-  LTmp, LGit, LFile: string;
+  LTmp, LFile: string;
+  LMgr: TGitManager;
   LRepo: TGitRepository;
-  LMgr: IGitManager;
   LArr: TStringArray;
   LHasDll: Boolean;
+  i: Integer;
 begin
   WriteLn('== Test_Status_Offline ==');
-  // 尝试加载 libgit2 初始化；若失败则跳过
-  LHasDll := False;
-  try
-    LMgr := NewGitManager;
-    if LMgr.Initialize then LHasDll := True;
-  except
-    LHasDll := False;
-  end;
-  if not LHasDll then
-  begin
-    WriteLn('! 跳过：未找到 libgit2（Initialize 失败）');
-    Exit;
-  end
-  else
-    WriteLn('✓ 检测到 libgit2，可运行状态测试');
-
-  // 初始化一个空目录并调用 InitRepository
   LTmp := GetCurrentDir + PathDelim + 'tmp_status_' + FormatDateTime('yyyymmddhhnnss', Now);
   ForceDirectories(LTmp);
+  LMgr := TGitManager.Create;
   try
-    LRepo := GitManager.InitRepository(LTmp, False);
+    LHasDll := False;
+    try
+      LHasDll := LMgr.Initialize;
+    except
+      LHasDll := False;
+    end;
+    if not LHasDll then
+    begin
+      WriteLn('! 跳过：未找到 libgit2（Initialize 失败）');
+      Exit;
+    end
+    else
+      WriteLn('✓ 检测到 libgit2，可运行状态测试');
+
+    LRepo := nil;
+    LRepo := LMgr.InitRepository(LTmp, False);
     try
       // 创建未跟踪文件
       LFile := LTmp + PathDelim + 'a.txt';
@@ -50,7 +51,7 @@ begin
       if Length(LArr) > 0 then
       begin
         WriteLn('✓ Status 非空，检测到变更数: ', Length(LArr));
-        for var i:=0 to High(LArr) do
+        for i := 0 to High(LArr) do
           WriteLn('  - ', LArr[i]);
       end
       else
@@ -59,13 +60,15 @@ begin
         Halt(2);
       end;
     finally
-      LRepo.Free;
+      if Assigned(LRepo) then
+        LRepo.Free;
     end;
   finally
+    LMgr.Free;
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', LTmp]);
     {$ELSE}
-    ExecuteProcess('rm', ['-rf', LTmp]);
+    ExecuteProcess('/bin/rm', ['-rf', LTmp]);
     {$ENDIF}
   end;
 end;
@@ -80,4 +83,3 @@ begin
     end;
   end;
 end.
-

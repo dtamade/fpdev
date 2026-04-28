@@ -17,7 +17,9 @@
 ## 主 API（供代码使用）
 
 - `function BuildToolchainReportJSON: string;`
-  - 构建 HostReady 场景体检报告（fpc/make/lazbuild/lazarus_root/git/openssl），返回 JSON 字符串；不落盘，不修改系统
+  - 构建 HostReady 场景体检报告（fpc/make/lazbuild/lazarus_root/git/openssl）
+  - 当当前工作目录或 `FPDEV_TOOLCHAIN_REPO_ROOT` 能识别出仓库根（含 `fpdev.lpi`）时，还会追加 `repo_bin_writable` / `repo_lib_writable`
+  - 返回 JSON 字符串；不落盘，不修改系统
 
 - `function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;`
@@ -52,6 +54,8 @@
     {"name":"mingw32-make","found":true,"version":"GNU Make 4.4","path":"C:\\...\\mingw32-make.exe","notes":""},
     {"name":"lazbuild","found":false,"version":"","path":"","notes":"optional"},
     {"name":"lazarus_root","found":true,"version":"","path":"C:\\lazarus","notes":""},
+    {"name":"repo_bin_writable","found":true,"version":"","path":"C:\\fpdev\\bin","notes":""},
+    {"name":"repo_lib_writable","found":true,"version":"","path":"C:\\fpdev\\lib","notes":""},
     {"name":"git","found":true,"version":"git version 2.x","path":"C:\\...\\git.exe","notes":""},
     {"name":"openssl","found":false,"version":"","path":"","notes":"optional for HTTPS"}
   ],
@@ -64,8 +68,9 @@
 - hostOS/hostCPU：宿主信息
 - pathHead：PATH 前若干段（便于诊断）
 - tools：关键工具的探测结果
+- 当命中 repo root 时，`tools` 中还会包含 `repo_bin_writable` / `repo_lib_writable`
 - issues：缺项列表（例如缺失 fpc/make/lazarus_root）
-- level：OK/WARN/FAIL（缺 fpc/make/lazarus_root → FAIL；建议项缺失 → WARN）
+- level：OK/WARN/FAIL（缺 fpc/make/lazarus_root 或 repo build output 不可写 → FAIL；建议项缺失 → WARN）
 
 ## 策略 JSON（外部覆盖）
 
@@ -95,6 +100,8 @@
 
 - Windows 平台推荐优先使用 `mingw32-make`；Unix/BSD 推荐 `gmake`
 - `lazarus_root` 会优先读取 `FPDEV_LAZARUSDIR`，否则尝试从 `lazbuild` 所在目录反推；目录下必须存在 `lcl/`
+- `scripts/check_toolchain.sh` / `scripts/check_toolchain.bat` 会把 repo `bin/` / `lib/` 不可写视为 required failure
+- `FPDEV_TOOLCHAIN_REPO_ROOT` 主要用于测试或临时 override；日常使用默认从当前工作目录或脚本位置推断仓库根
 - HTTPS 下载建议携带 OpenSSL 动态库；缺失时将降级或提示
 - 体检 JSON 不落盘，若需保存，可在上层程序自行写入文件
 

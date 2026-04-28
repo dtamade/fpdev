@@ -41,6 +41,8 @@ fpdev fpc install
 Manifest 系统
     ├── 加载 manifest (缓存或下载)
     ├── 查找目标平台的包信息
+    ├── 优先走 manifest 命中的包元数据
+    ├── 必要时回退到 fpdev-repo / SourceForge 获取链路
     ├── 多镜像下载 (自动 fallback)
     ├── 文件大小验证
     ├── SHA256 hash 验证
@@ -56,19 +58,28 @@ Manifest 系统
 最简单的使用方式：
 
 ```bash
-# 安装最新版本 (3.2.2)
-fpdev fpc install
+# 默认：安装 FPC 3.2.2（二进制优先）
+fpdev fpc install 3.2.2
 
-# 安装特定版本
-fpdev fpc install 3.2.0
+# 仅使用本地缓存（完全离线）
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
+
+# 需要完全绕过二进制链路时，显式切换源码模式
+fpdev fpc install 3.2.2 --from-source
 ```
 
 Manifest 系统会自动：
 1. 下载或使用缓存的 manifest 文件
 2. 查找适合您平台的二进制包
-3. 从多个镜像中选择最快的下载
-4. 验证文件完整性
-5. 安装到 `~/.fpdev/toolchains/fpc/<version>`
+3. 优先按 manifest 命中的元数据下载
+4. 在需要时回退到 fpdev-repo / SourceForge 二进制获取链路
+5. 验证文件完整性
+6. 安装到 `~/.fpdev/toolchains/fpc/<version>`
+
+`--offline` 与 `--no-cache` 影响的是二进制获取策略；`--from-source` 则是显式切换到源码构建模式。
 
 ### 查看可用版本
 
@@ -171,6 +182,15 @@ Manifest 系统支持为每个包配置多个下载镜像。当第一个镜像�
 2. 如果失败（网络错误、404、超时），自动切换到第二个镜像 (Gitee)
 3. 如果所有镜像都失败，报告错误
 
+### 二进制获取链路
+
+CLI 默认走二进制优先安装，当前获取顺序可以概括为：
+
+1. 先用 manifest 命中的目标包信息执行下载
+2. 如果 manifest 路径不可用，继续尝试 fpdev-repo
+3. 如果二进制仓库路径仍不可用，再回退到 SourceForge
+4. 如果整条二进制链路都失败，再由用户决定是否显式使用 `--from-source`
+
 ### 完整性验证
 
 每个下载都会进行双重验证：
@@ -264,6 +284,15 @@ Error: All mirrors failed to download
 
 **解决方案**:
 ```bash
+# 先看缓存里是否已有当前版本
+fpdev fpc cache list
+
+# 只用缓存重试
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
+
 # 检查网络连接
 ping github.com
 ping gitee.com
@@ -272,7 +301,7 @@ ping gitee.com
 # 确保允许 HTTPS 连接
 
 # 作为最后手段，从源码安装
-fpdev fpc install 3.2.0 --from-source
+fpdev fpc install 3.2.2 --from-source
 ```
 
 ### 调试模式

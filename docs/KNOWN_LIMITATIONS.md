@@ -1,13 +1,17 @@
 # FPDev 功能限制说明
 
-**版本**: 1.0.0
-**最后更新**: 2026-02-15
+**版本**: 2.1.0
+**最后更新**: 2026-04-09
 
 ---
 
 ## 概述
 
-本文档说明 FPDev 项目中有意未实现或暂时未实现的功能，以及相应的原因和替代方案。
+本文档记录 FPDev `v2.1.0` 发布后仍然存在的功能限制，以及已经关闭但容易被误认为仍未实现的历史项。
+
+说明：
+- 这份文档只跟踪当前仍然有效的限制，不再重复 `v2.1.0` 发布收口阶段已经解决的 release-proof 事项。
+- FPDev 自身的预编译发布资产已经随 `v2.1.0` 发布；下文提到的“未实现”是指产品能力本身，而不是本项目没有发布二进制包。
 
 ---
 
@@ -76,7 +80,7 @@ fpdev lazarus install 3.0 --from-source --fpc-version 3.2.2
 
 ---
 
-## 2. Windows 内存报告
+## 2. 已关闭的历史限制：Windows 内存报告
 
 ### 状态
 ✅ **已实现**
@@ -97,7 +101,7 @@ FPDev 性能监控功能：
 **Linux 用户**:
 - ✅ 使用 `/proc/self/status` 的 `VmRSS`
 
-### 未来计划
+### 后续关注点
 
 Windows 内存报告已实现；后续规划聚焦于跨平台一致性增强，而不是补齐一个缺失功能：
 
@@ -152,7 +156,7 @@ Windows 内存报告已实现；后续规划聚焦于跨平台一致性增强，
 如果您需要上述未实现的功能，或有其他功能需求，请：
 
 1. **检查现有 Issues**
-   - 访问 GitHub Issues 页面
+   - 访问 GitHub Issues 页面：`https://github.com/dtamade/fpdev/issues`
    - 搜索是否已有相关讨论
 
 2. **创建新 Issue**
@@ -174,7 +178,7 @@ Windows 内存报告已实现；后续规划聚焦于跨平台一致性增强，
 | 功能 | 状态 | 原因 | 替代方案 |
 |------|------|------|----------|
 | Lazarus 预编译二进制安装 | ❌ 未实现 | 复杂性高、维护成本高 | 从源码安装 |
-| Windows 内存报告 | ✅ 已实现 | 基于 `GetProcessMemoryInfo` 获取 WorkingSetSize | 不需要替代方案 |
+| Windows 内存报告 | ✅ 已关闭历史限制 | 基于 `GetProcessMemoryInfo` 获取 WorkingSetSize | 不需要替代方案 |
 
 ### 设计原则
 
@@ -191,8 +195,9 @@ FPDev 的功能实现遵循以下原则：
 - README.md - 快速开始指南
 - CLAUDE.md - 项目技术文档
 - docs/ROADMAP.md - 开发路线图
+- docs/MVP_ACCEPTANCE_CRITERIA.md - 当前发布验收状态
 
 **联系方式**:
+- GitHub Issues: `https://github.com/dtamade/fpdev/issues`
+- GitHub Discussions: `https://github.com/dtamade/fpdev/discussions`
 - Email: dtamade@gmail.com
-- QQ Group: 685403987
-- QQ: 179033731

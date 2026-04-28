@@ -29,8 +29,14 @@ fpdev lazarus list --all
 ### 安装 FPC (FreePascal 编译器)
 
 ```bash
-# 安装文档示例基线 FPC 3.2.2
-fpdev fpc install 3.2.2 --from-source
+# 安装文档示例基线 FPC 3.2.2（默认二进制优先）
+fpdev fpc install 3.2.2
+
+# 仅使用本地缓存（完全离线）
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
 
 # 设置为默认版本
 fpdev fpc use 3.2.2
@@ -45,14 +51,16 @@ fpdev fpc current
 
 ```bash
 # 安装 Lazarus 3.0
-fpdev lazarus install 3.0 --from-source
+fpdev lazarus install 3.0
 
 # 设置为默认版本
 fpdev lazarus use 3.0
 
-# 验证安装
-fpdev lazarus current
+# 如需补配 IDE
+fpdev lazarus configure 3.0
 ```
+
+**说明**: 当前实现会提示 binary package path unavailable，并回退到源码构建。
 
 ## 🚀 第三步：创建第一个项目
 
@@ -184,7 +192,7 @@ fpdev project build . win64
 
 ### FPC 管理
 ```bash
-fpdev fpc install <version> [--from-source]    # 安装版本
+fpdev fpc install <version> [--from-source|--offline|--no-cache]  # 安装版本
 fpdev fpc list [--all]                         # 列出版本
 fpdev fpc use <version>                        # 切换到指定版本
 fpdev fpc current                              # 当前版本
@@ -193,7 +201,7 @@ fpdev fpc uninstall <version>                  # 卸载版本
 
 ### Lazarus 管理
 ```bash
-fpdev lazarus install <version> [--from-source]  # 安装版本
+fpdev lazarus install <version> [--from-source]  # 安装版本（当前默认路径会回退源码构建）
 fpdev lazarus run [version]                      # 启动 IDE
 fpdev lazarus list [--all]                       # 列出版本
 fpdev lazarus use <version>                    # 切换到指定版本
@@ -273,7 +281,7 @@ fpdev system config set mirror gitee
 A: 检查以下几点：
 1. 确保已安装必要的构建工具 (gcc, make 等)
 2. 检查网络连接
-3. 查看详细错误信息：`fpdev fpc install 3.2.2 --from-source --verbose`
+3. 查看详细错误信息：`fpdev fpc install 3.2.2 --no-cache --verbose`
 
 ### Q: 如何切换 FPC 版本？
 A: 使用 `fpdev fpc use <version>` 命令

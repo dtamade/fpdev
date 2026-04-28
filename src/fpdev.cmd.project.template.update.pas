@@ -9,10 +9,13 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.templatecommandflow;
 
 type
   TProjectTemplateUpdateCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunUpdateTemplates(const Outp, Errp: IOutput): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -21,8 +24,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils;
 
 function TProjectTemplateUpdateCommand.Name: string; begin Result := 'update'; end;
 function TProjectTemplateUpdateCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -37,36 +38,38 @@ begin
   Result := TProjectTemplateUpdateCommand.Create;
 end;
 
+function TProjectTemplateUpdateCommand.RunUpdateTemplates(
+  const Outp, Errp: IOutput
+): Boolean;
+begin
+  Result := Assigned(FManager) and FManager.UpdateTemplates(Outp, Errp);
+end;
+
 function TProjectTemplateUpdateCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LMgr: TProjectManager;
-  UnknownOption: string;
+  LPlan: TProjectTemplateUpdateCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectTemplateUpdateCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn('Usage: fpdev project template update');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('Update project templates from the remote resource repository.');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --help, -h    Show this help message');
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) or (CountPositionalArgs(AParams) > 0) then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template update');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.UpdateTemplates(Ctx.Out, Ctx.Err) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecuteProjectTemplateUpdateCommandPlanCore(
+      Ctx.Out,
+      Ctx.Err,
+      @RunUpdateTemplates
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

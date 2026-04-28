@@ -6,7 +6,7 @@ unit fpdev.fpc.source;
 interface
 
 uses
-  SysUtils, Classes, StrUtils, fpdev.source.repo, fpdev.build.manager, fpdev.constants,
+  SysUtils, Classes, fpdev.source.repo, fpdev.build.manager, fpdev.constants,
   fpdev.fpc.bootstrap, fpdev.utils.process;
 
 type
@@ -44,7 +44,19 @@ type
       const AArgs: array of string;
       const AWorkingDir: string = ''
     ): Boolean;
+    procedure SetCurrentStepValue(AStep: Integer);
+    function ReportBuildStepValue(AStep: Integer; const AMessage: string): Boolean;
+    procedure WriteStatus(const AText: string);
+    function GetRegisteredFPCVersionNames: TStringArray;
     function IsValidSourceDirectory(const APath: string): Boolean;
+    function ExecuteBuildSourceCommand(const ASourcePath: string): Boolean;
+    function BuildCompilerWithManager(const AVersion: string): Boolean;
+    function BuildRTLWithManager(const AVersion: string): Boolean;
+    function BuildPackagesWithManager(const AVersion: string): Boolean;
+    function InstallBinariesWithManager(const AVersion: string): Boolean;
+    function ConfigureEnvironmentWithManager(const AVersion: string): Boolean;
+    function TestBuildResultsWithManager(const AVersion: string): Boolean;
+    function WriteCacheMarker(const AVersion: string): Boolean;
 
     // Bootstrap compiler management - private helpers
     function DownloadBootstrapCompilerInternal(const AVersion: string): Boolean;
@@ -134,8 +146,10 @@ const
 implementation
 
 uses
-  fphttpclient, opensslsockets, zipper, fpdev.fpc.types, fpdev.utils.fs,
-  fpdev.version.registry;
+  fpdev.fpc.types, fpdev.utils.fs, fpdev.version.registry,
+  fpdev.fpc.sourceflow,
+  fpdev.fpc.sourceinstallflow, fpdev.fpc.sourcebootstrapflow,
+  fpdev.fpc.sourcebuildflow;
 
 function FindStaticFPCVersionIndex(const AVersion: string): Integer;
 var
@@ -291,110 +305,195 @@ begin
   Result := CommandResult.Success;
 end;
 
-function TFPCSourceManager.CloneFPCSource(const AVersion: string): Boolean;
+procedure TFPCSourceManager.SetCurrentStepValue(AStep: Integer);
 begin
-  // Delegate to SourceRepoManager, keeping existing logs and behavior with minimal changes
-  Result := Repo.CloneFPCSource(AVersion);
-  if Result then FCurrentVersion := IfThen(AVersion<>'', AVersion, 'main');
+  if (AStep >= Ord(Low(TFPCBuildStep))) and (AStep <= Ord(High(TFPCBuildStep))) then
+    FCurrentStep := TFPCBuildStep(AStep);
+end;
+
+function TFPCSourceManager.ReportBuildStepValue(
+  AStep: Integer;
+  const AMessage: string
+): Boolean;
+begin
+  if (AStep >= Ord(Low(TFPCBuildStep))) and (AStep <= Ord(High(TFPCBuildStep))) then
+    Exit(ReportBuildStep(TFPCBuildStep(AStep), AMessage));
+  Result := ReportBuildStep(bsFinished, AMessage);
+end;
+
+procedure TFPCSourceManager.WriteStatus(const AText: string);
+begin
+  WriteLn(AText);
+end;
+
+function TFPCSourceManager.GetRegisteredFPCVersionNames: TStringArray;
+var
+  Releases: TFPCReleaseArray;
+  i: Integer;
+begin
+  Result := nil;
+  Releases := TVersionRegistry.Instance.GetFPCReleases;
+  SetLength(Result, Length(Releases));
+  for i := 0 to High(Releases) do
+    Result[i] := Releases[i].Version;
+end;
+
+function TFPCSourceManager.ExecuteBuildSourceCommand(const ASourcePath: string): Boolean;
+begin
+  Result := ExecuteCommand('make', ['clean', 'all'], ASourcePath);
+end;
+
+function TFPCSourceManager.BuildCompilerWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(False);
+  try
+    Result := LBM.BuildCompiler(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.BuildRTLWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(False);
+  try
+    Result := LBM.BuildRTL(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.BuildPackagesWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(False);
+  try
+    Result := LBM.BuildPackages(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.InstallBinariesWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(True);
+  try
+    Result := LBM.Install(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.ConfigureEnvironmentWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(True);
+  try
+    Result := LBM.Configure(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.TestBuildResultsWithManager(const AVersion: string): Boolean;
+var
+  LBM: TBuildManager;
+begin
+  LBM := CreateBuildManager(True);
+  try
+    Result := LBM.TestResults(AVersion);
+  finally
+    LBM.Free;
+  end;
+end;
+
+function TFPCSourceManager.WriteCacheMarker(const AVersion: string): Boolean;
+var
+  CacheDir: string;
+  CachePath: string;
+  CacheMeta: TStringList;
+begin
+  CacheDir := FSourceRoot + PathDelim + 'cache';
+  if not DirectoryExists(CacheDir) then
+    EnsureDir(CacheDir);
+  CachePath := CacheDir + PathDelim + 'fpc-' + AVersion + '.cache';
+  CacheMeta := TStringList.Create;
+  try
+    CacheMeta.Add('version=' + AVersion);
+    CacheMeta.Add('built_at=' + DateTimeToStr(Now));
+    CacheMeta.SaveToFile(CachePath);
+    Result := True;
+  finally
+    CacheMeta.Free;
+  end;
+end;
+
+function TFPCSourceManager.CloneFPCSource(const AVersion: string): Boolean;
+var
+  LRepo: TSourceRepoManager;
+begin
+  LRepo := Repo;
+  try
+    Result := ExecuteFPCSourceCloneCore(
+      AVersion,
+      FCurrentVersion,
+      @LRepo.CloneFPCSource
+    );
+  finally
+    LRepo.Free;
+  end;
 end;
 
 function TFPCSourceManager.UpdateFPCSource(const AVersion: string): Boolean;
 var
-  LVersion: string;
+  LRepo: TSourceRepoManager;
 begin
-  LVersion := AVersion;
-  if LVersion = '' then LVersion := FCurrentVersion;
-  if LVersion = '' then LVersion := 'main';
-  Result := Repo.UpdateFPCSource(LVersion);
-  if Result then
-  begin
-    FCurrentVersion := LVersion;
-    WriteLn('[OK] FPC source updated successfully');
-  end
-  else
-    WriteLn('[FAIL] FPC source update failed');
+  LRepo := Repo;
+  try
+    Result := ExecuteFPCSourceUpdateCore(
+      AVersion,
+      FCurrentVersion,
+      @LRepo.UpdateFPCSource,
+      @WriteStatus
+    );
+  finally
+    LRepo.Free;
+  end;
 end;
 
 function TFPCSourceManager.SwitchFPCVersion(const AVersion: string): Boolean;
+var
+  LRepo: TSourceRepoManager;
 begin
-  if not IsVersionInstalled(AVersion) then
-  begin
-    Exit(False);
+  LRepo := Repo;
+  try
+    Result := ExecuteFPCSourceSwitchCore(
+      AVersion,
+      FCurrentVersion,
+      IsVersionInstalled(AVersion),
+      @LRepo.SwitchFPCVersion
+    );
+  finally
+    LRepo.Free;
   end;
-  Result := Repo.SwitchFPCVersion(AVersion);
-  if Result then
-    FCurrentVersion := AVersion;
 end;
 
 function TFPCSourceManager.ListAvailableVersions: TStringArray;
-var
-  Releases: TFPCReleaseArray;
-  Values: TStringList;
-  i: Integer;
-  UseStaticFallback: Boolean;
 begin
-  Result := nil;
-  Values := TStringList.Create;
-  try
-    Releases := TVersionRegistry.Instance.GetFPCReleases;
-    UseStaticFallback := not RegistryHasFPCReleases(Releases);
-    for i := 0 to High(Releases) do
-    begin
-      if (Trim(Releases[i].Version) <> '') and (Values.IndexOf(Releases[i].Version) < 0) then
-        Values.Add(Releases[i].Version);
-    end;
-
-    if UseStaticFallback then
-      for i := 0 to High(FPC_VERSIONS) do
-      begin
-        if Values.IndexOf(FPC_VERSIONS[i].Version) < 0 then
-          Values.Add(FPC_VERSIONS[i].Version);
-      end;
-
-    SetLength(Result, Values.Count);
-    for i := 0 to Values.Count - 1 do
-      Result[i] := Values[i];
-  finally
-    Values.Free;
-  end;
+  Result := BuildAvailableFPCSourceVersionsCore(@GetRegisteredFPCVersionNames);
 end;
 
 function TFPCSourceManager.ListLocalVersions: TStringArray;
-var
-  SearchRec: TSearchRec;
-  VersionList: TStringList;
-  DirName, Version, SourcePath: string;
-  i: Integer;
 begin
-  Result := nil;
-  VersionList := TStringList.Create;
-  try
-    if FindFirst(FSourceRoot + PathDelim + 'fpc-*', faDirectory, SearchRec) = 0 then
-    begin
-      repeat
-        if (SearchRec.Attr and faDirectory) <> 0 then
-        begin
-          DirName := SearchRec.Name;
-          if Pos('fpc-', DirName) = 1 then
-          begin
-            SourcePath := FSourceRoot + PathDelim + DirName;
-            if not IsValidSourceDirectory(SourcePath) then
-              Continue;
-            Version := Copy(DirName, 5, Length(DirName) - 4);
-            VersionList.Add(Version);
-          end;
-        end;
-      until FindNext(SearchRec) <> 0;
-      FindClose(SearchRec);
-    end;
-
-    SetLength(Result, VersionList.Count);
-    for i := 0 to VersionList.Count - 1 do
-      Result[i] := VersionList[i];
-
-  finally
-    VersionList.Free;
-  end;
+  Result := ListLocalFPCSourceVersionsCore(FSourceRoot, @IsValidSourceDirectory);
 end;
 
 function TFPCSourceManager.GetCurrentVersion: string;
@@ -460,143 +559,44 @@ begin
   end;
 
   WriteLn;
-
-  // Build FPC using make (requires bootstrap compiler)
-  Result := ExecuteCommand('make', ['clean', 'all'], SourcePath);
+  Result := ExecuteFPCSourceBuildCore(
+    Version,
+    SourcePath,
+    @IsValidSourceDirectory,
+    @ExecuteBuildSourceCommand
+  );
 end;
 
 function TFPCSourceManager.InstallFPCVersion(const AVersion: string): Boolean;
 var
-  Version: string;
-  PreviousVersion: string;
-  CacheDir, CachePath: string;
-  CacheMeta: TStringList;
-  function CompleteInstallAndValidation: Boolean;
-  begin
-    FCurrentStep := bsInstall;
-    if not ReportBuildStep(bsInstall, 'Install FPC binaries') then
-      Exit(False);
-    if not InstallFPCBinaries(Version) then
-      Exit(False);
-
-    FCurrentStep := bsConfig;
-    if not ReportBuildStep(bsConfig, 'Configure FPC environment') then
-      Exit(False);
-    if not ConfigureFPCEnvironment(Version) then
-      Exit(False);
-
-    if not ReportBuildStep(bsConfig, 'Test build results') then
-      Exit(False);
-    Result := TestBuildResults(Version);
-  end;
+  State: TFPCSourceInstallState;
+  Callbacks: TFPCSourceInstallCallbacks;
 begin
-  Result := False;
-  Version := AVersion;
-  PreviousVersion := FCurrentVersion;
-
   WriteLn;
+  State := Default(TFPCSourceInstallState);
+  State.Version := AVersion;
+  State.PreviousVersion := FCurrentVersion;
+  State.UseCache := FUseCache;
 
-  // Step 1: Initialize build environment
-  FCurrentStep := bsInit;
-  if not ReportBuildStep(bsInit, 'Initialize build environment') then Exit;
-  if not InitializeInstall(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
+  Callbacks := Default(TFPCSourceInstallCallbacks);
+  Callbacks.SetCurrentStep := @SetCurrentStepValue;
+  Callbacks.ReportStep := @ReportBuildStepValue;
+  Callbacks.InitializeInstall := @InitializeInstall;
+  Callbacks.EnsureBootstrap := @EnsureBootstrapCompiler;
+  Callbacks.CloneSource := @CloneFPCSource;
+  Callbacks.IsCacheAvailable := @IsCacheAvailable;
+  Callbacks.UseCachedBuild := @UseCachedBuild;
+  Callbacks.BuildCompiler := @BuildFPCCompiler;
+  Callbacks.BuildRTL := @BuildFPCRTL;
+  Callbacks.BuildPackages := @BuildFPCPackages;
+  Callbacks.InstallBinaries := @InstallFPCBinaries;
+  Callbacks.ConfigureEnvironment := @ConfigureFPCEnvironment;
+  Callbacks.TestBuildResults := @TestBuildResults;
+  Callbacks.WriteCacheMarker := @WriteCacheMarker;
 
-  // Step 2: Ensure bootstrap compiler
-  FCurrentStep := bsBootstrap;
-  if not ReportBuildStep(bsBootstrap, 'Check Bootstrap Compiler') then Exit;
-  if not EnsureBootstrapCompiler(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  // Step 3: Smart clone source code (only if needed)
-  FCurrentStep := bsClone;
-  if not ReportBuildStep(bsClone, 'Clone FPC sources') then Exit;
-  if not CloneFPCSource(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  // Optional: reuse cached build if available
-  if FUseCache and IsCacheAvailable(Version) then
-  begin
-    if UseCachedBuild(Version) then
-    begin
-      if not CompleteInstallAndValidation then
-      begin
-        FCurrentVersion := PreviousVersion;
-        Exit;
-      end;
-
-      // Finished (cache path)
-      FCurrentStep := bsFinished;
-      ReportBuildStep(bsFinished, 'FPC build/test completed');
-
-      WriteLn;
-      Result := True;
-      Exit;
-    end;
-  end;
-
-  // Step 4: Build compiler
-  FCurrentStep := bsCompiler;
-  if not ReportBuildStep(bsCompiler, 'Build FPC Compiler') then Exit;
-  if not BuildFPCCompiler(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  // Step 4: Build RTL
-  FCurrentStep := bsRTL;
-  if not ReportBuildStep(bsRTL, 'Build FPC RTL') then Exit;
-  if not BuildFPCRTL(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  // Build packages
-  FCurrentStep := bsPackages;
-  if not ReportBuildStep(bsPackages, 'Build FPC packages') then Exit;
-  if not BuildFPCPackages(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  if not CompleteInstallAndValidation then
-  begin
-    FCurrentVersion := PreviousVersion;
-    Exit;
-  end;
-
-  // Write build cache marker
-  CacheDir := FSourceRoot + PathDelim + 'cache';
-  if not DirectoryExists(CacheDir) then
-    EnsureDir(CacheDir);
-  CachePath := CacheDir + PathDelim + 'fpc-' + Version + '.cache';
-  CacheMeta := TStringList.Create;
-  try
-    CacheMeta.Add('version=' + Version);
-    CacheMeta.Add('built_at=' + DateTimeToStr(Now));
-    CacheMeta.SaveToFile(CachePath);
-  finally
-    CacheMeta.Free;
-  end;
-
-  // Finished
-  FCurrentStep := bsFinished;
-  ReportBuildStep(bsFinished, 'FPC build/test completed');
-
-  WriteLn;
-  Result := True;
+  Result := ExecuteFPCSourceInstallFlowCore(State, FCurrentVersion, Callbacks);
+  if Result then
+    WriteLn;
 end;
 
 // Bootstrap compiler management - delegate to FBootstrap helper
@@ -617,101 +617,13 @@ end;
 
 function TFPCSourceManager.DownloadBootstrapCompilerInternal(const AVersion: string): Boolean;
 var
-  URL, TempFile, TempDir, BootstrapRoot, BootstrapPath: string;
-  HTTPClient: TFPHTTPClient;
-  FileStream: TFileStream;
-  Unzipper: TUnZipper;
+  Callbacks: TFPCSourceBootstrapDownloadCallbacks;
 begin
-  Result := False;
-
-  try
-    // Get download URL
-    URL := FBootstrap.GetBootstrapDownloadURL(AVersion);
-    if URL = '' then
-    begin
-      WriteLn('Error: Failed to construct download URL for version ', AVersion);
-      Exit;
-    end;
-
-    // Create temp directory for download
-    TempDir := GetTempDir + 'fpdev_bootstrap_' + IntToStr(GetTickCount64);
-    if not DirectoryExists(TempDir) then
-      EnsureDir(TempDir);
-
-    // Generate temp file name
-    TempFile := TempDir + PathDelim + 'fpc-bootstrap-' + AVersion + '.zip';
-
-    WriteLn('Downloading bootstrap compiler ', AVersion, ' from:');
-    WriteLn('  ', URL);
-    WriteLn('To: ', TempFile);
-    WriteLn;
-
-    // Download file
-    HTTPClient := TFPHTTPClient.Create(nil);
-    try
-      HTTPClient.AllowRedirect := True;
-      FileStream := TFileStream.Create(TempFile, fmCreate);
-      try
-        HTTPClient.Get(URL, FileStream);
-        WriteLn('Download completed: ', FileStream.Size, ' bytes');
-      finally
-        FileStream.Free;
-      end;
-    finally
-      HTTPClient.Free;
-    end;
-
-    // Extract archive to bootstrap directory
-    BootstrapRoot := FSourceRoot + PathDelim + 'bootstrap' + PathDelim + 'fpc-' + AVersion;
-    if not DirectoryExists(BootstrapRoot) then
-      EnsureDir(BootstrapRoot);
-
-    WriteLn('Extracting bootstrap compiler to: ', BootstrapRoot);
-
-    Unzipper := TUnZipper.Create;
-    try
-      Unzipper.FileName := TempFile;
-      Unzipper.OutputPath := BootstrapRoot;
-      Unzipper.Examine;
-      WriteLn('  Files in archive: ', Unzipper.Entries.Count);
-      Unzipper.UnZipAllFiles;
-      WriteLn('Extraction completed successfully');
-    finally
-      Unzipper.Free;
-    end;
-
-    // Verify that fpc executable exists
-    BootstrapPath := GetBootstrapPath(AVersion);
-    if FileExists(BootstrapPath) then
-    begin
-      WriteLn('Bootstrap compiler verified: ', BootstrapPath);
-      Result := True;
-    end
-    else
-    begin
-      WriteLn('Warning: Bootstrap compiler executable not found at expected path: ', BootstrapPath);
-      Result := False;
-    end;
-
-    // Cleanup temp files
-    if FileExists(TempFile) then
-      DeleteFile(TempFile);
-    if DirectoryExists(TempDir) then
-      RemoveDir(TempDir);
-
-  except
-    on E: Exception do
-    begin
-      WriteLn('Error downloading bootstrap compiler: ', E.Message);
-      Result := False;
-
-      // Cleanup on error
-      if FileExists(TempFile) then
-        DeleteFile(TempFile);
-      if DirectoryExists(TempDir) then
-        RemoveDir(TempDir);
-    end;
-  end;
+  Callbacks := Default(TFPCSourceBootstrapDownloadCallbacks);
+  Callbacks.Log := @WriteStatus;
+  Callbacks.GetDownloadURL := @FBootstrap.GetBootstrapDownloadURL;
+  Callbacks.GetBootstrapPath := @FBootstrap.GetBootstrapPath;
+  Result := ExecuteFPCSourceBootstrapDownloadCore(AVersion, FSourceRoot, Callbacks);
 end;
 
 function TFPCSourceManager.DownloadBootstrapCompiler(const AVersion: string): Boolean;
@@ -721,32 +633,19 @@ end;
 
 function TFPCSourceManager.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 var
-  RequiredVersion, SystemFPC, BootstrapPath: string;
+  Callbacks: TFPCSourceBootstrapEnsureCallbacks;
 begin
-  RequiredVersion := FBootstrap.GetRequiredBootstrapVersion(ATargetVersion);
-
-  // Check system FPC
-  SystemFPC := FBootstrap.FindSystemFPC;
-  if FBootstrap.IsCompatibleBootstrap(SystemFPC, RequiredVersion) then
-  begin
-    FBootstrapCompiler := SystemFPC;
-    Exit(True);
-  end;
-
-  // Check downloaded bootstrap
-  BootstrapPath := FBootstrap.GetBootstrapPath(RequiredVersion);
-  if FileExists(BootstrapPath) then
-  begin
-    FBootstrapCompiler := BootstrapPath;
-    Exit(True);
-  end;
-
-  // Download bootstrap compiler
-  Result := DownloadBootstrapCompilerInternal(RequiredVersion);
-  if Result then
-  begin
-    FBootstrapCompiler := FBootstrap.GetBootstrapPath(RequiredVersion);
-  end;
+  Callbacks := Default(TFPCSourceBootstrapEnsureCallbacks);
+  Callbacks.GetRequiredVersion := @FBootstrap.GetRequiredBootstrapVersion;
+  Callbacks.FindSystemCompiler := @FBootstrap.FindSystemFPC;
+  Callbacks.IsCompatibleCompiler := @FBootstrap.IsCompatibleBootstrap;
+  Callbacks.GetBootstrapPath := @FBootstrap.GetBootstrapPath;
+  Callbacks.DownloadBootstrap := @DownloadBootstrapCompilerInternal;
+  Result := ExecuteFPCSourceEnsureBootstrapCore(
+    ATargetVersion,
+    FBootstrapCompiler,
+    Callbacks
+  );
 end;
 
 // Step-by-step build process (FPCUpDeluxe-inspired)
@@ -763,98 +662,79 @@ end;
 function TFPCSourceManager.BuildFPCCompiler(const AVersion: string): Boolean;
 var
   LSourcePath: string;
-  LBM: TBuildManager;
 begin
   LSourcePath := GetFPCSourcePath(AVersion);
-  if not IsValidSourceDirectory(LSourcePath) then
-  begin
-    WriteLn('[FAIL] Invalid FPC source directory: ', LSourcePath);
-    Exit(False);
-  end;
-
-  // Delegate to BuildManager for consistent build behavior and log output.
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildCompiler(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @BuildCompilerWithManager
+  );
 end;
 
 function TFPCSourceManager.BuildFPCRTL(const AVersion: string): Boolean;
 var
   LSourcePath: string;
-  LBM: TBuildManager;
 begin
   LSourcePath := GetFPCSourcePath(AVersion);
-  if not IsValidSourceDirectory(LSourcePath) then
-  begin
-    WriteLn('[FAIL] Invalid FPC source directory: ', LSourcePath);
-    Exit(False);
-  end;
-
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildRTL(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @BuildRTLWithManager
+  );
 end;
 
 function TFPCSourceManager.BuildFPCPackages(const AVersion: string): Boolean;
 var
   LSourcePath: string;
-  LBM: TBuildManager;
 begin
   LSourcePath := GetFPCSourcePath(AVersion);
-  if not IsValidSourceDirectory(LSourcePath) then
-  begin
-    WriteLn('[FAIL] Invalid FPC source directory: ', LSourcePath);
-    Exit(False);
-  end;
-
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildPackages(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @BuildPackagesWithManager
+  );
 end;
 
 function TFPCSourceManager.InstallFPCBinaries(const AVersion: string): Boolean;
 var
-  LBM: TBuildManager;
+  LSourcePath: string;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.Install(AVersion);
-  finally
-    LBM.Free;
-  end;
+  LSourcePath := GetFPCSourcePath(AVersion);
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @InstallBinariesWithManager
+  );
 end;
 
 function TFPCSourceManager.ConfigureFPCEnvironment(const AVersion: string): Boolean;
 var
-  LBM: TBuildManager;
+  LSourcePath: string;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.Configure(AVersion);
-  finally
-    LBM.Free;
-  end;
+  LSourcePath := GetFPCSourcePath(AVersion);
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @ConfigureEnvironmentWithManager
+  );
 end;
 
 function TFPCSourceManager.TestBuildResults(const AVersion: string): Boolean;
 var
-  LBM: TBuildManager;
+  LSourcePath: string;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.TestResults(AVersion);
-  finally
-    LBM.Free;
-  end;
+  LSourcePath := GetFPCSourcePath(AVersion);
+  Result := ExecuteFPCSourceManagedBuildStepCore(
+    AVersion,
+    LSourcePath,
+    @IsValidSourceDirectory,
+    @TestBuildResultsWithManager
+  );
 end;
 
 function TFPCSourceManager.ReportBuildStep(const AStep: TFPCBuildStep; const AMessage: string): Boolean;
@@ -882,78 +762,18 @@ begin
 end;
 
 function TFPCSourceManager.IsCacheAvailable(const AVersion: string): Boolean;
-var
-  CachePath: string;
 begin
-  CachePath := FSourceRoot + PathDelim + 'cache' + PathDelim + 'fpc-' + AVersion + '.cache';
-  Result := FileExists(CachePath);
+  Result := ExecuteFPCSourceCacheAvailableCore(FSourceRoot, AVersion);
 end;
 
 function TFPCSourceManager.UseCachedBuild(const AVersion: string): Boolean;
-var
-  SourcePath, CachePath, CompilerDir, RTLDir: string;
-  CacheMeta: TStringList;
-  CachedVersion: string;
-  i: Integer;
 begin
-  Result := False;
-  SourcePath := GetFPCSourcePath(AVersion);
-
-  // Check if source directory is valid
-  if not IsValidSourceDirectory(SourcePath) then
-    Exit;
-
-  // Check if cache file exists
-  CachePath := FSourceRoot + PathDelim + 'cache' + PathDelim + 'fpc-' + AVersion + '.cache';
-  if not FileExists(CachePath) then
-    Exit;
-
-  // Read and validate cache metadata
-  CacheMeta := TStringList.Create;
-  try
-    CacheMeta.LoadFromFile(CachePath);
-
-    // Extract cached version
-    CachedVersion := '';
-    for i := 0 to CacheMeta.Count - 1 do
-    begin
-      if Pos('version=', CacheMeta[i]) = 1 then
-      begin
-        CachedVersion := Copy(CacheMeta[i], 9, Length(CacheMeta[i]) - 8);
-        Break;
-      end;
-    end;
-
-    // Verify version matches
-    if not SameText(CachedVersion, AVersion) then
-      Exit;
-  finally
-    CacheMeta.Free;
-  end;
-
-  // Check if build artifacts exist
-  CompilerDir := SourcePath + PathDelim + 'compiler';
-  RTLDir := SourcePath + PathDelim + 'rtl';
-
-  if not DirectoryExists(CompilerDir) then
-    Exit;
-  if not DirectoryExists(RTLDir) then
-    Exit;
-
-  // Check for compiled compiler executable
-  {$IFDEF MSWINDOWS}
-  if not FileExists(CompilerDir + PathDelim + 'ppc386.exe') and
-     not FileExists(CompilerDir + PathDelim + 'ppcx64.exe') then
-    Exit;
-  {$ELSE}
-  if not FileExists(CompilerDir + PathDelim + 'ppc386') and
-     not FileExists(CompilerDir + PathDelim + 'ppcx64') and
-     not FileExists(CompilerDir + PathDelim + 'ppca64') then
-    Exit;
-  {$ENDIF}
-
-  // All checks passed, cache is valid and usable
-  Result := True;
+  Result := ExecuteFPCSourceUseCachedBuildCore(
+    FSourceRoot,
+    AVersion,
+    GetFPCSourcePath(AVersion),
+    @IsValidSourceDirectory
+  );
 end;
 
 function TFPCSourceManager.ProtectedIsCacheAvailable(const AVersion: string): Boolean;
@@ -1010,22 +830,11 @@ end;
 
 function TFPCSourceManager.CheckBuildPrerequisites(const {%H-} AVersion: string): Boolean;
 begin
-  // AVersion parameter reserved for future use
-  if AVersion <> '' then;
-
-  // Check if make is available
-  if not ExecuteCommand('make', ['--version'], '') then
-  begin
-    Exit(False);
-  end;
-
-  // Check if bootstrap compiler is available
-  if FBootstrapCompiler = '' then
-  begin
-    Exit(False);
-  end;
-
-  Result := True;
+  Result := CheckFPCSourceBuildPrerequisitesCore(
+    AVersion,
+    FBootstrapCompiler,
+    @ExecuteCommand
+  );
 end;
 
 function TFPCSourceManager.IsValidSourceDirectory(const APath: string): Boolean;

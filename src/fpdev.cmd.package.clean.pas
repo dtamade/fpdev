@@ -5,9 +5,8 @@ unit fpdev.cmd.package.clean;
 interface
 
 uses
-  SysUtils, Classes,
-  fpdev.paths, fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  SysUtils,
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager;
 
 type
   TPackageCleanCommand = class(TInterfacedObject, ICommand)
@@ -20,7 +19,9 @@ type
 
 implementation
 
-uses fpdev.command.utils;
+uses
+  fpdev.paths,
+  fpdev.package.cleancommandflow;
 
 function TPackageCleanCommand.Name: string; begin Result := 'clean'; end;
 function TPackageCleanCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -34,82 +35,29 @@ end;
 function TPackageCleanCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TPackageManager;
-  Scope: string;
-  DryRun, Yes: Boolean;
-  Ok: Boolean;
-  UnknownOption: string;
-  I: Integer;
+  LPlan: TPackageCleanCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := EXIT_OK;
-
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPTIONS));
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_DRYRUN));
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_YES));
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_CLEAN_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, ['--dry-run', '--yes'], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if Length(AParams) < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['scope']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_CLEAN_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  Scope := LowerCase(Trim(AParams[0]));
-  if (Scope <> 'sandbox') and (Scope <> 'cache') and (Scope <> 'all') then
-  begin
-    Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  for I := 1 to High(AParams) do
-    if (AParams[I] <> '') and (AParams[I][1] <> '-') then
-    begin
-      Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-
-  DryRun := HasFlag(AParams, 'dry-run');
-  Yes := HasFlag(AParams, 'yes');
-
-  if DryRun then
-  begin
-    if (Scope = 'sandbox') or (Scope = 'all') then
-      Ctx.Out.WriteLn(_Fmt(CMD_PKG_CLEAN_DRY_RUN, [GetSandboxDir]));
-    if (Scope = 'cache') or (Scope = 'all') then
-      Ctx.Out.WriteLn(_Fmt(CMD_PKG_CLEAN_DRY_RUN, [IncludeTrailingPathDelimiter(GetCacheDir) + 'packages']));
-    Exit(EXIT_OK);
-  end;
-
-  if not Yes then
-  begin
-    Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_REFUSE_ROOT));
-    Exit(EXIT_USAGE_ERROR);
-  end;
+  Result := PreparePackageCleanCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
-    Ok := LMgr.Clean(Scope, Ctx.Out, Ctx.Err);
-    if Ok then
-    begin
-      Ctx.Out.WriteLn(_(CMD_PKG_CLEAN_COMPLETE));
-      Exit(EXIT_OK);
-    end;
-    Ctx.Err.WriteLn(_(CMD_PKG_CLEAN_ERRORS));
-    Result := EXIT_ERROR;
+    Result := ExecutePackageCleanCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      GetSandboxDir,
+      IncludeTrailingPathDelimiter(GetCacheDir) + 'packages',
+      @LMgr.Clean
+    );
   finally
     LMgr.Free;
   end;

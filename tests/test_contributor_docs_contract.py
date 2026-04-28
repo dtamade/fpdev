@@ -7,10 +7,22 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_MD = REPO_ROOT / 'CLAUDE.md'
 AGENTS_MD = REPO_ROOT / 'AGENTS.md'
 CHANGELOG_MD = REPO_ROOT / 'CHANGELOG.md'
+README_MD = REPO_ROOT / 'README.md'
+FAQ_ROOT_MD = REPO_ROOT / 'FAQ.md'
+QUICKSTART_ROOT_MD = REPO_ROOT / 'QUICKSTART.md'
 DOCS_DIR = REPO_ROOT / 'docs'
 HISTORY_DIR = DOCS_DIR / 'history'
 INTERNAL_DIR = DOCS_DIR / 'internal'
 TESTING_MD = DOCS_DIR / 'testing.md'
+ARCHITECTURE_MD = DOCS_DIR / 'ARCHITECTURE.md'
+ARCHITECTURE_EN_MD = DOCS_DIR / 'ARCHITECTURE.en.md'
+BUILD_MANAGER_MD = DOCS_DIR / 'build-manager.md'
+BUILD_MANAGER_EN_MD = DOCS_DIR / 'build-manager.en.md'
+FAQ_DOCS_MD = DOCS_DIR / 'FAQ.md'
+FAQ_DOCS_EN_MD = DOCS_DIR / 'FAQ.en.md'
+QUICKSTART_DOCS_MD = DOCS_DIR / 'QUICKSTART.md'
+QUICKSTART_DOCS_EN_MD = DOCS_DIR / 'QUICKSTART.en.md'
+MANIFEST_USAGE_MD = DOCS_DIR / 'MANIFEST-USAGE.md'
 HISTORY_README = HISTORY_DIR / 'README.md'
 INTERNAL_README = INTERNAL_DIR / 'README.md'
 LIBGIT2_DYNAMIC_MD = HISTORY_DIR / 'LIBGIT2_DYNAMIC.md'
@@ -39,6 +51,11 @@ HISTORICAL_DOCS = [
 
 
 class ContributorDocsContractTests(unittest.TestCase):
+    def _section(self, text: str, start: str, end: str) -> str:
+        start_index = text.index(start)
+        end_index = text.index(end, start_index)
+        return text[start_index:end_index]
+
     def test_changelog_version_headings_are_unique(self):
         text = CHANGELOG_MD.read_text(encoding='utf-8')
         versions = re.findall(r'^## \[([^\]]+)\]', text, flags=re.MULTILINE)
@@ -67,6 +84,14 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertIn('scripts/run_all_tests.sh', text)
         self.assertIn('No dedicated `scripts\\run_all_tests.bat` wrapper is tracked', text)
         self.assertNotIn('\n# Windows\nscripts\\run_all_tests.bat', text)
+
+    def test_testing_doc_uses_repo_local_prettier_wrapper_and_tmp_pascal_outputs(self):
+        text = TESTING_MD.read_text(encoding='utf-8')
+        self.assertIn('scripts/run_prettier.sh', text)
+        self.assertIn('/tmp/fpdev-test-bin', text)
+        self.assertIn('/tmp/fpdev-test-lib', text)
+        self.assertIn('FPDEV_TEST_PROJECT_ROOT=', text)
+        self.assertNotIn('yarn prettier --write', text)
 
     def test_testing_doc_scopes_make_not_found_to_real_build_flows(self):
         text = TESTING_MD.read_text(encoding='utf-8')
@@ -199,35 +224,49 @@ class ContributorDocsContractTests(unittest.TestCase):
 
     def test_large_file_report_marks_project_and_lazarus_shells_as_historical_snapshot(self):
         text = LARGE_FILES_REPORT.read_text(encoding='utf-8')
-        self.assertIn('2026-04-05 更新', text)
+        self.assertIn('2026-04-11 更新', text)
         self.assertIn('历史快照', text)
         self.assertIn('src/fpdev.cmd.project.pas', text)
         self.assertIn('src/fpdev.cmd.lazarus.pas', text)
         self.assertIn('兼容层', text)
+        self.assertIn('src/fpdev.fpc.manager.pas', text)
+        self.assertIn('src/fpdev.fpc.statusflow.pas', text)
         self.assertIn('src/fpdev.project.manager.pas', text)
         self.assertIn('src/fpdev.lazarus.manager.pas', text)
+        self.assertIn('src/fpdev.lazarus.metadataflow.pas', text)
+        self.assertIn('src/fpdev.lazarus.pathflow.pas', text)
+        self.assertIn('src/fpdev.lazarus.installcallbacks.pas', text)
+        self.assertIn('src/fpdev.lazarus.runtimeactions.pas', text)
 
     def test_large_file_report_separates_current_worktree_supplement_from_historical_body(self):
         text = LARGE_FILES_REPORT.read_text(encoding='utf-8')
-        self.assertIn('## 2026-04-05 当前工作树补充', text)
+        self.assertIn('## 2026-04-11 当前工作树补充', text)
         self.assertIn('## 2026-02-10 历史快照正文', text)
         self.assertNotIn('## 当前状态', text)
-        self.assertIn('| `src/fpdev.cmd.project.pas` | 23 | 兼容层 |', text)
-        self.assertIn('| `src/fpdev.cmd.lazarus.pas` | 24 | 兼容层 |', text)
-        self.assertIn('| `src/fpdev.project.manager.pas` | 824 | 当前 Project 实现重心 |', text)
-        self.assertIn('| `src/fpdev.lazarus.manager.pas` | 1166 | 当前 Lazarus 实现重心 |', text)
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.cmd\.project\.pas`\s*\|\s*23\s*\|\s*兼容层\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.cmd\.lazarus\.pas`\s*\|\s*24\s*\|\s*兼容层\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.project\.manager\.pas`\s*\|\s*824\s*\|\s*当前 Project 实现重心\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.manager\.pas`\s*\|\s*841\s*\|\s*当前 Lazarus facade/orchestration 中心（已切出 metadata/path/runtime）\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.metadataflow\.pas`\s*\|\s*162\s*\|\s*Lazarus metadata/version inventory helper\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.pathflow\.pas`\s*\|\s*75\s*\|\s*Lazarus install path/install-state helper\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.installcallbacks\.pas`\s*\|\s*222\s*\|\s*Lazarus install callback helper\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.runtimeactions\.pas`\s*\|\s*211\s*\|\s*Lazarus runtime/IDE action helper\s*\|'))
         self.assertIn('历史观察结论（2026-02-10）', text)
-        self.assertIn('当前工作树补充结论（2026-04-05）', text)
+        self.assertIn('当前工作树补充结论（2026-04-11）', text)
 
     def test_large_file_report_separates_current_worktree_note_from_historical_body(self):
         text = LARGE_FILES_REPORT.read_text(encoding='utf-8')
-        self.assertIn('## 2026-04-05 当前工作树补充', text)
+        self.assertIn('## 2026-04-11 当前工作树补充', text)
         self.assertIn('## 2026-02-10 历史快照', text)
         self.assertIn('## 2026-02-10 结论', text)
-        self.assertIn('| `src/fpdev.cmd.project.pas` | 23 |', text)
-        self.assertIn('| `src/fpdev.cmd.lazarus.pas` | 24 |', text)
-        self.assertIn('| `src/fpdev.project.manager.pas` | 824 |', text)
-        self.assertIn('| `src/fpdev.lazarus.manager.pas` | 1166 |', text)
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.cmd\.project\.pas`\s*\|\s*23\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.cmd\.lazarus\.pas`\s*\|\s*24\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.project\.manager\.pas`\s*\|\s*824\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.manager\.pas`\s*\|\s*841\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.metadataflow\.pas`\s*\|\s*162\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.pathflow\.pas`\s*\|\s*75\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.installcallbacks\.pas`\s*\|\s*222\s*\|'))
+        self.assertRegex(text, re.compile(r'\|\s*`src/fpdev\.lazarus\.runtimeactions\.pas`\s*\|\s*211\s*\|'))
         self.assertNotIn('## 当前状态', text)
         self.assertNotIn('当前大文件状态健康', text)
 
@@ -245,6 +284,110 @@ class ContributorDocsContractTests(unittest.TestCase):
         self.assertIn('src/fpdev.cli.bootstrap.pas', text)
         self.assertIn('src/fpdev.command.imports.pas', text)
         self.assertNotIn('src/fpdev.lpr: imports command units so `initialization` registration runs', text)
+
+    def test_claude_doc_uses_repo_local_prettier_wrapper_and_unittest_baseline(self):
+        text = CLAUDE_MD.read_text(encoding='utf-8')
+        self.assertIn("python3 -m unittest discover -s tests -p 'test_*.py'", text)
+        self.assertIn('scripts/run_prettier.sh', text)
+
+    def test_architecture_docs_capture_current_facade_helper_split(self):
+        expectations = {
+            ARCHITECTURE_MD: (
+                '## 2026-04 当前工作树 facade/helper split',
+                'src/fpdev.build.managerflow.pas',
+                'src/fpdev.build.runtimeflow.pas',
+                'src/fpdev.fpc.builderflow.pas',
+                'src/fpdev.fpc.binaryflow.pas',
+                'src/fpdev.fpc.installcommandflow.pas',
+                'src/fpdev.fpc.usecommandflow.pas',
+                'src/fpdev.fpc.verifycommandflow.pas',
+            ),
+            ARCHITECTURE_EN_MD: (
+                '## 2026-04 Current worktree facade/helper split',
+                'src/fpdev.build.managerflow.pas',
+                'src/fpdev.build.runtimeflow.pas',
+                'src/fpdev.fpc.builderflow.pas',
+                'src/fpdev.fpc.binaryflow.pas',
+                'src/fpdev.fpc.installcommandflow.pas',
+                'src/fpdev.fpc.usecommandflow.pas',
+                'src/fpdev.fpc.verifycommandflow.pas',
+            ),
+        }
+        for path, required in expectations.items():
+            text = path.read_text(encoding='utf-8')
+            for needle in required:
+                self.assertIn(needle, text, f'{path} should contain {needle!r}')
+
+    def test_build_manager_docs_capture_current_runbook_and_cross_config_contract(self):
+        expectations = {
+            BUILD_MANAGER_MD: (
+                '## 全工具链真实演练 Runbook（快速上手）',
+                'scripts\\check_toolchain.bat',
+                'bash scripts/check_toolchain.sh',
+                'scripts\\run_examples.bat',
+                'bash scripts/run_examples.sh',
+                'scripts\\run_examples_real.bat',
+                'bash scripts/run_examples_real.sh',
+                'REAL=1',
+                'plays/.sandbox',
+                'SetMakeCmd',
+                'SetTarget',
+                'SetPrefix',
+            ),
+            BUILD_MANAGER_EN_MD: (
+                '## Full Toolchain Real-Rehearsal Runbook',
+                'scripts\\check_toolchain.bat',
+                'bash scripts/check_toolchain.sh',
+                'scripts\\run_examples.bat',
+                'bash scripts/run_examples.sh',
+                'scripts\\run_examples_real.bat',
+                'bash scripts/run_examples_real.sh',
+                'REAL=1',
+                'plays/.sandbox',
+                'SetMakeCmd',
+                'SetTarget',
+                'SetPrefix',
+            ),
+        }
+        for path, required in expectations.items():
+            text = path.read_text(encoding='utf-8')
+            for needle in required:
+                self.assertIn(needle, text, f'{path} should contain {needle!r}')
+
+    def test_quickstarts_use_binary_first_fpc_install_examples(self):
+        expectations = {
+            QUICKSTART_ROOT_MD: ('## 🚀 第一步：安装 FPC 编译器', '## 🎯 第二步：创建第一个项目'),
+            QUICKSTART_DOCS_MD: ('### 安装 FPC (FreePascal 编译器)', '### 安装 Lazarus IDE (可选)'),
+            QUICKSTART_DOCS_EN_MD: ('### Install FPC (FreePascal Compiler)', '### Install Lazarus IDE (Optional)'),
+        }
+        for path, (start, end) in expectations.items():
+            text = path.read_text(encoding='utf-8')
+            section = self._section(text, start, end)
+            self.assertIn('fpdev fpc install 3.2.2', section)
+            self.assertNotIn('fpdev fpc install 3.2.2 --from-source', section)
+
+    def test_faqs_explain_offline_no_cache_and_cache_list_recovery(self):
+        for path in [FAQ_ROOT_MD, FAQ_DOCS_MD, FAQ_DOCS_EN_MD]:
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('--offline', text, f'{path} should explain offline install behavior')
+            self.assertIn('--no-cache', text, f'{path} should explain no-cache behavior')
+            self.assertIn('fpdev fpc cache list', text, f'{path} should explain cache inspection recovery')
+
+    def test_readme_install_section_mentions_current_fpc_and_lazarus_contract(self):
+        text = README_MD.read_text(encoding='utf-8')
+        self.assertIn('fpdev fpc install 3.2.2', text)
+        self.assertIn('fpdev fpc install 3.2.2 --offline', text)
+        self.assertIn('fpdev fpc install 3.2.2 --no-cache', text)
+        self.assertIn('fpdev lazarus install 3.0', text)
+        self.assertIn('回退到源码构建', text)
+
+    def test_manifest_usage_mentions_binary_acquisition_fallback_and_cache_modes(self):
+        text = MANIFEST_USAGE_MD.read_text(encoding='utf-8')
+        self.assertIn('fpdev-repo', text)
+        self.assertIn('SourceForge', text)
+        self.assertIn('fpdev fpc install 3.2.2 --offline', text)
+        self.assertIn('fpdev fpc install 3.2.2 --no-cache', text)
+        self.assertIn('fpdev fpc install 3.2.2 --from-source', text)
 
     def test_command_registration_guidance_no_longer_points_to_lpr_imports(self):
         for path in [CLAUDE_MD, AGENTS_MD]:

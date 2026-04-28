@@ -5,10 +5,8 @@ unit fpdev.cmd.package.info;
 interface
 
 uses
-  SysUtils, Classes,
-  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
-  fpdev.package.types,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  SysUtils,
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager;
 
 type
   TPackageInfoCommand = class(TInterfacedObject, ICommand)
@@ -21,7 +19,8 @@ type
 
 implementation
 
-uses fpdev.command.utils;
+uses
+  fpdev.package.infocommandflow;
 
 function TPackageInfoCommand.Name: string; begin Result := 'info'; end;
 function TPackageInfoCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -35,70 +34,28 @@ end;
 function TPackageInfoCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TPackageManager;
-  Pkg: string;
-  InstalledPkgs: TPackageArray;
-  IsInstalled: Boolean;
-  UnknownOption: string;
-  i: Integer;
+  LPlan: TPackageInfoCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := EXIT_OK;
-
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_INFO_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_INFO_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_INFO_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_INFO_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if Length(AParams) < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_INFO_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  Pkg := AParams[0];
-  if Trim(Pkg) = '' then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_INFO_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  for i := 1 to High(AParams) do
-    if (AParams[i] <> '') and (AParams[i][1] <> '-') then
-    begin
-      Ctx.Err.WriteLn(_(HELP_PACKAGE_INFO_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
+  Result := PreparePackageInfoCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
-    InstalledPkgs := LMgr.GetInstalledPackageList;
-    IsInstalled := False;
-    for i := 0 to High(InstalledPkgs) do
-      if SameText(InstalledPkgs[i].Name, Pkg) then
-      begin
-        IsInstalled := True;
-        Break;
-      end;
-    if not IsInstalled then
-    begin
-      Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [Pkg]));
-      Exit(EXIT_NOT_FOUND);
-    end;
-
-    if LMgr.ShowPackageInfo(Pkg, Ctx.Out) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecutePackageInfoCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LMgr.GetInstalledPackageList,
+      @LMgr.ShowPackageInfo
+    );
   finally
     LMgr.Free;
   end;

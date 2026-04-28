@@ -323,6 +323,69 @@ begin
       'sourceforge calls=' + IntToStr(Probe.SourceForgeCalls));
     Check('failed flow skips sourceforge summary', not OutBuf.Contains('Installation Summary'),
       'unexpected installation summary');
+    Check('failed flow reports final fallback failure',
+      ErrBuf.Contains('[FAIL] Binary acquisition failed for FPC 3.2.5'),
+      'missing final fallback failure summary');
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestManifestExceptionFallsBackToRepo;
+var
+  Probe: TBinaryFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OK: Boolean;
+begin
+  Probe := TBinaryFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  try
+    Probe.RaiseOnManifest := True;
+    Probe.RepoResult := True;
+
+    OK := ExecuteFPCBinaryInstallFlow('3.2.6', 'linux-x86_64', '/tmp/fpc-3.2.6',
+      OutBuf, ErrBuf, @Probe.InstallFromManifest, @Probe.TryInstallFromRepo,
+      @Probe.InstallFromSourceForge);
+
+    Check('manifest exception fallback returns true', OK, 'expected repo fallback success');
+    Check('manifest exception still counts manifest call', Probe.ManifestCalls = 1,
+      'manifest calls=' + IntToStr(Probe.ManifestCalls));
+    Check('manifest exception continues to repo', Probe.RepoCalls = 1,
+      'repo calls=' + IntToStr(Probe.RepoCalls));
+    Check('manifest exception skips sourceforge after repo success', Probe.SourceForgeCalls = 0,
+      'sourceforge calls=' + IntToStr(Probe.SourceForgeCalls));
+  finally
+    Probe.Free;
+  end;
+end;
+
+procedure TestRepoExceptionFallsBackToSourceForge;
+var
+  Probe: TBinaryFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OK: Boolean;
+begin
+  Probe := TBinaryFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  try
+    Probe.ManifestResult := False;
+    Probe.RaiseOnRepo := True;
+    Probe.SourceForgeResult := True;
+
+    OK := ExecuteFPCBinaryInstallFlow('3.2.7', 'linux-x86_64', '/tmp/fpc-3.2.7',
+      OutBuf, ErrBuf, @Probe.InstallFromManifest, @Probe.TryInstallFromRepo,
+      @Probe.InstallFromSourceForge);
+
+    Check('repo exception fallback returns true', OK, 'expected sourceforge fallback success');
+    Check('repo exception still counts repo call', Probe.RepoCalls = 1,
+      'repo calls=' + IntToStr(Probe.RepoCalls));
+    Check('repo exception continues to sourceforge', Probe.SourceForgeCalls = 1,
+      'sourceforge calls=' + IntToStr(Probe.SourceForgeCalls));
+    Check('repo exception still prints sourceforge summary',
+      OutBuf.Contains('Binary package installed from SourceForge'),
+      'missing sourceforge summary after repo exception');
   finally
     Probe.Free;
   end;
@@ -363,6 +426,8 @@ begin
   TestRepoFallbackUsesPlatformAndPath;
   TestSourceForgeFallbackPrintsSummary;
   TestAllFallbacksFail;
+  TestManifestExceptionFallsBackToRepo;
+  TestRepoExceptionFallsBackToSourceForge;
   TestExceptionsReportInstallerFailure;
 
   WriteLn;

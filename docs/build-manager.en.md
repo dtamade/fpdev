@@ -256,6 +256,36 @@ These scripts will:
 - Gradually refine sandbox structure checklist (share/, fpc.cfg, etc.)
 - Optional: Introduce configuration to enable real builds (when explicitly allowed by user)
 
+## Full Toolchain Real-Rehearsal Runbook
+
+BuildManager defaults to "dry-run + sandbox install" for safety. When the host toolchain is ready, use this current-worktree sequence:
+
+1) Toolchain health check first
+- Windows: `scripts\check_toolchain.bat`
+- Unix: `bash scripts/check_toolchain.sh`
+- Output: `logs/check/toolchain_*.txt`
+
+2) Dry-run example pass
+- Windows: `scripts\run_examples.bat`
+- Unix: `bash scripts/run_examples.sh`
+- Behavior: example programs compile and run with dry-run enabled, so `make` is not executed and logs go to `logs/examples/`
+
+3) Real rehearsal inside sandbox only
+- Windows: `scripts\run_examples_real.bat`
+- Unix: `bash scripts/run_examples_real.sh`
+- Behavior: the script exports `REAL=1`, examples switch out of dry-run mode, and installation stays under `plays/.sandbox`
+- Logs: `logs/examples/real/`
+
+4) Cross-build knobs worth checking before a real run
+- `SetMakeCmd(...)` to pin the expected `make` binary
+- `SetTarget(...)` to lock CPU/OS for cross builds
+- `SetPrefix(...)` to keep install layout predictable inside the rehearsal sandbox
+
+Recommended order:
+- `check_toolchain`
+- dry-run examples
+- real rehearsal only after the dry-run command line and prefix layout look correct
+
 ---
 
 **Last Updated**: 2026-02-10

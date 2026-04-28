@@ -15,21 +15,9 @@ class StyleRegressionBatch16Tests(unittest.TestCase):
         ]
         self.assertEqual([], offenders, f'Overlong lines found: {offenders}')
 
-    def test_fpc_verifier_style(self):
+    def test_legacy_fpc_verifier_unit_removed(self):
         source_path = REPO_ROOT / 'src' / 'fpdev.fpc.verifier.pas'
-        lines = source_path.read_text(encoding='utf-8').splitlines()
-        overlong = [
-            (lineno, len(line))
-            for lineno, line in enumerate(lines, start=1)
-            if len(line) > 120
-        ]
-        trailing = [
-            (lineno, line)
-            for lineno, line in enumerate(lines, start=1)
-            if (line.strip() != '') and (line.rstrip(' \t') != line)
-        ]
-        self.assertEqual([], overlong, f'Overlong lines found: {overlong}')
-        self.assertEqual([], trailing, f'Trailing whitespace found: {trailing}')
+        self.assertFalse(source_path.exists(), 'legacy verifier unit should be removed')
 
     def test_config_managers_has_no_tabs(self):
         source_path = REPO_ROOT / 'src' / 'fpdev.config.managers.pas'

@@ -55,16 +55,6 @@ begin
   end
   else
     WriteLine(AErr, '  Warning: Environment setup incomplete');
-  WriteLine(AOut);
-
-  WriteLine(AOut, '===========================================');
-  WriteLine(AOut, 'Installation completed!');
-  WriteLine(AOut, 'FPC ' + AVersion + ' installed to: ' + AInstallPath);
-  WriteLine(AOut);
-  WriteLine(AOut, 'To activate this version, run:');
-  WriteLine(AOut, '  fpdev fpc use ' + AVersion);
-  WriteLine(AOut, '===========================================');
-
   if Assigned(ACache) and not ANoCache then
   begin
     Result.CacheAttempted := True;

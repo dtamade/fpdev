@@ -87,6 +87,46 @@ type
 var
   PassCount: Integer = 0;
   FailCount: Integer = 0;
+  CurrentHarness: TPackageFacadeHarness = nil;
+
+function EnsureMetadataFileShim(const APackageName, ASourceDir, AMetaPath: string;
+  out ACreated: Boolean; out AError: string): Boolean;
+begin
+  Result := CurrentHarness.EnsureMetadataFile(
+    APackageName, ASourceDir, AMetaPath, ACreated, AError
+  );
+end;
+
+function ResolvePublishMetadataShim(const AInstallPath, ADefaultVersion: string;
+  out AVersion, AArchiveSourcePath, ASourcePathFromMeta: string;
+  out AStatus: TPackageMetadataLoadStatus; out AError: string): Boolean;
+begin
+  Result := CurrentHarness.ResolvePublishMetadata(
+    AInstallPath,
+    ADefaultVersion,
+    AVersion,
+    AArchiveSourcePath,
+    ASourcePathFromMeta,
+    AStatus,
+    AError
+  );
+end;
+
+function HandleMetadataFailureShim(AStatus: TPackageMetadataLoadStatus;
+  const AError: string; Errp: IOutput): Integer;
+begin
+  Result := CurrentHarness.HandleMetadataFailure(AStatus, AError, Errp);
+end;
+
+function CreateArchiveShim(const APackageName, AVersion, AArchiveSourcePath,
+  AInstallRoot: string; Outp, Errp: IOutput; out AArchivePath: string;
+  out AExitCode: Integer): Boolean;
+begin
+  Result := CurrentHarness.CreateArchive(
+    APackageName, AVersion, AArchiveSourcePath, AInstallRoot,
+    Outp, Errp, AArchivePath, AExitCode
+  );
+end;
 
 constructor TStringOutput.Create;
 begin
@@ -337,14 +377,16 @@ var
 begin
   Harness := TPackageFacadeHarness.Create;
   Harness.ValidatePackageResult := False;
+  CurrentHarness := Harness;
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
     OK := ExecutePackageCreateCore('bad!', '/tmp/src', '/tmp/cwd', Outp, Errp,
-      @Harness.ValidatePackageName, @Harness.DirectoryExistsAt, @Harness.EnsureMetadataFile);
+      @Harness.ValidatePackageName, @Harness.DirectoryExistsAt, @EnsureMetadataFileShim);
     Check('create rejects invalid name', not OK, 'unexpected success');
     Check('create emits invalid name error', Errp.Contains(_Fmt(CMD_PKG_INVALID_NAME, ['bad!'])), Errp.Text);
   finally
+    CurrentHarness := nil;
     Harness.Free;
   end;
 end;
@@ -360,17 +402,19 @@ begin
   Harness.DirectoryExistsResult := True;
   Harness.EnsureMetadataResult := True;
   Harness.MetadataCreated := True;
+  CurrentHarness := Harness;
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
     OK := ExecutePackageCreateCore('demo', '/tmp/src', '/tmp/cwd', Outp, Errp,
-      @Harness.ValidatePackageName, @Harness.DirectoryExistsAt, @Harness.EnsureMetadataFile);
+      @Harness.ValidatePackageName, @Harness.DirectoryExistsAt, @EnsureMetadataFileShim);
     Check('create succeeds when metadata helper succeeds', OK, 'unexpected failure');
     Check('create passes source dir', Harness.LastSourceDir = ExpandFileName('/tmp/src'), Harness.LastSourceDir);
     Check('create writes created json message', Outp.Contains(_Fmt(MSG_PKG_CREATED_JSON, [IncludeTrailingPathDelimiter(ExpandFileName('/tmp/src')) + 'package.json'])), Outp.Text);
     Check('create writes success message', Outp.Contains(_Fmt(MSG_PKG_CREATE_SUCCESS, ['demo'])), Outp.Text);
     Check('create writes next steps', Outp.Contains(_(MSG_PKG_NEXT_STEPS)), Outp.Text);
   finally
+    CurrentHarness := nil;
     Harness.Free;
   end;
 end;
@@ -384,16 +428,18 @@ var
 begin
   Harness := TPackageFacadeHarness.Create;
   Harness.IsInstalledResult := False;
+  CurrentHarness := Harness;
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
     OK := ExecutePackagePublishCore('demo', '1.0.0', '/tmp/install-root', Outp, Errp,
-      @Harness.IsInstalled, @Harness.GetInstallPath, @Harness.ResolvePublishMetadata,
-      @Harness.HandleMetadataFailure, @Harness.CreateArchive, ExitCode);
+      @Harness.IsInstalled, @Harness.GetInstallPath, @ResolvePublishMetadataShim,
+      @HandleMetadataFailureShim, @CreateArchiveShim, ExitCode);
     Check('publish fails when package not installed', not OK, 'unexpected success');
     Check('publish returns not found exit code', ExitCode = EXIT_NOT_FOUND, 'exit=' + IntToStr(ExitCode));
     Check('publish emits not found error', Errp.Contains(_Fmt(CMD_PKG_NOT_FOUND, ['demo'])), Errp.Text);
   finally
+    CurrentHarness := nil;
     Harness.Free;
   end;
 end;
@@ -412,16 +458,18 @@ begin
   Harness.PublishStatus := pmlsMissing;
   Harness.PublishError := 'meta missing';
   Harness.HandleMetaFailureExitCode := EXIT_IO_ERROR;
+  CurrentHarness := Harness;
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
     OK := ExecutePackagePublishCore('demo', '1.0.0', '/tmp/install-root', Outp, Errp,
-      @Harness.IsInstalled, @Harness.GetInstallPath, @Harness.ResolvePublishMetadata,
-      @Harness.HandleMetadataFailure, @Harness.CreateArchive, ExitCode);
+      @Harness.IsInstalled, @Harness.GetInstallPath, @ResolvePublishMetadataShim,
+      @HandleMetadataFailureShim, @CreateArchiveShim, ExitCode);
     Check('publish fails when metadata resolve fails', not OK, 'unexpected success');
     Check('publish uses metadata failure exit code', ExitCode = EXIT_IO_ERROR, 'exit=' + IntToStr(ExitCode));
     Check('publish records install path for metadata resolution', Harness.LastPath = '/tmp/install-root/demo', Harness.LastPath);
   finally
+    CurrentHarness := nil;
     Harness.Free;
   end;
 end;
@@ -442,12 +490,13 @@ begin
   Harness.CreateArchiveResult := True;
   Harness.CreateArchiveExitCode := EXIT_OK;
   Harness.CreateArchivePath := '/tmp/install-root/publish/demo-2.0.0.tar.gz';
+  CurrentHarness := Harness;
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
     OK := ExecutePackagePublishCore('demo', '1.0.0', '/tmp/install-root', Outp, Errp,
-      @Harness.IsInstalled, @Harness.GetInstallPath, @Harness.ResolvePublishMetadata,
-      @Harness.HandleMetadataFailure, @Harness.CreateArchive, ExitCode);
+      @Harness.IsInstalled, @Harness.GetInstallPath, @ResolvePublishMetadataShim,
+      @HandleMetadataFailureShim, @CreateArchiveShim, ExitCode);
     Check('publish succeeds when archive creation succeeds', OK, 'unexpected failure');
     Check('publish keeps archive exit code', ExitCode = EXIT_OK, 'exit=' + IntToStr(ExitCode));
     Check('publish passes package name to archive creator', Harness.LastArchivePackageName = 'demo', Harness.LastArchivePackageName);
@@ -455,6 +504,7 @@ begin
     Check('publish passes source path to archive creator', Harness.LastArchiveSourcePath = '/tmp/install-root/demo/src', Harness.LastArchiveSourcePath);
     Check('publish passes install root to archive creator', Harness.LastInstallRoot = '/tmp/install-root', Harness.LastInstallRoot);
   finally
+    CurrentHarness := nil;
     Harness.Free;
   end;
 end;

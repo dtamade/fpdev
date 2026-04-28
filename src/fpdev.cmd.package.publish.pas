@@ -24,10 +24,8 @@ unit fpdev.cmd.package.publish;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser,
-  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.package.types,
-  fpdev.utils.fs, fpdev.exitcodes;
+  SysUtils, Classes, fpjson,
+  fpdev.command.intf, fpdev.package.registry;
 
 type
   { TPackagePublishCommand - Functional class for package publishing }
@@ -76,7 +74,14 @@ type
 
 implementation
 
-uses fpdev.command.utils;
+uses
+  jsonparser,
+  fpdev.command.registry,
+  fpdev.package.manager,
+  fpdev.package.publishcommandflow,
+  fpdev.i18n,
+  fpdev.i18n.strings,
+  fpdev.utils.fs;
 
 { TPackagePublishCommand }
 
@@ -445,86 +450,29 @@ end;
 function TPackagePublishCmd.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TPackageManager;
-  Pkg: string;
-  InstalledPkgs: TPackageArray;
-  IsInstalled: Boolean;
-  PkgInstallPath: string;
-  MetadataPath: string;
-  UnknownOption: string;
-  i: Integer;
+  LPlan: TPackagePublishCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := EXIT_OK;
-
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_PUBLISH_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_PUBLISH_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if Length(AParams) < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  Pkg := AParams[0];
-  if Trim(Pkg) = '' then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-  for i := 1 to High(AParams) do
-    if (AParams[i] <> '') and (AParams[i][1] <> '-') then
-    begin
-      Ctx.Err.WriteLn(_(HELP_PACKAGE_PUBLISH_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
+  Result := PreparePackagePublishCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
-    InstalledPkgs := LMgr.GetInstalledPackageList;
-    IsInstalled := False;
-    PkgInstallPath := '';
-    for i := 0 to High(InstalledPkgs) do
-      if SameText(InstalledPkgs[i].Name, Pkg) then
-      begin
-        IsInstalled := True;
-        PkgInstallPath := InstalledPkgs[i].InstallPath;
-        Break;
-      end;
-    if not IsInstalled then
-    begin
-      Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_NOT_FOUND, [Pkg]));
-      Exit(EXIT_NOT_FOUND);
-    end;
-    if PkgInstallPath <> '' then
-    begin
-      MetadataPath := IncludeTrailingPathDelimiter(PkgInstallPath) + 'package.json';
-      if not FileExists(MetadataPath) then
-      begin
-        Ctx.Err.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_PKG_META_NOT_FOUND,
-          [_(MSG_PKG_META_HINT)]));
-        Exit(EXIT_NOT_FOUND);
-      end;
-    end;
-
-    if LMgr.PublishPackage(Pkg, Ctx.Out, Ctx.Err) then
-      Exit(EXIT_OK);
-    Result := LMgr.GetLastPublishExitCode;
-    if Result = EXIT_OK then
-      Result := EXIT_ERROR;
+    Result := ExecutePackagePublishCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LMgr.GetInstalledPackageList,
+      @LMgr.PublishPackage,
+      @LMgr.GetLastPublishExitCode
+    );
   finally
     LMgr.Free;
   end;

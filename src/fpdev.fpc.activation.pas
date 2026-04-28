@@ -34,19 +34,11 @@ interface
 
 uses
   SysUtils, Classes, fpjson, jsonparser,
-  fpdev.config.interfaces, fpdev.types, fpdev.utils, fpdev.utils.fs, fpdev.constants,
+  fpdev.config.interfaces, fpdev.types, fpdev.fpc.types, fpdev.utils, fpdev.utils.fs, fpdev.constants,
   fpdev.paths;
 
 type
-  { TActivationResult - Result of version activation operation }
-  TActivationResult = record
-    Success: Boolean;
-    Scope: TInstallScope;
-    ActivationScript: string;  // Main activation script path (.cmd or .sh)
-    VSCodeSettings: string;     // VS Code settings.json path (if created)
-    ShellCommand: string;       // Shell command to print to user
-    ErrorMessage: string;
-  end;
+  TActivationResult = fpdev.fpc.types.TActivationResult;
 
   { TFPCActivationManager - FPC environment activation service }
   TFPCActivationManager = class

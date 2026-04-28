@@ -37,8 +37,8 @@ interface
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
-  fpdev.utils.process, fpdev.utils.git, fpdev.git.runtime, fpdev.resource.repo, fpdev.constants,
-  fpdev.build.toolchain,
+  fpdev.utils.process, fpdev.git.types, fpdev.git.runtime, fpdev.resource.repo, fpdev.constants,
+  fpdev.build.toolchain, fpdev.fpc.builderflow,
   fpdev.fpc.types, fpdev.config, fpdev.paths;
 
 type
@@ -74,6 +74,27 @@ type
       const ATargetVersion, ARequiredVersion: string;
       out AResolvedVersion, AResolvedCompiler: string
     ): Boolean;
+    function EnsureResourceRepository: Boolean;
+    function HasResourceRepositoryBootstrapCompiler(
+      const AVersion, APlatform: string
+    ): Boolean;
+    function FindBestResourceRepositoryBootstrapVersion(
+      const AFPCVersion, APlatform: string
+    ): string;
+    function InstallBootstrapFromResourceRepository(
+      const AVersion, APlatform, ADestDir: string
+    ): Boolean;
+    function SourceDirectoryExists(const APath: string): Boolean;
+    procedure PrepareSourceTree(const ASourceDir: string);
+    procedure EnsureInstallDirectoryExists(const APath: string);
+    function ResolveBuildPlan(
+      const AInstallDir, ABootstrapFPC: string;
+      const AParallelJobs: Integer
+    ): TFPCBuilderBuildPlan;
+    function ExecuteBuildPlan(
+      const ABuildPlan: TFPCBuilderBuildPlan;
+      const ASourceDir: string
+    ): TProcessResult;
 
   public
     constructor Create(AConfigManager: IConfigManager;
@@ -141,7 +162,8 @@ implementation
 
 uses
   fpdev.i18n, fpdev.i18n.strings, fpdev.output.console,
-  fpdev.version.registry, fpdev.fpc.installversionflow, fpdev.resource.repo.bootstrap;
+  fpdev.version.registry, fpdev.fpc.installversionflow,
+  fpdev.resource.repo.bootstrap;
 
 { TFPCSourceBuilder }
 
@@ -443,6 +465,113 @@ begin
   end;
 end;
 
+function TFPCSourceBuilder.EnsureResourceRepository: Boolean;
+begin
+  if not Assigned(FResourceRepo) then
+  begin
+    FResourceRepo := TResourceRepository.Create(CreateDefaultConfig);
+    if not FResourceRepo.Initialize then
+    begin
+      FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_REPO_INIT_FAILED));
+      FResourceRepo.Free;
+      FResourceRepo := nil;
+    end;
+  end;
+
+  Result := Assigned(FResourceRepo);
+end;
+
+function TFPCSourceBuilder.HasResourceRepositoryBootstrapCompiler(
+  const AVersion, APlatform: string
+): Boolean;
+begin
+  Result := Assigned(FResourceRepo) and
+    FResourceRepo.HasBootstrapCompiler(AVersion, APlatform);
+end;
+
+function TFPCSourceBuilder.FindBestResourceRepositoryBootstrapVersion(
+  const AFPCVersion, APlatform: string
+): string;
+begin
+  if Assigned(FResourceRepo) then
+    Result := FResourceRepo.FindBestBootstrapVersion(AFPCVersion, APlatform)
+  else
+    Result := '';
+end;
+
+function TFPCSourceBuilder.InstallBootstrapFromResourceRepository(
+  const AVersion, APlatform, ADestDir: string
+): Boolean;
+begin
+  Result := Assigned(FResourceRepo) and
+    FResourceRepo.InstallBootstrap(AVersion, APlatform, ADestDir);
+end;
+
+function TFPCSourceBuilder.SourceDirectoryExists(const APath: string): Boolean;
+begin
+  Result := DirectoryExists(APath);
+end;
+
+procedure TFPCSourceBuilder.PrepareSourceTree(const ASourceDir: string);
+begin
+  FPCBuilderInvalidateCompilerMessageIncludesCore(ASourceDir);
+  FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(ASourceDir);
+end;
+
+procedure TFPCSourceBuilder.EnsureInstallDirectoryExists(const APath: string);
+begin
+  if not DirectoryExists(APath) then
+    EnsureDir(APath);
+end;
+
+function TFPCSourceBuilder.ResolveBuildPlan(
+  const AInstallDir, ABootstrapFPC: string;
+  const AParallelJobs: Integer
+): TFPCBuilderBuildPlan;
+var
+  BuildPlan: TFPCSourceBuildPlan;
+  ToolchainChecker: TBuildToolchainChecker;
+  I: Integer;
+begin
+  ToolchainChecker := TBuildToolchainChecker.Create(False);
+  try
+    BuildPlan := CreateFPCSourceBuildPlanCore(
+      AInstallDir,
+      ABootstrapFPC,
+      AParallelJobs,
+      ToolchainChecker.ResolveMakeCmd,
+      {$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}
+    );
+  finally
+    ToolchainChecker.Free;
+  end;
+
+  Result.MakeCommand := BuildPlan.MakeCommand;
+  SetLength(Result.Params, Length(BuildPlan.Params));
+  for I := 0 to High(BuildPlan.Params) do
+    Result.Params[I] := BuildPlan.Params[I];
+end;
+
+function TFPCSourceBuilder.ExecuteBuildPlan(
+  const ABuildPlan: TFPCBuilderBuildPlan;
+  const ASourceDir: string
+): TProcessResult;
+var
+  BuildArgs: TFPCSourceBuildArgs;
+  I: Integer;
+begin
+  BuildArgs := nil;
+  SetLength(BuildArgs, Length(ABuildPlan.Params));
+  for I := 0 to High(ABuildPlan.Params) do
+    BuildArgs[I] := ABuildPlan.Params[I];
+
+  Result := TProcessExecutor.RunDirect(
+    ABuildPlan.MakeCommand,
+    BuildArgs,
+    ASourceDir
+  );
+end;
+
 function TFPCSourceBuilder.GetCurrentFPCVersion: string;
 begin
   Result := GetCompilerVersion('fpc');
@@ -514,135 +643,31 @@ end;
 
 function TFPCSourceBuilder.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
 var
-  RequiredVersion: string;
-  BestVersion: string;
-  CurrentVersion: string;
-  BootstrapPath: string;
-  InstalledBootstrapVersion: string;
-  InstalledBootstrapExe: string;
-  Platform: string;
+  BootstrapState: TFPCBuilderBootstrapState;
+  BootstrapCallbacks: TFPCBuilderBootstrapCallbacks;
 begin
-  Result := False;
-  Platform := GetCurrentPlatform;
+  BootstrapState := Default(TFPCBuilderBootstrapState);
+  BootstrapCallbacks := Default(TFPCBuilderBootstrapCallbacks);
+  BootstrapState.TargetVersion := ATargetVersion;
+  BootstrapState.Platform := GetCurrentPlatform;
 
-  RequiredVersion := GetRequiredBootstrapVersion(ATargetVersion);
-  if RequiredVersion = '' then
-  begin
-    FOut.WriteLn('Note: No specific bootstrap compiler required for ' + ATargetVersion);
-    Result := True;
-    Exit;
-  end;
+  BootstrapCallbacks.GetRequiredBootstrapVersion := @GetRequiredBootstrapVersion;
+  BootstrapCallbacks.GetCurrentCompilerVersion := @GetCurrentFPCVersion;
+  BootstrapCallbacks.CanUseSystemCompiler := @FPCBuilderCanUseSystemCompilerAsBootstrapCore;
+  BootstrapCallbacks.TryResolveInstalledBootstrapCompiler := @TryResolveInstalledBootstrapCompiler;
+  BootstrapCallbacks.IsBootstrapAvailable := @IsBootstrapAvailable;
+  BootstrapCallbacks.GetBootstrapCompilerPath := @GetBootstrapCompilerPath;
+  BootstrapCallbacks.EnsureResourceRepository := @EnsureResourceRepository;
+  BootstrapCallbacks.HasResourceRepositoryBootstrapCompiler := @HasResourceRepositoryBootstrapCompiler;
+  BootstrapCallbacks.FindBestResourceRepositoryBootstrapVersion := @FindBestResourceRepositoryBootstrapVersion;
+  BootstrapCallbacks.InstallBootstrapFromResourceRepository := @InstallBootstrapFromResourceRepository;
 
-  FOut.WriteLn('Target FPC version ' + ATargetVersion + ' requires bootstrap compiler ' + RequiredVersion);
-
-  // Check if current system FPC is available and sufficient
-  CurrentVersion := GetCurrentFPCVersion;
-  if CurrentVersion <> '' then
-  begin
-    FOut.WriteLn('Current system FPC version: ' + CurrentVersion);
-
-    if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion, CurrentVersion, RequiredVersion) then
-    begin
-      FOut.WriteLn('OK: System FPC version ' + CurrentVersion + ' is bootstrap-compatible');
-      Result := True;
-      Exit;
-    end
-    else
-      FOut.WriteLn(
-        'System FPC version ' + CurrentVersion +
-        ' is not bootstrap-compatible with target ' + ATargetVersion
-      );
-  end
-  else
-    FOut.WriteLn('No system FPC compiler found');
-
-  if TryResolveInstalledBootstrapCompiler(ATargetVersion, RequiredVersion,
-    InstalledBootstrapVersion, InstalledBootstrapExe) then
-  begin
-    FOut.WriteLn('OK: Installed bootstrap compiler available at: ' + InstalledBootstrapExe);
-    Result := True;
-    Exit;
-  end;
-
-  // Check if we have the bootstrap compiler downloaded
-  if IsBootstrapAvailable(RequiredVersion) then
-  begin
-    BootstrapPath := GetBootstrapCompilerPath(RequiredVersion);
-    FOut.WriteLn('OK: Bootstrap compiler available at: ' + BootstrapPath);
-    Result := True;
-    Exit;
-  end;
-
-  // Try to download from resource repository
-  FOut.WriteLn('Bootstrap compiler ' + RequiredVersion + ' not found locally');
-  FOut.WriteLn('Attempting to download from resource repository...');
-  FOut.WriteLn;
-
-  if not Assigned(FResourceRepo) then
-  begin
-    FResourceRepo := TResourceRepository.Create(CreateDefaultConfig);
-    if not FResourceRepo.Initialize then
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_REPO_INIT_FAILED));
-      FResourceRepo.Free;
-      FResourceRepo := nil;
-    end;
-  end;
-
-  if Assigned(FResourceRepo) then
-  begin
-    if FResourceRepo.HasBootstrapCompiler(RequiredVersion, Platform) then
-    begin
-      FOut.WriteLn('OK: Bootstrap compiler ' + RequiredVersion + ' found in resource repository');
-      BootstrapPath := GetBootstrapCompilerPath(RequiredVersion);
-
-      if FResourceRepo.InstallBootstrap(RequiredVersion, Platform, ExtractFileDir(BootstrapPath)) then
-      begin
-        FOut.WriteLn('OK: Bootstrap compiler downloaded and installed successfully');
-        FOut.WriteLn('  Location: ' + BootstrapPath);
-        Result := True;
-        Exit;
-      end
-      else
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_BOOTSTRAP_INSTALL_FAILED, ['from repository']));
-    end
-    else
-    begin
-      FOut.WriteLn('Exact version ' + RequiredVersion + ' not available, searching for alternatives...');
-      BestVersion := FResourceRepo.FindBestBootstrapVersion(ATargetVersion, Platform);
-
-      if BestVersion <> '' then
-      begin
-        FOut.WriteLn('OK: Found alternative bootstrap compiler: ' + BestVersion);
-        BootstrapPath := GetBootstrapCompilerPath(BestVersion);
-
-        if FResourceRepo.InstallBootstrap(BestVersion, Platform, ExtractFileDir(BootstrapPath)) then
-        begin
-          FOut.WriteLn('OK: Bootstrap compiler ' + BestVersion + ' installed successfully');
-          FOut.WriteLn('  Location: ' + BootstrapPath);
-          Result := True;
-          Exit;
-        end
-        else
-          FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_BOOTSTRAP_INSTALL_FAILED, [BestVersion]));
-      end
-      else
-        FErr.WriteLn('No bootstrap compiler available for platform ' + Platform);
-    end;
-  end;
-
-  // All methods failed - show manual instructions
-  FErr.WriteLn;
-  FErr.WriteLn('Unable to automatically download bootstrap compiler.');
-  FErr.WriteLn('To build FPC ' + ATargetVersion + ' from source, you need FPC ' + RequiredVersion);
-  FErr.WriteLn;
-  FErr.WriteLn('Options:');
-  FErr.WriteLn('  1. Install FPC ' + RequiredVersion + ' system-wide');
-  FErr.WriteLn('  2. Contact maintainer to add bootstrap compiler to resource repository');
-  FErr.WriteLn('  3. Use binary installation instead of source build');
-  FErr.WriteLn;
-
-  Result := False;
+  Result := ExecuteFPCBuilderEnsureBootstrapCore(
+    BootstrapState,
+    FOut,
+    FErr,
+    BootstrapCallbacks
+  );
 end;
 
 function TFPCSourceBuilder.DownloadSource(const AVersion, ATargetDir: string): Boolean;
@@ -668,7 +693,7 @@ begin
     if not DirectoryExists(ExtractFileDir(ATargetDir)) then
       EnsureDir(ExtractFileDir(ATargetDir));
 
-    Git := TGitRuntime.Create;
+    Git := NewGitRuntime;
     try
       if Git.Backend = gbNone then
       begin
@@ -686,7 +711,7 @@ begin
         begin
           FOut.WriteLn('Source directory exists, updating to tag: ' + GitTag);
 
-          // Fetch updates and checkout the requested tag (libgit2-first, CLI fallback inside TGitOperations)
+          // Fetch updates and checkout the requested tag via the unified git runtime.
           if not Git.Fetch(ATargetDir, 'origin') then
           begin
             FErr.WriteLn(_(MSG_ERROR) + ': Git fetch failed: ' + Git.LastError);
@@ -742,111 +767,30 @@ end;
 
 function TFPCSourceBuilder.BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;
 var
-  LResult: fpdev.utils.process.TProcessResult;
+  BuildState: TFPCBuilderBuildState;
+  BuildCallbacks: TFPCBuilderBuildCallbacks;
   Settings: TFPDevSettings;
-  BootstrapFPC: string;
-  CurrentFPC: string;
-  InstalledBootstrapVersion: string;
-  RequiredBootstrapVersion: string;
-  TargetVersion: string;
-  BuildPlan: TFPCSourceBuildPlan;
-  ToolchainChecker: TBuildToolchainChecker;
-  ParamIndex: Integer;
 begin
-  Result := False;
+  Settings := FConfigManager.GetSettingsManager.GetSettings;
+  BuildState := Default(TFPCBuilderBuildState);
+  BuildCallbacks := Default(TFPCBuilderBuildCallbacks);
+  BuildState.SourceDir := ASourceDir;
+  BuildState.InstallDir := AInstallDir;
+  BuildState.TargetVersion := ResolveFPCSourceBuildTargetVersion(ASourceDir, AInstallDir);
+  BuildState.ParallelJobs := Settings.ParallelJobs;
 
-  if not DirectoryExists(ASourceDir) then
-  begin
-    FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_SOURCE_DIR_NOT_FOUND, [ASourceDir]));
-    Exit;
-  end;
+  BuildCallbacks.SourceDirectoryExists := @SourceDirectoryExists;
+  BuildCallbacks.PrepareSourceTree := @PrepareSourceTree;
+  BuildCallbacks.EnsureInstallDirectory := @EnsureInstallDirectoryExists;
+  BuildCallbacks.GetRequiredBootstrapVersion := @GetRequiredBootstrapVersion;
+  BuildCallbacks.GetCurrentCompilerVersion := @GetCurrentFPCVersion;
+  BuildCallbacks.CanUseSystemCompiler := @FPCBuilderCanUseSystemCompilerAsBootstrapCore;
+  BuildCallbacks.TryResolveInstalledBootstrapCompiler := @TryResolveInstalledBootstrapCompiler;
+  BuildCallbacks.ResolveBuildPlan := @ResolveBuildPlan;
+  BuildCallbacks.ExecuteBuildPlan := @ExecuteBuildPlan;
 
   try
-    FOut.WriteLn('Building FPC from source...');
-    FOut.WriteLn('Source directory: ' + ASourceDir);
-    FOut.WriteLn('Install directory: ' + AInstallDir);
-
-    // `msgtxt.inc` / `msgidx.inc` are generated files and can be stale in
-    // source checkouts; force make to regenerate them for the current tree.
-    FPCBuilderInvalidateCompilerMessageIncludesCore(ASourceDir);
-    // `fcl-web` in stable branches can pick up a stale/wrong `fpjwt.ppu`.
-    // Keep the JWT source path first and drop the cached unit before rebuilding.
-    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(ASourceDir);
-
-    if not DirectoryExists(AInstallDir) then
-      EnsureDir(AInstallDir);
-
-    Settings := FConfigManager.GetSettingsManager.GetSettings;
-    TargetVersion := ResolveFPCSourceBuildTargetVersion(ASourceDir, AInstallDir);
-
-    RequiredBootstrapVersion := GetRequiredBootstrapVersion(TargetVersion);
-    BootstrapFPC := '';
-    InstalledBootstrapVersion := '';
-    if TryResolveInstalledBootstrapCompiler(TargetVersion, RequiredBootstrapVersion,
-      InstalledBootstrapVersion, BootstrapFPC) then
-    begin
-      FOut.WriteLn('Using installed FPC ' + InstalledBootstrapVersion + ' as bootstrap compiler');
-      FOut.WriteLn('Bootstrap compiler: ' + BootstrapFPC);
-    end
-    else
-    begin
-      CurrentFPC := GetCurrentFPCVersion;
-      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(TargetVersion, CurrentFPC, RequiredBootstrapVersion) then
-      begin
-        FOut.WriteLn('Using system FPC ' + CurrentFPC + ' as bootstrap compiler');
-        BootstrapFPC := 'fpc';
-      end
-      else if CurrentFPC <> '' then
-      begin
-        FErr.WriteLn('Warning: System FPC ' + CurrentFPC + ' is not bootstrap-compatible with target ' + TargetVersion);
-        FErr.WriteLn('Build will likely fail without a compatible bootstrap compiler');
-        BootstrapFPC := '';
-      end
-      else
-      begin
-        FErr.WriteLn('Warning: No FPC compiler found');
-        FErr.WriteLn('Build will likely fail without a bootstrap compiler');
-        BootstrapFPC := '';
-      end;
-    end;
-
-    ToolchainChecker := TBuildToolchainChecker.Create(False);
-    try
-      BuildPlan := CreateFPCSourceBuildPlanCore(
-        AInstallDir,
-        BootstrapFPC,
-        Settings.ParallelJobs,
-        ToolchainChecker.ResolveMakeCmd,
-        {$IFDEF MSWINDOWS}True{$ELSE}False{$ENDIF}
-      );
-    finally
-      ToolchainChecker.Free;
-    end;
-
-    FOut.Write('Executing: ' + BuildPlan.MakeCommand);
-    for ParamIndex := 0 to High(BuildPlan.Params) do
-      FOut.Write(' ' + BuildPlan.Params[ParamIndex]);
-    FOut.WriteLn;
-
-    LResult := TProcessExecutor.RunDirect(BuildPlan.MakeCommand, BuildPlan.Params, ASourceDir);
-
-    Result := LResult.Success;
-    if not Result then
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_BUILD_FAILED, [LResult.ExitCode]));
-      FErr.WriteLn;
-      FErr.WriteLn('Common causes:');
-      FErr.WriteLn('  1. Wrong bootstrap compiler version (FPC builds require specific FPC versions)');
-      FErr.WriteLn('  2. Missing build dependencies (make, binutils, etc.)');
-      FErr.WriteLn;
-      FErr.WriteLn('To diagnose the issue, try running manually:');
-      FErr.WriteLn('  cd ' + ASourceDir);
-      FErr.WriteLn('  make all');
-      FErr.WriteLn;
-      FErr.WriteLn('Note: Building from source requires a compatible bootstrap FPC compiler.');
-      FErr.WriteLn('      Consider using binary installation if available.');
-    end;
-
+    Result := ExecuteFPCBuilderBuildFromSourceCore(BuildState, FOut, FErr, BuildCallbacks);
   except
     on E: Exception do
     begin

@@ -7,10 +7,16 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.commandflow;
 
 type
   TProjectTestCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunTestProject(
+      const Outp, Errp: IOutput;
+      const AProjectDir: string
+    ): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -19,8 +25,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils;
 
 function TProjectTestCommand.Name: string; begin Result := 'test'; end;
 function TProjectTestCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -31,49 +35,40 @@ begin
   Result := TProjectTestCommand.Create;
 end;
 
+function TProjectTestCommand.RunTestProject(
+  const Outp, Errp: IOutput;
+  const AProjectDir: string
+): Boolean;
+begin
+  Result := Assigned(FManager) and FManager.TestProject(Outp, Errp, AProjectDir);
+end;
+
 function TProjectTestCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LDir: string;
-  LMgr: TProjectManager;
-  UnknownOption: string;
+  LPlan: TProjectDirectoryCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectTestCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn(_(HELP_PROJECT_TEST_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PROJECT_TEST_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PROJECT_TEST_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PROJECT_TEST_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) > 1 then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PROJECT_TEST_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) > 0 then
-    LDir := GetPositionalArg(AParams, 0)
-  else
-    LDir := '.';
-
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.TestProject(Ctx.Out, Ctx.Err, LDir) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecuteProjectTestCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @RunTestProject
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

@@ -21,13 +21,40 @@ uses
   SysUtils, Classes, test_config_isolation, test_temp_paths,
   fpdev.command.intf, fpdev.command.registry, fpdev.command.context,
   fpdev.output.intf, fpdev.config.interfaces, fpdev.logger.intf,
-  fpdev.constants, fpdev.paths, fpdev.utils,
+  fpdev.constants, fpdev.paths, fpdev.utils, fpdev.exitcodes,
+  fpdev.index, fpdev.index.commandflow,
   fpdev.cmd.index, fpdev.cmd.index.status, fpdev.cmd.index.show, fpdev.cmd.index.update;
 
 var
   GTestCount: Integer = 0;
   GPassCount: Integer = 0;
   GFailCount: Integer = 0;
+
+type
+  TFakeIndexScenario = (
+    fisShowCacheFallback,
+    fisUpdateCacheFallback,
+    fisRemoteAndCacheFail
+  );
+
+  TFakeIndex = class(TFPDevIndex)
+  private
+    FScenario: TFakeIndexScenario;
+  public
+    constructor CreateForScenario(
+      const AMirrorPreference: string;
+      AScenario: TFakeIndexScenario
+    );
+    function Initialize: Boolean; override;
+    function GetRepoInfo(AType: TRepoType): TRepoInfo; override;
+    function GetChannelInfo(const AChannel: string): TChannelInfo; override;
+    function ListBootstrapVersions: TStringArray; override;
+    function ListFPCVersions: TStringArray; override;
+    function ListLazarusVersions: TStringArray; override;
+  end;
+
+var
+  GFakeIndexScenario: TFakeIndexScenario = fisShowCacheFallback;
 
 procedure Test(const AName: string; ACondition: Boolean);
 begin
@@ -50,6 +77,117 @@ begin
     set_env(AName, ASavedValue)
   else
     unset_env(AName);
+end;
+
+constructor TFakeIndex.CreateForScenario(
+  const AMirrorPreference: string;
+  AScenario: TFakeIndexScenario
+);
+begin
+  inherited Create(AMirrorPreference);
+  FScenario := AScenario;
+end;
+
+function TFakeIndex.Initialize: Boolean;
+begin
+  case FScenario of
+    fisShowCacheFallback,
+    fisUpdateCacheFallback:
+      begin
+        if Output <> nil then
+          Output.WriteLn(
+            'Warning: Failed to fetch index from remote, using cached index: /tmp/fpdev-cache/index.json'
+        );
+        Result := True;
+      end;
+    fisRemoteAndCacheFail:
+    begin
+      if Output <> nil then
+        Output.WriteLn(
+          'Warning: Failed to fetch index from remote and no cached index is available'
+        );
+      Result := False;
+    end;
+  end;
+end;
+
+function TFakeIndex.GetRepoInfo(AType: TRepoType): TRepoInfo;
+begin
+  Result := Default(TRepoInfo);
+  Result.RepoType := AType;
+  case AType of
+    rtBootstrap:
+      begin
+        Result.Name := 'fpdev-bootstrap';
+        Result.GitHubURL := 'https://github.com/dtamade/fpdev-bootstrap.git';
+        Result.GiteeURL := 'https://gitee.com/dtamade/fpdev-bootstrap.git';
+      end;
+    rtFPC:
+      begin
+        Result.Name := 'fpdev-fpc';
+        Result.GitHubURL := 'https://github.com/dtamade/fpdev-fpc.git';
+        Result.GiteeURL := 'https://gitee.com/dtamade/fpdev-fpc.git';
+      end;
+    rtLazarus:
+      begin
+        Result.Name := 'fpdev-lazarus';
+        Result.GitHubURL := 'https://github.com/dtamade/fpdev-lazarus.git';
+        Result.GiteeURL := 'https://gitee.com/dtamade/fpdev-lazarus.git';
+      end;
+    rtCross:
+      begin
+        Result.Name := 'fpdev-cross';
+        Result.GitHubURL := 'https://github.com/dtamade/fpdev-cross.git';
+        Result.GiteeURL := 'https://gitee.com/dtamade/fpdev-cross.git';
+      end;
+  end;
+end;
+
+function TFakeIndex.GetChannelInfo(const AChannel: string): TChannelInfo;
+begin
+  Result := Default(TChannelInfo);
+  Result.Name := AChannel;
+  if AChannel = 'stable' then
+  begin
+    Result.BootstrapRef := '3.2.2';
+    Result.FPCRef := '3.2.2';
+    Result.LazarusRef := '3.6';
+  end
+  else
+  begin
+    Result.BootstrapRef := 'main';
+    Result.FPCRef := 'main';
+    Result.LazarusRef := 'main';
+  end;
+end;
+
+function TFakeIndex.ListBootstrapVersions: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := '3.2.2';
+  Result[1] := '3.2.0';
+end;
+
+function TFakeIndex.ListFPCVersions: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := '3.2.2';
+  Result[1] := '3.2.0';
+end;
+
+function TFakeIndex.ListLazarusVersions: TStringArray;
+begin
+  Result := nil;
+  SetLength(Result, 2);
+  Result[0] := '3.6';
+  Result[1] := 'main';
+end;
+
+function CreateFakeIndexForScenario(const AMirrorPreference: string): TFPDevIndex;
+begin
+  Result := TFakeIndex.CreateForScenario(AMirrorPreference, GFakeIndexScenario);
 end;
 
 { Test output capture }
@@ -411,6 +549,71 @@ begin
   Test('No args shows help (contains Usage)', Pos('Usage:', Output) > 0);
 end;
 
+procedure TestShowUsesCacheFallbackWarningOutput;
+var
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+begin
+  GFakeIndexScenario := fisShowCacheFallback;
+  OutBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, OutBuf);
+
+  Ret := RunIndexShowWithFactory(Ctx, @CreateFakeIndexForScenario);
+  Output := OutBuf.GetBuffer;
+
+  Test('Show with cache fallback returns exit code 0', Ret = EXIT_OK);
+  Test('Show with cache fallback surfaces cached warning',
+    Pos('using cached index', LowerCase(Output)) > 0);
+  Test('Show with cache fallback still renders index details',
+    Pos('Index Details', Output) > 0);
+  Test('Show with cache fallback still renders available versions',
+    Pos('3.2.2', Output) > 0);
+end;
+
+procedure TestUpdateUsesCacheFallbackWarningOutput;
+var
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+begin
+  GFakeIndexScenario := fisUpdateCacheFallback;
+  OutBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, OutBuf);
+
+  Ret := RunIndexUpdateWithFactory(Ctx, @CreateFakeIndexForScenario);
+  Output := OutBuf.GetBuffer;
+
+  Test('Update with cache fallback returns exit code 0', Ret = EXIT_OK);
+  Test('Update with cache fallback surfaces cached warning',
+    Pos('using cached index', LowerCase(Output)) > 0);
+  Test('Update with cache fallback still reports success lines',
+    Pos('Index updated successfully.', Output) > 0);
+end;
+
+procedure TestUpdateFailsWhenRemoteAndCacheFail;
+var
+  OutBuf: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Output: string;
+begin
+  GFakeIndexScenario := fisRemoteAndCacheFail;
+  OutBuf := TStringOutput.Create;
+  Ctx := TTestContext.Create(OutBuf, OutBuf);
+
+  Ret := RunIndexUpdateWithFactory(Ctx, @CreateFakeIndexForScenario);
+  Output := OutBuf.GetBuffer;
+
+  Test('Update without remote or cache returns IO error', Ret = EXIT_IO_ERROR);
+  Test('Update without remote or cache shows failure lines',
+    Pos('Failed to update index.', Output) > 0);
+  Test('Update without remote or cache shows cache miss warning',
+    Pos('no cached index is available', LowerCase(Output)) > 0);
+end;
+
 procedure TestUnknownSubcommand;
 var
   Cmd: ICommand;
@@ -476,6 +679,9 @@ begin
   TestStatusOutputUsesSameProcessEnvOverride;
   TestStatusOutputUsesFPDEVDataRootOverride;
   TestNoArgsShowsHelp;
+  TestShowUsesCacheFallbackWarningOutput;
+  TestUpdateUsesCacheFallbackWarningOutput;
+  TestUpdateFailsWhenRemoteAndCacheFail;
   TestUnknownSubcommand;
   TestRegisteredInGlobalRegistry;
 

@@ -5,8 +5,9 @@ program test_binary_installer_unit;
 { Unit tests for TBinaryInstaller class in fpdev.fpc.binary }
 
 uses
-  SysUtils, Classes, fpdev.build.cache, fpdev.fpc.binary, fpdev.paths,
-  fpdev.platform, fpdev.utils, test_temp_paths;
+  SysUtils, Classes, Process, fpdev.build.cache, fpdev.fpc.binary, fpdev.fpc.metadata,
+  fpdev.fpc.types, fpdev.paths, fpdev.platform, fpdev.utils, test_fpc_mock_helpers,
+  test_temp_paths;
 
 var
   TestsPassed: Integer = 0;
@@ -231,6 +232,111 @@ begin
   end;
 end;
 
+
+procedure TestCacheRestoreRunsVerificationAndWritesMetadata;
+var
+  Installer: TBinaryInstaller;
+  Cache: TBuildCache;
+  ProbeRoot: string;
+  StageRoot: string;
+  StageInstallRoot: string;
+  RestorePath: string;
+  ArchivePath: string;
+  SavedDataRoot: string;
+  ProbeVersion: string;
+  CacheKey: string;
+  MockFPCPath: string;
+  MetaPath: string;
+  Platform: TPlatformInfo;
+  Meta: TFPDevMetadata;
+  MetaLoaded: Boolean;
+  InstallResult: Boolean;
+  TarProcess: TProcess;
+begin
+  WriteLn('');
+  WriteLn('=== Test 8: Cache Restore Runs Verification And Writes Metadata ===');
+
+  ProbeRoot := CreateUniqueTempDir('test_binary_installer_cache_restore');
+  StageRoot := CreateUniqueTempDir('test_binary_installer_cache_stage');
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  ProbeVersion := '3.2.2';
+  try
+    set_env('FPDEV_DATA_ROOT', ProbeRoot);
+
+    StageInstallRoot := StageRoot + PathDelim + 'fpc-' + ProbeVersion + '-cache-probe';
+    ForceDirectories(StageInstallRoot + PathDelim + 'bin');
+    MockFPCPath := StageInstallRoot + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$IFDEF WINDOWS}
+    MockFPCPath := MockFPCPath + '.exe';
+    {$ENDIF}
+    CompileMockFPCBinary(MockFPCPath);
+
+    MetaPath := StageInstallRoot + PathDelim + '.fpdev-meta.json';
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    ArchivePath := ProbeRoot + PathDelim + 'cache-restore-probe.tar.gz';
+    TarProcess := TProcess.Create(nil);
+    try
+      TarProcess.Executable := '/usr/bin/tar';
+      TarProcess.Parameters.Add('-czf');
+      TarProcess.Parameters.Add(ArchivePath);
+      TarProcess.Parameters.Add('-C');
+      TarProcess.Parameters.Add(StageRoot);
+      TarProcess.Parameters.Add(ExtractFileName(StageInstallRoot));
+      TarProcess.Options := TarProcess.Options + [poWaitOnExit];
+      TarProcess.Execute;
+      if TarProcess.ExitStatus <> 0 then
+        raise Exception.Create('Failed to create cache probe archive');
+    finally
+      TarProcess.Free;
+    end;
+
+    Cache := TBuildCache.Create(GetCacheDir);
+    try
+      Platform := DetectPlatform;
+      CacheKey := 'fpc-' + ProbeVersion + '-' + Platform.ToString;
+      Check('Cache save succeeds for restore probe',
+        Cache.SaveBinaryArtifact(CacheKey, ArchivePath));
+    finally
+      Cache.Free;
+    end;
+
+    RestorePath := ProbeRoot + PathDelim + 'restored-install';
+    Installer := TBinaryInstaller.Create;
+    try
+      Check('Cache restore probe keeps verification enabled',
+        Installer.VerifyInstallation);
+      Installer.OfflineMode := True;
+      InstallResult := Installer.Install(ProbeVersion, RestorePath);
+      Check('Install succeeds from cached artifact', InstallResult);
+
+      MetaPath := RestorePath + PathDelim + '.fpdev-meta.json';
+      Check('Cache restore path writes verification metadata',
+        FileExists(MetaPath));
+
+      MetaLoaded := ReadFPCMetadata(RestorePath, Meta);
+      Check('Cache restore metadata can be read', MetaLoaded);
+      if MetaLoaded then
+      begin
+        Check('Cache restore metadata marks verify ok', Meta.Verify.OK);
+        Check('Cache restore metadata records detected version',
+          Meta.Verify.DetectedVersion = ProbeVersion);
+        Check('Cache restore metadata records smoke test pass',
+          Meta.Verify.SmokeTestPassed);
+        Check('Cache restore metadata keeps binary source mode',
+          Meta.SourceMode = smBinary);
+      end;
+    finally
+      Installer.Free;
+    end;
+  finally
+    RestoreEnv('FPDEV_DATA_ROOT', SavedDataRoot);
+    CleanupTempDir(StageRoot);
+    CleanupTempDir(ProbeRoot);
+  end;
+end;
+
 procedure TestGetLastError;
 var
   Installer: TBinaryInstaller;
@@ -265,6 +371,7 @@ begin
   TestIsCachedUsesFPDEVDataRootCache;
   TestOfflineModeBlocking;
   TestMultipleInstances;
+  TestCacheRestoreRunsVerificationAndWritesMetadata;
   TestGetLastError;
 
   WriteLn('');

@@ -1,5 +1,63 @@
 # Progress Log
 
+## Session: 2026-04-29 (continuous repo closeout)
+
+### Phase 117: Continuous Repo Closeout And Test Inventory Truth Sync
+- **Status:** complete
+- **Started:** 2026-04-29
+- Actions taken:
+  - 读取 `superpowers:writing-plans`、`planning-with-files`、`verification-before-completion`，按连续收口方式执行
+  - 运行 planning catchup：无阻塞输出
+  - 确认当前工作树仍然包含大量既有 modified/untracked/deleted 文件，本轮将限制 stage 范围
+  - 创建实施计划：`docs/plans/2026-04-29-continuous-repo-closeout.md`
+  - 将 `task_plan.md` active goal 切到 Phase 117
+  - 复现 test inventory drift：
+    - `python3 scripts/update_test_stats.py --check` → failed，列出 README / docs/testing / ROADMAP / MVP acceptance files
+    - `python3 scripts/update_test_stats.py --count` → `335`
+  - 执行 canonical sync：
+    - `python3 scripts/update_test_stats.py --write`
+    - `python3 scripts/update_test_stats.py --check` → pass
+  - 初次 focused docs contract 失败：
+    - `python3 -m unittest tests.test_update_test_stats tests.test_contributor_docs_contract tests.test_release_status_wording -v` → failed，2 个 README release status wording 断言仍硬编码 `275`
+  - 修复 `tests/test_release_status_wording.py`：
+    - README 断言动态读取 `scripts/update_test_stats.py` 的当前 discoverable count
+    - release notes 断言继续保持发布时 `275` 快照
+  - 重新验证 focused contracts：
+    - `python3 -m unittest tests.test_release_status_wording -v` → `4/4`
+    - `python3 -m unittest tests.test_update_test_stats tests.test_contributor_docs_contract -v` → `40/40`
+    - `python3 -m unittest tests.test_update_test_stats tests.test_contributor_docs_contract tests.test_release_status_wording -v` → `44/44`
+  - facade boundary bundle：
+    - `python3 -m unittest tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_package_manager_boundary tests.test_lazarus_manager_version_boundary tests.test_fpc_source_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v` → `36/36`
+  - Python full verification:
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `641/641`
+  - Pascal full verification before hint cleanup:
+    - `bash scripts/run_all_tests.sh` → `335/335`
+  - Release build verification:
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → exit `0`
+    - Log scan exposed one project-code hint: `fpdev.fpc.installer.lifecycleflow.pas(60,9) Parameter "AVersion" not used`
+    - First log scan command used zsh read-only variable `status`; reran with `rc` successfully
+  - Hint cleanup:
+    - Removed unused `AVersion` parameter from `ExecuteFPCInstallerUninstallCore(...)`
+    - Updated `src/fpdev.fpc.installer.pas` and `tests/test_fpc_installer_lifecycleflow.lpr` call sites
+    - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `4/4`
+    - `tests/test_fpc_installer_lifecycleflow.lpr` → `29/29`
+    - `tests/test_fpc_installer.lpr` → `35/35`
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → exit `0`; project-code unused-parameter hint gone, remaining hint count is Lazarus/FPC environment output
+  - Final full verification after hint cleanup:
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `641/641`
+    - `bash scripts/run_all_tests.sh` → `335/335`
+  - Pre-commit review conclusion:
+    - No blocking issue found in this closeout scope
+    - Full current worktree verification passed
+    - Commit includes the currently verified integration state because the repository was already a large dirty worktree
+- Planned verification:
+  - `python3 scripts/update_test_stats.py --check`
+  - `python3 -m unittest tests.test_update_test_stats tests.test_contributor_docs_contract tests.test_release_status_wording -v`
+  - `python3 -m unittest tests.test_build_manager_boundary tests.test_fpc_builder_boundary tests.test_package_manager_boundary tests.test_lazarus_manager_version_boundary tests.test_fpc_source_boundary tests.test_resource_repo_boundary tests.test_fpc_manager_bootstrap_boundary -v`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'`
+  - `bash scripts/run_all_tests.sh`
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+
 ## Session: 2026-04-19 (fresh hotspot re-rank checkpoint after CLI wave pack)
 
 ### Phase 116: Fresh Hotspot Re-rank Checkpoint After CLI Wave Pack

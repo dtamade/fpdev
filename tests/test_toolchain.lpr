@@ -8,7 +8,12 @@ uses
   fpdev.toolchain.extract,
   fpdev.hash,
   fpdev.paths,
-  fpdev.utils;
+  fpdev.utils,
+  test_temp_paths
+  {$IFDEF UNIX}
+  , BaseUnix
+  {$ENDIF}
+  ;
 
 const
   // Test data constants
@@ -60,6 +65,42 @@ begin
     WriteLn('  Missing: ', AExpected);
     Halt(1);
   end;
+end;
+
+procedure WriteTextFile(const APath, AContent: string);
+var
+  Lines: TStringList;
+begin
+  ForceDirectories(ExtractFileDir(APath));
+  Lines := TStringList.Create;
+  try
+    Lines.Text := AContent;
+    Lines.SaveToFile(APath);
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure CleanupToolchainRepoFixture(
+  const ARepoRoot, ALazarusRoot: string
+);
+begin
+  CleanupTempDir(ARepoRoot);
+  CleanupTempDir(ALazarusRoot);
+end;
+
+procedure CreateToolchainRepoFixture(
+  const APrefix: string;
+  out ARepoRoot, ALazarusRoot: string
+);
+begin
+  ARepoRoot := CreateUniqueTempDir(APrefix);
+  WriteTextFile(ARepoRoot + PathDelim + 'fpdev.lpi', '<CONFIG/>');
+  ForceDirectories(ARepoRoot + PathDelim + 'bin');
+  ForceDirectories(ARepoRoot + PathDelim + 'lib');
+
+  ALazarusRoot := CreateUniqueTempDir(APrefix + '-lazarus');
+  ForceDirectories(ALazarusRoot + PathDelim + 'lcl');
 end;
 
 procedure RestoreEnv(const AName, ASavedValue: string);
@@ -345,6 +386,99 @@ begin
   end;
 end;
 
+{ Test 11: fpdev.toolchain - BuildToolchainReportJSON should expose writable repo build outputs }
+procedure TestBuildToolchainReportJSONIncludesWritableRepoBuildOutputs;
+var
+  JSONStr: string;
+  RepoRoot: string;
+  LazarusRoot: string;
+  RepoBin: string;
+  RepoLib: string;
+  SavedRepoRoot: string;
+  SavedLazarusDir: string;
+begin
+  CreateToolchainRepoFixture(
+    'toolchain_repo_outputs_ok',
+    RepoRoot,
+    LazarusRoot
+  );
+  RepoBin := RepoRoot + PathDelim + 'bin';
+  RepoLib := RepoRoot + PathDelim + 'lib';
+  SavedRepoRoot := get_env('FPDEV_TOOLCHAIN_REPO_ROOT');
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  try
+    AssertTrue(set_env('FPDEV_TOOLCHAIN_REPO_ROOT', RepoRoot),
+      'Should set FPDEV_TOOLCHAIN_REPO_ROOT for repo build output test');
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set FPDEV_LAZARUSDIR for repo build output test');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"repo_bin_writable","found":true', JSONStr,
+      'Toolchain report should mark repo bin as writable');
+    AssertContains('"path":"' + JsonEscape(RepoBin) + '"', JSONStr,
+      'Toolchain report should expose repo bin path');
+    AssertContains('"name":"repo_lib_writable","found":true', JSONStr,
+      'Toolchain report should mark repo lib as writable');
+    AssertContains('"path":"' + JsonEscape(RepoLib) + '"', JSONStr,
+      'Toolchain report should expose repo lib path');
+  finally
+    RestoreEnv('FPDEV_TOOLCHAIN_REPO_ROOT', SavedRepoRoot);
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    CleanupToolchainRepoFixture(RepoRoot, LazarusRoot);
+  end;
+end;
+
+{ Test 12: fpdev.toolchain - BuildToolchainReportJSON should fail read-only repo lib output }
+procedure TestBuildToolchainReportJSONRejectsReadOnlyRepoLibOutput;
+var
+  JSONStr: string;
+  RepoRoot: string;
+  LazarusRoot: string;
+  RepoLib: string;
+  SavedRepoRoot: string;
+  SavedLazarusDir: string;
+begin
+  {$IFNDEF UNIX}
+  WriteLn('  SKIP: read-only repo lib output check is UNIX-only');
+  Exit;
+  {$ENDIF}
+
+  CreateToolchainRepoFixture(
+    'toolchain_repo_outputs_fail',
+    RepoRoot,
+    LazarusRoot
+  );
+  RepoLib := RepoRoot + PathDelim + 'lib';
+  SavedRepoRoot := get_env('FPDEV_TOOLCHAIN_REPO_ROOT');
+  SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  try
+    AssertTrue(set_env('FPDEV_TOOLCHAIN_REPO_ROOT', RepoRoot),
+      'Should set FPDEV_TOOLCHAIN_REPO_ROOT for read-only repo build output test');
+    AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRoot),
+      'Should set FPDEV_LAZARUSDIR for read-only repo build output test');
+    if FpChmod(RepoLib, &555) <> 0 then
+      raise Exception.Create('Failed to chmod repo lib to read-only');
+
+    JSONStr := BuildToolchainReportJSON;
+
+    AssertContains('"name":"repo_lib_writable","found":false', JSONStr,
+      'Toolchain report should reject read-only repo lib output');
+    AssertContains('repo build output not writable: lib', JSONStr,
+      'Toolchain report should report repo lib write failure');
+    AssertContains('"level":"FAIL"', JSONStr,
+      'Toolchain report should fail when repo lib output is read-only');
+  finally
+    {$IFDEF UNIX}
+    if DirectoryExists(RepoLib) then
+      FpChmod(RepoLib, &755);
+    {$ENDIF}
+    RestoreEnv('FPDEV_TOOLCHAIN_REPO_ROOT', SavedRepoRoot);
+    RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    CleanupToolchainRepoFixture(RepoRoot, LazarusRoot);
+  end;
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('TDD: Toolchain Module Tests');
@@ -363,10 +497,14 @@ begin
     @TestBuildToolchainReportJSONIncludesConfiguredLazarusRoot);
   RunTest('TestBuildToolchainReportJSONRejectsInvalidLazarusRoot',
     @TestBuildToolchainReportJSONRejectsInvalidLazarusRoot);
+  RunTest('TestBuildToolchainReportJSONIncludesWritableRepoBuildOutputs',
+    @TestBuildToolchainReportJSONIncludesWritableRepoBuildOutputs);
+  RunTest('TestBuildToolchainReportJSONRejectsReadOnlyRepoLibOutput',
+    @TestBuildToolchainReportJSONRejectsReadOnlyRepoLibOutput);
   
   WriteLn;
   WriteLn('========================================');
-  WriteLn('SUCCESS: All 10 tests passed!');
+  WriteLn('SUCCESS: All 12 tests passed!');
   WriteLn('========================================');
   
   Halt(0);

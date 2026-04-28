@@ -9,10 +9,13 @@ interface
 uses
   SysUtils, Classes,
   fpdev.command.intf, fpdev.command.registry, fpdev.project.manager,
-  fpdev.exitcodes;
+  fpdev.output.intf, fpdev.project.templatecommandflow;
 
 type
   TProjectTemplateListCommand = class(TInterfacedObject, ICommand)
+  private
+    FManager: TProjectManager;
+    function RunListTemplates(const Outp: IOutput): Boolean;
   public
     function Name: string;
     function Aliases: TStringArray;
@@ -21,8 +24,6 @@ type
   end;
 
 implementation
-
-uses fpdev.command.utils;
 
 function TProjectTemplateListCommand.Name: string; begin Result := 'list'; end;
 function TProjectTemplateListCommand.Aliases: TStringArray; begin Result := nil; end;
@@ -37,36 +38,36 @@ begin
   Result := TProjectTemplateListCommand.Create;
 end;
 
+function TProjectTemplateListCommand.RunListTemplates(const Outp: IOutput): Boolean;
+begin
+  Result := Assigned(FManager) and FManager.ListTemplates(Outp);
+end;
+
 function TProjectTemplateListCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LMgr: TProjectManager;
-  UnknownOption: string;
+  LPlan: TProjectTemplateListCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := 0;
+  Result := PrepareProjectTemplateListCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn('Usage: fpdev project template list');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('List all available project templates (built-in and custom).');
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn('  --help, -h    Show this help message');
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(AParams, [], UnknownOption) or (CountPositionalArgs(AParams) > 0) then
-  begin
-    Ctx.Err.WriteLn('Usage: fpdev project template list');
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LMgr := TProjectManager.Create(Ctx.Config);
+  FManager := TProjectManager.Create(Ctx.Config);
   try
-    if LMgr.ListTemplates(Ctx.Out) then
-      Exit(EXIT_OK);
-    Result := EXIT_ERROR;
+    Result := ExecuteProjectTemplateListCommandPlanCore(
+      Ctx.Out,
+      Ctx.Err,
+      @RunListTemplates
+    );
   finally
-    LMgr.Free;
+    FManager.Free;
+    FManager := nil;
   end;
 end;
 

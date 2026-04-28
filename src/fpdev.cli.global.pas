@@ -3,11 +3,10 @@ unit fpdev.cli.global;
 {$mode objfpc}{$H+}
 
 {
-  Global CLI preprocessing helpers.
+  CLI argument normalization helpers.
 
-  Keeps top-level flag handling and leading --portable normalization out of
-  fpdev.lpr so the main program can focus on specialized commands and registry
-  dispatch.
+  Keeps raw argv collection and dispatch shaping out of fpdev.lpr while
+  fpdev.cli.flags owns the remaining top-level preparse flag handling.
 }
 
 interface
@@ -16,7 +15,6 @@ uses
   SysUtils;
 
 function CollectCLIArgs: TStringArray;
-procedure ApplyPortableModeFromArgs(const AArgs: TStringArray);
 procedure NormalizePrimaryAndParams(const ARawArgs: TStringArray;
   out APrimary: string; out AParams: TStringArray);
 function BuildDispatchArgs(const APrimary: string;
@@ -24,15 +22,7 @@ function BuildDispatchArgs(const APrimary: string;
 implementation
 
 uses
-  fpdev.paths;
-
-function LeadingPortablePreludeLength(const AArgs: TStringArray): Integer;
-begin
-  if (Length(AArgs) > 0) and (AArgs[0] = '--portable') then
-    Exit(1);
-
-  Result := 0;
-end;
+  fpdev.cli.flags;
 
 function CollectCLIArgs: TStringArray;
 var
@@ -42,12 +32,6 @@ begin
   SetLength(Result, ParamCount);
   for I := 1 to ParamCount do
     Result[I - 1] := ParamStr(I);
-end;
-
-procedure ApplyPortableModeFromArgs(const AArgs: TStringArray);
-begin
-  if LeadingPortablePreludeLength(AArgs) > 0 then
-    SetPortableMode(True);
 end;
 
 procedure NormalizePrimaryAndParams(const ARawArgs: TStringArray;

@@ -5,7 +5,7 @@ program test_git_env_identity;
 uses
   SysUtils,
   fpdev.utils,
-  fpdev.utils.git;
+  fpdev.git.env;
 
 var
   TestsPassed: Integer = 0;
@@ -59,7 +59,8 @@ begin
     unset_env('GIT_COMMITTER_NAME');
     unset_env('GIT_COMMITTER_EMAIL');
 
-    ResolveGitIdentityEnv(AuthorName, AuthorEmail, CommitterName, CommitterEmail);
+    fpdev.git.env.ResolveGitIdentityEnv(
+      AuthorName, AuthorEmail, CommitterName, CommitterEmail);
     Check('same-process GIT_AUTHOR_NAME is visible',
       AuthorName = 'Same Process Author', 'got="' + AuthorName + '"');
     Check('same-process GIT_AUTHOR_EMAIL is visible',
@@ -101,7 +102,8 @@ begin
     Check('set committer email',
       set_env('GIT_COMMITTER_EMAIL', 'release-bot@example.invalid'));
 
-    ResolveGitIdentityEnv(AuthorName, AuthorEmail, CommitterName, CommitterEmail);
+    fpdev.git.env.ResolveGitIdentityEnv(
+      AuthorName, AuthorEmail, CommitterName, CommitterEmail);
     Check('explicit committer name stays separate from author',
       CommitterName = 'Release Bot', 'got="' + CommitterName + '"');
     Check('explicit committer email stays separate from author',

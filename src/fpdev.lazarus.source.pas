@@ -7,8 +7,9 @@ unit fpdev.lazarus.source;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.utils.git,
-  fpdev.git.runtime, fpdev.constants;
+  SysUtils, Classes, fpdev.utils.fs, fpdev.utils.process, fpdev.git.types,
+  fpdev.git.runtime, fpdev.constants, fpdev.lazarus.sourceversionflow,
+  fpdev.lazarus.sourcelifecycleflow;
 
 type
   ILazarusSourceGitClient = interface
@@ -37,6 +38,9 @@ type
     function ConfigureCustomFPCIDE(const AVersion, ASourcePath: string): Boolean;
     function ExecuteCommand(const AExecutable: string; const AParams: array of string;
       const AWorkingDir: string = ''): Boolean;
+    function LaunchExecutable(const AExecutablePath: string): Boolean;
+    procedure WriteStatus(const AText: string);
+    procedure DeleteSourceTree(const APath: string);
   protected
     function CreateGitClient: ILazarusSourceGitClient; virtual;
     function ProtectedGetVersionFromBranch(const ABranch: string): string;
@@ -84,121 +88,23 @@ const
   LAZARUS_GIT_URL = LAZARUS_OFFICIAL_REPO;
 
   // Supported Lazarus version branches
-  LAZARUS_VERSIONS: array[0..8] of record
-    Version: string;
-    Branch: string;
-    Description: string;
-    FPCVersion: string;
-  end = (
-    (Version: 'main'; Branch: 'main'; Description: 'Development version (unstable)'; FPCVersion: '3.2.2'),
-    (Version: '3.0'; Branch: 'lazarus_3_0'; Description: 'Lazarus 3.0 (stable)'; FPCVersion: '3.2.2'),
-    (Version: '2.2.6'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.6 (stable)'; FPCVersion: '3.2.2'),
-    (Version: '2.2.4'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.4 (stable)'; FPCVersion: '3.2.2'),
-    (Version: '2.2.2'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.2 (stable)'; FPCVersion: '3.2.2'),
-    (Version: '2.0.12'; Branch: 'lazarus_2_0'; Description: 'Lazarus 2.0.12 (legacy)'; FPCVersion: '3.2.0'),
-    (Version: '2.0.10'; Branch: 'lazarus_2_0'; Description: 'Lazarus 2.0.10 (legacy)'; FPCVersion: '3.2.0'),
-    (Version: '1.8.4'; Branch: 'lazarus_1_8'; Description: 'Lazarus 1.8.4 (legacy)'; FPCVersion: '3.0.4'),
-    (Version: '1.8.2'; Branch: 'lazarus_1_8'; Description: 'Lazarus 1.8.2 (legacy)'; FPCVersion: '3.0.4')
+  LAZARUS_VERSIONS: array[0..8] of TLegacyLazarusStaticVersionInfo = (
+    (Version: 'main'; Branch: 'main'; Description: 'Development version (unstable)'),
+    (Version: '3.0'; Branch: 'lazarus_3_0'; Description: 'Lazarus 3.0 (stable)'),
+    (Version: '2.2.6'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.6 (stable)'),
+    (Version: '2.2.4'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.4 (stable)'),
+    (Version: '2.2.2'; Branch: 'lazarus_2_2'; Description: 'Lazarus 2.2.2 (stable)'),
+    (Version: '2.0.12'; Branch: 'lazarus_2_0'; Description: 'Lazarus 2.0.12 (legacy)'),
+    (Version: '2.0.10'; Branch: 'lazarus_2_0'; Description: 'Lazarus 2.0.10 (legacy)'),
+    (Version: '1.8.4'; Branch: 'lazarus_1_8'; Description: 'Lazarus 1.8.4 (legacy)'),
+    (Version: '1.8.2'; Branch: 'lazarus_1_8'; Description: 'Lazarus 1.8.2 (legacy)')
   );
 
 implementation
 
 uses
-  fpdev.version.registry, fpdev.lazarus.config, fpdev.lazarus.commandflow, fpdev.utils;
-
-function FindStaticLazarusVersionIndex(const AVersion: string): Integer;
-var
-  i: Integer;
-begin
-  Result := -1;
-  for i := 0 to High(LAZARUS_VERSIONS) do
-  begin
-    if SameText(LAZARUS_VERSIONS[i].Version, AVersion) then
-      Exit(i);
-  end;
-end;
-
-function FindStaticLazarusBranchIndex(const ABranch: string): Integer;
-var
-  i: Integer;
-begin
-  Result := -1;
-  for i := 0 to High(LAZARUS_VERSIONS) do
-  begin
-    if SameText(LAZARUS_VERSIONS[i].Branch, ABranch) then
-      Exit(i);
-  end;
-end;
-
-function RegistryHasLazarusReleases(const AReleases: TLazarusReleaseArray): Boolean; forward;
-
-function ResolveLazarusCloneRefFromRegistryOrStatic(const AVersion: string): string;
-var
-  Releases: TLazarusReleaseArray;
-  StaticIndex: Integer;
-begin
-  Result := TVersionRegistry.Instance.GetLazarusGitTag(AVersion);
-  if Result <> '' then
-    Exit;
-
-  Result := TVersionRegistry.Instance.GetLazarusBranch(AVersion);
-  if Result <> '' then
-    Exit;
-
-  Releases := TVersionRegistry.Instance.GetLazarusReleases;
-  if RegistryHasLazarusReleases(Releases) then
-    Exit(AVersion);
-
-  StaticIndex := FindStaticLazarusVersionIndex(AVersion);
-  if StaticIndex >= 0 then
-    Exit(LAZARUS_VERSIONS[StaticIndex].Branch);
-
-  Result := AVersion;
-end;
-
-function BuildLazarusDescription(const AVersion, AChannel: string): string;
-begin
-  if SameText(AVersion, 'main') or SameText(AChannel, 'development') then
-    Exit('Development version (unstable)');
-
-  if Trim(AChannel) <> '' then
-    Exit('Lazarus ' + AVersion + ' (' + AChannel + ')');
-
-  Result := 'Lazarus ' + AVersion;
-end;
-
-function ResolveLazarusDescriptionFromRegistryOrStatic(const AVersion: string): string;
-var
-  Releases: TLazarusReleaseArray;
-  Release: TLazarusReleaseInfo;
-  StaticIndex: Integer;
-begin
-  Release := TVersionRegistry.Instance.GetLazarusRelease(AVersion);
-  if Trim(Release.Version) <> '' then
-    Exit(BuildLazarusDescription(Release.Version, Release.Channel));
-
-  Releases := TVersionRegistry.Instance.GetLazarusReleases;
-  if RegistryHasLazarusReleases(Releases) then
-    Exit(AVersion);
-
-  StaticIndex := FindStaticLazarusVersionIndex(AVersion);
-  if StaticIndex >= 0 then
-    Exit(LAZARUS_VERSIONS[StaticIndex].Description);
-
-  Result := AVersion;
-end;
-
-function RegistryHasLazarusReleases(const AReleases: TLazarusReleaseArray): Boolean;
-var
-  i: Integer;
-begin
-  Result := False;
-  for i := 0 to High(AReleases) do
-  begin
-    if Trim(AReleases[i].Version) <> '' then
-      Exit(True);
-  end;
-end;
+  fpdev.version.registry, fpdev.lazarus.commandflow,
+  fpdev.lazarus.sourceflow, fpdev.lazarus.sourceruntimeflow, fpdev.utils;
 
 function HasGitRepositoryMetadata(const APath: string): Boolean;
 var
@@ -223,10 +129,23 @@ type
     function GetLastError: string;
   end;
 
+  TLazarusSourceGitCallbackAdapter = class
+  private
+    FClient: ILazarusSourceGitClient;
+  public
+    constructor Create(const AClient: ILazarusSourceGitClient);
+    function GetBackend: TGitBackend;
+    function Clone(const AURL, ALocalPath, ARef: string): Boolean;
+    function Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
+    function IsRepository(const APath: string): Boolean;
+    function Pull(const ARepoPath: string): Boolean;
+    function GetLastError: string;
+  end;
+
 constructor TLazarusSourceGitClient.Create;
 begin
   inherited Create;
-  FGit := TGitRuntime.Create;
+  FGit := NewGitRuntime;
 end;
 
 destructor TLazarusSourceGitClient.Destroy;
@@ -267,6 +186,51 @@ begin
   Result := FGit.LastError;
 end;
 
+constructor TLazarusSourceGitCallbackAdapter.Create(const AClient: ILazarusSourceGitClient);
+begin
+  inherited Create;
+  FClient := AClient;
+end;
+
+function TLazarusSourceGitCallbackAdapter.GetBackend: TGitBackend;
+begin
+  if FClient = nil then
+    Exit(gbNone);
+  Result := FClient.Backend;
+end;
+
+function TLazarusSourceGitCallbackAdapter.Clone(
+  const AURL, ALocalPath, ARef: string
+): Boolean;
+begin
+  Result := Assigned(FClient) and FClient.Clone(AURL, ALocalPath, ARef);
+end;
+
+function TLazarusSourceGitCallbackAdapter.Checkout(
+  const ARepoPath, AName: string;
+  const Force: Boolean
+): Boolean;
+begin
+  Result := Assigned(FClient) and FClient.Checkout(ARepoPath, AName, Force);
+end;
+
+function TLazarusSourceGitCallbackAdapter.IsRepository(const APath: string): Boolean;
+begin
+  Result := Assigned(FClient) and FClient.IsRepository(APath);
+end;
+
+function TLazarusSourceGitCallbackAdapter.Pull(const ARepoPath: string): Boolean;
+begin
+  Result := Assigned(FClient) and FClient.Pull(ARepoPath);
+end;
+
+function TLazarusSourceGitCallbackAdapter.GetLastError: string;
+begin
+  if FClient = nil then
+    Exit('');
+  Result := FClient.LastError;
+end;
+
 { TLazarusSourceManager }
 
 constructor TLazarusSourceManager.Create(const ASourceRoot: string);
@@ -305,88 +269,58 @@ begin
     FParallelJobs := AJobs;
 end;
 
-function TLazarusSourceManager.GetSourcePath(const AVersion: string): string;
-var
-  Version: string;
+procedure TLazarusSourceManager.WriteStatus(const AText: string);
 begin
-  if AVersion = '' then
-    Version := 'main'
-  else
-    Version := AVersion;
+  WriteLn(AText);
+end;
 
-  Result := FSourceRoot + PathDelim + 'lazarus-' + Version;
+procedure TLazarusSourceManager.DeleteSourceTree(const APath: string);
+begin
+  {$IFDEF MSWINDOWS}
+  ExecuteCommand('cmd', ['/c', 'rmdir', '/s', '/q', APath], '');
+  {$ELSE}
+  ExecuteCommand('rm', ['-rf', APath], '');
+  {$ENDIF}
+end;
+
+function TLazarusSourceManager.GetSourcePath(const AVersion: string): string;
+begin
+  Result := BuildLazarusLegacySourcePathCore(
+    FSourceRoot,
+    ResolveLazarusLegacySourceVersionCore(AVersion, '', 'main')
+  );
 end;
 
 function TLazarusSourceManager.GetVersionFromBranch(const ABranch: string): string;
-var
-  Releases: TLazarusReleaseArray;
-  i: Integer;
-  StaticIndex: Integer;
 begin
-  Result := ABranch;
-
-  Releases := TVersionRegistry.Instance.GetLazarusReleases;
-  for i := 0 to High(Releases) do
-  begin
-    if SameText(Releases[i].GitTag, ABranch) or SameText(Releases[i].Branch, ABranch) then
-      Exit(Releases[i].Version);
-  end;
-
-  if RegistryHasLazarusReleases(Releases) then
-    Exit(ABranch);
-
-  StaticIndex := FindStaticLazarusBranchIndex(ABranch);
-  if StaticIndex >= 0 then
-    Result := LAZARUS_VERSIONS[StaticIndex].Version;
+  Result := ResolveLegacyLazarusVersionFromBranchCore(
+    ABranch,
+    TVersionRegistry.Instance.GetLazarusReleases,
+    LAZARUS_VERSIONS
+  );
 end;
 
 function TLazarusSourceManager.IsValidSourceDirectory(const APath: string): Boolean;
 begin
-  Result := DirectoryExists(APath) and
-    DirectoryExists(APath + PathDelim + 'ide') and
-    DirectoryExists(APath + PathDelim + 'lcl') and
-    DirectoryExists(APath + PathDelim + 'packager');
+  Result := IsValidLazarusLegacySourceTreeCore(APath);
 end;
 
 function TLazarusSourceManager.ConfigureCustomFPCIDE(
   const AVersion, ASourcePath: string): Boolean;
 var
-  IDEConfig: TLazarusIDEConfig;
-  ConfigDir: string;
   ConfigRoot: string;
 begin
-  Result := True;
-  if Trim(FFPCPath) = '' then
-    Exit;
-
-  if not FileExists(FFPCPath) then
-  begin
-    WriteLn('Error: Configured FPC executable not found: ', FFPCPath);
-    Exit(False);
-  end;
-
   ConfigRoot := '';
   get_env('FPDEV_LAZARUS_CONFIG_ROOT', ConfigRoot);
-  ConfigDir := ResolveLazarusConfigDirCore(
+  Result := ConfigureLegacyLazarusCustomFPCIDECore(
     AVersion,
+    ASourcePath,
+    FFPCPath,
     ConfigRoot,
     get_env('HOME'),
-    get_env('APPDATA')
+    get_env('APPDATA'),
+    @WriteStatus
   );
-
-  IDEConfig := TLazarusIDEConfig.Create(ConfigDir);
-  try
-    Result := IDEConfig.SetCompilerPath(FFPCPath);
-    Result := IDEConfig.SetLibraryPath(ASourcePath) and Result;
-    {$IFDEF MSWINDOWS}
-    Result := IDEConfig.SetMakePath('make.exe') and Result;
-    {$ELSE}
-    Result := IDEConfig.SetMakePath(UNIX_MAKE_PATH) and Result;
-    {$ENDIF}
-    Result := IDEConfig.ValidateConfig and Result;
-  finally
-    IDEConfig.Free;
-  end;
 end;
 
 function TLazarusSourceManager.ExecuteCommand(const AExecutable: string;
@@ -418,6 +352,15 @@ begin
   Result := LResult.Success;
 end;
 
+function TLazarusSourceManager.LaunchExecutable(const AExecutablePath: string): Boolean;
+begin
+  {$IFDEF MSWINDOWS}
+  Result := ExecuteCommand('cmd', ['/c', 'start', '', AExecutablePath], '');
+  {$ELSE}
+  Result := TProcessExecutor.Launch(AExecutablePath, [], '');
+  {$ENDIF}
+end;
+
 function TLazarusSourceManager.CreateGitClient: ILazarusSourceGitClient;
 begin
   Result := TLazarusSourceGitClient.Create;
@@ -432,113 +375,73 @@ end;
 function TLazarusSourceManager.CloneLazarusSource(const AVersion: string): Boolean;
 var
   Git: ILazarusSourceGitClient;
-  Version, RefName, SourcePath, RepositoryURL: string;
+  GitAdapter: TLazarusSourceGitCallbackAdapter;
+  UseVersion: string;
+  RepositoryURL: string;
+  ClonePlan: TLazarusLegacySourceClonePlan;
 begin
   Result := False;
-
-  Version := AVersion;
-  if Version = '' then
-    Version := 'main';
-
-  // Match the manager install path: prefer registry git_tag, then branch, then legacy fallback.
-  RefName := ResolveLazarusCloneRefFromRegistryOrStatic(Version);
-
-  SourcePath := GetSourcePath(Version);
   RepositoryURL := TVersionRegistry.Instance.GetLazarusRepository;
   if RepositoryURL = '' then
     RepositoryURL := LAZARUS_GIT_URL;
-
-  WriteLn('Cloning Lazarus source...');
-  WriteLn('  Version: ', Version);
-  WriteLn('  Ref: ', RefName);
-  WriteLn('  Target: ', SourcePath);
-  WriteLn;
-
+  UseVersion := ResolveLazarusLegacySourceVersionCore(AVersion, '', 'main');
+  ClonePlan := CreateLazarusLegacyClonePlanCore(
+    AVersion,
+    'main',
+    FSourceRoot,
+    RepositoryURL,
+    ResolveLegacyLazarusCloneRefCore(
+      UseVersion,
+      TVersionRegistry.Instance.GetLazarusGitTag(UseVersion),
+      TVersionRegistry.Instance.GetLazarusBranch(UseVersion),
+      TVersionRegistry.Instance.GetLazarusReleases,
+      LAZARUS_VERSIONS
+    )
+  );
   Git := CreateGitClient;
-  if (Git = nil) or (Git.Backend = gbNone) then
-  begin
-    WriteLn('Error: No Git backend available (neither libgit2 nor git command found)');
-    Exit(False);
-  end;
-
-  // If directory already exists, delete it first
-  if DirectoryExists(SourcePath) then
-  begin
-    WriteLn('Removing existing source directory...');
-    {$IFDEF MSWINDOWS}
-    ExecuteCommand('cmd', ['/c', 'rmdir', '/s', '/q', SourcePath], '');
-    {$ELSE}
-    ExecuteCommand('rm', ['-rf', SourcePath], '');
-    {$ENDIF}
-  end;
-
-  WriteLn('Using backend: ', GitBackendToString(Git.Backend));
-
-  // Clone repository (libgit2-first; CLI shallow clone fallback inside TGitOperations)
-  Result := Git.Clone(RepositoryURL, SourcePath, RefName);
-
-  if Result then
-  begin
-    if not IsValidSourceDirectory(SourcePath) then
-    begin
-      WriteLn('Error: Cloned repository is not a valid Lazarus source tree: ', SourcePath);
-      Exit(False);
-    end;
-
-    WriteLn('Lazarus source cloned successfully.');
-    FCurrentVersion := Version;
-  end
-  else
-  begin
-    WriteLn('Error: Failed to clone Lazarus source.');
+  GitAdapter := TLazarusSourceGitCallbackAdapter.Create(Git);
+  try
+    Result := ExecuteLazarusLegacyCloneCore(
+      ClonePlan,
+      FCurrentVersion,
+      @WriteStatus,
+      @DeleteSourceTree,
+      @IsValidSourceDirectory,
+      @GitAdapter.GetBackend,
+      @GitAdapter.Clone
+    );
+  finally
+    GitAdapter.Free;
   end;
 end;
 
 function TLazarusSourceManager.UpdateLazarusSource(const AVersion: string): Boolean;
 var
   Git: ILazarusSourceGitClient;
-  Version, SourcePath: string;
+  GitAdapter: TLazarusSourceGitCallbackAdapter;
+  UpdatePlan: TLazarusLegacySourceUpdatePlan;
 begin
   Result := False;
-
-  Version := AVersion;
-  if Version = '' then
-    Version := FCurrentVersion;
-  if Version = '' then
-    Version := 'main';
-
-  SourcePath := GetSourcePath(Version);
-
-  if not IsValidSourceDirectory(SourcePath) then
-  begin
-    WriteLn('Error: Invalid Lazarus source directory: ', SourcePath);
-    WriteLn('Please clone the source first.');
-    Exit;
-  end;
-
-  WriteLn('Updating Lazarus source...');
-  WriteLn('  Version: ', Version);
-  WriteLn('  Path: ', SourcePath);
-
+  UpdatePlan := CreateLazarusLegacyUpdatePlanCore(
+    AVersion,
+    FCurrentVersion,
+    'main',
+    FSourceRoot
+  );
   Git := CreateGitClient;
-  if (Git = nil) or (Git.Backend = gbNone) then
-  begin
-    WriteLn('Error: No Git backend available (neither libgit2 nor git command found)');
-    Exit(False);
-  end;
-
-  WriteLn('Using backend: ', GitBackendToString(Git.Backend));
-  Result := Git.Pull(SourcePath);
-
-  if Result then
-  begin
-    FCurrentVersion := Version;
-    WriteLn('Lazarus source updated successfully.');
-  end
-  else
-  begin
-    WriteLn('Error: Failed to update Lazarus source.');
-    WriteLn('  ', Git.LastError);
+  GitAdapter := TLazarusSourceGitCallbackAdapter.Create(Git);
+  try
+    Result := ExecuteLazarusLegacyUpdateCore(
+      UpdatePlan,
+      FCurrentVersion,
+      @WriteStatus,
+      @IsValidSourceDirectory,
+      @GitAdapter.GetBackend,
+      @GitAdapter.Pull,
+      @GitAdapter.GetLastError
+    );
+  finally
+    GitAdapter.Free;
   end;
 end;
 
@@ -547,133 +450,58 @@ var
   SourcePath: string;
   RefName: string;
   Git: ILazarusSourceGitClient;
+  GitAdapter: TLazarusSourceGitCallbackAdapter;
+  HasGitMetadata: Boolean;
 begin
   Result := False;
 
-  if not IsVersionInstalled(AVersion) then
-  begin
-    WriteLn('Version ', AVersion, ' not installed, cloning...');
-    Result := CloneLazarusSource(AVersion);
-  end
-  else
-  begin
-    SourcePath := GetSourcePath(AVersion);
-    if not IsValidSourceDirectory(SourcePath) then
-    begin
-      WriteLn('Error: Invalid Lazarus source directory: ', SourcePath);
-      Exit(False);
-    end;
+  SourcePath := GetSourcePath(AVersion);
+  HasGitMetadata := HasGitRepositoryMetadata(SourcePath);
+  RefName := ResolveLegacyLazarusCloneRefCore(
+    AVersion,
+    TVersionRegistry.Instance.GetLazarusGitTag(AVersion),
+    TVersionRegistry.Instance.GetLazarusBranch(AVersion),
+    TVersionRegistry.Instance.GetLazarusReleases,
+    LAZARUS_VERSIONS
+  );
 
-    if HasGitRepositoryMetadata(SourcePath) then
-    begin
-      RefName := ResolveLazarusCloneRefFromRegistryOrStatic(AVersion);
-      Git := CreateGitClient;
-      if (Git = nil) or (Git.Backend = gbNone) then
-      begin
-        WriteLn('Error: No Git backend available (neither libgit2 nor git command found)');
-        Exit(False);
-      end;
-
-      if not Git.IsRepository(SourcePath) then
-      begin
-        WriteLn('Error: Existing Lazarus source tree is not an accessible git repository: ', SourcePath);
-        Exit(False);
-      end;
-
-      if not Git.Checkout(SourcePath, RefName, True) then
-      begin
-        WriteLn('Error: Failed to switch Lazarus source to ref: ', RefName);
-        if Git.LastError <> '' then
-          WriteLn('  ', Git.LastError);
-        Exit(False);
-      end;
-
-      if not IsValidSourceDirectory(SourcePath) then
-      begin
-        WriteLn('Error: Switched repository is not a valid Lazarus source tree: ', SourcePath);
-        Exit(False);
-      end;
-
-      WriteLn('Switching to Lazarus version: ', AVersion);
-      WriteLn('  Ref: ', RefName);
-    end
-    else
-      WriteLn('Switching to Lazarus version: ', AVersion);
-
-    FCurrentVersion := AVersion;
-    Result := True;
+  Git := CreateGitClient;
+  GitAdapter := TLazarusSourceGitCallbackAdapter.Create(Git);
+  try
+    Result := ExecuteLazarusLegacySwitchCore(
+      AVersion,
+      SourcePath,
+      RefName,
+      HasGitMetadata,
+      FCurrentVersion,
+      @WriteStatus,
+      @IsVersionInstalled,
+      @CloneLazarusSource,
+      @IsValidSourceDirectory,
+      @GitAdapter.GetBackend,
+      @GitAdapter.IsRepository,
+      @GitAdapter.Checkout,
+      @GitAdapter.GetLastError
+    );
+  finally
+    GitAdapter.Free;
   end;
 end;
 
 function TLazarusSourceManager.ListAvailableVersions: TStringArray;
-var
-  Releases: TLazarusReleaseArray;
-  Values: TStringList;
-  i: Integer;
-  UseStaticFallback: Boolean;
 begin
-  Result := nil;
-  Values := TStringList.Create;
-  try
-    Releases := TVersionRegistry.Instance.GetLazarusReleases;
-    UseStaticFallback := not RegistryHasLazarusReleases(Releases);
-    for i := 0 to High(Releases) do
-    begin
-      if (Trim(Releases[i].Version) <> '') and (Values.IndexOf(Releases[i].Version) < 0) then
-        Values.Add(Releases[i].Version);
-    end;
-
-    if UseStaticFallback then
-      for i := 0 to High(LAZARUS_VERSIONS) do
-      begin
-        if Values.IndexOf(LAZARUS_VERSIONS[i].Version) < 0 then
-          Values.Add(LAZARUS_VERSIONS[i].Version);
-      end;
-
-    SetLength(Result, Values.Count);
-    for i := 0 to Values.Count - 1 do
-      Result[i] := Values[i];
-  finally
-    Values.Free;
-  end;
+  Result := BuildLegacyLazarusAvailableVersionsCore(
+    TVersionRegistry.Instance.GetLazarusReleases,
+    LAZARUS_VERSIONS
+  );
 end;
 
 function TLazarusSourceManager.ListLocalVersions: TStringArray;
-var
-  SearchRec: TSearchRec;
-  VersionList: TStringList;
-  DirName, Version, SourcePath: string;
-  i: Integer;
 begin
-  Result := nil;
-  VersionList := TStringList.Create;
-  try
-    if FindFirst(FSourceRoot + PathDelim + 'lazarus-*', faDirectory, SearchRec) = 0 then
-    begin
-      repeat
-        if (SearchRec.Attr and faDirectory) <> 0 then
-        begin
-          DirName := SearchRec.Name;
-          if Pos('lazarus-', DirName) = 1 then
-          begin
-            SourcePath := FSourceRoot + PathDelim + DirName;
-            if not IsValidSourceDirectory(SourcePath) then
-              Continue;
-            Version := Copy(DirName, 9, Length(DirName) - 8);
-            VersionList.Add(Version);
-          end;
-        end;
-      until FindNext(SearchRec) <> 0;
-      FindClose(SearchRec);
-    end;
-
-    SetLength(Result, VersionList.Count);
-    for i := 0 to VersionList.Count - 1 do
-      Result[i] := VersionList[i];
-
-  finally
-    VersionList.Free;
-  end;
+  Result := ListLegacyLazarusLocalVersionsCore(
+    FSourceRoot,
+    @IsValidSourceDirectory
+  );
 end;
 
 function TLazarusSourceManager.GetCurrentVersion: string;
@@ -682,17 +510,13 @@ begin
 end;
 
 function TLazarusSourceManager.IsVersionAvailable(const AVersion: string): Boolean;
-var
-  Releases: TLazarusReleaseArray;
 begin
-  if TVersionRegistry.Instance.IsLazarusVersionValid(AVersion) then
-    Exit(True);
-
-  Releases := TVersionRegistry.Instance.GetLazarusReleases;
-  if RegistryHasLazarusReleases(Releases) then
-    Exit(False);
-
-  Result := FindStaticLazarusVersionIndex(AVersion) >= 0;
+  Result := IsLegacyLazarusVersionAvailableCore(
+    AVersion,
+    TVersionRegistry.Instance.IsLazarusVersionValid(AVersion),
+    TVersionRegistry.Instance.GetLazarusReleases,
+    LAZARUS_VERSIONS
+  );
 end;
 
 function TLazarusSourceManager.IsVersionInstalled(const AVersion: string): Boolean;
@@ -701,16 +525,10 @@ begin
 end;
 
 function TLazarusSourceManager.GetLazarusSourcePath(const AVersion: string): string;
-var
-  Version: string;
 begin
-  Version := AVersion;
-  if Version = '' then
-    Version := FCurrentVersion;
-  if Version = '' then
-    Version := 'main';
-
-  Result := GetSourcePath(Version);
+  Result := GetSourcePath(
+    ResolveLazarusLegacySourceVersionCore(AVersion, FCurrentVersion, 'main')
+  );
 end;
 
 function TLazarusSourceManager.GetLazarusBuildPath(const AVersion: string): string;
@@ -733,84 +551,28 @@ end;
 function TLazarusSourceManager.BuildLazarus(const AVersion: string): Boolean;
 var
   SourcePath: string;
-  MakeParams: array of string;
 begin
-  Result := False;
   SourcePath := GetLazarusSourcePath(AVersion);
-
-  if not IsValidSourceDirectory(SourcePath) then
-  begin
-    WriteLn('Error: Invalid Lazarus source directory: ', SourcePath);
-    WriteLn('Please clone the source first.');
-    Exit;
-  end;
-
-  WriteLn('Building Lazarus...');
-  WriteLn('  Source path: ', SourcePath);
-  WriteLn('  Parallel jobs: ', FParallelJobs);
-  if FFPCPath <> '' then
-    WriteLn('  FPC path: ', FFPCPath);
-  WriteLn('  Note: Build may take 10-30 minutes');
-  WriteLn;
-
-  // Build make parameters
-  MakeParams := nil;
-  SetLength(MakeParams, 0);
-
-  // Add clean and all targets
-  SetLength(MakeParams, Length(MakeParams) + 1);
-  MakeParams[High(MakeParams)] := 'clean';
-  SetLength(MakeParams, Length(MakeParams) + 1);
-  MakeParams[High(MakeParams)] := 'all';
-
-  // Add parallel jobs
-  if FParallelJobs > 1 then
-  begin
-    SetLength(MakeParams, Length(MakeParams) + 1);
-    MakeParams[High(MakeParams)] := '-j' + IntToStr(FParallelJobs);
-  end;
-
-  // Add FPC path if specified
-  if FFPCPath <> '' then
-  begin
-    SetLength(MakeParams, Length(MakeParams) + 1);
-    MakeParams[High(MakeParams)] := 'PP=' + FFPCPath;
-  end;
-
-  Result := ExecuteCommand('make', MakeParams, SourcePath);
-
-  if Result then
-    WriteLn('Lazarus build successful.')
-  else
-    WriteLn('Error: Lazarus build failed.');
+  Result := ExecuteLegacyLazarusBuildCore(
+    SourcePath,
+    FFPCPath,
+    FParallelJobs,
+    @IsValidSourceDirectory,
+    @ExecuteCommand,
+    @WriteStatus
+  );
 end;
 
 function TLazarusSourceManager.LaunchLazarus(const AVersion: string): Boolean;
 var
   ExecutablePath: string;
 begin
-  Result := False;
   ExecutablePath := GetLazarusExecutablePath(AVersion);
-
-  if not FileExists(ExecutablePath) then
-  begin
-    WriteLn('Error: Lazarus executable not found: ', ExecutablePath);
-    WriteLn('Please build Lazarus first using BuildLazarus.');
-    Exit;
-  end;
-
-  WriteLn('Launching Lazarus: ', ExecutablePath);
-
-  {$IFDEF MSWINDOWS}
-  Result := ExecuteCommand('cmd', ['/c', 'start', '', ExecutablePath], '');
-  {$ELSE}
-  Result := TProcessExecutor.Launch(ExecutablePath, [], '');
-  {$ENDIF}
-
-  if Result then
-    WriteLn('Lazarus launched successfully.')
-  else
-    WriteLn('Error: Failed to launch Lazarus.');
+  Result := ExecuteLegacyLazarusLaunchCore(
+    ExecutablePath,
+    @LaunchExecutable,
+    @WriteStatus
+  );
 end;
 
 function TLazarusSourceManager.GetLazarusVersion(const AVersion: string): string;
@@ -823,7 +585,12 @@ begin
   if Version = '' then
     Version := 'main';
 
-  Result := ResolveLazarusDescriptionFromRegistryOrStatic(Version);
+  Result := ResolveLegacyLazarusDescriptionCore(
+    Version,
+    TVersionRegistry.Instance.GetLazarusRelease(Version),
+    TVersionRegistry.Instance.GetLazarusReleases,
+    LAZARUS_VERSIONS
+  );
 end;
 
 function TLazarusSourceManager.InstallLazarusVersion(const AVersion: string): Boolean;
@@ -840,69 +607,22 @@ begin
     Version := 'main';
   PreviousVersion := FCurrentVersion;
   NeedsIDEConfig := Trim(FFPCPath) <> '';
-
-  WriteLn('Installing Lazarus version: ', Version);
-  if NeedsIDEConfig then
-    WriteLn('Steps: 1. Clone source -> 2. Build -> 3. Configure IDE -> 4. Activate source tree')
-  else
-    WriteLn('Steps: 1. Clone source -> 2. Build -> 3. Activate source tree');
-  WriteLn;
-
-  // Step 1: Clone source
-  WriteLn('[1/3] Cloning Lazarus source...');
-  if not CloneLazarusSource(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    WriteLn('Error: Source clone failed, installation aborted.');
-    Exit;
-  end;
-
-  // Step 2: Build
-  WriteLn('[2/3] Building Lazarus IDE...');
-  if not BuildLazarus(Version) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    WriteLn('Error: Build failed, installation aborted.');
-    Exit;
-  end;
-
-  ExecutablePath := GetLazarusExecutablePath(Version);
-  if not FileExists(ExecutablePath) then
-  begin
-    FCurrentVersion := PreviousVersion;
-    WriteLn('Error: Lazarus executable not found after build: ', ExecutablePath);
-    Exit;
-  end;
-
   SourcePath := GetLazarusSourcePath(Version);
-  if NeedsIDEConfig then
-  begin
-    WriteLn('[3/4] Configuring Lazarus IDE for custom FPC...');
-    if not ConfigureCustomFPCIDE(Version, SourcePath) then
-    begin
-      FCurrentVersion := PreviousVersion;
-      WriteLn('Error: Failed to configure Lazarus IDE for custom FPC path.');
-      Exit;
-    end;
-  end;
+  ExecutablePath := GetLazarusExecutablePath(Version);
 
-  if NeedsIDEConfig then
-    WriteLn('[4/4] Setting as current source environment...')
-  else
-    WriteLn('[3/3] Setting as current source environment...');
-  if SwitchLazarusVersion(Version) then
-  begin
-    WriteLn('Lazarus source tree ', Version, ' is ready.');
-    WriteLn('Current Lazarus version: ', Version);
-    WriteLn('Source path: ', SourcePath);
-    WriteLn('Executable path: ', ExecutablePath);
-    Result := True;
-  end
-  else
-  begin
-    FCurrentVersion := PreviousVersion;
-    WriteLn('Error: Failed to activate source tree.');
-  end;
+  Result := ExecuteLazarusLegacyInstallCore(
+    Version,
+    SourcePath,
+    ExecutablePath,
+    PreviousVersion,
+    NeedsIDEConfig,
+    FCurrentVersion,
+    @WriteStatus,
+    @CloneLazarusSource,
+    @BuildLazarus,
+    @ConfigureCustomFPCIDE,
+    @SwitchLazarusVersion
+  );
 end;
 
 end.

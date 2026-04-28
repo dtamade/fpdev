@@ -4,6 +4,8 @@
 
 This document describes the current libgit2 integration state in FPDev, including native C API bindings, modern interface wrappers, active test paths, and runtime library layout expectations.
 
+The current-worktree system-git facade is out of scope for this document; its default entrypoint is `fpdev.git.operations`, the concrete implementation lives in `src/fpdev.git.operations.impl.pas`, and `src/fpdev.utils.git.pas` has been removed and now appears only as a removed compatibility shim note.
+
 ## Architecture Design
 
 ### Layered Architecture
@@ -58,6 +60,7 @@ No dedicated libgit2 helper build scripts are tracked in the current worktree; u
 ### libgit2.pas - C API Bindings
 
 **Feature Coverage**:
+
 - Basic library management (initialization/shutdown)
 - Repository operations (open/create/clone)
 - Reference management (branches/tags/HEAD)
@@ -69,6 +72,7 @@ No dedicated libgit2 helper build scripts are tracked in the current worktree; u
 - Error handling (exceptions/error codes)
 
 **Type Definitions**:
+
 ```pascal
 // Basic types
 git_repository = Pointer;
@@ -90,6 +94,7 @@ end;
 ```
 
 **Core Functions**:
+
 ```pascal
 // Library management
 function git_libgit2_init: cint;
@@ -107,6 +112,7 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 ### git2.modern.pas - Modern Interface Wrappers
 
 **Design Principles**:
+
 - Object-oriented design
 - Automatic resource management
 - Exception safety
@@ -115,6 +121,7 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 **Core Classes**:
 
 #### TGitManager - Git Manager
+
 ```pascal
 TGitManager = class
   function Initialize: Boolean;
@@ -125,6 +132,7 @@ end;
 ```
 
 #### TGitRepository - Repository Wrapper
+
 ```pascal
 TGitRepository = class
   function GetCurrentBranch: string;
@@ -136,6 +144,7 @@ end;
 ```
 
 #### TGitCommit - Commit Wrapper
+
 ```pascal
 TGitCommit = class
   property OID: TGitOID read FOID;
@@ -152,11 +161,13 @@ If you need to build libgit2 locally, use the standard CMake or package-manager 
 ### Windows Artifact Layout
 
 **Dependencies**:
+
 - CMake 3.16+
 - MinGW-w64 GCC
 - Git
 
 **Expected Artifacts**:
+
 ```bash
 3rd\libgit2\install\bin\git2.dll         # Dynamic library (matches src/libgit2.pas on Windows)
 3rd\libgit2\install\lib\git2.lib         # Import library
@@ -166,6 +177,7 @@ If you need to build libgit2 locally, use the standard CMake or package-manager 
 ### Linux Artifact Layout
 
 **Dependencies**:
+
 ```bash
 # Ubuntu/Debian
 sudo apt install cmake build-essential libssl-dev zlib1g-dev
@@ -175,6 +187,7 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 ```
 
 **Expected Artifacts**:
+
 ```bash
 3rd/libgit2/install/lib/libgit2.so       # Dynamic library
 3rd/libgit2/install/lib/libgit2.a        # Static library
@@ -225,16 +238,19 @@ fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 ## Performance Characteristics
 
 ### Memory Management
+
 - Automatic resource deallocation
 - RAII pattern implementation
 - Exception safety guarantees
 
 ### Network Optimization
+
 - Shallow clone support (--depth 1)
 - Progress callback support
 - Interrupt and resume mechanism
 
 ### Cross-Platform Support
+
 - Windows (MinGW/MSVC)
 - Linux (GCC/Clang)
 - macOS (Clang)
@@ -342,6 +358,7 @@ end;
 ## Future Extensions
 
 ### Planned Features
+
 - [ ] Branch management (create/switch/merge)
 - [ ] Commit creation and push
 - [ ] Conflict resolution
@@ -350,6 +367,7 @@ end;
 - [ ] SSH key management
 
 ### Performance Optimization
+
 - [ ] Multi-threaded downloads
 - [ ] Incremental updates
 - [ ] Local caching
@@ -394,6 +412,7 @@ end;
 ## License
 
 This integration follows these licenses:
+
 - **FPDev**: MIT License
 - **libgit2**: GPL v2 with Linking Exception
 - **FreePascal**: Modified LGPL

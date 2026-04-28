@@ -7,6 +7,7 @@ interface
 function CreateUniqueTempDir(const APrefix: string = ''): string;
 function PathUsesSystemTempRoot(const APath: string): Boolean;
 procedure CleanupTempDir(const APath: string);
+function ResolveTestAssetPath(const ARelativePath: string): string;
 
 implementation
 
@@ -67,6 +68,35 @@ procedure CleanupTempDir(const APath: string);
 begin
   if (APath <> '') and DirectoryExists(APath) then
     DeleteDirRecursive(APath);
+end;
+
+function ResolveTestAssetPath(const ARelativePath: string): string;
+var
+  CandidatePath: string;
+  SearchDir: string;
+  Depth: Integer;
+begin
+  CandidatePath := ExpandFileName(ARelativePath);
+  if FileExists(CandidatePath) then
+    Exit(CandidatePath);
+
+  CandidatePath := ExpandFileName(GetCurrentDir + PathDelim + ARelativePath);
+  if FileExists(CandidatePath) then
+    Exit(CandidatePath);
+
+  SearchDir := ExpandFileName(ExtractFileDir(ParamStr(0)));
+  for Depth := 0 to 8 do
+  begin
+    CandidatePath := ExpandFileName(SearchDir + PathDelim + ARelativePath);
+    if FileExists(CandidatePath) then
+      Exit(CandidatePath);
+
+    if ExtractFileDir(SearchDir) = SearchDir then
+      Break;
+    SearchDir := ExtractFileDir(SearchDir);
+  end;
+
+  raise Exception.Create('Unable to locate test asset: ' + ARelativePath);
 end;
 
 end.

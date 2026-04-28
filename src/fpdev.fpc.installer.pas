@@ -637,7 +637,6 @@ end;
 function TFPCInstaller.UninstallVersion(const AVersion: string): TOperationResult;
 begin
   Result := ExecuteFPCInstallerUninstallCore(
-    AVersion,
     GetInstallDir(AVersion),
     @DirectoryExistsAt,
     @ExecuteProcess

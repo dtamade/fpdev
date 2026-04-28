@@ -34,22 +34,24 @@ FPDev 是一个模块化的 FreePascal 和 Lazarus 开发环境管理工具，�
 **职责**: 管理应用程序的配置信息，包括工具链、Lazarus版本、交叉编译目标等。
 
 **设计原则**:
+
 - 使用 JSON 格式存储配置，便于人工编辑和版本控制
 - 提供类型安全的配置访问接口
 - 支持配置的验证和迁移
 - 采用延迟加载策略，提高启动性能
 
 **核心类**:
+
 ```pascal
 TFPDevConfigManager = class
   // 配置文件操作
   function LoadConfig: Boolean;
   function SaveConfig: Boolean;
-  
+
   // 工具链管理
   function AddToolchain(const AName: string; const AInfo: TToolchainInfo): Boolean;
   function GetToolchain(const AName: string; out AInfo: TToolchainInfo): Boolean;
-  
+
   // 设置管理
   function GetSettings: TFPDevSettings;
   function SetSettings(const ASettings: TFPDevSettings): Boolean;
@@ -63,6 +65,7 @@ end;
 **设计模式**: 命令模式 + 注册表分发
 
 **核心接口和类型**:
+
 ```pascal
 IContext = interface
   function Config: IConfigManager;
@@ -87,6 +90,7 @@ end;
 ```
 
 **关键实现文件**:
+
 - `src/fpdev.command.intf.pas`: `ICommand` / `IContext`
 - `src/fpdev.command.tree.pas`: `TCommandNode`
 - `src/fpdev.command.registration.pas`: 路径注册与别名挂接
@@ -96,6 +100,7 @@ end;
 - `src/fpdev.cli.runner.pas`: 入口层 orchestration
 
 **命令层次结构**:
+
 ```
 fpdev
 ├── fpc
@@ -137,16 +142,41 @@ fpdev
 入口层只保留 `--portable` 预解析；根帮助、版本、工具链检查和策略检查都通过命令树暴露。
 ```
 
+## 2026-04 当前工作树 facade/helper split
+
+### 命令层 facade
+
+- `src/fpdev.cmd.fpc.install.pas` 保留命令注册、`TFPCManager` ownership 与最终调用接线；参数解析、network guard、auto fallback 与 exit-code runtime 由 `src/fpdev.fpc.installcommandflow.pas` 承接。
+- `src/fpdev.cmd.fpc.use.pas` 保留命令注册与 manager wiring；help/usage、参数验证、版本切换 surface 由 `src/fpdev.fpc.usecommandflow.pas` 承接。
+- `src/fpdev.cmd.fpc.verify.pas` 保留命令注册与 manager wiring；verify command 的 help/usage、step-by-step 输出与 exit-code mapping 由 `src/fpdev.fpc.verifycommandflow.pas` 承接。
+
+### 服务层 facade
+
+- `src/fpdev.build.manager.pas` 保留状态、logger、toolchain checker 与 process bridge；build/test/preflight surface 由 `src/fpdev.build.managerflow.pas` 负责，toolchain/config/make/build-stamp runtime glue 由 `src/fpdev.build.runtimeflow.pas` 负责。
+- `src/fpdev.fpc.builder.pas` 保留 resource repo、state、output 与 callback wiring；bootstrap ensure 与 source build orchestration 由 `src/fpdev.fpc.builderflow.pas` 承接。
+- `src/fpdev.fpc.binary.pas` 保留 mirror/extractor/cache/manifest parser ownership，以及 `FLastError` / config flags；manifest 加载、download 选择与 binary install sequencing 由 `src/fpdev.fpc.binaryflow.pas` 承接。
+
+### Git 操作服务说明
+
+FPDev 当前同时保留两条 Git 技术路径，但它们服务的职责不同：
+
+- 需要走 system-git facade 的新代码，默认从 `src/fpdev.git.operations.pas` 进入。
+- `TGitOperations` / `IGitCliRunner` 的具体实现现在位于 `src/fpdev.git.operations.impl.pas`。
+- `src/fpdev.utils.git.pas` 已删除；它现在只应作为 removed compatibility shim 的迁移说明被提及，外部旧调用方应改用 `src/fpdev.git.operations.pas`。
+- 需要 libgit2 抽象层时，优先看 `git2.api.pas` + `git2.impl.pas`，以及对应的 `fpdev.git2` 文档。
+
 ### 3. 工具函数库 (fpdev.utils)
 
 **职责**: 提供跨平台的系统操作接口，包括文件操作、进程管理、系统信息获取等。
 
 **设计原则**:
+
 - 统一的跨平台接口
 - 平台特定的实现分离
 - 错误处理和异常安全
 
 **功能模块**:
+
 - 系统信息: CPU、内存、主机名等
 - 进程管理: 进程创建、监控、终止
 - 文件操作: 路径处理、文件权限、目录操作
@@ -157,6 +187,7 @@ fpdev
 **职责**: 管理终端输出格式，支持彩色输出、进度条、表格等。
 
 **特性**:
+
 - 跨平台彩色输出支持
 - 进度条和状态指示器
 - 表格格式化输出

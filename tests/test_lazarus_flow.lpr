@@ -299,6 +299,43 @@ begin
   end;
 end;
 
+procedure TestExecuteLazarusInstallPlanCoreReportsCompletionAndActivationHint;
+var
+  Plan: TLazarusInstallPlan;
+  Probe: TLazarusInstallProbe;
+  Outp, Errp: TStringOutput;
+begin
+  Plan := CreateLazarusInstallPlanCore('/tmp/fpdev-data', '3.2', '', '3.2.2', True, True);
+  Probe := TLazarusInstallProbe.Create;
+  Outp := TStringOutput.Create;
+  Errp := TStringOutput.Create;
+  try
+    Probe.DownloadSuccess := True;
+    Probe.BuildSuccess := True;
+    Probe.SetupSuccess := True;
+    Probe.ConfigureSuccess := True;
+
+    Check('install flow success remains success',
+      ExecuteLazarusInstallPlanCore(Plan, Outp, Errp, @Probe.Download, @Probe.Build, @Probe.Setup, @Probe.Configure));
+    Check('install flow success prints completion banner',
+      Outp.Contains('Installation completed!'),
+      Outp.Text);
+    Check('install flow success prints activation hint',
+      Outp.Contains('To activate this version, run:'),
+      Outp.Text);
+    Check('install flow success prints activation command',
+      Outp.Contains('  fpdev lazarus use 3.2'),
+      Outp.Text);
+    Check('install flow success keeps stderr quiet',
+      not Errp.Contains('fpdev lazarus configure 3.2'),
+      Errp.Text);
+  finally
+    Errp.Free;
+    Outp.Free;
+    Probe.Free;
+  end;
+end;
+
 procedure TestResolveLazarusConfigDirCoreUsesExplicitRoot;
 var
   ConfigDir: string;
@@ -447,6 +484,7 @@ begin
   TestCreateLazarusInstallPlanCoreFallsBackToRecommendedVersion;
   TestExecuteLazarusInstallPlanCoreReportsDownloadFailure;
   TestExecuteLazarusInstallPlanCoreTreatsConfigureFailureAsWarning;
+  TestExecuteLazarusInstallPlanCoreReportsCompletionAndActivationHint;
   TestResolveLazarusConfigDirCoreUsesExplicitRoot;
   TestCreateLazarusBuildPlanCoreWindowsUsesMingwAndExe;
   TestCreateLazarusBuildPlanCoreUnixKeepsPlainFPCAndDeduplicatesStableToolPath;

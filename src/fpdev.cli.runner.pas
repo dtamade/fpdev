@@ -31,6 +31,7 @@ uses
   fpdev.i18n,
   fpdev.i18n.strings,
   fpdev.cli.bootstrap,
+  fpdev.cli.flags,
   fpdev.cli.global;
 
 function RunCLIRootFlowCore(const ARawArgs: TStringArray; const AOut, AErr: IOutput;

@@ -8,7 +8,7 @@ uses
   BaseUnix,
   {$ENDIF}
   fpdev.lazarus.manager, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2,
-  fpdev.utils, fpdev.utils.git, fpdev.constants, fpdev.version.registry, fpdev.lazarus.source,
+  fpdev.utils, fpdev.git.types, fpdev.constants, fpdev.version.registry, fpdev.lazarus.source,
   fpdev.lazarus.config, fpdev.lazarus.commandflow, fpdev.output.intf,
   fpdev.i18n, fpdev.i18n.strings,
   test_temp_paths;

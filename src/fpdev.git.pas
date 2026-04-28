@@ -6,13 +6,13 @@ unit fpdev.git;
 interface
 
 uses
-  SysUtils, Classes, fpdev.utils.git;
+  SysUtils, Classes, fpdev.git.types, fpdev.git.runtime;
 
 type
   { TGitManager }
   TGitManager = class
   private
-    FGitOps: TGitOperations;
+    FGitOps: IGitRuntime;
 
   public
     constructor Create;
@@ -41,13 +41,12 @@ implementation
 constructor TGitManager.Create;
 begin
   inherited Create;
-  FGitOps := TGitOperations.Create;
+  FGitOps := NewGitRuntime;
 end;
 
 destructor TGitManager.Destroy;
 begin
-  if Assigned(FGitOps) then
-    FGitOps.Free;
+  FGitOps := nil;
   inherited Destroy;
 end;
 
@@ -66,7 +65,7 @@ end;
 
 function TGitManager.ValidateGitEnvironment: Boolean;
 begin
-  Result := Assigned(FGitOps) and (FGitOps.Backend <> gbNone);
+  Result := Assigned(FGitOps) and FGitOps.BackendAvailable;
 end;
 
 function TGitManager.CloneRepository(const AURL, ATargetDir: string; const ABranch: string): Boolean;
@@ -129,7 +128,7 @@ begin
   if not Assigned(FGitOps) then
     Exit(False);
 
-  // libgit2-first clone with CLI fallback inside TGitOperations
+  // libgit2-first clone with CLI fallback inside the runtime adapter
   Result := FGitOps.Clone(AURL, ATargetDir, ABranch);
 
   if Result then
@@ -151,7 +150,7 @@ begin
   // WriteLn('Updating repository: ', ARepoDir);  // debug code commented out
 
   // Run the repository update helper
-  Result := FGitOps.Pull(ARepoDir);
+  Result := FGitOps.PullWithMerge(ARepoDir);
 
   if Result then
   // WriteLn('[OK] Update succeeded')  // debug code commented out

@@ -146,9 +146,9 @@ uses
   fpdev.paths,
   fpdev.constants,
   fpdev.fpc.installversionflow,
+  fpdev.git.errors,
   fpdev.i18n,
-  fpdev.i18n.strings,
-  fpdev.utils.git;
+  fpdev.i18n.strings;
 
 procedure WriteLine(const AOut: IOutput; const AText: string = '');
 begin
@@ -156,26 +156,17 @@ begin
     AOut.WriteLn(AText);
 end;
 
-function NormalizeGitPullErrorDetail(const AError: string): string;
-var
-  LError: string;
+procedure WriteLazarusInstallSuccessReport(const AVersion, AInstallPath: string;
+  const AOut: IOutput);
 begin
-  LError := Trim(AError);
-  case ClassifyGitPullFailure(LError) of
-    gpfkDirtyWorktree:
-      Exit(_(MSG_GIT_UPDATE_DIRTY_WORKTREE));
-    gpfkDetachedHead:
-      Exit(_(MSG_GIT_UPDATE_DETACHED_HEAD));
-    gpfkDivergedHistory:
-      Exit(_(MSG_GIT_UPDATE_DIVERGED_HISTORY));
-    gpfkUnknown:
-      ;
-  end;
-
-  if LError = '' then
-    Result := _(MSG_FAILED)
-  else
-    Result := LError;
+  WriteLine(AOut);
+  WriteLine(AOut, '===========================================');
+  WriteLine(AOut, 'Installation completed!');
+  WriteLine(AOut, 'Lazarus ' + AVersion + ' installed to: ' + AInstallPath);
+  WriteLine(AOut);
+  WriteLine(AOut, 'To activate this version, run:');
+  WriteLine(AOut, '  fpdev lazarus use ' + AVersion);
+  WriteLine(AOut, '===========================================');
 end;
 
 function PathContainsEntry(const APathList, AEntry: string): Boolean;
@@ -327,6 +318,9 @@ begin
         APlan.Version + '" manually'
       );
   end;
+
+  if Result then
+    WriteLazarusInstallSuccessReport(APlan.Version, APlan.InstallPath, Outp);
 end;
 
 function ResolveLazarusConfigDirCore(

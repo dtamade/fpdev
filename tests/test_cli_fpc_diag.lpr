@@ -42,7 +42,7 @@ uses
   fpdev.cmd.fpc.cache.clean,
   fpdev.cmd.fpc.cache.stats,
   fpdev.cmd.fpc.cache.path,
-  test_cli_helpers, test_temp_paths;
+  test_cli_helpers, test_temp_paths, test_fpc_mock_helpers;
 
 var
   GTempDir: string;
@@ -56,30 +56,6 @@ begin
   Ctx.Config.GetSettingsManager.SetSettings(Settings);
 end;
 
-procedure CompileMockFPCBinary(const ATargetPath: string);
-var
-  MockFPCSource: string;
-  CompileProcess: TProcess;
-begin
-  MockFPCSource := ExpandFileName(
-    ExtractFileDir(ParamStr(0)) + PathDelim + '..' + PathDelim + 'tests' +
-    PathDelim + 'mock_fpc.pas'
-  );
-
-  CompileProcess := TProcess.Create(nil);
-  try
-    CompileProcess.Executable := 'fpc';
-    CompileProcess.Parameters.Add('-o' + ATargetPath);
-    CompileProcess.Parameters.Add(MockFPCSource);
-    CompileProcess.Options := CompileProcess.Options + [poWaitOnExit];
-    CompileProcess.Execute;
-
-    if CompileProcess.ExitStatus <> 0 then
-      raise Exception.Create('Failed to compile mock FPC executable');
-  finally
-    CompileProcess.Free;
-  end;
-end;
 
 procedure SetupMockVerifyInstall(const Ctx: IContext; out AInstallRoot, AInstallDir: string);
 var

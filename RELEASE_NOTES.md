@@ -4,6 +4,13 @@
 
 `v2.1.0` 是 FPDev 的收口版本：当前范围内的功能清单已经关闭，这一版把发布验收、文档同步和跨平台 public CI release proof 固化成可执行流程，方便一次性完成发布落地。
 
+## Breaking impact summary
+
+- Removed `src/fpdev.utils.git.pas`
+- Removed the last compatibility aliases for `TGitOperations` and `IGitCliRunner`
+- External callers must switch to `fpdev.git.operations`
+- Migration path: Use `fpdev.git.operations` instead.
+
 ## 本版重点
 
 ### 1. 工具链管理已形成完整闭环

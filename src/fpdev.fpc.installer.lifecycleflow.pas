@@ -57,7 +57,7 @@ function ExecuteFPCInstallerInstallCore(
   ABuildFromSource: TFPCInstallerBuildFromSourceFunc
 ): TOperationResult;
 function ExecuteFPCInstallerUninstallCore(
-  const AVersion, AInstallDir: string;
+  const AInstallDir: string;
   ADirectoryExists: TFPCInstallerDirectoryExistsFunc;
   AExecuteProcess: TFPCInstallerExecuteProcessFunc
 ): TOperationResult;
@@ -191,7 +191,7 @@ begin
 end;
 
 function ExecuteFPCInstallerUninstallCore(
-  const AVersion, AInstallDir: string;
+  const AInstallDir: string;
   ADirectoryExists: TFPCInstallerDirectoryExistsFunc;
   AExecuteProcess: TFPCInstallerExecuteProcessFunc
 ): TOperationResult;

@@ -389,6 +389,10 @@ begin
       OutBuf.Contains('Build cache restored successfully'), 'restore success missing');
     Check('cache fast path prints install done',
       OutBuf.Contains(_Fmt(CMD_FPC_INSTALL_DONE, ['3.2.2'])), 'done missing');
+    Check('cache fast path prints activation hint',
+      OutBuf.Contains('To activate this version, run:'), 'activation hint missing');
+    Check('cache fast path prints activation command',
+      OutBuf.Contains('  fpdev fpc use 3.2.2'), 'activation command missing');
   finally
     OutRef := nil;
     ErrRef := nil;
@@ -456,6 +460,10 @@ begin
       OutBuf.Contains('Cache restore failed, building from source...'), 'cache fallback missing');
     Check('cache miss prints cache save success',
       OutBuf.Contains('Build artifacts cached successfully'), 'cache save missing');
+    Check('cache miss prints activation hint',
+      OutBuf.Contains('To activate this version, run:'), 'activation hint missing');
+    Check('cache miss prints activation command',
+      OutBuf.Contains('  fpdev fpc use 3.2.2'), 'activation command missing');
   finally
     OutRef := nil;
     ErrRef := nil;
@@ -571,6 +579,102 @@ begin
   end;
 end;
 
+procedure TestSourceInstallOfflineCacheMissFails;
+var
+  Probe: TInstallFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OutRef, ErrRef: IOutput;
+  OK: Boolean;
+begin
+  Probe := TInstallFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  OutRef := OutBuf as IOutput;
+  ErrRef := ErrBuf as IOutput;
+  try
+    Probe.HasArtifactsResult := False;
+
+    OK := ExecuteFPCInstallVersionCore(
+      '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      True, True,
+      OutRef, ErrRef,
+      @Probe.VerifyInstalledExecutable,
+      @Probe.HasArtifacts,
+      @Probe.RestoreArtifacts,
+      @Probe.SaveArtifacts,
+      @Probe.DownloadSource,
+      @Probe.EnsureBootstrap,
+      @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
+      @Probe.SetupEnvironment,
+      @Probe.InstallBinary
+    );
+
+    Check('offline cache miss returns false', not OK, 'expected failure');
+    Check('offline cache miss checks cache once', Probe.HasArtifactsCalls = 1,
+      'has calls=' + IntToStr(Probe.HasArtifactsCalls));
+    Check('offline cache miss skips download', Probe.DownloadSourceCalls = 0,
+      'download calls=' + IntToStr(Probe.DownloadSourceCalls));
+    Check('offline cache miss reports fail',
+      ErrBuf.Contains('[FAIL] Cache miss for FPC 3.2.2'), 'cache miss message missing');
+  finally
+    OutRef := nil;
+    ErrRef := nil;
+    OutBuf := nil;
+    ErrBuf := nil;
+    Probe.Free;
+  end;
+end;
+
+procedure TestSourceInstallOfflineRestoreFailureFails;
+var
+  Probe: TInstallFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OutRef, ErrRef: IOutput;
+  OK: Boolean;
+begin
+  Probe := TInstallFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  OutRef := OutBuf as IOutput;
+  ErrRef := ErrBuf as IOutput;
+  try
+    Probe.HasArtifactsResult := True;
+    Probe.RestoreArtifactsResult := False;
+
+    OK := ExecuteFPCInstallVersionCore(
+      '3.2.2', '/install-root', '/install-root/fpc/3.2.2', '', True, False, False,
+      True, True,
+      OutRef, ErrRef,
+      @Probe.VerifyInstalledExecutable,
+      @Probe.HasArtifacts,
+      @Probe.RestoreArtifacts,
+      @Probe.SaveArtifacts,
+      @Probe.DownloadSource,
+      @Probe.EnsureBootstrap,
+      @Probe.BuildFromSource,
+      @Probe.WriteMetadata,
+      @Probe.SetupEnvironment,
+      @Probe.InstallBinary
+    );
+
+    Check('offline restore failure returns false', not OK, 'expected failure');
+    Check('offline restore failure restores once', Probe.RestoreArtifactsCalls = 1,
+      'restore calls=' + IntToStr(Probe.RestoreArtifactsCalls));
+    Check('offline restore failure skips download', Probe.DownloadSourceCalls = 0,
+      'download calls=' + IntToStr(Probe.DownloadSourceCalls));
+    Check('offline restore failure reports fail',
+      ErrBuf.Contains('[FAIL] Cache restoration failed in offline mode'),
+      'restore failure message missing');
+  finally
+    OutRef := nil;
+    ErrRef := nil;
+    OutBuf := nil;
+    ErrBuf := nil;
+    Probe.Free;
+  end;
+end;
+
 procedure TestBinaryInstallWritesMetadata;
 var
   Probe: TInstallFlowProbe;
@@ -613,6 +717,10 @@ begin
     Check('binary install metadata uses resolved prefix path',
       Probe.LastMetadataInstallPath = ExpandFileName('/custom/prefix'),
       'path=' + Probe.LastMetadataInstallPath);
+    Check('binary install prints activation hint',
+      OutBuf.Contains('To activate this version, run:'), 'activation hint missing');
+    Check('binary install prints activation command',
+      OutBuf.Contains('  fpdev fpc use 3.2.2'), 'activation command missing');
   finally
     OutRef := nil;
     ErrRef := nil;
@@ -629,6 +737,8 @@ begin
   TestSourceInstallBuildsAndCachesAfterCacheMiss;
   TestSourceInstallReportsBootstrapFailure;
   TestSourceInstallSkipsCacheWhenDisabled;
+  TestSourceInstallOfflineCacheMissFails;
+  TestSourceInstallOfflineRestoreFailureFails;
   TestBinaryInstallWritesMetadata;
 
   WriteLn;

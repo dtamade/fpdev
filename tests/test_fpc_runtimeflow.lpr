@@ -8,6 +8,7 @@ uses
   fpdev.i18n,
   fpdev.i18n.strings,
   fpdev.config.interfaces,
+  fpdev.git.errors,
   fpdev.utils.process,
   fpdev.fpc.runtimeflow;
 
@@ -302,6 +303,54 @@ begin
     Pass(AName)
   else
     Fail(AName, AReason);
+end;
+
+procedure TestClassifyGitPullFailureDetectsDetachedHead;
+begin
+  Check('git pull classifier detects detached head',
+    ClassifyGitPullFailure('Detached HEAD') = gpfkDetachedHead);
+end;
+
+procedure TestClassifyGitPullFailureDetectsDirtyWorktree;
+begin
+  Check('git pull classifier detects dirty worktree',
+    ClassifyGitPullFailure('working tree has local changes') = gpfkDirtyWorktree);
+end;
+
+procedure TestClassifyGitPullFailureDetectsDivergedHistory;
+begin
+  Check('git pull classifier detects diverged history',
+    ClassifyGitPullFailure('automatic merge failed') = gpfkDivergedHistory);
+end;
+
+procedure TestClassifyGitPullFailureFallsBackToUnknown;
+begin
+  Check('git pull classifier falls back to unknown',
+    ClassifyGitPullFailure('plain network timeout') = gpfkUnknown);
+end;
+
+procedure TestNormalizeGitPullErrorDetailMapsDetachedHead;
+begin
+  Check('git pull error normalizer maps detached head',
+    NormalizeGitPullErrorDetail('Detached HEAD') = _(MSG_GIT_UPDATE_DETACHED_HEAD));
+end;
+
+procedure TestNormalizeGitPullErrorDetailMapsDirtyWorktree;
+begin
+  Check('git pull error normalizer maps dirty worktree',
+    NormalizeGitPullErrorDetail('working tree has local changes') = _(MSG_GIT_UPDATE_DIRTY_WORKTREE));
+end;
+
+procedure TestNormalizeGitPullErrorDetailMapsDivergedHistory;
+begin
+  Check('git pull error normalizer maps diverged history',
+    NormalizeGitPullErrorDetail('automatic merge failed') = _(MSG_GIT_UPDATE_DIVERGED_HISTORY));
+end;
+
+procedure TestNormalizeGitPullErrorDetailFallsBackToRawError;
+begin
+  Check('git pull error normalizer falls back to raw text',
+    NormalizeGitPullErrorDetail('plain network timeout') = 'plain network timeout');
 end;
 
 procedure TestCreateFPCSourcePlanCoreUsesMainWhenVersionBlank;
@@ -820,6 +869,14 @@ begin
 end;
 
 begin
+  TestClassifyGitPullFailureDetectsDetachedHead;
+  TestClassifyGitPullFailureDetectsDirtyWorktree;
+  TestClassifyGitPullFailureDetectsDivergedHistory;
+  TestClassifyGitPullFailureFallsBackToUnknown;
+  TestNormalizeGitPullErrorDetailMapsDetachedHead;
+  TestNormalizeGitPullErrorDetailMapsDirtyWorktree;
+  TestNormalizeGitPullErrorDetailMapsDivergedHistory;
+  TestNormalizeGitPullErrorDetailFallsBackToRawError;
   TestCreateFPCSourcePlanCoreUsesMainWhenVersionBlank;
   TestExecuteFPCUpdatePlanCoreFailsWhenSourceMissing;
   TestExecuteFPCUpdatePlanCoreFailsWithoutGitBackend;

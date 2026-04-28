@@ -2,10 +2,15 @@ program test_git_operations;
 
 {$mode objfpc}{$H+}
 
-{ Unit tests for TGitOperations class in fpdev.utils.git }
+{
+  Focused contract tests for the default operations facade.
+  This suite intentionally exercises fpdev.git.operations, not the
+  legacy compatibility layer.
+}
 
 uses
-  SysUtils, Classes, fpdev.utils, fpdev.utils.git, fpdev.utils.process,
+  SysUtils, Classes, fpdev.utils, fpdev.git.operations, fpdev.git.types, fpdev.git.errors,
+  fpdev.utils.process,
   git2.api, git2.types, git2.impl, libgit2, test_temp_paths;
 
 type
@@ -153,7 +158,7 @@ begin
 
   Git := TGitOperations.Create;
   try
-    BackendStr := GitBackendToString(Git.Backend);
+    BackendStr := fpdev.git.types.GitBackendToString(Git.Backend);
     Check('Backend string is not empty', BackendStr <> '');
 
     case Git.Backend of
@@ -1988,9 +1993,28 @@ begin
   WriteLn('');
   WriteLn('=== Test 15: GitBackendToString ===');
 
-  Check('gbLibgit2 -> libgit2', GitBackendToString(gbLibgit2) = 'libgit2');
-  Check('gbCommandLine -> git (command-line)', GitBackendToString(gbCommandLine) = 'git (command-line)');
-  Check('gbNone -> none', GitBackendToString(gbNone) = 'none');
+  Check('gbLibgit2 -> libgit2',
+    fpdev.git.types.GitBackendToString(gbLibgit2) = 'libgit2');
+  Check('gbCommandLine -> git (command-line)',
+    fpdev.git.types.GitBackendToString(gbCommandLine) = 'git (command-line)');
+  Check('gbNone -> none',
+    fpdev.git.types.GitBackendToString(gbNone) = 'none');
+end;
+
+procedure TestClassifyGitPullFailure;
+begin
+  WriteLn('');
+  WriteLn('=== Test 16: ClassifyGitPullFailure ===');
+
+  Check('Detached HEAD maps to detached-head failure kind',
+    fpdev.git.errors.ClassifyGitPullFailure('Detached HEAD') =
+      fpdev.git.errors.gpfkDetachedHead);
+  Check('Dirty worktree maps to dirty-worktree failure kind',
+    fpdev.git.errors.ClassifyGitPullFailure('working tree has local changes') =
+      fpdev.git.errors.gpfkDirtyWorktree);
+  Check('Unknown error still maps to unknown failure kind',
+    fpdev.git.errors.ClassifyGitPullFailure('plain network timeout') =
+      fpdev.git.errors.gpfkUnknown);
 end;
 
 procedure TestCheckoutCliOnlyPrefersRequestedRemoteBranchOverSameNamedTag;
@@ -2124,6 +2148,7 @@ begin
   TestCheckoutCliOnlyPrefersRequestedRemoteBranchOverSameNamedTag;
   TestMultipleInstances;
   TestGitBackendToString;
+  TestClassifyGitPullFailure;
 
   WriteLn('');
   WriteLn('========================================');

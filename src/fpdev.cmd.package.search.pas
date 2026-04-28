@@ -22,10 +22,8 @@ unit fpdev.cmd.package.search;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser,
-  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.package.registry, fpdev.exitcodes,
-  fpdev.paths;
+  SysUtils, Classes, fpjson,
+  fpdev.command.intf, fpdev.package.registry;
 
 type
   { TPackageSearchCommand - Functional class for package search }
@@ -68,7 +66,13 @@ type
 
 implementation
 
-uses fpdev.command.utils;
+uses
+  fpdev.command.registry,
+  fpdev.package.manager,
+  fpdev.package.searchcommandflow,
+  fpdev.i18n,
+  fpdev.i18n.strings,
+  fpdev.paths;
 
 { TPackageSearchCommand }
 
@@ -255,104 +259,34 @@ end;
 function TPackageSearchCmd.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   LMgr: TPackageManager;
-  Q: string;
-  Arg: string;
-  LJsonOutput: Boolean;
   LSearch: TPackageSearchCommand;
-  LResults: TStringList;
-  LJson: TJSONObject;
-  LArr: TJSONArray;
-  UnknownOption: string;
-  I: Integer;
+  LPlan: TPackageSearchCommandPlan;
+  LShouldExit: Boolean;
 begin
-  Result := EXIT_OK;
+  Result := PreparePackageSearchCommandPlanCore(
+    AParams,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit
+  );
+  if LShouldExit then
+    Exit(Result);
 
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_DESC));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_EXAMPLE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_JSON));
-    Ctx.Out.WriteLn(_(HELP_PACKAGE_SEARCH_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  LJsonOutput := HasFlag(AParams, 'json');
-  if FindUnknownOption(AParams, ['--json'], UnknownOption) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if CountPositionalArgs(AParams) > 1 then
-  begin
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  // Get query (first non-flag argument)
-  Q := '';
-  for I := 0 to High(AParams) do
-    if (AParams[I] <> '') and (AParams[I][1] <> '-') then
-    begin
-      Arg := Trim(AParams[I]);
-      if Arg <> '' then
-      begin
-        Q := Arg;
-        Break;
-      end;
-    end;
-
-  if Q = '' then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['query']));
-    Ctx.Err.WriteLn(_(HELP_PACKAGE_SEARCH_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if LJsonOutput then
-  begin
-    // JSON output mode using TPackageSearchCommand
-    LSearch := TPackageSearchCommand.Create(
-      IncludeTrailingPathDelimiter(GetDataRoot) + 'registry');
-    try
-      LResults := LSearch.Search(Q);
-      try
-        LJson := TJSONObject.Create;
-        try
-          LArr := TJSONArray.Create;
-          for I := 0 to LResults.Count - 1 do
-            LArr.Add(LResults[I]);
-          LJson.Add('query', Q);
-          LJson.Add('results', LArr);
-          LJson.Add('count', LResults.Count);
-          Ctx.Out.WriteLn(LJson.FormatJSON);
-        finally
-          LJson.Free;
-        end;
-      finally
-        LResults.Free;
-      end;
-    finally
-      LSearch.Free;
-    end;
-    Exit(EXIT_OK);
-  end
-  else
-  begin
-    // Normal text output
-    LMgr := TPackageManager.Create(Ctx.Config);
-    try
-      if LMgr.SearchPackages(Q, Ctx.Out) then
-        Exit(EXIT_OK);
-      Result := EXIT_ERROR;
-    finally
-      LMgr.Free;
-    end;
+  LMgr := TPackageManager.Create(Ctx.Config);
+  LSearch := TPackageSearchCommand.Create(
+    IncludeTrailingPathDelimiter(GetDataRoot) + 'registry');
+  try
+    Result := ExecutePackageSearchCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LMgr.SearchPackages,
+      @LSearch.Search
+    );
+  finally
+    LSearch.Free;
+    LMgr.Free;
   end;
 end;
 

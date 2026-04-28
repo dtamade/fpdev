@@ -64,6 +64,12 @@ fpdev fpc install 3.2.2 --from-source
 # 安装开发版本
 fpdev fpc install main --from-source
 
+# 离线模式：仅使用缓存恢复指定版本
+fpdev fpc install 3.2.2 --from=binary --offline
+
+# 忽略缓存，强制重新下载/重新构建
+fpdev fpc install 3.2.2 --no-cache
+
 # 卸载指定版本
 fpdev fpc uninstall 3.2.2
 ```
@@ -214,7 +220,14 @@ FPC 版本信息存储在配置文件中：
 ```pascal
 TFPCManager = class
   // 版本管理
-  function InstallVersion(const AVersion: string; const AFromSource: Boolean = False): Boolean;
+  function InstallVersion(
+    const AVersion: string;
+    const AFromSource: Boolean = False;
+    const APrefix: string = '';
+    const AEnsure: Boolean = False;
+    const ANoCache: Boolean = False;
+    const AOfflineMode: Boolean = False
+  ): Boolean;
   function UninstallVersion(const AVersion: string): Boolean;
   function ListVersions(const AShowAll: Boolean = False): Boolean;
   function SetDefaultVersion(const AVersion: string): Boolean;
@@ -241,8 +254,8 @@ begin
   try
     FPCManager := TFPCManager.Create(ConfigManager);
     try
-      // 安装 FPC 3.2.2
-      if FPCManager.InstallVersion('3.2.2', True) then
+      // 默认二进制优先安装；需要源码构建时将第二个参数设为 True
+      if FPCManager.InstallVersion('3.2.2') then
         WriteLn('安装成功');
       
       // 设置为默认版本

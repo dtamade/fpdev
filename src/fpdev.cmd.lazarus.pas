@@ -11,12 +11,12 @@ unit fpdev.cmd.lazarus;
 interface
 
 uses
-  fpdev.lazarus.manager;
+  fpdev.lazarus.manager, fpdev.lazarus.types;
 
 type
   ILazarusGitClient = fpdev.lazarus.manager.ILazarusGitClient;
-  TLazarusVersionInfo = fpdev.lazarus.manager.TLazarusVersionInfo;
-  TLazarusVersionArray = fpdev.lazarus.manager.TLazarusVersionArray;
+  TLazarusVersionInfo = fpdev.lazarus.types.TLazarusVersionInfo;
+  TLazarusVersionArray = fpdev.lazarus.types.TLazarusVersionArray;
   TLazarusManager = fpdev.lazarus.manager.TLazarusManager;
 
 implementation

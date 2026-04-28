@@ -160,7 +160,7 @@ end;
 
 function TSourceRepoManager.CreateGitRuntime: IGitRuntime;
 begin
-  Result := TGitRuntime.Create;
+  Result := NewGitRuntime;
 end;
 
 function TSourceRepoManager.CloneFPCSource(const AVersion: string): Boolean;

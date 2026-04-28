@@ -902,7 +902,11 @@ var
   OutBufObj, ErrBufObj: TBufferOutput;
   Ctx: IContext;
   Code: Integer;
+  SavedRepoRoot: string;
   SavedLazarusDir: string;
+  RepoRootDir: string;
+  RepoBinDir: string;
+  RepoLibDir: string;
   LazarusRootDir: string;
 begin
   WriteLn('[TEST] TestSystemMaintenanceCommands');
@@ -910,6 +914,7 @@ begin
   OutBufObj := TBufferOutput.Create;
   ErrBufObj := TBufferOutput.Create;
   Ctx := TTestContext.Create(OutBufObj as IOutput, ErrBufObj as IOutput);
+  SavedRepoRoot := get_env('FPDEV_TOOLCHAIN_REPO_ROOT');
 
   OutBufObj.Clear;
   ErrBufObj.Clear;
@@ -931,16 +936,33 @@ begin
   AssertEquals(EXIT_OK, Code, 'system env data-root exits 0');
   AssertTrue(Trim(OutBufObj.Text) <> '', 'system env data-root prints path');
 
-  OutBufObj.Clear;
-  ErrBufObj.Clear;
-  Code := GlobalCommandRegistry.DispatchPath(['system', 'toolchain', 'check'], Ctx);
-  AssertEquals(EXIT_OK, Code, 'system toolchain check exits 0');
-  AssertTrue(Pos('"level"', OutBufObj.Text) > 0, 'system toolchain check prints report json');
-
   SavedLazarusDir := get_env('FPDEV_LAZARUSDIR');
+  RepoRootDir := CreateUniqueTempDir('fpdev-command-registry-toolchain-root');
+  RepoBinDir := RepoRootDir + PathDelim + 'bin';
+  RepoLibDir := RepoRootDir + PathDelim + 'lib';
+  ForceDirectories(RepoBinDir);
+  ForceDirectories(RepoLibDir);
+  WriteTextFile(RepoRootDir + PathDelim + 'fpdev.lpi', '<CONFIG/>');
   LazarusRootDir := CreateUniqueTempDir('fpdev-command-registry-lazarus-root');
   ForceDirectories(LazarusRootDir + PathDelim + 'lcl');
   try
+    AssertTrue(set_env('FPDEV_TOOLCHAIN_REPO_ROOT', RepoRootDir),
+      'system toolchain check test sets FPDEV_TOOLCHAIN_REPO_ROOT');
+
+    OutBufObj.Clear;
+    ErrBufObj.Clear;
+    Code := GlobalCommandRegistry.DispatchPath(['system', 'toolchain', 'check'], Ctx);
+    AssertEquals(EXIT_OK, Code, 'system toolchain check exits 0');
+    AssertTrue(Pos('"level"', OutBufObj.Text) > 0, 'system toolchain check prints report json');
+    AssertTrue(Pos('"name":"repo_bin_writable"', OutBufObj.Text) > 0,
+      'system toolchain check reports repo_bin_writable');
+    AssertTrue(Pos('"path":"' + JsonEscape(RepoBinDir) + '"', OutBufObj.Text) > 0,
+      'system toolchain check reports repo bin path');
+    AssertTrue(Pos('"name":"repo_lib_writable"', OutBufObj.Text) > 0,
+      'system toolchain check reports repo_lib_writable');
+    AssertTrue(Pos('"path":"' + JsonEscape(RepoLibDir) + '"', OutBufObj.Text) > 0,
+      'system toolchain check reports repo lib path');
+
     AssertTrue(set_env('FPDEV_LAZARUSDIR', LazarusRootDir),
       'system toolchain check test sets FPDEV_LAZARUSDIR');
     OutBufObj.Clear;
@@ -952,7 +974,16 @@ begin
     AssertTrue(Pos('"path":"' + JsonEscape(LazarusRootDir) + '"', OutBufObj.Text) > 0,
       'system toolchain check reports configured lazarus_root path');
   finally
+    RestoreEnv('FPDEV_TOOLCHAIN_REPO_ROOT', SavedRepoRoot);
     RestoreEnv('FPDEV_LAZARUSDIR', SavedLazarusDir);
+    if FileExists(RepoRootDir + PathDelim + 'fpdev.lpi') then
+      DeleteFile(RepoRootDir + PathDelim + 'fpdev.lpi');
+    if DirectoryExists(RepoBinDir) then
+      RemoveDir(RepoBinDir);
+    if DirectoryExists(RepoLibDir) then
+      RemoveDir(RepoLibDir);
+    if DirectoryExists(RepoRootDir) then
+      RemoveDir(RepoRootDir);
     if DirectoryExists(LazarusRootDir + PathDelim + 'lcl') then
       RemoveDir(LazarusRootDir + PathDelim + 'lcl');
     if DirectoryExists(LazarusRootDir) then

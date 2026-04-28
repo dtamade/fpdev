@@ -31,7 +31,9 @@ uses
   fpdev.output.intf, fpdev.config.interfaces, fpdev.config.managers,
   fpdev.logger.intf, fpdev.exitcodes,
   fpdev.i18n, fpdev.i18n.strings,
-  test_temp_paths,
+  fpdev.build.cache, fpdev.fpc.metadata, fpdev.fpc.types,
+  fpdev.fpc.installer.config, fpdev.paths,
+  test_temp_paths, test_fpc_mock_helpers,
   fpdev.cmd.fpc,           // Register 'fpc' root command
   fpdev.cmd.fpc.install,
   fpdev.cmd.fpc.uninstall;
@@ -496,6 +498,345 @@ begin
   end;
 end;
 
+procedure TestOfflineModeNoCacheFlagUsesOfflineContract;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--offline', '--no-cache'], Ctx);
+    Test('Offline no-cache returns EXIT_IO_ERROR', Ret = EXIT_IO_ERROR);
+    Test('Offline no-cache reports cache miss contract',
+      StdErr.Contains('[FAIL] Cache miss for FPC 3.2.2'));
+    Test('Offline no-cache does not use network-disabled guard',
+      not StdErr.Contains('FPDEV_SKIP_NETWORK_TESTS=1'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestOfflineModeFromBinaryCacheMissUsesOfflineContract;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--from=binary', '--offline'], Ctx);
+    Test('Offline from=binary returns EXIT_IO_ERROR', Ret = EXIT_IO_ERROR);
+    Test('Offline from=binary reports cache miss contract',
+      StdErr.Contains('[FAIL] Cache miss for FPC 3.2.2'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestOfflineModeFromSourceCacheMissUsesOfflineContract;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  try
+    Ret := Cmd.Execute(['3.2.2', '--from=source', '--offline'], Ctx);
+    Test('Offline from=source returns EXIT_IO_ERROR', Ret = EXIT_IO_ERROR);
+    Test('Offline from=source reports cache miss contract',
+      StdErr.Contains('[FAIL] Cache miss for FPC 3.2.2'));
+  finally
+    Cmd.Free;
+  end;
+end;
+
+procedure TestOfflineModeCacheHitBackfillsMetadata;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+  InstallRoot: string;
+  StageRoot: string;
+  StageInstallDir: string;
+  InstallDir: string;
+  CacheDir: string;
+  MockFPCPath: string;
+  MetaPath: string;
+  Cache: TBuildCache;
+  Meta: TFPDevMetadata;
+  MetaLoaded: Boolean;
+  ToolchainInfo: TToolchainInfo;
+  ToolchainRegistered: Boolean;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  InstallRoot := CreateUniqueTempDir('fpdev_test_install_cache_hit');
+  StageRoot := CreateUniqueTempDir('fpdev_test_install_cache_stage');
+  try
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := InstallRoot;
+    Ctx.Config.GetSettingsManager.SetSettings(Settings);
+
+    StageInstallDir := StageRoot + PathDelim + 'fpc-3.2.2-cache-probe';
+    ForceDirectories(StageInstallDir + PathDelim + 'bin');
+    {$IFDEF MSWINDOWS}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    CompileMockFPCBinary(MockFPCPath);
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.orig');
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + GetNativeCompilerName);
+    with TStringList.Create do
+    try
+      Add('# cache-hit managed layout probe');
+      SaveToFile(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.cfg');
+    finally
+      Free;
+    end;
+
+    MetaPath := GetMetadataPath(StageInstallDir);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    CacheDir := BuildBuildCacheDirFromInstallRoot(InstallRoot);
+    Cache := TBuildCache.Create(CacheDir);
+    try
+      Test('Offline cache-hit setup saves install artifact',
+        Cache.SaveArtifacts('3.2.2', StageInstallDir));
+    finally
+      Cache.Free;
+    end;
+
+    InstallDir := BuildFPCInstallDirFromInstallRoot(InstallRoot, '3.2.2');
+    MetaPath := GetMetadataPath(InstallDir);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    Ret := Cmd.Execute(['3.2.2', '--offline'], Ctx);
+
+    Test('Offline cache hit returns EXIT_OK', Ret = EXIT_OK);
+    Test('Offline cache hit reports cache restore path', StdOut.Contains('[CACHE HIT]'));
+    Test('Offline cache hit prints activation hint',
+      StdOut.Contains('To activate this version, run:'));
+    Test('Offline cache hit prints activation command',
+      StdOut.Contains('  fpdev fpc use 3.2.2'));
+    Test('Offline cache hit writes metadata', FileExists(MetaPath));
+
+    MetaLoaded := ReadFPCMetadata(InstallDir, Meta);
+    Test('Offline cache hit metadata is readable', MetaLoaded);
+    if MetaLoaded then
+    begin
+      Test('Offline cache hit metadata verify ok', Meta.Verify.OK);
+      Test('Offline cache hit metadata detected version',
+        Meta.Verify.DetectedVersion = '3.2.2');
+      Test('Offline cache hit metadata smoke test passed',
+        Meta.Verify.SmokeTestPassed);
+    end;
+
+    ToolchainRegistered := Ctx.Config.GetToolchainManager.GetToolchain(
+      'fpc-3.2.2',
+      ToolchainInfo
+    );
+    Test('Offline cache hit registers toolchain', ToolchainRegistered);
+    if ToolchainRegistered then
+      Test('Offline cache hit stores restored install path',
+        ExpandFileName(ToolchainInfo.InstallPath) = ExpandFileName(InstallDir));
+  finally
+    CleanupTempDir(StageRoot);
+    CleanupTempDir(InstallRoot);
+    Cmd.Free;
+  end;
+end;
+
+procedure TestOfflineModeCacheHitWithCustomPrefixBackfillsMetadata;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+  InstallRoot: string;
+  StageRoot: string;
+  PrefixRoot: string;
+  StageInstallDir: string;
+  PrefixInstallDir: string;
+  CacheDir: string;
+  MockFPCPath: string;
+  MetaPath: string;
+  Cache: TBuildCache;
+  Meta: TFPDevMetadata;
+  MetaLoaded: Boolean;
+  ToolchainInfo: TToolchainInfo;
+  ToolchainRegistered: Boolean;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  InstallRoot := CreateUniqueTempDir('fpdev_test_install_prefix_cache_hit');
+  StageRoot := CreateUniqueTempDir('fpdev_test_install_prefix_stage');
+  PrefixRoot := CreateUniqueTempDir('fpdev_test_install_prefix_target');
+  try
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := InstallRoot;
+    Ctx.Config.GetSettingsManager.SetSettings(Settings);
+
+    StageInstallDir := StageRoot + PathDelim + 'fpc-3.2.2-prefix-cache-probe';
+    ForceDirectories(StageInstallDir + PathDelim + 'bin');
+    {$IFDEF MSWINDOWS}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    CompileMockFPCBinary(MockFPCPath);
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.orig');
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + GetNativeCompilerName);
+    with TStringList.Create do
+    try
+      Add('# prefix cache-hit managed layout probe');
+      SaveToFile(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.cfg');
+    finally
+      Free;
+    end;
+
+    CacheDir := BuildBuildCacheDirFromInstallRoot(InstallRoot);
+    Cache := TBuildCache.Create(CacheDir);
+    try
+      Test('Offline cache-hit prefix setup saves install artifact',
+        Cache.SaveArtifacts('3.2.2', StageInstallDir));
+    finally
+      Cache.Free;
+    end;
+
+    PrefixInstallDir := PrefixRoot + PathDelim + 'custom-prefix';
+    MetaPath := GetMetadataPath(PrefixInstallDir);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    Ret := Cmd.Execute(['3.2.2', '--offline', '--prefix=' + PrefixInstallDir], Ctx);
+
+    Test('Offline cache hit with prefix returns EXIT_OK', Ret = EXIT_OK);
+    Test('Offline cache hit with prefix reports cache restore path', StdOut.Contains('[CACHE HIT]'));
+    Test('Offline cache hit with prefix writes metadata', FileExists(MetaPath));
+
+    MetaLoaded := ReadFPCMetadata(PrefixInstallDir, Meta);
+    Test('Offline cache hit with prefix metadata is readable', MetaLoaded);
+    if MetaLoaded then
+    begin
+      Test('Offline cache hit with prefix metadata verify ok', Meta.Verify.OK);
+      Test('Offline cache hit with prefix metadata stores expanded prefix',
+        ExpandFileName(Meta.Prefix) = ExpandFileName(PrefixInstallDir));
+    end;
+
+    ToolchainRegistered := Ctx.Config.GetToolchainManager.GetToolchain(
+      'fpc-3.2.2',
+      ToolchainInfo
+    );
+    Test('Offline cache hit with prefix registers toolchain', ToolchainRegistered);
+    if ToolchainRegistered then
+      Test('Offline cache hit with prefix stores restored install path',
+        ExpandFileName(ToolchainInfo.InstallPath) = ExpandFileName(PrefixInstallDir));
+  finally
+    CleanupTempDir(PrefixRoot);
+    CleanupTempDir(StageRoot);
+    CleanupTempDir(InstallRoot);
+    Cmd.Free;
+  end;
+end;
+
+procedure TestOfflineModeCacheHitVerifyWarningStillSucceeds;
+var
+  Cmd: TFPCInstallCommand;
+  StdOut, StdErr: TStringOutput;
+  Ctx: IContext;
+  Ret: Integer;
+  Settings: TFPDevSettings;
+  InstallRoot: string;
+  StageRoot: string;
+  StageInstallDir: string;
+  InstallDir: string;
+  CacheDir: string;
+  MockFPCPath: string;
+  MetaPath: string;
+  Cache: TBuildCache;
+  Meta: TFPDevMetadata;
+  MetaLoaded: Boolean;
+begin
+  Ctx := CreateTestContext(StdOut, StdErr);
+  Cmd := TFPCInstallCommand.Create;
+  InstallRoot := CreateUniqueTempDir('fpdev_test_install_verify_warning');
+  StageRoot := CreateUniqueTempDir('fpdev_test_install_verify_warning_stage');
+  try
+    Settings := Ctx.Config.GetSettingsManager.GetSettings;
+    Settings.InstallRoot := InstallRoot;
+    Ctx.Config.GetSettingsManager.SetSettings(Settings);
+
+    StageInstallDir := StageRoot + PathDelim + 'fpc-3.2.2-verify-warning-probe';
+    ForceDirectories(StageInstallDir + PathDelim + 'bin');
+    {$IFDEF MSWINDOWS}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.exe';
+    {$ELSE}
+    MockFPCPath := StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
+    {$ENDIF}
+    CompileVersionMismatchMockFPCBinary(MockFPCPath);
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.orig');
+    CompileMockFPCBinary(StageInstallDir + PathDelim + 'bin' + PathDelim + GetNativeCompilerName);
+    with TStringList.Create do
+    try
+      Add('# verify warning cache-hit managed layout probe');
+      SaveToFile(StageInstallDir + PathDelim + 'bin' + PathDelim + 'fpc.cfg');
+    finally
+      Free;
+    end;
+
+    CacheDir := BuildBuildCacheDirFromInstallRoot(InstallRoot);
+    Cache := TBuildCache.Create(CacheDir);
+    try
+      Test('Offline cache-hit verify warning setup saves install artifact',
+        Cache.SaveArtifacts('3.2.2', StageInstallDir));
+    finally
+      Cache.Free;
+    end;
+
+    InstallDir := BuildFPCInstallDirFromInstallRoot(InstallRoot, '3.2.2');
+    MetaPath := GetMetadataPath(InstallDir);
+    if FileExists(MetaPath) then
+      DeleteFile(MetaPath);
+
+    Ret := Cmd.Execute(['3.2.2', '--offline'], Ctx);
+
+    Test('Offline cache hit verify warning still returns EXIT_OK', Ret = EXIT_OK);
+    Test('Offline cache hit verify warning reports cache restore path', StdOut.Contains('[CACHE HIT]'));
+    Test('Offline cache hit verify warning emits verification warning',
+      StdErr.Contains('Warning: Post-install version verification failed'));
+    Test('Offline cache hit verify warning writes metadata', FileExists(MetaPath));
+
+    MetaLoaded := ReadFPCMetadata(InstallDir, Meta);
+    Test('Offline cache hit verify warning metadata is readable', MetaLoaded);
+    if MetaLoaded then
+    begin
+      Test('Offline cache hit verify warning metadata marks verify failure',
+        not Meta.Verify.OK);
+      Test('Offline cache hit verify warning metadata keeps empty detected version',
+        Meta.Verify.DetectedVersion = '');
+      Test('Offline cache hit verify warning metadata keeps smoke test false',
+        not Meta.Verify.SmokeTestPassed);
+    end;
+  finally
+    CleanupTempDir(StageRoot);
+    CleanupTempDir(InstallRoot);
+    Cmd.Free;
+  end;
+end;
+
 { Group 6: Normal installation flow (will fail without network/toolchain) }
 
 procedure TestNormalInstallAttempt;
@@ -936,6 +1277,12 @@ begin
     WriteLn('');
     WriteLn('--- Offline Mode ---');
     TestOfflineModeNoCacheHit;
+    TestOfflineModeNoCacheFlagUsesOfflineContract;
+    TestOfflineModeFromBinaryCacheMissUsesOfflineContract;
+    TestOfflineModeFromSourceCacheMissUsesOfflineContract;
+    TestOfflineModeCacheHitBackfillsMetadata;
+    TestOfflineModeCacheHitWithCustomPrefixBackfillsMetadata;
+    TestOfflineModeCacheHitVerifyWarningStillSucceeds;
 
     // Group 6: Normal installation flow
     WriteLn('');

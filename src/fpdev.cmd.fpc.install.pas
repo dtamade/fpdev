@@ -6,9 +6,8 @@ interface
 
 uses
   SysUtils, Classes,
-  fpdev.command.intf, fpdev.config.interfaces, fpdev.fpc.manager, fpdev.types,
-  fpdev.i18n, fpdev.i18n.strings, fpdev.build.cache, fpdev.exitcodes,
-  fpdev.paths, fpdev.utils;
+  fpdev.command.intf, fpdev.config.interfaces, fpdev.fpc.manager,
+  fpdev.fpc.installcommandflow, fpdev.utils;
 
 type
   { TFPCInstallCommand }
@@ -22,7 +21,7 @@ type
 
 implementation
 
-uses fpdev.command.registry, fpdev.command.utils;
+uses fpdev.command.registry;
 
 function TFPCInstallCommand.Name: string; begin Result := 'install'; end;
 
@@ -46,248 +45,40 @@ end;
 
 function TFPCInstallCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
-  LVer, LJobs, LFrom, LPrefix, LCacheDir, LInstallPath, LInstallRoot: string;
-  LMode: TInstallMode;
-  LFromSource, LOfflineMode, LNoCache: Boolean;
+  LPlan: TFPCInstallCommandPlan;
   LSettings: TFPDevSettings;
-  LOk: Boolean;
   LMgr: TFPCManager;
-  LCache: TBuildCache;
-  LUnknownOption: string;
-  LPositionalCount: Integer;
+  LShouldExit: Boolean;
+  LSettingsModified: Boolean;
 begin
-  Result := 0;
-
-  // Handle --help flag
-  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
-  begin
-    if Length(AParams) > 1 then
-    begin
-      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-    Ctx.Out.WriteLn('');
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPTIONS));
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_SOURCE));
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_BINARY));
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_FROM));
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_JOBS));
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_PREFIX));
-    Ctx.Out.WriteLn('  --offline         Force offline mode (use cache only)');
-    Ctx.Out.WriteLn('  --no-cache        Ignore cache, force re-download');
-    Ctx.Out.WriteLn(_(HELP_FPC_INSTALL_OPT_HELP));
-    Exit(EXIT_OK);
-  end;
-
-  if FindUnknownOption(
-    AParams,
-    ['--from-source', '--from-binary', '--from=', '--jobs=', '--prefix=',
-     '--offline', '--no-cache'],
-    LUnknownOption
-  ) then
-  begin
-    Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LPositionalCount := CountPositionalArgs(AParams);
-  if LPositionalCount < 1 then
-  begin
-    Ctx.Err.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['version']));
-    Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  if LPositionalCount > 1 then
-  begin
-    Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-    Exit(EXIT_USAGE_ERROR);
-  end;
-
-  LVer := GetPositionalArg(AParams, 0);
-
-  // Parse cache-related flags
-  LOfflineMode := HasFlag(AParams, 'offline');
-  LNoCache := HasFlag(AParams, 'no-cache');
-
-  // Parse install mode using type-safe enum
-  LMode := imAuto;  // Default mode
-  if GetFlagValue(AParams, 'from', LFrom) then
-  begin
-    if not TryStringToInstallMode(LFrom, LMode) then
-    begin
-      Ctx.Err.WriteLn(_Fmt(ERR_INVALID_INSTALL_MODE, [LFrom]));
-      Ctx.Err.WriteLn(_(ERR_VALID_INSTALL_MODES));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-  end
-  else if HasFlag(AParams, 'from-source') then
-    LMode := imSource
-  else if HasFlag(AParams, 'from-binary') then
-    LMode := imBinary;
-
-  // Parse other flags
-  if GetFlagValue(AParams, 'jobs', LJobs) then
-  begin
-    LSettings := Ctx.Config.GetSettingsManager.GetSettings;
-    if not TryStrToInt(LJobs, LSettings.ParallelJobs) then
-    begin
-      Ctx.Err.WriteLn('Error: Invalid --jobs value: ' + LJobs);
-      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-    Ctx.Config.GetSettingsManager.SetSettings(LSettings);
-  end;
-  if GetFlagValue(AParams, 'prefix', LPrefix) then
-  begin
-    if LPrefix = '' then
-    begin
-      Ctx.Err.WriteLn('Error: Missing --prefix value');
-      Ctx.Err.WriteLn(_(HELP_FPC_INSTALL_USAGE));
-      Exit(EXIT_USAGE_ERROR);
-    end;
-  end
-  else
-    LPrefix := '';
-
-  // Initialize cache (use same directory as TFPCManager for consistency)
   LSettings := Ctx.Config.GetSettingsManager.GetSettings;
-  LInstallRoot := LSettings.InstallRoot;
-  if LInstallRoot = '' then
-    LInstallRoot := GetDataRoot;
-  LCacheDir := IncludeTrailingPathDelimiter(IncludeTrailingPathDelimiter(LInstallRoot) + 'cache') + 'builds';
-  LCache := TBuildCache.Create(LCacheDir);
+  Result := PrepareFPCInstallCommandPlanCore(
+    AParams,
+    LSettings,
+    Ctx.Out,
+    Ctx.Err,
+    LPlan,
+    LShouldExit,
+    LSettingsModified
+  );
+
+  if LSettingsModified then
+    Ctx.Config.GetSettingsManager.SetSettings(LSettings);
+
+  if LShouldExit then
+    Exit(Result);
+
+  LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
   try
-    // Check cache before installation (unless --no-cache is specified)
-    if not LNoCache and LCache.HasArtifacts(LVer) then
-    begin
-      Ctx.Out.WriteLn('[CACHE HIT] Found cached artifact for FPC ' + LVer);
-
-      // Calculate installation path and create manager for SetupEnvironment
-      LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
-      try
-        LInstallPath := LMgr.GetVersionInstallPath(LVer);
-        if LPrefix <> '' then
-          LInstallPath := ExpandFileName(LPrefix);
-
-        // Try to restore from cache (both binary and source use RestoreArtifacts now)
-        // Binary installations now cache the installed directory, not the downloaded package
-        Ctx.Out.WriteLn('[CACHE] Restoring from cache to: ' + LInstallPath);
-        LOk := LCache.RestoreArtifacts(LVer, LInstallPath);
-
-        if LOk then
-        begin
-          // Register toolchain in config after cache restore (Fix: missing SetupEnvironment)
-          if LMgr.SetupEnvironment(LVer, LInstallPath) then
-            Ctx.Out.WriteLn('[OK] Toolchain registered successfully')
-          else
-            Ctx.Out.WriteLn('[WARN] Failed to register toolchain (non-fatal)');
-
-          Ctx.Out.WriteLn('[OK] Installation complete (from cache)');
-          Ctx.Out.WriteLn('');
-          Ctx.Out.WriteLn('Next steps:');
-          Ctx.Out.WriteLn('  fpdev fpc use ' + LVer);
-          Exit(EXIT_OK);
-        end
-        else
-        begin
-          // Fix: Offline mode bypass - fail if offline and cache restore failed
-          if LOfflineMode then
-          begin
-            Ctx.Err.WriteLn('[FAIL] Cache restoration failed in offline mode');
-            Ctx.Err.WriteLn('[HINT] The cached artifact may be corrupted. Try:');
-            Ctx.Err.WriteLn('[HINT]   fpdev fpc cache clean ' + LVer);
-            Ctx.Err.WriteLn('[HINT]   fpdev fpc install ' + LVer + '  (without --offline)');
-            Exit(EXIT_IO_ERROR);
-          end;
-          Ctx.Out.WriteLn('[WARN] Cache restoration failed, proceeding with download...');
-          // Continue with normal installation
-        end;
-      finally
-        LMgr.Free;
-      end;
-    end
-    else if LOfflineMode then
-    begin
-      // Offline mode: cache miss is an error
-      Ctx.Err.WriteLn('[FAIL] Cache miss for FPC ' + LVer);
-      Ctx.Err.WriteLn('[HINT] Network disabled by --offline flag');
-      Ctx.Err.WriteLn(
-        '[HINT] Run without --offline to download, or use ' +
-        '''fpdev fpc cache list'' to see available versions'
-      );
-      Exit(EXIT_IO_ERROR);
-    end;
-
-    // Show installation mode
-    if LOfflineMode then
-      Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ', offline)')
-    else if LNoCache then
-      Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ', no-cache)')
-    else
-      Ctx.Out.WriteLn(_Fmt(CMD_FPC_INSTALL_START, [LVer]) + ' (mode: ' + InstallModeToString(LMode) + ')');
-
-    // Test runner safeguard: keep unit/integration tests offline/deterministic by
-    // short-circuiting any network install attempts unless explicitly requested
-    // via --offline + cache hit.
-    if get_env('FPDEV_SKIP_NETWORK_TESTS') = '1' then
-    begin
-      Ctx.Err.WriteLn('[FAIL] Network operations disabled (FPDEV_SKIP_NETWORK_TESTS=1)');
-      Ctx.Err.WriteLn('[HINT] Re-run without FPDEV_SKIP_NETWORK_TESTS=1 to perform real installation');
-      Exit(EXIT_IO_ERROR);
-    end;
-
-    // Perform installation with auto-mode fallback logic
-    LMgr := TFPCManager.Create(Ctx.Config, Ctx.Out, Ctx.Err);
-    try
-      // Auto-mode: try binary first, fallback to source if binary fails
-      if LMode = imAuto then
-      begin
-        Ctx.Out.WriteLn('Attempting binary installation first...');
-        LOk := LMgr.InstallVersion(LVer, False, LPrefix, False, LNoCache);
-
-        if not LOk then
-        begin
-          Ctx.Out.WriteLn('');
-          Ctx.Out.WriteLn('Binary installation failed, falling back to source installation...');
-          Ctx.Out.WriteLn('Note: Source installation requires a bootstrap compiler and may take longer');
-          Ctx.Out.WriteLn('');
-          LOk := LMgr.InstallVersion(LVer, True, LPrefix, False, LNoCache);
-
-          if not LOk then
-          begin
-            Ctx.Err.WriteLn('');
-            Ctx.Err.WriteLn('Both binary and source installation failed');
-            Ctx.Err.WriteLn('Troubleshooting:');
-            Ctx.Err.WriteLn('  1. Check network connectivity');
-            Ctx.Err.WriteLn('  2. Verify version exists: fpdev fpc list --all');
-            Ctx.Err.WriteLn('  3. For source builds, ensure bootstrap compiler is available');
-            Exit(EXIT_ERROR);
-          end;
-        end;
-      end
-      else
-      begin
-        // Explicit mode: binary or source only
-        LFromSource := (LMode = imSource);
-        LOk := LMgr.InstallVersion(LVer, LFromSource, LPrefix, False, LNoCache);
-      end;
-
-      if LOk then
-      begin
-        // Note: Binary installations are now cached automatically by the installer
-        // Source installations are cached by TFPCManager.InstallVersion
-        // No need to call SaveArtifacts here anymore
-        Exit(EXIT_OK);
-      end
-      else
-        Exit(EXIT_ERROR);
-    finally
-      LMgr.Free;
-    end;
+    Result := ExecuteFPCInstallCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      get_env('FPDEV_SKIP_NETWORK_TESTS') = '1',
+      @LMgr.InstallVersion
+    );
   finally
-    LCache.Free;
+    LMgr.Free;
   end;
 end;
 

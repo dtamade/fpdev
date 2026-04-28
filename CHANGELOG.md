@@ -5,11 +5,28 @@ All notable changes to this project will be documented in this file.
 This project adheres to small, incremental, and safe changes by default. Dates are in YYYY-MM-DD.
 
 ## [Unreleased]
+
 ### Changed
-- No post-v2.1.0 entries yet.
+
+- Completed the breaking Git compatibility cleanup:
+  - `src/fpdev.git.operations.pas` is the default Git operations entrypoint
+  - `src/fpdev.git.operations.impl.pas` owns the concrete implementation
+  - `src/fpdev.utils.git.pas` has been removed
+- Unified FPC install output through `src/fpdev.fpc.installreportflow.pas`
+- FPC install success output now consistently includes activation next steps for binary, source, and cache-hit paths
+- FPC install offline miss / restore-fail wording is now shared by the install flow instead of being duplicated per layer
+
+### Breaking impact summary
+
+- Removed `src/fpdev.utils.git.pas`
+- Removed the last compatibility aliases for `TGitOperations` and `IGitCliRunner`
+- External callers must switch to `fpdev.git.operations`
+- Migration path: Use `fpdev.git.operations` instead.
 
 ## [2.1.0] - 2026-03-25
+
 ### Release Baseline
+
 - Added a bounded Linux release acceptance entrypoint: `bash scripts/release_acceptance_linux.sh`
 - Added explicit Windows/macOS owner checkpoints in `docs/plans/2026-03-25-v2.1.0-release-owner-checkpoints.md`
 - Synchronized release documentation, roadmap status, and installation URLs to `v2.1.0`
@@ -17,6 +34,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - For current inventory and release evidence, see `README.md` and `docs/ROADMAP.md`
 
 ### Added
+
 - **Phase 6: Architecture Improvement & Feature Completion - COMPLETE (2026-02-11)**
   - **M1 (B206-B210)**: Fix CompareVersions semantic bug, PathDelim hardcoding, clear 13 compiler hints
   - **M2 (B211-B215)**: Add parameter parsing tests (38) and package verify tests (20)
@@ -43,6 +61,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - **Phase 2: Architecture Refactoring - COMPLETE (2026-01-31)**
   - **2.1 TBuildManager Interface Extraction**: Extracted IBuildLogger, IToolchainChecker, IBuildManager interfaces
   - **2.2 Git Manager Unification**: Unified SharedGitManager and FGitManager into IGitManager interface
+  - Current-worktree note: later Git migrations moved the default operations path to `fpdev.git.operations` / `fpdev.git.operations.impl`; `fpdev.utils.git.pas` has since been removed
   - **2.3 Global Singleton Migration**: Removed TErrorRegistry singleton, migrated to scoped instances with dependency injection
   - **2.4 Utility Class Interfacing**: Verified IProcessRunner and IGitManager interfaces for test mocking support
   - Improved testability and maintainability through interface-driven design
@@ -85,6 +104,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Example manifest: examples/cross-manifest.json
 
 ### Changed
+
 - **String Performance Optimization (2026-01-30)**
   - Replaced 40 string concatenation anti-patterns with TStringBuilder
   - Files optimized: fpdev.toolchain.pas (13), fpdev.cmd.package.search.pas (7), fpdev.pkg.tree.pas (4), and 8 other files (16)
@@ -111,6 +131,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Improved user feedback with structured messages
 
 ### Testing
+
 - tests/test_cross_downloader.lpr: 11 test scenarios, 100% pass rate
   - Host platform detection
   - Toolchain selection and availability
@@ -123,13 +144,16 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Error handling and validation
 
 ### Documentation
+
 - Updated ROADMAP.md - Phase 3.2 and Phase 3.5 marked complete
 - Created examples/cross-manifest.json - Example toolchain configuration
 - Created docs/FPDEV_TOML_SPEC.md - Complete TOML configuration specification
 - Created examples/.fpdev.toml - Example project configuration
 
 ## [2.0.6] - 2026-01-22
+
 ### Added
+
 - **Cross-Compilation Toolchain Downloads**
   - TCrossToolchainDownloader class (724 lines) - Modern toolchain downloader
   - Manifest management (JSON schema, loading, validation)
@@ -148,12 +172,14 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Added examples/README.md - Examples directory documentation
 
 ### Fixed
+
 - **Critical Usability Issues**
   - Fixed HTTP timeout in binary installation (30s timeout)
   - Fixed project name validation (hyphen → underscore conversion)
   - Improved error messages when binary installation fails
 
 ### Changed
+
 - **fpdev.cmd.cross.pas Refactoring**
   - Migrated from legacy TCrossManifest to modern TCrossToolchainDownloader
   - DownloadBinutils() now uses TCrossToolchainDownloader.DownloadBinutils()
@@ -167,6 +193,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Added recommended workflow section
 
 ### Testing
+
 - tests/test_cross_downloader.lpr: 11 test scenarios, 100% pass rate
   - Host platform detection
   - Toolchain selection and availability
@@ -174,6 +201,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Property-based tests (retry, mirrors, checksums, verification)
 
 ### Documentation
+
 - Updated ROADMAP.md - Phase 3.2 marked complete
 - Created examples/cross-manifest.json - Example toolchain configuration
 - Updated README.md with known limitations
@@ -182,12 +210,15 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - Added example projects for learning
 
 ### Notes
+
 - Project is now truly usable with end-to-end workflow verified
 - All core functionality tested and working
 - Ready for v2.1.0 release preparation
 
 ## [2.0.5] - 2026-01-17
+
 ### Added
+
 - **Lazarus IDE Configuration Test Coverage (Phase 3.4)**
   - Comprehensive test coverage for TLazarusIDEConfig class and ConfigureIDE workflow
   - XML configuration file parsing and modification tests
@@ -196,6 +227,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - End-to-end workflow integration tests
 
 ### Testing
+
 - tests/test_lazarus_ide_config.lpr: 11 test scenarios, 100% pass rate
   - TLazarusIDEConfig creation and initialization
   - Compiler path set/get operations
@@ -210,17 +242,21 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Backup directory creation
 
 ### Implementation Notes
+
 - ConfigureIDE functionality was already implemented in fpdev.cmd.lazarus.pas and fpdev.lazarus.config.pas
 - Added comprehensive test coverage following TDD methodology
 - Tests verify XML parsing, backup/restore, path configuration, and validation
 - All tests pass without requiring actual Lazarus installation
 
 ### Documentation
+
 - Updated ROADMAP.md Phase 3.4 status to complete
 - Documented test coverage and implementation details
 
 ## [2.0.4] - 2026-01-17
+
 ### Added
+
 - **FPC Packages Build Support (Phase 4.3)**
   - Comprehensive test coverage for BuildPackages and InstallPackages functionality
   - Package selection API tests (ListPackages, SetSelectedPackages, GetPackageBuildOrder)
@@ -228,6 +264,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - State tracking and sandbox isolation tests
 
 ### Testing
+
 - tests/test_build_packages.lpr: 4 test scenarios, 100% pass rate
   - BuildPackages API existence and callability
   - InstallPackages API with AllowInstall behavior
@@ -247,22 +284,26 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Log generation
 
 ### Implementation Notes
+
 - BuildPackages and InstallPackages methods were already implemented in fpdev.build.manager.pas
 - Added comprehensive test coverage following TDD methodology
 - All tests designed to work without make/gmake dependency (graceful degradation)
 - Tests verify API behavior, state management, and workflow integration
 
 ### Documentation
+
 - Updated ROADMAP.md Phase 4.3 status to complete
 - Documented test coverage and implementation details
 
 ## [2.0.3] - 2026-01-16
+
 ### Added
+
 - **Binary Cache and Offline Mode Support**
   - Extended TBuildCache with binary artifact support (SaveBinaryArtifact, RestoreBinaryArtifact, GetBinaryArtifactInfo)
   - Offline installation mode (`--offline` flag) for cache-only installation without network access
   - Cache bypass mode (`--no-cache` flag) to force fresh download/build
-  - Automatic cache restoration before download in fpdev.cmd.fpc.install
+  - Automatic cache restoration before download in the FPC install flow
   - Automatic cache saving after successful installation
   - Platform-aware binary cache keys (fpc-{version}-{cpu}-{os}-binary.tar.gz)
   - Metadata tracking with SHA256 checksums and source type (binary/source)
@@ -275,6 +316,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - `fpdev fpc cache path` - Show cache directory path
 
 ### Changed
+
 - **FPC Installation Flow**
   - Check cache before installation (both binary and source artifacts)
   - Restore from cache if available (instant installation)
@@ -283,6 +325,7 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Offline mode enforces cache-only operation (exits with error on cache miss)
 
 ### Testing
+
 - tests/test_build_cache_binary.lpr: 8 test scenarios, 19 assertions, 100% pass rate
   - SaveBinaryArtifact basic functionality and metadata
   - RestoreBinaryArtifact with cache hit/miss scenarios
@@ -291,12 +334,15 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Cache statistics tracking
 
 ### Documentation
+
 - Updated CLAUDE.md with Build Cache System section
 - Added cache workflow documentation
 - Added cache command usage examples
 
 ## [2.0.2] - 2026-01-13
+
 ### Added
+
 - **Build Cache for Fast Version Switching**
   - Artifact caching system in TBuildCache (save/restore tar.gz archives)
   - Platform-aware cache keys (fpc-{version}-{cpu}-{os}.tar.gz)
@@ -305,16 +351,20 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Cache statistics tracking (hits/misses)
 
 ### Changed
+
 - **FPC Installation Flow**
   - Check for cached artifacts before building from source
   - Automatically save build artifacts after successful compilation
   - Instant version switching when cache is available
 
 ### Documentation
+
 - Added deprecated notice to fpdev.git2.pas pointing to modern interface (git2.api + git2.impl)
 
 ## [2.0.1] - 2026-01-12
+
 ### Added
+
 - **Package Dependency Resolution**
   - TDependencyGraph class for dependency graph management
   - Topological sort (Kahn's algorithm) for installation order
@@ -333,28 +383,32 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 - **Testing**
   - tests/test_dependency_resolver.lpr: 8 test scenarios, 22 assertions, 100% pass rate
   - Test coverage:
-    * Dependency graph creation
-    * Dependency edge creation
-    * Simple dependency resolution (A -> B -> C)
-    * Complex dependency resolution (diamond pattern)
-    * Circular dependency detection
-    * Self dependency handling
-    * Multiple dependencies
-    * Empty graph handling
+    - Dependency graph creation
+    - Dependency edge creation
+    - Simple dependency resolution (A -> B -> C)
+    - Complex dependency resolution (diamond pattern)
+    - Circular dependency detection
+    - Self dependency handling
+    - Multiple dependencies
+    - Empty graph handling
 
 ### Changed
+
 - **Package Installation**
   - Auto-resolve and install dependencies before main package
   - Install dependencies in topological order (leaves first, root last)
   - Improved error messages for missing dependencies and circular dependencies
 
 ### Notes
+
 - All 22 dependency resolver tests passing
 - Integration with TPackageManager.InstallPackage
 - Follows TDD Red-Green-Refactor methodology
 
 ## [2.0.0] - 2026-01-11
+
 ### Added
+
 - **Architecture Refactor**
   - Interface-driven design with automatic memory management
   - Three-layer Git integration (Application → Adapter → Native)
@@ -435,7 +489,9 @@ This project adheres to small, incremental, and safe changes by default. Dates a
 
 - **Utility Modules**
   - fpdev.utils.fs.pas: Filesystem utilities
-  - fpdev.utils.git.pas: Git utilities
+  - fpdev.utils.git.pas: Removed in the breaking Git compatibility cleanup; external callers must use `fpdev.git.operations`
+  - fpdev.git.operations.pas: Default Git operations facade
+  - fpdev.git.operations.impl.pas: Concrete Git operations implementation
   - fpdev.utils.process.pas: Process utilities
   - fpdev.types.pas: Type definitions
   - fpdev.result.pas: Result types
@@ -443,16 +499,17 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - fpdev.version.registry.pas: Version registry
 
 ### Changed
+
 - **Core Modules**
   - Updated fpdev.collections.pas: Improved data structures
-  - Updated fpdev.command.*.pas: Better command handling
-  - Updated fpdev.config.*.pas: Enhanced configuration
+  - Updated fpdev.command.\*.pas: Better command handling
+  - Updated fpdev.config.\*.pas: Enhanced configuration
   - Updated fpdev.paths.pas: Path utilities
   - Updated fpdev.params.pas: Parameter handling
   - Updated fpdev.terminal.pas: Terminal I/O
-  - Updated fpdev.toolchain.*.pas: Toolchain support
-  - Updated fpdev.utils.*.pas: Utility functions
-  - Updated git2.*.pas: Git API bindings
+  - Updated fpdev.toolchain.\*.pas: Toolchain support
+  - Updated fpdev.utils.\*.pas: Utility functions
+  - Updated git2.\*.pas: Git API bindings
   - Updated libgit2.pas: libgit2 wrapper
 
 - **Configuration**
@@ -464,15 +521,18 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Improved Windows/Linux/macOS compatibility
 
 ### Removed
+
 - Obsolete test .lpi files (26 files)
 - Old log files
 
 ## [1.1.0] - 2025-01-29
+
 ### Added
+
 - **Project Management Enhancements**
-  - `fpdev project clean`: Clean build artifacts (*.o, *.ppu, *.exe, etc.)
+  - `fpdev project clean`: Clean build artifacts (_.o, _.ppu, \*.exe, etc.)
   - `fpdev project run [args]`: Run built executable with optional arguments
-  - `fpdev project test`: Discover and run test executables (test*.exe pattern)
+  - `fpdev project test`: Discover and run test executables (test\*.exe pattern)
 
 - **FPC Source Management**
   - `fpdev fpc clean <version>`: Clean FPC source build artifacts while preserving Git repository
@@ -487,32 +547,40 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - test_fpc_update.lpr (3 tests): Git pull, rebuild detection, conflict handling
 
 ### Changed
+
 - Enhanced README.md with detailed usage examples for new commands
 - Added typical workflow documentation for FPC source management
 - Updated test coverage badge to reflect 17 passing tests
 
 ### Documentation
+
 - Added "FPC 源码管理详解" section in README
 - Detailed command explanations with example outputs
 - Workflow guide: update → clean → rebuild cycle
 
 ### Notes
+
 - All features developed using Test-Driven Development (Red-Green-Refactor)
 - Phase 1 completion: 90% (9/10 tasks complete)
 - Release-quality engineering practices documented throughout the v1.1.0 cycle
 
 ## [0.1.1] - 2025-08-17
+
 ### Added
+
 - Preflight() environment and path checks (make availability, source path, sandbox/logs writability, sandbox dest when install allowed).
 - Dry-run mode via SetDryRun(): log intended make commands without executing them.
 - Demo scripts support for --preflight/--dry-run and env vars PREFLIGHT/DRY_RUN.
 - Documentation section: Preflight & Dry-run usage, examples, and notes.
 
 ### Notes
+
 - Conservative by default: both features are non-destructive and improve safety/diagnosability prior to actual builds.
 
 ## [0.1.0] - 2025-08-17
+
 ### Added
+
 - BuildManager strict mode with configurable checklist via `build-manager.strict.ini` (sections: `[bin]`, `[lib]`, `[share]`, `[fpc]`, `[include]`, `[doc]`).
 - Strict config multi-location search (first match): `SetStrictConfigPath` → project root → `plays/fpdev.build.manager.demo` → sandbox.
 - Verbose diagnostics: OS/PATH environment snapshot, full `make` command line logging, directory samples for sandbox `bin/` and `lib/`.
@@ -531,10 +599,12 @@ This project adheres to small, incremental, and safe changes by default. Dates a
   - Linux/macOS FPC installation references.
 
 ### Changed
+
 - TestResults prioritizes sandbox checks when install is allowed; falls back to source tree checks otherwise.
 - Install logs now include destination path and Start/End markers; verbose mode logs environment snapshot.
 
 ### Quality & Safety
+
 - Strict mode remains opt-in; default behavior is conservative with WARNs instead of FAILs.
 - fpc.cfg lightweight validation: requires existence and non-empty when configured.
 

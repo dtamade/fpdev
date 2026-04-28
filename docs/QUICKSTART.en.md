@@ -29,8 +29,14 @@ fpdev lazarus list --all
 ### Install FPC (FreePascal Compiler)
 
 ```bash
-# Install the documented example baseline FPC 3.2.2
-fpdev fpc install 3.2.2 --from-source
+# Install the documented example baseline FPC 3.2.2 (binary-first by default)
+fpdev fpc install 3.2.2
+
+# Use cached artifacts only (fully offline)
+fpdev fpc install 3.2.2 --offline
+
+# Skip cache and force a fresh binary download
+fpdev fpc install 3.2.2 --no-cache
 
 # Set as default version
 fpdev fpc use 3.2.2
@@ -39,20 +45,22 @@ fpdev fpc use 3.2.2
 fpdev fpc current
 ```
 
-**Note**: Building from source may take 10-30 minutes, please be patient.
+**Note**: Source builds may take 10-30 minutes.
 
 ### Install Lazarus IDE (Optional)
 
 ```bash
 # Install Lazarus 3.0
-fpdev lazarus install 3.0 --from-source
+fpdev lazarus install 3.0
 
 # Set as default version
 fpdev lazarus use 3.0
 
-# Verify installation
-fpdev lazarus current
+# Configure the IDE if needed
+fpdev lazarus configure 3.0
 ```
+
+**Note**: The current implementation prints a `binary package path unavailable` warning and falls back to a source build.
 
 ## 🚀 Step 3: Create Your First Project
 
@@ -184,7 +192,7 @@ fpdev project build . win64
 
 ### FPC Management
 ```bash
-fpdev fpc install <version> [--from-source]    # Install version
+fpdev fpc install <version> [--from-source|--offline|--no-cache]  # Install version
 fpdev fpc list [--all]                         # List versions
 fpdev fpc use <version>                        # Switch to a version
 fpdev fpc current                              # Current version
@@ -193,7 +201,7 @@ fpdev fpc uninstall <version>                  # Uninstall version
 
 ### Lazarus Management
 ```bash
-fpdev lazarus install <version> [--from-source]  # Install version
+fpdev lazarus install <version> [--from-source]  # Install version (current default path falls back to source build)
 fpdev lazarus run [version]                      # Launch IDE
 fpdev lazarus list [--all]                       # List versions
 fpdev lazarus use <version>                    # Switch to a version
@@ -273,7 +281,7 @@ fpdev system config set mirror gitee
 A: Check the following:
 1. Ensure necessary build tools are installed (gcc, make, etc.)
 2. Check network connection
-3. View detailed error information: `fpdev fpc install 3.2.2 --from-source --verbose`
+3. View detailed error information: `fpdev fpc install 3.2.2 --no-cache --verbose`
 
 ### Q: How to switch FPC versions?
 A: Use `fpdev fpc use <version>` command

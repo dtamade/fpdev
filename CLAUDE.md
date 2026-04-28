@@ -28,7 +28,7 @@ lazbuild -B --build-mode=Release fpdev.lpi
 ### Run the full test baselines
 
 ```bash
-python3 -m pytest tests -q
+python3 -m unittest discover -s tests -p 'test_*.py'
 bash scripts/run_all_tests.sh
 ```
 
@@ -38,10 +38,33 @@ bash scripts/run_all_tests.sh
 bash scripts/run_single_test.sh tests/test_config_management.lpr
 ```
 
+### Compile one Pascal test manually
+
+```bash
+mkdir -p /tmp/fpdev-test-bin/config-management /tmp/fpdev-test-lib/config-management
+fpc -Fu./src -Fi./src -Fu./tests \
+  -FE/tmp/fpdev-test-bin/config-management \
+  -FU/tmp/fpdev-test-lib/config-management \
+  tests/test_config_management.lpr
+/tmp/fpdev-test-bin/config-management/test_config_management
+```
+
+If a focused test derives the project root from the executable path, run it with:
+
+```bash
+FPDEV_TEST_PROJECT_ROOT="$(pwd)" /tmp/fpdev-test-bin/git-operations/test_git_operations
+```
+
 ### Check local toolchain prerequisites
 
 ```bash
 scripts/check_toolchain.sh
+```
+
+### Format docs
+
+```bash
+bash scripts/run_prettier.sh --check docs/testing.md
 ```
 
 Use `lazbuild -B` as the standard build path. Use direct `fpc` compilation only when the Lazarus project is not the right tool for the job.
@@ -79,11 +102,13 @@ Prefer the interface-based Git stack for new code:
 
 - `git2.api.pas`
 - `git2.impl.pas`
+- `src/fpdev.git.operations.pas`
+- `src/fpdev.git.operations.impl.pas`
 
-Compatibility layers still exist, but treat them as legacy:
+Compatibility layers and migration notes:
 
 - `src/fpdev.git2.pas`
-- `src/fpdev.utils.git.pas`
+- `src/fpdev.utils.git.pas` - removed compatibility shim; external callers must use `fpdev.git.operations`
 - `src/fpdev.git.pas`
 
 ### Configuration and toolchains

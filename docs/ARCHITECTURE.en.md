@@ -36,12 +36,14 @@ FPDev is a modular FreePascal and Lazarus development environment management too
 **Responsibility**: Manage application configuration including toolchains, Lazarus versions, cross-compilation targets, etc.
 
 **Design Principles**:
+
 - Use JSON format for storage, easy for manual editing and version control
 - Provide type-safe configuration access interfaces
 - Support configuration validation and migration
 - Use lazy loading strategy to improve startup performance
 
 **Core Class**:
+
 ```pascal
 TFPDevConfigManager = class
   // Configuration file operations
@@ -65,6 +67,7 @@ end;
 **Design Pattern**: Command pattern + registry dispatch
 
 **Core interfaces and types**:
+
 ```pascal
 IContext = interface
   function Config: IConfigManager;
@@ -89,6 +92,7 @@ end;
 ```
 
 **Key implementation files**:
+
 - `src/fpdev.command.intf.pas`: `ICommand` / `IContext`
 - `src/fpdev.command.tree.pas`: `TCommandNode`
 - `src/fpdev.command.registration.pas`: path registration and alias attachment
@@ -98,6 +102,7 @@ end;
 - `src/fpdev.cli.runner.pas`: entry-layer orchestration
 
 **Command Hierarchy**:
+
 ```
 fpdev
 ├── fpc
@@ -139,16 +144,41 @@ fpdev
 The entry layer keeps only `--portable` as a prelude; root help, version, toolchain checks, and policy checks are exposed through the command tree.
 ```
 
+## 2026-04 Current worktree facade/helper split
+
+### Command-layer facades
+
+- `src/fpdev.cmd.fpc.install.pas` keeps command registration, `TFPCManager` ownership, and the final call wiring; argument parsing, network guards, auto fallback, and exit-code runtime behavior now live in `src/fpdev.fpc.installcommandflow.pas`.
+- `src/fpdev.cmd.fpc.use.pas` keeps command registration and manager wiring; help/usage, argument validation, and version-switch surface behavior now live in `src/fpdev.fpc.usecommandflow.pas`.
+- `src/fpdev.cmd.fpc.verify.pas` keeps command registration and manager wiring; help/usage, step-by-step reporting, and exit-code mapping now live in `src/fpdev.fpc.verifycommandflow.pas`.
+
+### Service-layer facades
+
+- `src/fpdev.build.manager.pas` keeps state, logger, toolchain-checker, and process bridges; build/test/preflight surface orchestration lives in `src/fpdev.build.managerflow.pas`, while toolchain/config/make/build-stamp runtime glue lives in `src/fpdev.build.runtimeflow.pas`.
+- `src/fpdev.fpc.builder.pas` keeps resource-repo, state, output, and callback wiring; bootstrap ensure and source-build orchestration now live in `src/fpdev.fpc.builderflow.pas`.
+- `src/fpdev.fpc.binary.pas` keeps mirror/extractor/cache/manifest-parser ownership plus `FLastError` / config flags; manifest loading, download selection, and binary-install sequencing now live in `src/fpdev.fpc.binaryflow.pas`.
+
+### Git service notes
+
+FPDev currently keeps two Git-facing paths, but they serve different responsibilities:
+
+- New code that needs the system-git facade should enter through `src/fpdev.git.operations.pas`.
+- The concrete `TGitOperations` / `IGitCliRunner` implementation now lives in `src/fpdev.git.operations.impl.pas`.
+- `src/fpdev.utils.git.pas` has been removed; it should now appear only as a removed compatibility shim note, and external legacy callers must switch to `src/fpdev.git.operations.pas`.
+- When you need the libgit2 abstraction path, prefer `git2.api.pas` + `git2.impl.pas` and the related `fpdev.git2` guides.
+
 ### 3. Utility Library (fpdev.utils)
 
 **Responsibility**: Provide cross-platform system operation interfaces including file operations, process management, system information retrieval, etc.
 
 **Design Principles**:
+
 - Unified cross-platform interfaces
 - Platform-specific implementation separation
 - Error handling and exception safety
 
 **Functional Modules**:
+
 - System Info: CPU, memory, hostname, etc.
 - Process Management: Process creation, monitoring, termination
 - File Operations: Path handling, file permissions, directory operations
@@ -159,6 +189,7 @@ The entry layer keeps only `--portable` as a prelude; root help, version, toolch
 **Responsibility**: Manage terminal output formatting, supporting colored output, progress bars, tables, etc.
 
 **Features**:
+
 - Cross-platform colored output support
 - Progress bars and status indicators
 - Table-formatted output

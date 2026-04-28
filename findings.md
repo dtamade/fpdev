@@ -1,5 +1,33 @@
 # Findings & Decisions
 
+## 2026-04-29 Continuous Repo Closeout
+- 用户要求“中途不停歇，全部处理好”，本轮目标从只读分析切换为连续收口执行。
+- 当前明确失败点是 test inventory truth drift：
+  - `python3 scripts/update_test_stats.py --list | wc -l` 当前返回 `335`
+  - `README.md` / `README.en.md` / `docs/testing.md` / `docs/ROADMAP.md` / `docs/MVP_ACCEPTANCE_CRITERIA*.md` 仍记录 `275`
+  - `python3 scripts/update_test_stats.py --check` 因上述文档不同步失败
+- 已用 `python3 scripts/update_test_stats.py --write` 同步 canonical 文案，随后 `python3 scripts/update_test_stats.py --check` 通过，当前 count 为 `335`。
+- Focused docs contract 初次失败在 `tests/test_release_status_wording.py`：
+  - README 中 test inventory 已正确变为 `335`
+  - 测试仍硬编码 `275`
+  - root cause 是 release-status wording contract 把“当前 README inventory”和“发布时 release notes inventory”混为同一个固定值
+- 修复策略：README 断言通过 `scripts/update_test_stats.py` 的 `discover_tests()` 动态计算当前 inventory line；`RELEASE_NOTES.md` 继续保留发布时 `275` 证据快照。
+- Focused verification 已通过：
+  - `python3 -m unittest tests.test_update_test_stats tests.test_contributor_docs_contract tests.test_release_status_wording -v` → `44/44`
+  - facade boundary bundle → `36/36`
+- Release build 初次通过但发现 `src/fpdev.fpc.installer.lifecycleflow.pas` 的 `AVersion` unused parameter hint。该参数不参与 uninstall 行为，实际删除目标完全由 `AInstallDir` 决定，因此收紧 `ExecuteFPCInstallerUninstallCore(...)` helper 签名并更新 call sites/tests。
+- 收紧签名后 focused installer tests 通过：
+  - `python3 -m unittest tests.test_fpc_installer_boundary -v` → `4/4`
+  - `tests/test_fpc_installer_lifecycleflow.lpr` → `29/29`
+  - `tests/test_fpc_installer.lpr` → `35/35`
+- Final verification 通过：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `641/641`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → exit `0`; project code unused-parameter hint 已清除，剩余为 Lazarus/FPC 环境级 hint 输出
+- 本轮不新开业务功能或 helper/facade extraction wave。Phase 116 已确认当前没有新的高 ROI、低爆炸半径 helper 切口；继续机械拆分的风险高于收益。
+- 实施顺序固定为：计划落盘 -> test inventory sync -> focused contracts -> boundary bundle -> Python full -> Pascal full -> Release build -> review -> commit。
+- 当前 dirty worktree 规模很大，本轮提交会尽量只 stage 本轮 closeout scope 文件，避免混入无关历史改动。
+
 ## Requirements
 - 检查 `/home/dtamade/projects/fpdev` 中 `TFPCInstaller` 周边测试，重点看 `tests/test_fpc_installer.lpr`
 - 特别关注 boundary tests，给出为了后续抽取 `fpdev.fpc.installer.lifecycleflow` 所需的最小 RED 测试补强建议

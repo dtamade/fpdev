@@ -7,22 +7,25 @@ The repository provides a layered Git integration:
 - C API bindings (libgit2): `src/libgit2.pas`
 
 Notes:
+
 - `fpdev.git2` exposes concrete classes (TGitManager/TGitRepository/...) and keeps a compatibility shim `TGit2Manager`.
 - New code should prefer `git2.api` + `git2.impl` (interfaces first, easy to replace backends). Existing code can continue to use `fpdev.git2` safely.
 - `fpdev.git` (system git command wrapper) is deprecated; libgit2 path is the preferred backend.
+- Current worktree note for the system-git facade:
+  - Use `fpdev.git.operations` as the default entrypoint for `TGitOperations` / `IGitCliRunner`.
+  - The concrete implementation lives in `src/fpdev.git.operations.impl.pas`.
+  - `src/fpdev.utils.git.pas` has been removed and now survives only as a removed compatibility shim note in migration-focused docs.
 
 ---
 
 ## Quick Start
 
 - Recommended imports in applications/tests:
-
   - Preferred: `uses git2.api, git2.impl;` then `NewGitManager()` to obtain `IGitManager`
   - Compatible: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`
   - Only import `libgit2` when you must call the C API directly
 
 - Build (Lazarus is on PATH):
-
   - `lazbuild --build-all --no-write-project test_libgit2_simple.lpi`
   - `lazbuild --build-all --no-write-project test_libgit2_complete.lpi`
   - `lazbuild --build-all --no-write-project tests\test_git2_adapter.lpi`
@@ -89,7 +92,7 @@ Error handling: high-level methods raise `EGitError` on non-zero returns from li
 Import `libgit2` only when necessary for direct calls. The unit provides:
 
 - Basic handles/types (git_repository, git_reference, git_commit, git_oid, etc.)
-- Core functions (git_repository_open/init/head/workdir, git_reference_*, git_commit_*, git_branch_*, git_remote_*, status helpers, options init, credentials, etc.)
+- Core functions (git*repository_open/init/head/workdir, git_reference*_, git*commit*_, git*branch*_, git*remote*_, status helpers, options init, credentials, etc.)
 
 Example (opening a repository and reading HEAD):
 

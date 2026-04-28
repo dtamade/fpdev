@@ -23,7 +23,47 @@ tests/
 
 ## Running Tests
 
-### Build and Run Single Test
+### High-Frequency Local Commands
+
+Run:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+bash scripts/run_all_tests.sh
+bash scripts/run_single_test.sh tests/test_config_management.lpr
+bash scripts/run_prettier.sh --check docs/testing.md
+```
+
+These are the shortest working entrypoints for the common local loops: Python contract checks, Pascal baselines, one focused Pascal test, and doc formatting.
+
+### Run One Focused Pascal Test
+
+Prefer the shared runner first:
+
+```bash
+bash scripts/run_single_test.sh tests/test_config_management.lpr
+```
+
+### Compile One Focused Pascal Test Manually
+
+When you need to bypass the shared runner, keep the compiler outputs in `/tmp` instead of the repo-local `bin/` and `lib/` directories:
+
+```bash
+mkdir -p /tmp/fpdev-test-bin/config-management /tmp/fpdev-test-lib/config-management
+fpc -Fu./src -Fi./src -Fu./tests \
+  -FE/tmp/fpdev-test-bin/config-management \
+  -FU/tmp/fpdev-test-lib/config-management \
+  tests/test_config_management.lpr
+/tmp/fpdev-test-bin/config-management/test_config_management
+```
+
+Some focused tests infer the project root from the executable location. For those, set `FPDEV_TEST_PROJECT_ROOT=` explicitly when you run the built binary:
+
+```bash
+FPDEV_TEST_PROJECT_ROOT="$(pwd)" /tmp/fpdev-test-bin/git-operations/test_git_operations
+```
+
+### Build and Run Single Test With Lazarus
 
 ```bash
 # Windows
@@ -59,11 +99,21 @@ scripts/run_all_tests.sh
 
 No dedicated `scripts\run_all_tests.bat` wrapper is tracked in this repository.
 
+### Format Docs
+
+Use the repo-local wrapper instead of `yarn prettier`:
+
+```bash
+bash scripts/run_prettier.sh --check docs/testing.md
+bash scripts/run_prettier.sh --write docs/testing.md
+```
+
 ## Test-Driven Development (TDD)
 
 FPDev follows the **Red-Green-Refactor** cycle:
 
 1. **🔴 Red**: Write failing test first
+
    ```pascal
    procedure TTestMyFeature.TestNewFeature;
    begin
@@ -72,6 +122,7 @@ FPDev follows the **Red-Green-Refactor** cycle:
    ```
 
 2. **🟢 Green**: Implement minimal code to pass
+
    ```pascal
    function MyFeature: Integer;
    begin
@@ -221,7 +272,7 @@ end;
 <!-- TEST-INVENTORY-COVERAGE:BEGIN -->
 Current discoverable test-program inventory:
 
-- Discoverable `test_*.lpr` programs: 275
+- Discoverable `test_*.lpr` programs: 335
 - Shared discovery rules: CI and `scripts/run_all_tests.sh` use the same inventory source
 - Default exclusions: `examples`, `fpdev.git2.adapter`, `fpdev.libgit2.base`, `fpdev.core.misc`, `migrated`
 - Sync command: `python3 scripts/update_test_stats.py --write`
@@ -231,11 +282,13 @@ Current discoverable test-program inventory:
 ## Continuous Integration
 
 Verification entrypoints include:
+
 - Pushes to `main` / `develop`
 - Pull requests targeting `main`
 - Manual/local release verification before publishing
 
 Tracked workflow entrypoints:
+
 - `.github/workflows/ci.yml` `release-acceptance-linux`
 - `.github/workflows/ci.yml` `compile-check`
 - `.github/workflows/ci.yml` `cross-platform-cli-smoke`
@@ -304,8 +357,9 @@ If you prefer system packages, that is also fine; the important part is that the
 
 ---
 
-**Last Updated**: 2026-04-05
+**Last Updated**: 2026-04-10
 **Test Framework**: fpcunit
+
 <!-- TEST-INVENTORY-FOOTER:BEGIN -->
-**Test Inventory**: 275 discoverable test programs (same rules as CI)
+**Test Inventory**: 335 discoverable test programs (same rules as CI)
 <!-- TEST-INVENTORY-FOOTER:END -->

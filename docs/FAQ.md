@@ -26,13 +26,23 @@ bash scripts/build_release.sh
 
 ### Q: 二进制安装失败怎么办？
 
-**A**: 使用源码安装：
+**A**: 默认命令已经是二进制优先；排查时建议按下面顺序收缩问题范围：
 
 ```bash
+# 只使用本地缓存（完全离线）
+fpdev fpc install 3.2.2 --offline
+
+# 查看当前有哪些缓存可用
+fpdev fpc cache list
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
+
+# 需要完全绕过二进制链路时再显式源码安装
 fpdev fpc install 3.2.2 --from-source
 ```
 
-二进制安装依赖 manifest 系统，如果不可用，源码安装是最可靠的方法。
+二进制安装链路会先走 manifest，再尝试 fpdev-repo / SourceForge 等 fallback；只有当这些路径都不可用，或者您明确需要源码构建时，再切换 `--from-source`。
 
 ---
 
@@ -43,8 +53,14 @@ fpdev fpc install 3.2.2 --from-source
 **A**: 默认先使用二进制安装，速度更快；需要源码构建或二进制安装不可用时再使用源码安装：
 
 ```bash
-# 优先：二进制安装
+# 默认：二进制优先安装
 fpdev fpc install 3.2.2
+
+# 仅使用本地缓存
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载
+fpdev fpc install 3.2.2 --no-cache
 
 # 需要源码构建时
 fpdev fpc install 3.2.2 --from-source
@@ -163,14 +179,25 @@ fpdev project clean
 
 **A**: 这通常是网络问题。解决方案：
 
-1. **使用源码安装**（不依赖网络下载二进制）:
+1. **先检查缓存是否可用**:
+   ```bash
+   fpdev fpc cache list
+   fpdev fpc install 3.2.2 --offline
+   ```
+
+2. **跳过缓存重新下载二进制**:
+   ```bash
+   fpdev fpc install 3.2.2 --no-cache
+   ```
+
+3. **需要时再切换源码模式**:
    ```bash
    fpdev fpc install 3.2.2 --from-source
    ```
 
-2. **检查网络连接**
+4. **检查网络连接**
 
-3. **使用代理**（如果在防火墙后）
+5. **使用代理**（如果在防火墙后）
 
 ### Q: 编译错误：找不到单元
 
@@ -205,7 +232,7 @@ fpc -vut
 **A**: 使用 `--prefix` 参数：
 
 ```bash
-fpdev fpc install 3.2.2 --from-source --prefix=/custom/path
+fpdev fpc install 3.2.2 --prefix=/custom/path
 ```
 
 ### Q: 如何使用项目作用域安装？

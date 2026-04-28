@@ -5,6 +5,25 @@ set STATUS_OK=0
 set STATUS_MISS=0
 set LAZARUS_ROOT_STATUS=MISSING
 set "LAZARUS_ROOT_PATH="
+set REPO_BUILD_OUTPUTS_ENABLED=0
+set "REPO_ROOT="
+set "REPO_BIN_PATH="
+set "REPO_BIN_STATUS=SKIPPED"
+set "REPO_BIN_NOTES="
+set "REPO_LIB_PATH="
+set "REPO_LIB_STATUS=SKIPPED"
+set "REPO_LIB_NOTES="
+set "REPO_OUTPUT_LAST_STATUS="
+set "REPO_OUTPUT_LAST_NOTES="
+
+if defined FPDEV_TOOLCHAIN_REPO_ROOT (
+  set "REPO_ROOT=%FPDEV_TOOLCHAIN_REPO_ROOT%"
+) else (
+  for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
+)
+
+set "REPO_BIN_PATH=%REPO_ROOT%\bin"
+set "REPO_LIB_PATH=%REPO_ROOT%\lib"
 
 call :check make
 call :check gmake
@@ -14,6 +33,7 @@ call :check lazbuild
 call :check git
 call :check openssl
 call :check_lazarus_root
+call :check_repo_build_outputs
 
 REM try some fpc driver names
 call :check ppc386
@@ -31,6 +51,7 @@ for %%C in (make gmake mingw32-make fpc lazbuild git openssl ppc386 ppcx64 ppcar
   call :probe %%C >> %OUT%
 )
 call :probe_lazarus_root >> %OUT%
+call :probe_repo_build_outputs >> %OUT%
 
 type %OUT%
 
@@ -52,6 +73,76 @@ if errorlevel 1 (
   set /a STATUS_OK+=1
 )
 exit /b 0
+
+:check_repo_build_outputs
+if exist "%REPO_ROOT%\fpdev.lpi" (
+  set REPO_BUILD_OUTPUTS_ENABLED=1
+  call :check_repo_build_output repo_bin_writable "%REPO_BIN_PATH%"
+  call :check_repo_build_output repo_lib_writable "%REPO_LIB_PATH%"
+) else (
+  set REPO_BUILD_OUTPUTS_ENABLED=0
+  set "REPO_BIN_STATUS=SKIPPED"
+  set "REPO_BIN_NOTES="
+  set "REPO_LIB_STATUS=SKIPPED"
+  set "REPO_LIB_NOTES="
+)
+exit /b 0
+
+:check_repo_build_output
+set "OUTPUT_NAME=%~1"
+set "OUTPUT_PATH=%~2"
+set "REPO_OUTPUT_LAST_STATUS=MISSING"
+set "REPO_OUTPUT_LAST_NOTES="
+
+if exist "%OUTPUT_PATH%\" (
+  call :path_is_writable "%OUTPUT_PATH%"
+  if errorlevel 1 (
+    set "REPO_OUTPUT_LAST_NOTES=directory exists but is not writable"
+    echo [MISS] %OUTPUT_NAME%: %OUTPUT_PATH% ^(!REPO_OUTPUT_LAST_NOTES!^)
+    set /a STATUS_MISS+=1
+  ) else (
+    set "REPO_OUTPUT_LAST_STATUS=found"
+    echo [ OK ] %OUTPUT_NAME%: %OUTPUT_PATH%
+    set /a STATUS_OK+=1
+  )
+) else (
+  call :parent_is_writable "%OUTPUT_PATH%"
+  if errorlevel 1 (
+    set "REPO_OUTPUT_LAST_NOTES=parent directory is not writable"
+    echo [MISS] %OUTPUT_NAME%: %OUTPUT_PATH% ^(!REPO_OUTPUT_LAST_NOTES!^)
+    set /a STATUS_MISS+=1
+  ) else (
+    set "REPO_OUTPUT_LAST_STATUS=found"
+    set "REPO_OUTPUT_LAST_NOTES=creatable"
+    echo [ OK ] %OUTPUT_NAME%: %OUTPUT_PATH% ^(!REPO_OUTPUT_LAST_NOTES!^)
+    set /a STATUS_OK+=1
+  )
+)
+
+if /I "%OUTPUT_NAME%"=="repo_bin_writable" (
+  set "REPO_BIN_STATUS=!REPO_OUTPUT_LAST_STATUS!"
+  set "REPO_BIN_NOTES=!REPO_OUTPUT_LAST_NOTES!"
+) else if /I "%OUTPUT_NAME%"=="repo_lib_writable" (
+  set "REPO_LIB_STATUS=!REPO_OUTPUT_LAST_STATUS!"
+  set "REPO_LIB_NOTES=!REPO_OUTPUT_LAST_NOTES!"
+)
+exit /b 0
+
+:path_is_writable
+set "TARGET_DIR=%~1"
+set "TEST_FILE=%TARGET_DIR%\.fpdev_write_test_%RANDOM%%RANDOM%.tmp"
+(> "%TEST_FILE%" echo ok) >nul 2>nul
+if exist "%TEST_FILE%" (
+  del /f /q "%TEST_FILE%" >nul 2>nul
+  exit /b 0
+)
+exit /b 1
+
+:parent_is_writable
+for %%I in ("%~1\..") do set "PARENT_DIR=%%~fI"
+if not exist "!PARENT_DIR!\" exit /b 1
+call :path_is_writable "!PARENT_DIR!"
+exit /b %ERRORLEVEL%
 
 :check_lazarus_root
 set LAZARUS_ROOT_STATUS=MISSING
@@ -119,5 +210,16 @@ if /I "%LAZARUS_ROOT_STATUS%"=="found" (
   echo %-15s lazarus_root : MISSING ^(FPDEV_LAZARUSDIR does not contain lcl/^\)
 ) else (
   echo %-15s lazarus_root : MISSING ^(set FPDEV_LAZARUSDIR to a Lazarus root containing lcl/^\)
+)
+exit /b 0
+
+:probe_repo_build_outputs
+echo Build outputs:
+if "%REPO_BUILD_OUTPUTS_ENABLED%"=="1" (
+  echo   repo_root : %REPO_ROOT%
+  echo   repo_bin_writable : %REPO_BIN_STATUS% %REPO_BIN_PATH% %REPO_BIN_NOTES%
+  echo   repo_lib_writable : %REPO_LIB_STATUS% %REPO_LIB_PATH% %REPO_LIB_NOTES%
+) else (
+  echo   skipped : repo root not detected ^(%REPO_ROOT%\fpdev.lpi missing^)
 )
 exit /b 0

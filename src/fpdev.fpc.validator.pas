@@ -5,11 +5,13 @@ unit fpdev.fpc.validator;
   fpdev.fpc.validator - FPC Installation Validation Service
 ================================================================================
 
-  Provides FPC installation verification and testing capabilities:
-  - Executable existence check
-  - Version detection and matching
-  - Smoke test (compile and run hello world)
-  - Installation health diagnostics
+  Provides FPC installation validation and diagnostics:
+  - Install path / executable path resolution
+  - Executable existence checks
+  - Installation health diagnostics and info views
+
+  Executable-level version verification and smoke testing are delegated to
+  fpdev.fpc.verify.TFPCVerifier so the runtime verification logic stays in one place.
 
   This service is extracted from TFPCManager as part of the Facade pattern
   refactoring to reduce god class complexity.
@@ -33,30 +35,22 @@ unit fpdev.fpc.validator;
 interface
 
 uses
-  SysUtils, Classes,
+  SysUtils,
   fpdev.types,
-  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs, fpdev.utils.process,
-  fpdev.fpc.runtimeflow, fpdev.paths, fpdev.constants, fpdev.fpc.utils;
+  fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.process,
+  fpdev.fpc.runtimeflow, fpdev.paths, fpdev.constants, fpdev.fpc.types,
+  fpdev.fpc.utils;
 
 type
-  { TVerificationResult - Result of installation verification }
-  TVerificationResult = record
-    Verified: Boolean;
-    ExecutableExists: Boolean;
-    DetectedVersion: string;
-    SmokeTestPassed: Boolean;
-    ErrorMessage: string;
-  end;
-
   { TFPCValidator - FPC installation validation service }
   TFPCValidator = class
   private
     FConfigManager: IConfigManager;
     FInstallRoot: string;
 
-    { Runs smoke test: compiles and executes hello world program.
-      Updates VerifResult.SmokeTestPassed and ErrorMessage. }
-    function RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
+    procedure InitializeVerificationResult(out VerifResult: TVerificationResult);
+    function VerifyExecutable(const AFPCExe, AVersion: string;
+      out VerifResult: TVerificationResult): Boolean;
 
     { Gets the installation path for a given FPC version. }
     function GetVersionInstallPath(const AVersion: string): string;
@@ -97,7 +91,7 @@ type
 implementation
 
 uses
-  fpdev.i18n.strings, fpdev.fpc.installversionflow;
+  fpdev.i18n.strings, fpdev.fpc.installversionflow, fpdev.fpc.verify;
 
 procedure WritePlainToolchainInfo(const AOut: IOutput; const AInfo: TToolchainInfo);
 begin
@@ -108,10 +102,6 @@ begin
   end;
 end;
 
-{$IFDEF MSWINDOWS}
-const
-  WINDOWS_CMD_SWITCH = '/c';
-{$ENDIF}
 
 { TFPCValidator }
 
@@ -196,205 +186,70 @@ begin
   Result := TProcessExecutor.Execute(AExecutable, ['-i'], '');
 end;
 
-function TFPCValidator.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
-var
-  LResult: TProcessResult;
-  FPCExe: string;
-  DetectedVer: string;
-  Lines: TStringList;
+procedure TFPCValidator.InitializeVerificationResult(out VerifResult: TVerificationResult);
 begin
-  // Initialize result record
-  Initialize(VerifResult);
+  VerifResult := Default(TVerificationResult);
   VerifResult.Verified := False;
   VerifResult.ExecutableExists := False;
   VerifResult.DetectedVersion := '';
   VerifResult.SmokeTestPassed := False;
   VerifResult.ErrorMessage := '';
+end;
 
-  // Get FPC executable path
+function TFPCValidator.VerifyExecutable(const AFPCExe, AVersion: string;
+  out VerifResult: TVerificationResult): Boolean;
+var
+  Verifier: fpdev.fpc.verify.TFPCVerifier;
+begin
+  Result := False;
+  InitializeVerificationResult(VerifResult);
+  VerifResult.ExecutableExists := True;
+
+  Verifier := fpdev.fpc.verify.TFPCVerifier.Create;
+  try
+    try
+      if not Verifier.VerifyVersion(AFPCExe, AVersion) then
+      begin
+        VerifResult.ErrorMessage := Verifier.GetLastError;
+        Exit(False);
+      end;
+
+      VerifResult.DetectedVersion := AVersion;
+      if not Verifier.CompileHelloWorld(AFPCExe) then
+      begin
+        VerifResult.ErrorMessage := Verifier.GetLastError;
+        Exit(False);
+      end;
+
+      VerifResult.SmokeTestPassed := True;
+      VerifResult.Verified := True;
+      Result := True;
+    except
+      on E: Exception do
+      begin
+        VerifResult.ErrorMessage := 'Exception during verification: ' + E.Message;
+        Result := False;
+      end;
+    end;
+  finally
+    Verifier.Free;
+  end;
+end;
+
+function TFPCValidator.VerifyInstallation(const AVersion: string; out VerifResult: TVerificationResult): Boolean;
+var
+  FPCExe: string;
+begin
+  InitializeVerificationResult(VerifResult);
+
   FPCExe := GetFPCExecutablePath(AVersion);
-
-  // Check if executable exists
   if not FileExists(FPCExe) then
   begin
     VerifResult.ErrorMessage := 'FPC executable not found: ' + FPCExe;
     Exit(False);
   end;
 
-  VerifResult.ExecutableExists := True;
-
-  try
-    // Run fpc -iV to get version
-    LResult := TProcessExecutor.Execute(FPCExe, ['-iV'], '');
-
-    if LResult.Success then
-    begin
-      // Parse first line of output
-      Lines := TStringList.Create;
-      try
-        Lines.Text := LResult.StdOut;
-        if Lines.Count > 0 then
-        begin
-          DetectedVer := Trim(Lines[0]);
-          VerifResult.DetectedVersion := DetectedVer;
-
-          // Verify version matches
-          if not SameText(DetectedVer, AVersion) then
-          begin
-            VerifResult.ErrorMessage := 'Version mismatch: expected ' + AVersion + ', detected ' + DetectedVer;
-            Exit(False);
-          end;
-        end else begin
-          VerifResult.ErrorMessage := 'No version output from fpc -iV';
-          Exit(False);
-        end;
-      finally
-        Lines.Free;
-      end;
-    end else begin
-      VerifResult.ErrorMessage := 'fpc -iV failed with exit code: ' + IntToStr(LResult.ExitCode);
-      Exit(False);
-    end;
-
-    // Run smoke test: compile and execute hello world
-    if not RunSmokeTest(FPCExe, VerifResult) then
-    begin
-      VerifResult.Verified := False;
-      Exit(False);
-    end;
-
-    // Verification successful
-    VerifResult.Verified := True;
-    Exit(True);
-
-  except
-    on E: Exception do
-    begin
-      VerifResult.ErrorMessage := 'Exception during verification: ' + E.Message;
-      Exit(False);
-    end;
-  end;
-end;
-
-function TFPCValidator.RunSmokeTest(const AFPCExe: string; var VerifResult: TVerificationResult): Boolean;
-var
-  TempDir, HelloPas, HelloExe: string;
-  HelloFile: TextFile;
-  LResult: TProcessResult;
-  Lines: TStringList;
-  Output: string;
-begin
-  Result := False;
-  VerifResult.SmokeTestPassed := False;
-
-  try
-    // Create temporary directory for smoke test
-    TempDir := GetTempDir + 'fpdev_smoke_' + IntToStr(GetTickCount64);
-    EnsureDir(TempDir);
-
-    HelloPas := TempDir + PathDelim + 'hello.pas';
-    {$IFDEF MSWINDOWS}
-    HelloExe := TempDir + PathDelim + 'hello.exe';
-    {$ELSE}
-    HelloExe := TempDir + PathDelim + 'hello';
-    {$ENDIF}
-
-    // Create hello.pas
-    AssignFile(HelloFile, HelloPas);
-    try
-      Rewrite(HelloFile);
-      WriteLn(HelloFile, 'program hello;');
-      WriteLn(HelloFile, 'begin');
-      WriteLn(HelloFile, '  WriteLn(''Hello, World!'');');
-      WriteLn(HelloFile, 'end.');
-      CloseFile(HelloFile);
-    except
-      on E: Exception do
-      begin
-        VerifResult.ErrorMessage := 'Failed to create hello.pas: ' + E.Message;
-        Exit(False);
-      end;
-    end;
-
-    // Compile hello.pas
-    LResult := TProcessExecutor.Execute(AFPCExe, ['-o' + HelloExe, HelloPas], '');
-    if not LResult.Success then
-    begin
-      VerifResult.ErrorMessage :=
-        'Smoke test: Failed to compile hello.pas (exit code: ' +
-        IntToStr(LResult.ExitCode) + ')';
-      Exit(False);
-    end;
-
-    // Check if executable was created
-    if not FileExists(HelloExe) then
-    begin
-      VerifResult.ErrorMessage := 'Smoke test: Compiled executable not found: ' + HelloExe;
-      Exit(False);
-    end;
-
-    // Run hello.exe and check output
-    Lines := TStringList.Create;
-    try
-      {$IFDEF MSWINDOWS}
-      // On Windows, check if a .bat file exists (mock environment)
-      if FileExists(ChangeFileExt(HelloExe, '.bat')) then
-        LResult := TProcessExecutor.Execute(
-          'cmd.exe',
-          [WINDOWS_CMD_SWITCH, ChangeFileExt(HelloExe, '.bat')],
-          ''
-        )
-      else
-        LResult := TProcessExecutor.Execute(HelloExe, [], '');
-      {$ELSE}
-      LResult := TProcessExecutor.Execute(HelloExe, [], '');
-      {$ENDIF}
-
-      if not LResult.Success then
-      begin
-        VerifResult.ErrorMessage := 'Smoke test: hello program failed (exit code: ' + IntToStr(LResult.ExitCode) + ')';
-        Exit(False);
-      end;
-
-      // Check output
-      Lines.Text := LResult.StdOut;
-      if Lines.Count > 0 then
-        Output := Trim(Lines[0])
-      else
-        Output := '';
-
-      if Output <> 'Hello, World!' then
-      begin
-        VerifResult.ErrorMessage :=
-          'Smoke test: Unexpected output. Expected ''Hello, World!'', got: ''' +
-          Output + '''';
-        Exit(False);
-      end;
-
-      // Smoke test passed!
-      VerifResult.SmokeTestPassed := True;
-      Result := True;
-
-    finally
-      Lines.Free;
-
-      // Cleanup temporary files
-      try
-        if FileExists(HelloExe) then DeleteFile(HelloExe);
-        if FileExists(HelloPas) then DeleteFile(HelloPas);
-        RemoveDir(TempDir);
-      except
-        // Ignore cleanup errors
-      end;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      VerifResult.ErrorMessage := 'Smoke test exception: ' + E.Message;
-      Exit(False);
-    end;
-  end;
+  Result := VerifyExecutable(FPCExe, AVersion, VerifResult);
 end;
 
 function TFPCValidator.TestInstallation(const AVersion: string; Outp: IOutput; Errp: IOutput): Boolean;

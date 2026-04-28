@@ -5,8 +5,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class StyleRegressionBatch19Tests(unittest.TestCase):
-    def test_utils_git_lines_within_120_chars(self):
-        source_path = REPO_ROOT / 'src' / 'fpdev.utils.git.pas'
+    def test_git_operations_facade_lines_within_120_chars(self):
+        source_path = REPO_ROOT / 'src' / 'fpdev.git.operations.pas'
         lines = source_path.read_text(encoding='utf-8').splitlines()
         offenders = [
             (lineno, len(line))

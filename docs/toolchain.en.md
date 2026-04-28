@@ -17,7 +17,9 @@ This module provides "pure code, zero side-effect" toolchain health checks and F
 ## Main API (For Code Usage)
 
 - `function BuildToolchainReportJSON: string;`
-  - Builds a HostReady health check report (fpc/make/lazbuild/lazarus_root/git/openssl), returns a JSON string; no disk writes, no system modifications
+  - Builds a HostReady health check report (fpc/make/lazbuild/lazarus_root/git/openssl)
+  - When the current working directory or `FPDEV_TOOLCHAIN_REPO_ROOT` resolves to a repository root containing `fpdev.lpi`, it also appends `repo_bin_writable` / `repo_lib_writable`
+  - Returns a JSON string; no disk writes, no system modifications
 
 - `function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;`
@@ -52,6 +54,8 @@ Example:
     {"name":"mingw32-make","found":true,"version":"GNU Make 4.4","path":"C:\\...\\mingw32-make.exe","notes":""},
     {"name":"lazbuild","found":false,"version":"","path":"","notes":"optional"},
     {"name":"lazarus_root","found":true,"version":"","path":"C:\\lazarus","notes":""},
+    {"name":"repo_bin_writable","found":true,"version":"","path":"C:\\fpdev\\bin","notes":""},
+    {"name":"repo_lib_writable","found":true,"version":"","path":"C:\\fpdev\\lib","notes":""},
     {"name":"git","found":true,"version":"git version 2.x","path":"C:\\...\\git.exe","notes":""},
     {"name":"openssl","found":false,"version":"","path":"","notes":"optional for HTTPS"}
   ],
@@ -64,8 +68,9 @@ Field descriptions:
 - hostOS/hostCPU: Host system information
 - pathHead: First few segments of PATH (for diagnostics)
 - tools: Detection results for key tools
+- When a repo root is detected, `tools` also includes `repo_bin_writable` / `repo_lib_writable`
 - issues: List of missing items (e.g., missing fpc/make/lazarus_root)
-- level: OK/WARN/FAIL (missing fpc/make/lazarus_root -> FAIL; missing optional items -> WARN)
+- level: OK/WARN/FAIL (missing fpc/make/lazarus_root or non-writable repo build outputs -> FAIL; missing optional items -> WARN)
 
 ## Policy JSON (External Override)
 
@@ -95,6 +100,8 @@ Notes:
 
 - On Windows, prefer `mingw32-make`; on Unix/BSD, prefer `gmake`
 - `lazarus_root` first honors `FPDEV_LAZARUSDIR`, otherwise it tries to infer the root from the `lazbuild` directory; the root must contain `lcl/`
+- `scripts/check_toolchain.sh` / `scripts/check_toolchain.bat` treat non-writable repo `bin/` / `lib/` outputs as required failures
+- `FPDEV_TOOLCHAIN_REPO_ROOT` is mainly intended for tests or temporary overrides; normal usage should rely on repo-root auto-detection
 - HTTPS downloads should include OpenSSL dynamic libraries; a warning or degraded mode is triggered if missing
 - The health check JSON is not written to disk; if persistence is needed, the calling program can write it to a file
 

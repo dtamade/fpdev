@@ -256,8 +256,9 @@ begin
     {$ENDIF}
     Check('cache has artifacts', Cache.HasArtifacts('3.2.2'),
       'cache should contain saved artifacts');
-    Check('output includes completion summary', OutBuf.Contains('Installation completed!'),
-      'summary missing');
+    Check('post-install output omits completion summary',
+      not OutBuf.Contains('Installation completed!'),
+      'completion summary should be emitted by installversionflow');
     Check('output includes cache success', OutBuf.Contains('cached successfully'),
       'cache success missing');
   finally
@@ -390,8 +391,9 @@ begin
       'environment should be marked incomplete');
     Check('warning goes to stderr buffer', ErrBuf.Contains('Environment setup incomplete'),
       'warning missing');
-    Check('completion summary still printed', OutBuf.Contains('Installation completed!'),
-      'completion summary missing');
+    Check('post-install still omits completion summary on env warning',
+      not OutBuf.Contains('Installation completed!'),
+      'completion summary should be emitted by installversionflow');
   finally
     Probe.Free;
     ConfigGen.Free;

@@ -3,13 +3,13 @@ program test_fpc_manager_installmetadata;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Classes, Process,
+  SysUtils, DateUtils, Classes,
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
   fpdev.config.interfaces, fpdev.config.managers,
-  fpdev.fpc.manager, fpdev.fpc.metadata, fpdev.fpc.types,
-  fpdev.paths, fpdev.utils, test_temp_paths;
+  fpdev.fpc.manager, fpdev.fpc.metadata, fpdev.fpc.metadataflow, fpdev.fpc.types,
+  fpdev.types, fpdev.paths, fpdev.utils, test_temp_paths, test_fpc_mock_helpers;
 
 var
   TestRootDir: string;
@@ -38,31 +38,6 @@ begin
     Fail(AName, AReason);
 end;
 
-procedure CompileMockFPCBinary(const ATargetPath: string);
-var
-  MockFPCSource: string;
-  CompileProcess: TProcess;
-begin
-  MockFPCSource := ExpandFileName(
-    ExtractFileDir(ParamStr(0)) + PathDelim + '..' + PathDelim + 'tests' +
-    PathDelim + 'mock_fpc.pas'
-  );
-
-  ForceDirectories(ExtractFileDir(ATargetPath));
-  CompileProcess := TProcess.Create(nil);
-  try
-    CompileProcess.Executable := 'fpc';
-    CompileProcess.Parameters.Add('-o' + ATargetPath);
-    CompileProcess.Parameters.Add(MockFPCSource);
-    CompileProcess.Options := CompileProcess.Options + [poWaitOnExit];
-    CompileProcess.Execute;
-
-    if CompileProcess.ExitStatus <> 0 then
-      raise Exception.Create('Failed to compile mock FPC executable');
-  finally
-    CompileProcess.Free;
-  end;
-end;
 
 procedure InitTestEnvironment;
 var
@@ -133,11 +108,118 @@ begin
     'timestamp was zero');
 end;
 
+procedure TestBuildInstallMetadataCoreCapturesSourceOrigin;
+var
+  Meta: TFPDevMetadata;
+  InstalledAt: TDateTime;
+begin
+  InstalledAt := EncodeDateTime(2026, 4, 10, 12, 30, 0, 0);
+  Meta := BuildFPCInstallMetadataCore(
+    '3.2.2',
+    TestRootDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2',
+    'stable',
+    'https://gitlab.example/fpc.git',
+    True,
+    isProject,
+    InstalledAt
+  );
+
+  Check('metadata core stores version',
+    Meta.Version = '3.2.2',
+    'version=' + Meta.Version);
+  Check('metadata core stores scope',
+    Meta.Scope = isProject,
+    'scope mismatch');
+  Check('metadata core stores source mode',
+    Meta.SourceMode = smSource,
+    'source mode mismatch');
+  Check('metadata core stores channel',
+    Meta.Channel = 'stable',
+    'channel=' + Meta.Channel);
+  Check('metadata core stores expanded prefix',
+    Meta.Prefix = ExpandFileName(TestRootDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2'),
+    'prefix=' + Meta.Prefix);
+  Check('metadata core stores source origin repo',
+    Meta.Origin.RepoURL = 'https://gitlab.example/fpc.git',
+    'repo=' + Meta.Origin.RepoURL);
+  Check('metadata core marks source origin',
+    Meta.Origin.BuiltFromSource,
+    'built_from_source was false');
+  Check('metadata core keeps install timestamp',
+    Meta.InstalledAt = InstalledAt,
+    'timestamp mismatch');
+end;
+
+procedure TestApplyVerificationMetadataCoreFillsMissingFields;
+var
+  ExistingMeta: TFPDevMetadata;
+  UpdatedMeta: TFPDevMetadata;
+  VerifResult: TVerificationResult;
+  VerifyTimestamp: TDateTime;
+  InstallPath: string;
+begin
+  InstallPath := TestRootDir + PathDelim + 'toolchains' + PathDelim + 'fpc' + PathDelim + '3.2.2';
+  VerifyTimestamp := EncodeDateTime(2026, 4, 10, 13, 45, 0, 0);
+
+  Initialize(ExistingMeta);
+  ExistingMeta.Origin.RepoURL := 'https://gitlab.example/fpc.git';
+  ExistingMeta.Origin.BuiltFromSource := True;
+
+  Initialize(VerifResult);
+  VerifResult.Verified := True;
+  VerifResult.DetectedVersion := '3.2.2';
+  VerifResult.SmokeTestPassed := True;
+
+  UpdatedMeta := ApplyFPCVerificationMetadataCore(
+    ExistingMeta,
+    False,
+    '3.2.2',
+    InstallPath,
+    'stable',
+    isUser,
+    VerifResult,
+    VerifyTimestamp
+  );
+
+  Check('verification core fills version',
+    UpdatedMeta.Version = '3.2.2',
+    'version=' + UpdatedMeta.Version);
+  Check('verification core fills scope when metadata missing',
+    UpdatedMeta.Scope = isUser,
+    'scope mismatch');
+  Check('verification core fills channel when metadata missing',
+    UpdatedMeta.Channel = 'stable',
+    'channel=' + UpdatedMeta.Channel);
+  Check('verification core fills prefix when metadata missing',
+    UpdatedMeta.Prefix = ExpandFileName(InstallPath),
+    'prefix=' + UpdatedMeta.Prefix);
+  Check('verification core preserves existing origin repo',
+    UpdatedMeta.Origin.RepoURL = 'https://gitlab.example/fpc.git',
+    'repo=' + UpdatedMeta.Origin.RepoURL);
+  Check('verification core preserves existing source flag',
+    UpdatedMeta.Origin.BuiltFromSource,
+    'built_from_source was false');
+  Check('verification core writes verify timestamp',
+    UpdatedMeta.Verify.Timestamp = VerifyTimestamp,
+    'verify timestamp mismatch');
+  Check('verification core writes verify ok flag',
+    UpdatedMeta.Verify.OK,
+    'verify.ok was false');
+  Check('verification core writes detected version',
+    UpdatedMeta.Verify.DetectedVersion = '3.2.2',
+    'detected=' + UpdatedMeta.Verify.DetectedVersion);
+  Check('verification core writes smoke test status',
+    UpdatedMeta.Verify.SmokeTestPassed,
+    'smoke test flag was false');
+end;
+
 begin
   WriteLn('=== FPC Manager Install Metadata Tests ===');
 
   InitTestEnvironment;
   try
+    TestBuildInstallMetadataCoreCapturesSourceOrigin;
+    TestApplyVerificationMetadataCoreFillsMissingFields;
     TestInstallVersionRefreshesMetadataForExistingInstall;
   finally
     CleanupTestEnvironment;

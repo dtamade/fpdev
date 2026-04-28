@@ -8,8 +8,9 @@ interface
 uses
   Classes, SysUtils, fpdev.platform, fpdev.fpc.mirrors,
   fpdev.archive.extract, fpdev.build.cache,
-  fpdev.build.cache.types, fpdev.fpc.verify, fpdev.toolchain.fetcher,
-  fpdev.manifest, fpdev.paths;
+  fpdev.build.cache.types, fpdev.fpc.binaryflow,
+  fpdev.fpc.types, fpdev.fpc.verifyflow,
+  fpdev.toolchain.fetcher, fpdev.manifest, fpdev.paths;
 
 type
   { TBinaryInstaller - Manages FPC binary installation }
@@ -18,7 +19,6 @@ type
     FMirrorManager: TMirrorManager;
     FExtractor: TArchiveExtractor;
     FCacheManager: TBuildCache;
-    FVerifier: TFPCVerifier;
     FManifestParser: TManifestParser;
     FLastError: string;
     FUseCache: Boolean;
@@ -26,6 +26,51 @@ type
     FVerifyInstallation: Boolean;
     FUseManifest: Boolean;
 
+    procedure WriteStatusLine(const AText: string);
+    procedure EnsureManifestParserCreated;
+    procedure ConfigureBinaryManifestCallbacks(
+      out ACallbacks: TBinaryManifestCallbacks
+    );
+    procedure ConfigureBinaryDownloadCallbacks(
+      out ACallbacks: TBinaryDownloadCallbacks
+    );
+    procedure ConfigureBinaryInstallCallbacks(
+      out ACallbacks: TBinaryInstallCallbacks
+    );
+    function LoadManifestFromURL(const AManifestURL: string): Boolean;
+    function GetManifestParserError: string;
+    function ResolveManifestTarget(
+      const AVersion, APlatform: string;
+      out ATarget: TManifestTarget
+    ): Boolean;
+    function ResolveLegacyDownloadURL(
+      const AVersion, APlatform: string
+    ): string;
+    function EnsureBinaryDownloaded(
+      const AURLs: TStringArray;
+      const ADestFile: string;
+      const AOptions: TFetchOptions;
+      out AError: string
+    ): Boolean;
+    function DownloadBinaryWithError(
+      const AVersion, ADestFile: string;
+      out AError: string
+    ): Boolean;
+    function ExtractBinaryArchive(
+      const AArchive, AInstallDir: string;
+      out AError: string
+    ): Boolean;
+    procedure SaveBinaryArtifactToCache(
+      const ACacheKey, AArchivePath: string
+    );
+    function RunInstalledVerification(
+      const AVersion, AInstallDir: string;
+      out AVerifResult: TVerificationResult
+    ): Boolean;
+    function WriteVerificationMetadata(
+      const AVersion, AInstallDir: string;
+      const AVerifResult: TVerificationResult
+    ): Boolean;
     function GetCacheKey(const AVersion: string): string;
     function DownloadBinary(const AVersion, ADestFile: string): Boolean;
     function LoadManifest(const AManifestURL: string): Boolean;
@@ -59,7 +104,6 @@ begin
   FMirrorManager := TMirrorManager.Create;
   FExtractor := TArchiveExtractor.Create;
   FCacheManager := TBuildCache.Create(IncludeTrailingPathDelimiter(GetDataRoot) + 'cache');
-  FVerifier := TFPCVerifier.Create;
   FManifestParser := nil;  // Create lazily when needed
   FLastError := '';
   FUseCache := True;
@@ -72,7 +116,6 @@ destructor TBinaryInstaller.Destroy;
 begin
   if Assigned(FManifestParser) then
     FManifestParser.Free;
-  FVerifier.Free;
   FCacheManager.Free;
   FExtractor.Free;
   FMirrorManager.Free;
@@ -87,259 +130,203 @@ begin
   Result := 'fpc-' + AVersion + '-' + Platform.ToString;
 end;
 
-function TBinaryInstaller.LoadManifest(const AManifestURL: string): Boolean;
+procedure TBinaryInstaller.WriteStatusLine(const AText: string);
 begin
-  Result := False;
+  WriteLn(AText);
+end;
 
-  if FOfflineMode then
-  begin
-    WriteLn('Offline mode: skipping manifest download');
-    Exit;
-  end;
-
-  // Create manifest parser lazily when needed
+procedure TBinaryInstaller.EnsureManifestParserCreated;
+begin
   if not Assigned(FManifestParser) then
     FManifestParser := TManifestParser.Create;
+end;
 
-  WriteLn('Loading manifest from: ', AManifestURL);
+procedure TBinaryInstaller.ConfigureBinaryManifestCallbacks(
+  out ACallbacks: TBinaryManifestCallbacks
+);
+begin
+  ACallbacks := Default(TBinaryManifestCallbacks);
+  ACallbacks.Log := @Self.WriteStatusLine;
+  ACallbacks.EnsureManifestParser := @Self.EnsureManifestParserCreated;
+  ACallbacks.LoadFromURL := @Self.LoadManifestFromURL;
+  ACallbacks.GetManifestError := @Self.GetManifestParserError;
+end;
 
-  if not FManifestParser.LoadFromURL(AManifestURL) then
-  begin
-    WriteLn('Warning: Failed to load manifest: ', FManifestParser.LastError);
-    WriteLn('Falling back to legacy download method');
-    Exit;
-  end;
+procedure TBinaryInstaller.ConfigureBinaryDownloadCallbacks(
+  out ACallbacks: TBinaryDownloadCallbacks
+);
+begin
+  ACallbacks := Default(TBinaryDownloadCallbacks);
+  ACallbacks.Log := @Self.WriteStatusLine;
+  ACallbacks.EnsureManifestParser := @Self.EnsureManifestParserCreated;
+  ACallbacks.ResolveManifestTarget := @Self.ResolveManifestTarget;
+  ACallbacks.ResolveLegacyURL := @Self.ResolveLegacyDownloadURL;
+  ACallbacks.EnsureDownloaded := @Self.EnsureBinaryDownloaded;
+end;
 
-  Result := True;
-  WriteLn('Manifest loaded successfully');
+procedure TBinaryInstaller.ConfigureBinaryInstallCallbacks(
+  out ACallbacks: TBinaryInstallCallbacks
+);
+begin
+  ACallbacks := Default(TBinaryInstallCallbacks);
+  ACallbacks.Log := @Self.WriteStatusLine;
+  ACallbacks.GetCacheKey := @Self.GetCacheKey;
+  ACallbacks.HasArtifacts := @FCacheManager.HasArtifacts;
+  ACallbacks.GetBinaryArtifactInfo := @FCacheManager.GetBinaryArtifactInfo;
+  ACallbacks.RestoreBinaryArtifact := @FCacheManager.RestoreBinaryArtifact;
+  ACallbacks.DownloadBinary := @Self.DownloadBinaryWithError;
+  ACallbacks.ExtractArchive := @Self.ExtractBinaryArchive;
+  ACallbacks.SaveBinaryArtifact := @Self.SaveBinaryArtifactToCache;
+  ACallbacks.RunVerification := @Self.RunInstalledVerification;
+  ACallbacks.WriteVerificationMetadata := @Self.WriteVerificationMetadata;
+end;
+
+function TBinaryInstaller.LoadManifestFromURL(const AManifestURL: string): Boolean;
+begin
+  EnsureManifestParserCreated;
+  Result := FManifestParser.LoadFromURL(AManifestURL);
+end;
+
+function TBinaryInstaller.GetManifestParserError: string;
+begin
+  if Assigned(FManifestParser) then
+    Result := FManifestParser.LastError
+  else
+    Result := '';
+end;
+
+function TBinaryInstaller.ResolveManifestTarget(
+  const AVersion, APlatform: string;
+  out ATarget: TManifestTarget
+): Boolean;
+begin
+  EnsureManifestParserCreated;
+  Result := FManifestParser.GetTarget('fpc', AVersion, APlatform, ATarget);
+end;
+
+function TBinaryInstaller.ResolveLegacyDownloadURL(
+  const AVersion, APlatform: string
+): string;
+begin
+  Result := FMirrorManager.GetDownloadURL(AVersion, APlatform);
+end;
+
+function TBinaryInstaller.EnsureBinaryDownloaded(
+  const AURLs: TStringArray;
+  const ADestFile: string;
+  const AOptions: TFetchOptions;
+  out AError: string
+): Boolean;
+begin
+  Result := EnsureDownloadedCached(AURLs, ADestFile, AOptions, AError);
+end;
+
+function TBinaryInstaller.DownloadBinaryWithError(
+  const AVersion, ADestFile: string;
+  out AError: string
+): Boolean;
+var
+  Platform: TPlatformInfo;
+  Callbacks: TBinaryDownloadCallbacks;
+begin
+  Platform := DetectPlatform;
+  ConfigureBinaryDownloadCallbacks(Callbacks);
+  Result := DownloadBinaryArchiveCore(
+    AVersion,
+    ADestFile,
+    Platform.ToString,
+    FUseManifest,
+    FOfflineMode,
+    Callbacks,
+    AError
+  );
+end;
+
+function TBinaryInstaller.ExtractBinaryArchive(
+  const AArchive, AInstallDir: string;
+  out AError: string
+): Boolean;
+begin
+  Result := FExtractor.Extract(AArchive, AInstallDir);
+  if Result then
+    AError := ''
+  else
+    AError := FExtractor.GetLastError;
+end;
+
+procedure TBinaryInstaller.SaveBinaryArtifactToCache(
+  const ACacheKey, AArchivePath: string
+);
+begin
+  FCacheManager.SaveBinaryArtifact(ACacheKey, AArchivePath);
+end;
+
+function TBinaryInstaller.RunInstalledVerification(
+  const AVersion, AInstallDir: string;
+  out AVerifResult: TVerificationResult
+): Boolean;
+begin
+  Result := RunInstalledFPCVerificationCore(
+    AVersion,
+    AInstallDir,
+    AVerifResult
+  );
+end;
+
+function TBinaryInstaller.WriteVerificationMetadata(
+  const AVersion, AInstallDir: string;
+  const AVerifResult: TVerificationResult
+): Boolean;
+begin
+  Result := WriteBinaryInstallVerificationMetadataCore(
+    AVersion,
+    AInstallDir,
+    AVerifResult
+  );
+end;
+
+function TBinaryInstaller.LoadManifest(const AManifestURL: string): Boolean;
+var
+  Callbacks: TBinaryManifestCallbacks;
+begin
+  ConfigureBinaryManifestCallbacks(Callbacks);
+  Result := LoadBinaryManifestCore(AManifestURL, FOfflineMode, Callbacks);
 end;
 
 function TBinaryInstaller.DownloadBinary(const AVersion, ADestFile: string): Boolean;
 var
   Platform: TPlatformInfo;
-  URL: string;
-  Err: string;
-  Opt: TFetchOptions;
-  URLs: array of string;
-  ManifestTarget: TManifestTarget;
-  I: Integer;
-  HashAlgo, HashDigest: string;
+  Callbacks: TBinaryDownloadCallbacks;
 begin
-  Result := False;
-
-  if FOfflineMode then
-  begin
-    FLastError := 'Offline mode enabled, cannot download' + LineEnding +
-                  'Troubleshooting:' + LineEnding +
-                  '  1. Check if version is cached: fpdev fpc cache list' + LineEnding +
-                  '  2. Run without --offline flag to download' + LineEnding +
-                  '  3. Use --from=source if binary is unavailable';
-    Exit;
-  end;
-
+  FLastError := '';
   Platform := DetectPlatform;
-
-  // Try to use manifest for enhanced security and multiple mirrors
-  if FUseManifest then
-  begin
-    // Create manifest parser lazily when needed
-    if not Assigned(FManifestParser) then
-      FManifestParser := TManifestParser.Create;
-  end;
-
-  if FUseManifest and FManifestParser.GetTarget('fpc', AVersion, Platform.ToString, ManifestTarget) then
-  begin
-    WriteLn('Using manifest data for download');
-
-    // Use multiple mirrors from manifest
-    SetLength(URLs, Length(ManifestTarget.URLs));
-    for I := 0 to High(ManifestTarget.URLs) do
-      URLs[I] := ManifestTarget.URLs[I];
-
-    // Parse hash from manifest
-    if ParseHashAlgorithm(ManifestTarget.Hash, HashAlgo, HashDigest) then
-    begin
-      Opt.Hash := ManifestTarget.Hash;
-      if HashAlgo = 'sha256' then
-        Opt.HashAlgorithm := haSHA256
-      else if HashAlgo = 'sha512' then
-        Opt.HashAlgorithm := haSHA512
-      else
-        Opt.HashAlgorithm := haUnknown;
-      Opt.HashDigest := HashDigest;
-      WriteLn('Hash verification enabled: ', HashAlgo);
-    end
-    else
-    begin
-      Opt.Hash := '';
-      Opt.HashAlgorithm := haUnknown;
-      Opt.HashDigest := '';
-      WriteLn('Warning: Invalid hash format in manifest, skipping verification');
-    end;
-
-    Opt.ExpectedSize := ManifestTarget.Size;
-    if Opt.ExpectedSize > 0 then
-      WriteLn('Expected size: ', Opt.ExpectedSize, ' bytes');
-  end
-  else
-  begin
-    // Fallback to legacy mirror manager
-    WriteLn('Using legacy download method (no manifest)');
-    URL := FMirrorManager.GetDownloadURL(AVersion, Platform.ToString);
-
-    if URL = '' then
-    begin
-      FLastError := 'Failed to generate download URL for ' + AVersion + LineEnding +
-                    'Troubleshooting:' + LineEnding +
-                    '  1. Verify version exists: fpdev fpc list --all' + LineEnding +
-                    '  2. Check platform support for this version' + LineEnding +
-                    '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source';
-      Exit;
-    end;
-
-    SetLength(URLs, 1);
-    URLs[0] := URL;
-
-    Opt.Hash := '';
-    Opt.HashAlgorithm := haUnknown;
-    Opt.HashDigest := '';
-    Opt.ExpectedSize := 0;
-    WriteLn('Warning: No hash verification (manifest not available)');
-  end;
-
-  Opt.DestDir := ExtractFileDir(ADestFile);
-  Opt.TimeoutMS := DEFAULT_DOWNLOAD_TIMEOUT_MS;
-
-  WriteLn('Downloading from: ', URLs[0]);
-  if Length(URLs) > 1 then
-    WriteLn('Fallback mirrors available: ', Length(URLs) - 1);
-
-  Result := EnsureDownloadedCached(URLs, ADestFile, Opt, Err);
-
-  if not Result then
-    FLastError := Err;
+  ConfigureBinaryDownloadCallbacks(Callbacks);
+  Result := DownloadBinaryArchiveCore(
+    AVersion,
+    ADestFile,
+    Platform.ToString,
+    FUseManifest,
+    FOfflineMode,
+    Callbacks,
+    FLastError
+  );
 end;
 
 function TBinaryInstaller.Install(const AVersion, AInstallDir: string): Boolean;
 var
-  CacheKey: string;
-  TempArchive: string;
-  CacheInfo: TArtifactInfo;
-  FPCPath: string;
+  Callbacks: TBinaryInstallCallbacks;
 begin
-  Result := False;
   FLastError := '';
-
-  // Check cache first if enabled
-  if FUseCache then
-  begin
-    CacheKey := GetCacheKey(AVersion);
-    if FCacheManager.HasArtifacts(CacheKey) then
-    begin
-      WriteLn('Found in cache, restoring...');
-      if FCacheManager.GetBinaryArtifactInfo(CacheKey, CacheInfo) then
-        WriteLn('Cache info: ', CacheInfo.Version);
-      if FCacheManager.RestoreBinaryArtifact(CacheKey, AInstallDir) then
-      begin
-        WriteLn('Successfully restored from cache');
-        Result := True;
-        Exit;
-      end
-      else
-        WriteLn('Cache restore failed, falling back to download');
-    end;
-  end;
-
-  // Download binary
-  TempArchive := GetTempDir + 'fpc-' + AVersion + '.tar.gz';
-  try
-    if not DownloadBinary(AVersion, TempArchive) then
-    begin
-      if FOfflineMode then
-        FLastError := 'Binary not in cache and offline mode enabled' + LineEnding +
-                      'Troubleshooting:' + LineEnding +
-                      '  1. Run without --offline to download' + LineEnding +
-                      '  2. Check available cached versions: fpdev fpc cache list' + LineEnding +
-                      '  3. Install a different version that is cached'
-      else
-        FLastError := 'Failed to download binary: ' + FLastError + LineEnding +
-                      'Troubleshooting:' + LineEnding +
-                      '  1. Check network connectivity' + LineEnding +
-                      '  2. Verify mirror availability' + LineEnding +
-                      '  3. Try source installation: fpdev fpc install ' + AVersion + ' --from=source' + LineEnding +
-                      '  4. Use --offline with cached version if available';
-      Exit;
-    end;
-
-    // Extract archive
-    WriteLn('Extracting archive...');
-    if not FExtractor.Extract(TempArchive, AInstallDir) then
-    begin
-      FLastError := 'Failed to extract archive: ' + FExtractor.GetLastError;
-      Exit;
-    end;
-
-    // Verify installation if enabled
-    if FVerifyInstallation then
-    begin
-      WriteLn('Verifying installation...');
-
-      // Find FPC executable (assume standard location)
-      FPCPath := AInstallDir + PathDelim + 'bin' + PathDelim + 'fpc';
-      {$IFDEF WINDOWS}
-      FPCPath := FPCPath + '.exe';
-      {$ENDIF}
-
-      if not FileExists(FPCPath) then
-      begin
-        FLastError := 'FPC executable not found at: ' + FPCPath;
-        Exit;
-      end;
-
-      // Verify version
-      if not FVerifier.VerifyVersion(FPCPath, AVersion) then
-      begin
-        FLastError := 'Version verification failed: ' + FVerifier.GetLastError;
-        Exit;
-      end;
-
-      WriteLn('Version verified: ', AVersion);
-
-      // Compile hello world test
-      if not FVerifier.CompileHelloWorld(FPCPath) then
-      begin
-        FLastError := 'Hello world compilation failed: ' + FVerifier.GetLastError;
-        Exit;
-      end;
-
-      WriteLn('Hello world test passed');
-
-      // Generate metadata
-      if not FVerifier.GenerateMetadata(AInstallDir, AVersion) then
-      begin
-        FLastError := 'Metadata generation failed: ' + FVerifier.GetLastError;
-        Exit;
-      end;
-
-      WriteLn('Metadata generated');
-    end;
-
-    // Save to cache if enabled
-    if FUseCache and not FOfflineMode then
-    begin
-      WriteLn('Saving to cache...');
-      CacheKey := GetCacheKey(AVersion);
-      FCacheManager.SaveBinaryArtifact(CacheKey, TempArchive);
-    end;
-
-    Result := True;
-    WriteLn('Installation complete');
-
-  finally
-    // Clean up temporary file
-    if FileExists(TempArchive) then
-      DeleteFile(TempArchive);
-  end;
+  ConfigureBinaryInstallCallbacks(Callbacks);
+  Result := ExecuteBinaryInstallCore(
+    AVersion,
+    AInstallDir,
+    FUseCache,
+    FOfflineMode,
+    FVerifyInstallation,
+    Callbacks,
+    FLastError
+  );
 end;
 
 function TBinaryInstaller.IsCached(const AVersion: string): Boolean;

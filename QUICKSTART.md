@@ -17,11 +17,14 @@ fpdev system version
 ## 🚀 第一步：安装 FPC 编译器
 
 ```bash
-# 安装推荐版本 FPC 3.2.2（二进制安装，快速）
+# 安装推荐版本 FPC 3.2.2（默认二进制优先）
 fpdev fpc install 3.2.2
 
-# 或者从源码编译（可定制，需要 10-30 分钟）
-fpdev fpc install 3.2.2 --from-source
+# 仅使用本地缓存（完全离线）
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
 
 # 设置为默认版本
 fpdev fpc use 3.2.2
@@ -120,7 +123,7 @@ fpdev package install synapse
 
 ### FPC 管理
 ```bash
-fpdev fpc install <version>     # 安装版本
+fpdev fpc install <version>     # 默认二进制优先安装
 fpdev fpc list                  # 列出已安装版本
 fpdev fpc use <version>         # 切换版本
 fpdev fpc current               # 查看当前版本
@@ -157,6 +160,7 @@ fpdev lazarus run               # 启动 IDE
 2. **查看帮助**：任何命令后加 `--help` 查看详细帮助
 3. **离线模式**：使用 `--offline` 标志从缓存安装
 4. **强制刷新**：使用 `--no-cache` 标志强制重新下载
+5. **源码兜底**：使用 `--from-source` 显式走源码构建路径
 
 ---
 

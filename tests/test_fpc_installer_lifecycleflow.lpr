@@ -429,7 +429,6 @@ begin
     Probe.InstallDirExistsResult := False;
 
     ResultInfo := ExecuteFPCInstallerUninstallCore(
-      '3.2.2',
       '/managed/root/fpc/3.2.2',
       @Probe.DirectoryExists,
       @Probe.ExecuteProcess
@@ -459,7 +458,6 @@ begin
     Probe.ProcessResult.StdErr := 'permission denied';
 
     ResultInfo := ExecuteFPCInstallerUninstallCore(
-      '3.2.2',
       '/managed/root/fpc/3.2.2',
       @Probe.DirectoryExists,
       @Probe.ExecuteProcess
@@ -488,7 +486,6 @@ begin
     Probe.ProcessResult.Success := True;
 
     ResultInfo := ExecuteFPCInstallerUninstallCore(
-      '3.2.2',
       '/managed/root/fpc/3.2.2',
       @Probe.DirectoryExists,
       @Probe.ExecuteProcess

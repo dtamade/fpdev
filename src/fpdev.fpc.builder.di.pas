@@ -104,36 +104,8 @@ type
 implementation
 
 uses
-  fpdev.utils.git, fpdev.utils.process, fpdev.version.registry, git2.impl,
+  fpdev.fpc.builder.gitruntime, fpdev.version.registry, git2.impl,
   fpdev.paths, fpdev.fpc.installversionflow;
-
-type
-  TGitCliRunnerFromProcessRunner = class(TInterfacedObject, IGitCliRunner)
-  private
-    FProcessRunner: IProcessRunner;
-  public
-    constructor Create(const AProcessRunner: IProcessRunner);
-    function Execute(const AParams: array of string; const AWorkDir: string = ''): fpdev.utils.process.TProcessResult;
-  end;
-
-constructor TGitCliRunnerFromProcessRunner.Create(const AProcessRunner: IProcessRunner);
-begin
-  inherited Create;
-  FProcessRunner := AProcessRunner;
-end;
-
-function TGitCliRunnerFromProcessRunner.Execute(const AParams: array of string;
-  const AWorkDir: string): fpdev.utils.process.TProcessResult;
-var
-  ProcResult: fpdev.fpc.interfaces.TProcessResult;
-begin
-  ProcResult := FProcessRunner.Execute('git', AParams, AWorkDir);
-  Result.Success := ProcResult.Success;
-  Result.ExitCode := ProcResult.ExitCode;
-  Result.StdOut := ProcResult.StdOut;
-  Result.StdErr := ProcResult.StdErr;
-  Result.ErrorMessage := '';
-end;
 
 function FastForwardOnlyPullError(const APullResult: TGitPullFastForwardResult;
   const APullError: string): string;
@@ -266,7 +238,7 @@ begin
     Exit(True);
 
   try
-    // Keep behavior aligned with fpdev.utils.git: try plain name first, then tags, then remote tracking refs.
+    // Keep checkout fallback behavior stable: try plain name first, then tags, then remote tracking refs.
     if Pos('refs/', LName) = 1 then
       Exit(ARepo.CheckoutBranchEx(LName, True));
 
@@ -296,7 +268,6 @@ var
   RepoURL: string;
   LGitErr: string;
   LRepo: IGitRepository;
-  GitOps: TGitOperations;
 begin
   // Validate version
   if not FVersionManager.ValidateVersion(AVersion) then
@@ -342,19 +313,11 @@ begin
     end;
   end;
 
-  // Fallback: command-line git through TGitOperations with injected CLI runner.
-  GitOps := TGitOperations.Create(TGitCliRunnerFromProcessRunner.Create(FProcessRunner), True);
-  try
-    if GitOps.Clone(RepoURL, ATargetDir, GitTag) then
-    begin
-      FFileSystem.ForceDirectories(ATargetDir);
-      Exit(OperationSuccess);
-    end;
-
-    if GitOps.LastError <> '' then
-      LGitErr := GitOps.LastError;
-  finally
-    GitOps.Free;
+  // Fallback: command-line git through the builder-specific process-runner bridge.
+  if CloneRepositoryWithProcessRunner(FProcessRunner, RepoURL, ATargetDir, GitTag, LGitErr) then
+  begin
+    FFileSystem.ForceDirectories(ATargetDir);
+    Exit(OperationSuccess);
   end;
 
   if LGitErr <> '' then

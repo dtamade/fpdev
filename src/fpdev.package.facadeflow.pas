@@ -16,17 +16,17 @@ type
   TPackageSourceInstallFunc = function(const APackageName, ASourcePath: string): Boolean of object;
   TPackageNameValidatorFunc = function(const APackageName: string): Boolean of object;
   TPackageEnsureMetadataFunc = function(const APackageName, ASourceDir, AMetaPath: string;
-    out ACreated: Boolean; out AError: string): Boolean of object;
+    out ACreated: Boolean; out AError: string): Boolean;
   TPackageInstalledCheckerFunc = function(const APackageName: string): Boolean of object;
   TPackageInstallPathResolverFunc = function(const APackageName: string): string of object;
   TPackagePublishMetadataResolverFunc = function(const AInstallPath, ADefaultVersion: string;
     out AVersion, AArchiveSourcePath, ASourcePathFromMeta: string;
-    out AStatus: TPackageMetadataLoadStatus; out AError: string): Boolean of object;
+    out AStatus: TPackageMetadataLoadStatus; out AError: string): Boolean;
   TPackagePublishMetadataFailureHandlerFunc = function(AStatus: TPackageMetadataLoadStatus;
-    const AError: string; Errp: IOutput): Integer of object;
+    const AError: string; Errp: IOutput): Integer;
   TPackageArchiveCreatorFunc = function(const APackageName, AVersion, AArchiveSourcePath,
     AInstallRoot: string; Outp, Errp: IOutput; out AArchivePath: string;
-    out AExitCode: Integer): Boolean of object;
+    out AExitCode: Integer): Boolean;
 
 function ExecutePackageInstallFromLocalCore(
   const APackagePath: string;

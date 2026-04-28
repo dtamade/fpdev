@@ -262,6 +262,108 @@ begin
     DirectoryExists(IncludeTrailingPathDelimiter(NormalizedPath) + 'lcl');
 end;
 
+function DirIsWritableNoSideEffects(const APath: string): Boolean;
+{$IFNDEF UNIX}
+var
+  Attr: LongInt;
+{$ENDIF}
+begin
+  Result := False;
+  if not DirectoryExists(APath) then
+    Exit(False);
+
+  {$IFDEF UNIX}
+  Result := fpAccess(PChar(APath), W_OK) = 0;
+  {$ELSE}
+  Attr := FileGetAttr(APath);
+  Result := (Attr <> -1) and ((Attr and faReadOnly) = 0);
+  {$ENDIF}
+end;
+
+function ParentDirWritableNoSideEffects(const APath: string): Boolean;
+var
+  ParentDir: string;
+begin
+  ParentDir := ExcludeTrailingPathDelimiter(
+    ExtractFileDir(ExcludeTrailingPathDelimiter(ExpandFileName(APath)))
+  );
+  Result := (ParentDir <> '') and DirIsWritableNoSideEffects(ParentDir);
+end;
+
+function FindRepoRootFromDir(const AStartDir: string): string;
+var
+  CurrentDir: string;
+  ParentDir: string;
+begin
+  CurrentDir := ExcludeTrailingPathDelimiter(ExpandFileName(Trim(AStartDir)));
+  if CurrentDir = '' then
+    Exit('');
+
+  while CurrentDir <> '' do
+  begin
+    if FileExists(IncludeTrailingPathDelimiter(CurrentDir) + 'fpdev.lpi') then
+      Exit(CurrentDir);
+
+    ParentDir := ExcludeTrailingPathDelimiter(ExtractFileDir(CurrentDir));
+    if (ParentDir = '') or (ParentDir = CurrentDir) then
+      Break;
+    CurrentDir := ParentDir;
+  end;
+
+  Result := '';
+end;
+
+function ResolveRepoRootForToolchain: string;
+var
+  Candidate: string;
+begin
+  Candidate := Trim(get_env('FPDEV_TOOLCHAIN_REPO_ROOT'));
+  if Candidate <> '' then
+  begin
+    Candidate := ExcludeTrailingPathDelimiter(ExpandFileName(Candidate));
+    if FileExists(IncludeTrailingPathDelimiter(Candidate) + 'fpdev.lpi') then
+      Exit(Candidate);
+    Exit('');
+  end;
+
+  Result := FindRepoRootFromDir(GetCurrentDir);
+end;
+
+function ProbeRepoBuildOutput(
+  const AName: string;
+  const ARepoRoot: string;
+  const ADirName: string
+): TToolStatus;
+var
+  OutputDir: string;
+begin
+  Result.Name := AName;
+  Result.Found := False;
+  Result.Version := '';
+  Result.Path := '';
+  Result.Notes := '';
+
+  if ARepoRoot = '' then
+    Exit;
+
+  OutputDir := IncludeTrailingPathDelimiter(ARepoRoot) + ADirName;
+  Result.Path := ExcludeTrailingPathDelimiter(ExpandFileName(OutputDir));
+
+  if DirectoryExists(Result.Path) then
+  begin
+    Result.Found := DirIsWritableNoSideEffects(Result.Path);
+    if not Result.Found then
+      Result.Notes := 'directory exists but is not writable';
+    Exit;
+  end;
+
+  Result.Found := ParentDirWritableNoSideEffects(Result.Path);
+  if Result.Found then
+    Result.Notes := 'creatable'
+  else
+    Result.Notes := 'parent directory is not writable';
+end;
+
 function ProbeLazarusRoot: TToolStatus;
 var
   Candidate: string;
@@ -508,6 +610,7 @@ var
   T: TToolStatus;
   Chosen: string;
   PathStr: string;
+  RepoRoot: string;
 begin
   {$IFDEF MSWINDOWS}
   R.HostOS := 'Windows';
@@ -546,6 +649,20 @@ begin
   if not T.Found then AddIssue(R.Issues, 'missing lazarus_root');
   AddTool(R.Tools, T);
 
+  RepoRoot := ResolveRepoRootForToolchain;
+  if RepoRoot <> '' then
+  begin
+    T := ProbeRepoBuildOutput('repo_bin_writable', RepoRoot, 'bin');
+    if not T.Found then
+      AddIssue(R.Issues, 'repo build output not writable: bin');
+    AddTool(R.Tools, T);
+
+    T := ProbeRepoBuildOutput('repo_lib_writable', RepoRoot, 'lib');
+    if not T.Found then
+      AddIssue(R.Issues, 'repo build output not writable: lib');
+    AddTool(R.Tools, T);
+  end;
+
   // git (recommended)
   T := ProbeOne('git', ['--version']); if not T.Found then T.Notes := 'optional';
   AddTool(R.Tools, T);
@@ -558,7 +675,8 @@ begin
     R.Level := 'OK'
   else if HasIssueContaining(R.Issues, 'missing fpc') or
           HasIssueContaining(R.Issues, 'missing make-family') or
-          HasIssueContaining(R.Issues, 'missing lazarus_root') then
+          HasIssueContaining(R.Issues, 'missing lazarus_root') or
+          HasIssueContaining(R.Issues, 'repo build output not writable') then
     R.Level := 'FAIL'
   else
     R.Level := 'WARN';

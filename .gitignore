@@ -24,6 +24,8 @@ out/
 # 备份文件
 *.backup.*
 backups/
+.bin.root-owned-*
+.lib.root-owned-*
 # IDE文件
 # 输出目录中的编译产物
 bin/*.exe

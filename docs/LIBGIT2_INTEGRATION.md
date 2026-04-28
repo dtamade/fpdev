@@ -4,6 +4,8 @@
 
 本文档描述了 FPDev 项目中 libgit2 的集成现状，包括原生 C API 绑定、现代接口封装、当前测试路径和运行时库布局约定。
 
+当前工作树里的 system-git facade 不在这份文档里展开；它的默认入口是 `fpdev.git.operations`，具体实现位于 `src/fpdev.git.operations.impl.pas`，而 `src/fpdev.utils.git.pas` 已删除，现在只作为 removed compatibility shim 的迁移说明出现。
+
 ## 🏗️ 架构设计
 
 ### 分层架构
@@ -59,6 +61,7 @@ fpdev/
 ### libgit2.pas - C API绑定
 
 **功能覆盖**:
+
 - ✅ 基本库管理 (初始化/关闭)
 - ✅ 仓库操作 (打开/创建/克隆)
 - ✅ 引用管理 (分支/标签/HEAD)
@@ -70,6 +73,7 @@ fpdev/
 - ✅ 错误处理 (异常/错误码)
 
 **类型定义**:
+
 ```pascal
 // 基本类型
 git_repository = Pointer;
@@ -91,6 +95,7 @@ end;
 ```
 
 **核心函数**:
+
 ```pascal
 // 库管理
 function git_libgit2_init: cint;
@@ -108,6 +113,7 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 ### git2.modern.pas - 现代接口封装
 
 **设计原则**:
+
 - 面向对象设计
 - 自动资源管理
 - 异常安全
@@ -116,6 +122,7 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 **核心类**:
 
 #### TGitManager - Git管理器
+
 ```pascal
 TGitManager = class
   function Initialize: Boolean;
@@ -126,6 +133,7 @@ end;
 ```
 
 #### TGitRepository - 仓库封装
+
 ```pascal
 TGitRepository = class
   function GetCurrentBranch: string;
@@ -137,6 +145,7 @@ end;
 ```
 
 #### TGitCommit - 提交封装
+
 ```pascal
 TGitCommit = class
   property OID: TGitOID read FOID;
@@ -153,11 +162,13 @@ end;
 ### Windows 产物布局
 
 **依赖**:
+
 - CMake 3.16+
 - MinGW-w64 GCC
 - Git
 
 **期望产物**:
+
 ```bash
 3rd\libgit2\install\bin\git2.dll         # 动态库（与 src/libgit2.pas 的 Windows 名称一致）
 3rd\libgit2\install\lib\git2.lib         # 导入库
@@ -167,6 +178,7 @@ end;
 ### Linux 产物布局
 
 **依赖**:
+
 ```bash
 # Ubuntu/Debian
 sudo apt install cmake build-essential libssl-dev zlib1g-dev
@@ -176,6 +188,7 @@ sudo yum install cmake gcc gcc-c++ openssl-devel zlib-devel
 ```
 
 **期望产物**:
+
 ```bash
 3rd/libgit2/install/lib/libgit2.so       # 动态库
 3rd/libgit2/install/lib/libgit2.a        # 静态库
@@ -226,16 +239,19 @@ fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 ## 📊 性能特性
 
 ### 内存管理
+
 - 自动资源释放
 - RAII模式实现
 - 异常安全保证
 
 ### 网络优化
+
 - 支持浅克隆 (--depth 1)
 - 进度回调支持
 - 中断和恢复机制
 
 ### 跨平台支持
+
 - Windows (MinGW/MSVC)
 - Linux (GCC/Clang)
 - macOS (Clang)
@@ -253,16 +269,16 @@ begin
   Manager := TGitManager.Create;
   try
     Manager.Initialize;
-    
+
     // 克隆仓库
     Repo := Manager.CloneRepository(
-      'https://github.com/user/repo.git', 
+      'https://github.com/user/repo.git',
       'local-repo'
     );
     try
       // 获取当前分支
       WriteLn('Current branch: ', Repo.GetCurrentBranch);
-      
+
       // 获取最新提交
       Commit := Repo.GetLastCommit;
       try
@@ -272,7 +288,7 @@ begin
       finally
         Commit.Free;
       end;
-      
+
     finally
       Repo.Free;
     end;
@@ -294,7 +310,7 @@ begin
     if FPCManager.CloneFPCSource('3.2.2') then
     begin
       WriteLn('FPC source cloned to: ', FPCManager.GetFPCSourcePath('3.2.2'));
-      
+
       // 列出本地版本
       var Versions := FPCManager.ListLocalVersions;
       for var Version in Versions do
@@ -324,7 +340,7 @@ begin
   FPCManager := TFPCSourceManager.Create;
   try
     GitManager.Initialize;
-    
+
     // 处理命令行参数
     case ParamStr(1) of
       'fpc':
@@ -332,7 +348,7 @@ begin
       'clone':
         HandleCloneCommand(GitManager, ParamStr(2), ParamStr(3));
     end;
-    
+
   finally
     FPCManager.Free;
     GitManager.Free;
@@ -343,6 +359,7 @@ end;
 ## 📈 未来扩展
 
 ### 计划功能
+
 - [ ] 分支管理 (创建/切换/合并)
 - [ ] 提交创建和推送
 - [ ] 冲突解决
@@ -351,6 +368,7 @@ end;
 - [ ] SSH密钥管理
 
 ### 性能优化
+
 - [ ] 多线程下载
 - [ ] 增量更新
 - [ ] 本地缓存
@@ -395,6 +413,7 @@ end;
 ## 📄 许可证
 
 本集成遵循以下许可证:
+
 - **FPDev**: MIT License
 - **libgit2**: GPL v2 with Linking Exception
 - **FreePascal**: Modified LGPL

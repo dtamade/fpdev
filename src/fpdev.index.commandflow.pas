@@ -6,21 +6,37 @@ interface
 
 uses
   SysUtils,
-  fpdev.command.intf;
+  fpdev.command.intf,
+  fpdev.index;
+
+type
+  TIndexServiceFactory = function(const AMirrorPreference: string): TFPDevIndex;
 
 procedure WriteIndexHelp(const Ctx: IContext);
 procedure RunIndexStatus(const Ctx: IContext);
 function RunIndexShow(const Ctx: IContext): Integer;
 function RunIndexUpdate(const Ctx: IContext): Integer;
+function RunIndexShowWithFactory(
+  const Ctx: IContext;
+  ACreateIndex: TIndexServiceFactory
+): Integer;
+function RunIndexUpdateWithFactory(
+  const Ctx: IContext;
+  ACreateIndex: TIndexServiceFactory
+): Integer;
 
 implementation
 
 uses
   fpdev.help.details.system,
   fpdev.exitcodes,
-  fpdev.index,
   fpdev.paths,
   fpdev.system.view;
+
+function CreateDefaultIndexService(const AMirrorPreference: string): TFPDevIndex;
+begin
+  Result := TFPDevIndex.Create(AMirrorPreference);
+end;
 
 procedure WriteIndexHelp(const Ctx: IContext);
 begin
@@ -50,6 +66,14 @@ begin
 end;
 
 function RunIndexShow(const Ctx: IContext): Integer;
+begin
+  Result := RunIndexShowWithFactory(Ctx, @CreateDefaultIndexService);
+end;
+
+function RunIndexShowWithFactory(
+  const Ctx: IContext;
+  ACreateIndex: TIndexServiceFactory
+): Integer;
 var
   Index: TFPDevIndex;
   RepoInfo: TRepoInfo;
@@ -60,8 +84,12 @@ var
   LazarusVersions: TStringArray;
 begin
   Result := EXIT_OK;
-  Index := TFPDevIndex.Create('auto');
+  if Assigned(ACreateIndex) then
+    Index := ACreateIndex('auto')
+  else
+    Index := CreateDefaultIndexService('auto');
   try
+    Index.Output := Ctx.Out;
     Ctx.Out.WriteLn('Initializing index...');
     if not Index.Initialize then
     begin
@@ -106,6 +134,14 @@ begin
 end;
 
 function RunIndexUpdate(const Ctx: IContext): Integer;
+begin
+  Result := RunIndexUpdateWithFactory(Ctx, @CreateDefaultIndexService);
+end;
+
+function RunIndexUpdateWithFactory(
+  const Ctx: IContext;
+  ACreateIndex: TIndexServiceFactory
+): Integer;
 var
   Index: TFPDevIndex;
   Lines: TStringArray;
@@ -113,8 +149,12 @@ var
   Success: Boolean;
 begin
   Result := EXIT_OK;
-  Index := TFPDevIndex.Create('auto');
+  if Assigned(ACreateIndex) then
+    Index := ACreateIndex('auto')
+  else
+    Index := CreateDefaultIndexService('auto');
   try
+    Index.Output := Ctx.Out;
     Success := Index.Initialize;
     Lines := BuildSystemIndexUpdateResultLinesCore(Success);
     for Line in Lines do

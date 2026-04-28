@@ -6,6 +6,15 @@ uses
   fpcunit, testregistry, testutils, consoletestrunner,
   fpdev.git2.fpcunit.tests;
 
+var
+  Runner: TTestRunner;
+
 begin
-  RunRegisteredTests;
+  Runner := TTestRunner.Create(nil);
+  try
+    Runner.Initialize;
+    Runner.Run;
+  finally
+    Runner.Free;
+  end;
 end.

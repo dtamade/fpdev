@@ -64,6 +64,12 @@ fpdev fpc install 3.2.2 --from-source
 # Install development version
 fpdev fpc install main --from-source
 
+# Offline mode: restore from cache only
+fpdev fpc install 3.2.2 --from=binary --offline
+
+# Ignore cache and force a fresh download/build
+fpdev fpc install 3.2.2 --no-cache
+
 # Uninstall a specific version
 fpdev fpc uninstall 3.2.2
 ```
@@ -214,7 +220,14 @@ After installation, FPDev automatically configures the following environment var
 ```pascal
 TFPCManager = class
   // Version management
-  function InstallVersion(const AVersion: string; const AFromSource: Boolean = False): Boolean;
+  function InstallVersion(
+    const AVersion: string;
+    const AFromSource: Boolean = False;
+    const APrefix: string = '';
+    const AEnsure: Boolean = False;
+    const ANoCache: Boolean = False;
+    const AOfflineMode: Boolean = False
+  ): Boolean;
   function UninstallVersion(const AVersion: string): Boolean;
   function ListVersions(const AShowAll: Boolean = False): Boolean;
   function SetDefaultVersion(const AVersion: string): Boolean;
@@ -241,8 +254,8 @@ begin
   try
     FPCManager := TFPCManager.Create(ConfigManager);
     try
-      // Install FPC 3.2.2
-      if FPCManager.InstallVersion('3.2.2', True) then
+      // Default to binary-first install; pass True as the second argument for source builds
+      if FPCManager.InstallVersion('3.2.2') then
         WriteLn('Installation successful');
 
       // Set as default version

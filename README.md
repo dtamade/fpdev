@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <!-- TEST-INVENTORY-BADGE:BEGIN -->
-[![Tests](https://img.shields.io/badge/tests-275%20discoverable-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-335%20discoverable-brightgreen.svg)](#testing)
 <!-- TEST-INVENTORY-BADGE:END -->
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#installation)
@@ -37,7 +37,7 @@
 ```
 [INFO] Feature checklist: closed for v2.1.0 scope
 [INFO] Linux release evidence: recorded
-[INFO] Discoverable test programs: 275 (same inventory rules as CI)
+[INFO] Discoverable test programs: 335 (same inventory rules as CI)
 [INFO] Documentation set: published user and developer docs (20 English translations)
 [INFO] Platform targets: Windows, Linux, macOS
 [INFO] Release sign-off: public CI release-proof bundle published with v2.1.0
@@ -60,10 +60,16 @@ bash scripts/build_release.sh
 ### 2. 安装 FPC 编译器
 
 ```bash
-# 安装 FPC 3.2.2（二进制安装，快速）
+# 安装 FPC 3.2.2（默认二进制优先）
 fpdev fpc install 3.2.2
 
-# 或从源码编译（可定制，需要 10-30 分钟）
+# 仅使用本地缓存（完全离线）
+fpdev fpc install 3.2.2 --offline
+
+# 跳过缓存，强制重新下载二进制
+fpdev fpc install 3.2.2 --no-cache
+
+# 需要完全避开二进制链路时再显式切换源码模式
 fpdev fpc install 3.2.2 --from-source
 
 # 设置为默认版本
@@ -122,9 +128,10 @@ fpdev fpc verify 3.2.2               # 验证安装
 ### Lazarus IDE 管理
 
 ```bash
-fpdev lazarus install 3.0 --from-source  # 安装 Lazarus
-fpdev lazarus run                         # 启动 IDE
-fpdev lazarus configure 3.0               # 配置 IDE
+fpdev lazarus install 3.0              # 当前实现会提示 binary package path unavailable，并回退到源码构建
+fpdev lazarus use 3.0                  # 激活安装版本
+fpdev lazarus configure 3.0            # 需要时补配 IDE
+fpdev lazarus run                      # 启动 IDE
 ```
 
 ### 交叉编译支持
@@ -173,7 +180,7 @@ fpdev project clean                   # 清理构建产物
 FPDev 采用 **TDD（测试驱动开发）** 方法论，并把测试清单同步到仓库文档与 CI：
 
 <!-- TEST-INVENTORY-SUMMARY:BEGIN -->
-总计: 275 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
+总计: 335 个可发现的 test_*.lpr 测试程序（与 CI 使用同一发现规则）
 <!-- TEST-INVENTORY-SUMMARY:END -->
 
 运行完整测试：

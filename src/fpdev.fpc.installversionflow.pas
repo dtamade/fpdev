@@ -39,6 +39,22 @@ function ShouldReuseInstalledFPCVersionCore(
 
 function ExecuteFPCInstallVersionCore(
   const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
+  AFromSource, AEnsure, AAlreadyInstalled, AUseCache, AOfflineMode: Boolean;
+  Outp, Errp: IOutput;
+  AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
+  AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
+  ARestoreCachedArtifacts: TFPCInstallRestoreArtifactsFunc;
+  ASaveBuildArtifacts: TFPCInstallSaveArtifactsFunc;
+  ADownloadSource: TFPCInstallDownloadSourceFunc;
+  AEnsureBootstrap: TFPCInstallEnsureBootstrapFunc;
+  ABuildFromSource: TFPCInstallBuildSourceFunc;
+  AWriteMetadata: TFPCInstallWriteMetadataFunc;
+  ASetupEnvironment: TFPCInstallSetupEnvironmentFunc;
+  AInstallBinary: TFPCInstallBinaryFunc
+): Boolean; overload;
+
+function ExecuteFPCInstallVersionCore(
+  const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
   AFromSource, AEnsure, AAlreadyInstalled, AUseCache: Boolean;
   Outp, Errp: IOutput;
   AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
@@ -51,19 +67,31 @@ function ExecuteFPCInstallVersionCore(
   AWriteMetadata: TFPCInstallWriteMetadataFunc;
   ASetupEnvironment: TFPCInstallSetupEnvironmentFunc;
   AInstallBinary: TFPCInstallBinaryFunc
-): Boolean;
+): Boolean; overload;
 
 implementation
 
 uses
   SysUtils,
   fpdev.i18n,
-  fpdev.i18n.strings;
+  fpdev.i18n.strings,
+  fpdev.fpc.installreportflow;
 
 procedure WriteLine(const AOut: IOutput; const AText: string = '');
 begin
   if AOut <> nil then
     AOut.WriteLn(AText);
+end;
+
+procedure WriteOfflineCacheMiss(const AVersion: string; const AErr: IOutput);
+begin
+  WriteFPCOfflineCacheMissReport(AVersion, AErr);
+end;
+
+procedure WriteOfflineCacheRestoreFailure(const AVersion: string;
+  const AErr: IOutput);
+begin
+  WriteFPCOfflineCacheRestoreFailureReport(AVersion, AErr);
 end;
 
 function ResolveFPCInstallPathCore(const APrefix, ADefaultInstallPath: string): string;
@@ -126,7 +154,7 @@ end;
 
 function ExecuteFPCSourceInstallFlowCore(
   const AVersion, AInstallRoot, AInstallPath: string;
-  AUseCache: Boolean;
+  AUseCache, AOfflineMode: Boolean;
   Outp, Errp: IOutput;
   AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
   ARestoreCachedArtifacts: TFPCInstallRestoreArtifactsFunc;
@@ -160,7 +188,19 @@ begin
         WriteLine(Errp, 'Warning: Failed to write installation metadata');
     end
     else
+    begin
+      if AOfflineMode then
+      begin
+        WriteOfflineCacheRestoreFailure(AVersion, Errp);
+        Exit(False);
+      end;
       WriteLine(Outp, 'Cache restore failed, building from source...');
+    end;
+  end
+  else if AOfflineMode then
+  begin
+    WriteOfflineCacheMiss(AVersion, Errp);
+    Exit(False);
   end;
 
   if CacheRestored then
@@ -211,7 +251,7 @@ end;
 
 function ExecuteFPCInstallVersionCore(
   const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
-  AFromSource, AEnsure, AAlreadyInstalled, AUseCache: Boolean;
+  AFromSource, AEnsure, AAlreadyInstalled, AUseCache, AOfflineMode: Boolean;
   Outp, Errp: IOutput;
   AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
   AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
@@ -261,6 +301,7 @@ begin
       AInstallRoot,
       InstallPath,
       AUseCache,
+      AOfflineMode,
       Outp,
       Errp,
       AHasCachedArtifacts,
@@ -282,7 +323,51 @@ begin
   end;
 
   if Result then
+  begin
+    WriteFPCInstallSuccessReport(AVersion, InstallPath, Outp);
     WriteLine(Outp, _Fmt(CMD_FPC_INSTALL_DONE, [AVersion]));
+  end;
+end;
+
+function ExecuteFPCInstallVersionCore(
+  const AVersion, AInstallRoot, ADefaultInstallPath, APrefix: string;
+  AFromSource, AEnsure, AAlreadyInstalled, AUseCache: Boolean;
+  Outp, Errp: IOutput;
+  AVerifyInstalledExecutable: TFPCInstallVerifyFunc;
+  AHasCachedArtifacts: TFPCInstallHasArtifactsFunc;
+  ARestoreCachedArtifacts: TFPCInstallRestoreArtifactsFunc;
+  ASaveBuildArtifacts: TFPCInstallSaveArtifactsFunc;
+  ADownloadSource: TFPCInstallDownloadSourceFunc;
+  AEnsureBootstrap: TFPCInstallEnsureBootstrapFunc;
+  ABuildFromSource: TFPCInstallBuildSourceFunc;
+  AWriteMetadata: TFPCInstallWriteMetadataFunc;
+  ASetupEnvironment: TFPCInstallSetupEnvironmentFunc;
+  AInstallBinary: TFPCInstallBinaryFunc
+): Boolean;
+begin
+  Result := ExecuteFPCInstallVersionCore(
+    AVersion,
+    AInstallRoot,
+    ADefaultInstallPath,
+    APrefix,
+    AFromSource,
+    AEnsure,
+    AAlreadyInstalled,
+    AUseCache,
+    False,
+    Outp,
+    Errp,
+    AVerifyInstalledExecutable,
+    AHasCachedArtifacts,
+    ARestoreCachedArtifacts,
+    ASaveBuildArtifacts,
+    ADownloadSource,
+    AEnsureBootstrap,
+    ABuildFromSource,
+    AWriteMetadata,
+    ASetupEnvironment,
+    AInstallBinary
+  );
 end;
 
 end.

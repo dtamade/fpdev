@@ -5,7 +5,6 @@ program fpdev_git2_status_index_test;
 uses
   SysUtils, Classes,
   git2.types,
-  git2.api, git2.impl,
   fpdev.git2, libgit2;
 
 procedure AssertTrue(const AMsg: string; ACond: Boolean);
@@ -21,7 +20,7 @@ end;
 
 procedure Run;
 var
-  LMgr: IGitManager;
+  LMgr: TGitManager;
   LHasDll: Boolean;
   LRepoDir, LTracked: string;
   LRepo: TGitRepository;
@@ -29,11 +28,12 @@ var
   LEntries: TGitStatusEntryArray;
   LFoundIndex: Boolean;
   LIndex: git_index;
+  LRepoHandle: git_repository;
   i: Integer;
 begin
   LHasDll := False;
+  LMgr := TGitManager.Create;
   try
-    LMgr := NewGitManager;
     LHasDll := LMgr.Initialize;
   except
     LHasDll := False;
@@ -41,6 +41,7 @@ begin
   if not LHasDll then
   begin
     WriteLn('! 跳过：未找到 libgit2（Initialize 失败）');
+    LMgr.Free;
     Exit;
   end
   else
@@ -51,8 +52,10 @@ begin
   ForceDirectories(LRepoDir);
 
   LRepo := nil;
+  LIndex := nil;
+  LRepoHandle := nil;
   try
-    LRepo := GitManager.InitRepository(LRepoDir, False);
+    LRepo := LMgr.InitRepository(LRepoDir, False);
 
     // 创建并写入一个文件，加入索引
     LTracked := LRepoDir + PathDelim + 'tracked.txt';
@@ -64,12 +67,19 @@ begin
       Free;
     end;
 
-    CheckGitResult(git_repository_index(LIndex, LRepo.FHandle), 'Open index');
+    CheckGitResult(git_repository_open(LRepoHandle, PChar(LRepoDir)), 'Re-open repository');
     try
-      CheckGitResult(git_index_add_bypath(LIndex, PChar('tracked.txt')), 'Index add');
-      CheckGitResult(git_index_write(LIndex), 'Index write');
+      CheckGitResult(git_repository_index(LIndex, LRepoHandle), 'Open index');
+      try
+        CheckGitResult(git_index_add_bypath(LIndex, PChar('tracked.txt')), 'Index add');
+        CheckGitResult(git_index_write(LIndex), 'Index write');
+      finally
+        if Assigned(LIndex) then
+          git_index_free(LIndex);
+      end;
     finally
-      git_index_free(LIndex);
+      if Assigned(LRepoHandle) then
+        git_repository_free(LRepoHandle);
     end;
 
     // 仅索引
@@ -84,10 +94,11 @@ begin
     AssertTrue('应检测到索引变更（IndexOnly=True）', LFoundIndex);
   finally
     if Assigned(LRepo) then LRepo.Free;
+    LMgr.Free;
     {$IFDEF MSWINDOWS}
     ExecuteProcess('cmd', ['/c', 'rmdir', '/s', '/q', LRepoDir]);
     {$ELSE}
-    ExecuteProcess('rm', ['-rf', LRepoDir]);
+    ExecuteProcess('/bin/rm', ['-rf', LRepoDir]);
     {$ENDIF}
   end;
 end;
@@ -103,4 +114,3 @@ begin
     end;
   end;
 end.
-
