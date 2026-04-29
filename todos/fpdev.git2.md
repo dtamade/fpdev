@@ -10,11 +10,11 @@
   - [x] 冲突标志（可模拟）
   - [x] 断言 flags 与过滤
 
-- [ ] BuildManager 强化
+- [x] BuildManager 强化
   - [x] TestResults 校验沙箱输出结构（允许安装时）
   - [x] 日志分文件（per-run 独立日志文件）
   - [x] verbosity 开关
-  - [ ] 日志轮转
+  - [x] 日志轮转
 
 - [x] 文档同步
   - [x] 在 docs/history/git2-status-and-tests.md 中补充 fpcunit 工程使用与默认离线说明

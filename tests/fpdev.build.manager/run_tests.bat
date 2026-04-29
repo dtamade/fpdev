@@ -15,6 +15,7 @@ if not %ERR%==0 goto :end
 rem run
 bin\test_bm.exe
 bin\test_bm_fail.exe
+if not %ERRORLEVEL%==0 goto :end
 bin\test_bm_pass.exe
 
 rem show latest log
@@ -29,4 +30,3 @@ echo (no log found)
 :end
 popd
 exit /b %ERR%
-

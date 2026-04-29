@@ -71,6 +71,29 @@ begin
   Result := L;
 end;
 
+function BuildStrictReadBool(
+  AIni: TIniFile;
+  const ASection, AIdent: string;
+  ADefault: Boolean
+): Boolean;
+var
+  Value: string;
+begin
+  if ADefault then
+    Value := 'true'
+  else
+    Value := 'false';
+  Value := LowerCase(Trim(AIni.ReadString(ASection, AIdent, Value)));
+
+  if (Value = '1') or (Value = 'true') or (Value = 'yes') or
+     (Value = 'on') then
+    Exit(True);
+  if (Value = '0') or (Value = 'false') or (Value = 'no') or
+     (Value = 'off') then
+    Exit(False);
+  Result := ADefault;
+end;
+
 function BuildManagerResolveStrictConfigPathCore(
   const AExplicitPath, ASandboxDest: string
 ): string;
@@ -335,13 +358,13 @@ begin
       ALog,
       ALogDirSample
     ) then
-      Exit(False);
+      Result := False;
 
     DirRule.SectionName := 'lib';
     DirRule.RelativeDir := 'lib';
     DirRule.Required := True;
     DirRule.MinCount := Ini.ReadInteger('lib', 'min_count', 1);
-    DirRule.RequireSubdir := Ini.ReadBool('lib', 'require_subdir', True);
+    DirRule.RequireSubdir := BuildStrictReadBool(Ini, 'lib', 'require_subdir', True);
     DirRule.RequiredSubdir := '';
     if not BuildManagerValidateDirRuleCore(
       ASandboxDest,
@@ -350,13 +373,13 @@ begin
       ALog,
       ALogDirSample
     ) then
-      Exit(False);
+      Result := False;
 
     DirRule.SectionName := 'share';
     DirRule.RelativeDir := 'share';
-    DirRule.Required := Ini.ReadBool('share', 'required', False);
+    DirRule.Required := BuildStrictReadBool(Ini, 'share', 'required', False);
     DirRule.MinCount := Ini.ReadInteger('share', 'min_count', 0);
-    DirRule.RequireSubdir := Ini.ReadBool('share', 'require_subdir', False);
+    DirRule.RequireSubdir := BuildStrictReadBool(Ini, 'share', 'require_subdir', False);
     DirRule.RequiredSubdir := Ini.ReadString('share', 'required_subdir', '');
     if not BuildManagerValidateDirRuleCore(
       ASandboxDest,
@@ -365,22 +388,22 @@ begin
       ALog,
       ALogDirSample
     ) then
-      Exit(False);
+      Result := False;
 
     if not BuildManagerValidateFpcCfgRuleCore(
       ASandboxDest,
-      Ini.ReadBool('fpc', 'require_cfg', False),
+      BuildStrictReadBool(Ini, 'fpc', 'require_cfg', False),
       Ini.ReadString('fpc', 'cfg_relative_list', 'etc/fpc.cfg,lib/fpc/fpc.cfg'),
       AVerbosity,
       ALog
     ) then
-      Exit(False);
+      Result := False;
 
     DirRule.SectionName := 'include';
     DirRule.RelativeDir := Ini.ReadString('include', 'relative_dir', 'include');
-    DirRule.Required := Ini.ReadBool('include', 'required', False);
+    DirRule.Required := BuildStrictReadBool(Ini, 'include', 'required', False);
     DirRule.MinCount := Ini.ReadInteger('include', 'min_count', 0);
-    DirRule.RequireSubdir := Ini.ReadBool('include', 'require_subdir', False);
+    DirRule.RequireSubdir := BuildStrictReadBool(Ini, 'include', 'require_subdir', False);
     DirRule.RequiredSubdir := Ini.ReadString('include', 'required_subdir', '');
     if not BuildManagerValidateDirRuleCore(
       ASandboxDest,
@@ -389,13 +412,13 @@ begin
       ALog,
       ALogDirSample
     ) then
-      Exit(False);
+      Result := False;
 
     DirRule.SectionName := 'doc';
     DirRule.RelativeDir := Ini.ReadString('doc', 'relative_dir', 'doc');
-    DirRule.Required := Ini.ReadBool('doc', 'required', False);
+    DirRule.Required := BuildStrictReadBool(Ini, 'doc', 'required', False);
     DirRule.MinCount := Ini.ReadInteger('doc', 'min_count', 0);
-    DirRule.RequireSubdir := Ini.ReadBool('doc', 'require_subdir', False);
+    DirRule.RequireSubdir := BuildStrictReadBool(Ini, 'doc', 'require_subdir', False);
     DirRule.RequiredSubdir := Ini.ReadString('doc', 'required_subdir', '');
     if not BuildManagerValidateDirRuleCore(
       ASandboxDest,
@@ -404,7 +427,7 @@ begin
       ALog,
       ALogDirSample
     ) then
-      Exit(False);
+      Result := False;
   finally
     Ini.Free;
   end;

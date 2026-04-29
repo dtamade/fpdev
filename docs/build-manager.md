@@ -319,12 +319,20 @@ require_subdir=false
   - `Strict config detected: <path>` 表明已加载 build-manager.strict.ini（搜索顺序见上文）
 - 日志文件命名与定位：
   - 每次执行生成独立文件：`logs/build_yyyymmdd_hhnnss_zzz.log`；demo 与上层会打印路径
+  - 日志轮转：TBuildLogger 创建时会保留最近 20 个 `build_*.log`，旧日志自动轮转清理；非 BuildManager 日志文件不受影响
 - Summary 汇总：
   - 形如 `Summary: version=<ver> context=<stage> result=OK|FAIL elapsed_ms=<ms>`
   - TestResults 与 Preflight 在成功/失败收尾处都会输出 Summary，便于在 CI 控制台快速扫描
 - 日志级别：
   - 0（默认）：仅关键流程与结果
   - 1（详细）：env 快照、make 命令、目录样本、hint 提示
+
+## 产物快照与任务树收口
+- TestResults 在允许安装并校验沙箱成功后，会在 `sandbox/fpc-<version>/artifact-manifest.txt` 写入产物快照。
+- manifest 格式为 `relative_path|size|sha256=<hex>`，覆盖沙箱安装根下的文件，便于比较不同版本或不同 runner 的 bin/lib 产物。
+- 严格清单验证现在会继续检查所有已配置 section，并聚合输出缺失项明细，而不是遇到第一个失败就停止。
+- FullBuild 会先执行 Preflight；Preflight 失败时会在 BuildCompiler/BuildRTL/Install 等真实构建步骤前中止。
+- 自托管 runner 可使用 `scripts/build_manager_self_hosted_ci.sh` 跑 BuildManager focused contracts、严格模式 demo 与本地工具链检查；Windows 可继续使用 `tests/fpdev.build.manager/run_tests.bat`。
 
 ## 严格清单推荐配置表（快速参考）
 - 适用范围：FPC 常见布局，Windows/Linux/macOS 通用；如与实际布局不符，请以模板为准微调

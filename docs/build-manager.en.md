@@ -66,11 +66,19 @@ if LBM.TestResults(LVer) then WriteLn('TestResults OK');
 ## Log Files and Location
 - Independent log generated per run: logs/build_yyyymmdd_hhnnss_zzz.log
 - Code and demos will print LogFileName for easy location
+- TBuildLogger keeps the newest 20 `build_*.log` files when it starts and rotates older BuildManager logs; non-BuildManager log files are left untouched
 
 ## Sandbox Validation
 - When SetAllowInstall(True), Install directs installation output to sandbox/fpc-<version>
 - TestResults prioritizes sandbox validation when installation is allowed: passes if at least bin/ or lib/ exists
 - When installation is not allowed, falls back to checking if compiler/ and rtl/ exist in source directory
+
+## Artifact Snapshots And Backlog Closure
+- After install-mode TestResults validates the sandbox successfully, it writes `sandbox/fpc-<version>/artifact-manifest.txt`.
+- The manifest format is `relative_path|size|sha256=<hex>`, covering files under the sandbox install root so outputs can be compared across versions or runners.
+- Strict manifest validation now continues through all configured sections and logs each missing item instead of stopping at the first failure.
+- FullBuild runs Preflight first; if Preflight fails, it aborts before BuildCompiler/BuildRTL/Install or other real build phases.
+- Self-hosted runners can use `scripts/build_manager_self_hosted_ci.sh` for BuildManager focused contracts, strict demo checks, and local toolchain checks; Windows can keep using `tests/fpdev.build.manager/run_tests.bat`.
 
 ### Strict Mode (Optional)
 - Enable: SetStrictResults(True)

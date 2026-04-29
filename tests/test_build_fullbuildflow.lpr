@@ -170,9 +170,43 @@ begin
   end;
 end;
 
+procedure TestRunFullBuildCorePreflightFailureStopsBeforeBuild;
+var
+  Harness: TFullBuildHarness;
+  OK: Boolean;
+begin
+  Harness := TFullBuildHarness.Create;
+  try
+    OK := RunFullBuildCore(
+      'demo',
+      @Harness.PhaseFail,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.PhasePass,
+      @Harness.SetStep,
+      @Harness.LogLine,
+      @Harness.LogSummary
+    );
+
+    Check('fullbuild preflight failure returns false', not OK, 'expected failure');
+    Check('fullbuild preflight failure calls only preflight',
+      (Harness.Calls.Count = 1) and (Harness.Calls[0] = 'fail:demo'),
+      Harness.Calls.Text);
+    Check('fullbuild preflight failure logs abort at Preflight',
+      Pos('== FullBuild ABORT at Preflight', Harness.LogLines.Text) > 0,
+      Harness.LogLines.Text);
+  finally
+    Harness.Free;
+  end;
+end;
+
 begin
   TestRunFullBuildCoreSuccess;
   TestRunFullBuildCoreFailure;
+  TestRunFullBuildCorePreflightFailureStopsBeforeBuild;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);

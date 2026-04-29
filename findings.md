@@ -1,5 +1,39 @@
 # Findings & Decisions
 
+## 2026-04-29 Task Tree Drain And BuildManager Backlog Closure
+- 最新基线提交为 `ed349de chore(closeout): sync verified repo state`，接手时工作区干净。
+- 根 `task_plan.md` 当前没有未完成 checkbox；实际未清空任务树集中在：
+  - `todos/fpdev.build.manager.md`
+  - `todos/fpdev.git2.md`
+  - `todos/测试工程后续优化.md` 的非 checkbox 候选列表
+  - `progress.md` 中早期会话遗留的 stale `in_progress`
+- 本轮不继续机械拆 facade。可低风险闭环的真实 BuildManager backlog 是：
+  - build log rotation
+  - sandbox artifact manifest（relative path / size / sha256）
+  - strict checklist detailed aggregate failure reporting
+  - local self-hosted CI script
+  - FullBuild preflight gate truth-sync
+- RED 证据：
+  - docs contract 先因 `todos/*.md` 仍有 unchecked BuildManager backlog 而失败
+  - `tests/test_build_logger.lpr` 先因 `TBuildLogger.RotateLogs` 不存在而无法编译
+  - `tests/test_build_testresultsflow.lpr` 先因 `artifact-manifest.txt` 不存在而失败
+  - `tests/fpdev.build.manager/test_build_manager_make_missing.lpr` 先证明 strict config 只报告首个失败，且暴露 `true/false` bool parsing 与文档格式不完全一致
+- 实施结论：
+  - `TBuildLogger` 创建时保留最近 20 个 `build_*.log`，并提供 `RotateLogs(AMaxFiles)` direct hook
+  - TestResults sandbox 成功时写 `artifact-manifest.txt`，使用 `fpdev.hash.SHA256FileHex`
+  - strict INI bool 解析现在显式支持 `true/false/yes/no/on/off/1/0`
+  - strict validation 不再首个 section 失败就退出，会继续聚合已配置 section 的失败日志
+  - `FullBuild` 原本已通过 `RunFullBuildCore` 固定以 Preflight 开始，本轮补测试和文档 truth-sync
+- 顶层 full runner fresh 回归暴露一个真实契约问题：
+  - `scripts/run_all_tests.sh` 在隔离 workspace 中执行测试，测试运行目录不包含 `plays/`
+  - `tests/fpdev.build.manager/test_build_manager_strict_fail.lpr` / `test_build_manager_strict_pass.lpr` 原先用相对路径查找 demo strict ini，导致 strict config 在 full runner 下静默失效
+  - 修复方式是改为通过 `FPDEV_TEST_PROJECT_ROOT` 解析项目根上的绝对 ini 路径，并在 ini 缺失时直接失败
+- fresh 验证结果：
+  - `bash scripts/build_manager_self_hosted_ci.sh` → pass
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `642/642`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → exit `0`
+
 ## 2026-04-29 Continuous Repo Closeout
 - 用户要求“中途不停歇，全部处理好”，本轮目标从只读分析切换为连续收口执行。
 - 当前明确失败点是 test inventory truth drift：

@@ -25,9 +25,27 @@ begin
   end;
 end;
 
+function ProjectRoot: string;
+var
+  LEnvRoot: string;
+begin
+  LEnvRoot := Trim(GetEnvironmentVariable('FPDEV_TEST_PROJECT_ROOT'));
+  if LEnvRoot <> '' then
+    Exit(ExpandFileName(LEnvRoot));
+
+  Result := GetCurrentDir;
+end;
+
+function DemoStrictIniPath: string;
+begin
+  Result := IncludeTrailingPathDelimiter(ProjectRoot) +
+    'plays' + PathDelim + 'fpdev.build.manager.demo' + PathDelim +
+    'build-manager.strict.ini';
+end;
+
 var
   LBM: TBuildManager;
-  LVer, LBase, LDest, LBin, LLib, LStrictIni: string;
+  LVer, LBase, LDest, LBin, LLib, LCfgDir, LStrictIni: string;
   LOk: Boolean;
 begin
   LVer := 'main';
@@ -47,13 +65,27 @@ begin
   EnsureDir(LLib);
   WriteText(IncludeTrailingPathDelimiter(LLib) + 'placeholder', 'x');
 
-  // 使用 demo 内置模板作为严格清单
-  LStrictIni := 'plays' + PathDelim + 'fpdev.build.manager.demo' + PathDelim + 'build-manager.strict.ini';
+  // demo strict.ini requires a non-empty fpc.cfg candidate.
+  LCfgDir := IncludeTrailingPathDelimiter(LDest) + 'fpc-' + LVer + PathDelim + 'etc';
+  EnsureDir(LCfgDir);
+  WriteText(IncludeTrailingPathDelimiter(LCfgDir) + 'fpc.cfg', '# test config');
+
+  // 使用 demo 内置模板作为严格清单；顶层 runner 会在隔离 workspace 中执行，
+  // 因此这里通过 FPDEV_TEST_PROJECT_ROOT 固定到真实项目根。
+  LStrictIni := DemoStrictIniPath;
 
   if BuildManagerResolveStrictConfigPathCore(LStrictIni, '') = LStrictIni then
     WriteLn('STRICT_PATH OK')
+  else if not FileExists(LStrictIni) then
+  begin
+    WriteLn('STRICT_PATH MISSING: ' + LStrictIni);
+    Halt(1);
+  end
   else
+  begin
     WriteLn('STRICT_PATH FAIL');
+    Halt(1);
+  end;
 
   LBM := TBuildManager.Create('sources' + PathDelim + 'fpc', 2, True);
   try
@@ -67,9 +99,11 @@ begin
     if LOk then
       WriteLn('STRICT_PASS OK')
     else
+    begin
       WriteLn('STRICT_PASS FAIL');
+      Halt(1);
+    end;
   finally
     LBM.Free;
   end;
 end.
-

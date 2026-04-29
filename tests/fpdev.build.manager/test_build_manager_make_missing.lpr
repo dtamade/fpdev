@@ -272,6 +272,75 @@ begin
   end;
 end;
 
+procedure WriteTextFile(const APath, AText: string);
+var
+  F: TextFile;
+begin
+  AssignFile(F, APath);
+  Rewrite(F);
+  try
+    WriteLn(F, AText);
+  finally
+    CloseFile(F);
+  end;
+end;
+
+procedure TestBuildManagerApplyStrictConfigCoreReportsAllConfiguredFailures;
+var
+  TempDir: string;
+  IniPath: string;
+  Harness: TStrictLogHarness;
+begin
+  TempDir := GetTempFileName(GetTempDir(False), 'strictall');
+  if FileExists(TempDir) then
+    DeleteFile(TempDir);
+  TempDir := TempDir + '_apply_all';
+  ForceDirectories(TempDir);
+
+  IniPath := IncludeTrailingPathDelimiter(TempDir) + 'build-manager.strict.ini';
+  WriteTextFile(IniPath,
+    '[bin]' + LineEnding +
+    'min_count=1' + LineEnding +
+    'required_prefix=fpc' + LineEnding +
+    'required_ext=.exe,' + LineEnding +
+    '[lib]' + LineEnding +
+    'min_count=1' + LineEnding +
+    'require_subdir=true' + LineEnding +
+    '[share]' + LineEnding +
+    'required=true' + LineEnding +
+    'required_subdir=fpmake' + LineEnding +
+    '[fpc]' + LineEnding +
+    'require_cfg=true' + LineEnding +
+    'cfg_relative_list=etc/fpc.cfg,lib/fpc/fpc.cfg' + LineEnding
+  );
+
+  Harness := TStrictLogHarness.Create;
+  try
+    if BuildManagerApplyStrictConfigCore(
+      IniPath,
+      TempDir,
+      1,
+      @Harness.Log,
+      @Harness.LogSample
+    ) then
+      Fail('BuildManagerApplyStrictConfigCore should fail when multiple configured sections are missing');
+
+    if Harness.Lines.IndexOf('FAIL: [bin] directory not found: ' + IncludeTrailingPathDelimiter(TempDir) + 'bin') < 0 then
+      Fail('BuildManagerApplyStrictConfigCore should report missing bin');
+    if Harness.Lines.IndexOf('FAIL: [lib] directory not found: ' + IncludeTrailingPathDelimiter(TempDir) + 'lib') < 0 then
+      Fail('BuildManagerApplyStrictConfigCore should report missing lib');
+    if Harness.Lines.IndexOf('FAIL: [share] directory not found: ' + IncludeTrailingPathDelimiter(TempDir) + 'share') < 0 then
+      Fail('BuildManagerApplyStrictConfigCore should report missing share');
+    if Harness.Lines.IndexOf('FAIL: [fpc] missing fpc.cfg in cfg_relative_list') < 0 then
+      Fail('BuildManagerApplyStrictConfigCore should report missing fpc.cfg');
+    Pass('BuildManagerApplyStrictConfigCore reports all configured failures');
+  finally
+    Harness.Free;
+    DeleteFile(IniPath);
+    RemoveDir(TempDir);
+  end;
+end;
+
 procedure TestFormatBuildPreflightLogLinesCoreHandlesSuccessAndFailure;
 var
   Issues: TStringArray;
@@ -334,6 +403,7 @@ begin
   TestBuildManagerValidateDirRuleCoreReportsOptionalPresenceAtVerbose;
   TestBuildManagerValidateBinRuleCoreReportsMissingExecutableHints;
   TestBuildManagerValidateFpcCfgRuleCoreReportsMissingConfigHints;
+  TestBuildManagerApplyStrictConfigCoreReportsAllConfiguredFailures;
   TestFormatBuildPreflightLogLinesCoreHandlesSuccessAndFailure;
   TestFormatBuildPreflightFailureLogLinesCoreRespectsVerbosity;
 
@@ -366,4 +436,3 @@ begin
     LBM.Free;
   end;
 end.
-

@@ -124,11 +124,61 @@ begin
   end;
 end;
 
+procedure WriteLogFile(const APath, AText: string);
+var
+  F: TextFile;
+begin
+  AssignFile(F, APath);
+  Rewrite(F);
+  try
+    WriteLn(F, AText);
+  finally
+    CloseFile(F);
+  end;
+end;
+
+procedure TestRotateLogsKeepsNewestBuildLogs;
+var
+  Logger: TBuildLogger;
+  LogDir, OldestLog, KeptOne, KeptTwo, KeptThree, OtherFile: string;
+begin
+  LogDir := '';
+  Logger := nil;
+  try
+    LogDir := CreateUniqueTempDir('fpdev_build_logger_rotate');
+    OldestLog := LogDir + PathDelim + 'build_20260429_010000_000.log';
+    KeptOne := LogDir + PathDelim + 'build_20260429_020000_000.log';
+    KeptTwo := LogDir + PathDelim + 'build_20260429_030000_000.log';
+    KeptThree := LogDir + PathDelim + 'build_20260429_040000_000.log';
+    OtherFile := LogDir + PathDelim + 'notes.log';
+
+    WriteLogFile(OldestLog, 'old');
+    WriteLogFile(KeptOne, 'keep1');
+    WriteLogFile(KeptTwo, 'keep2');
+    WriteLogFile(KeptThree, 'keep3');
+    WriteLogFile(OtherFile, 'not a build log');
+
+    Logger := TBuildLogger.Create(LogDir);
+    Logger.RotateLogs(3);
+
+    Check(not FileExists(OldestLog),
+      'BuildLogger rotation: oldest build log is removed');
+    Check(FileExists(KeptOne) and FileExists(KeptTwo) and FileExists(KeptThree),
+      'BuildLogger rotation: newest build logs are retained');
+    Check(FileExists(OtherFile),
+      'BuildLogger rotation: non-build log files are retained');
+  finally
+    Logger.Free;
+    CleanupTempDir(LogDir);
+  end;
+end;
+
 begin
   WriteLn('=== Build Logger Tests ===');
   WriteLn;
 
   TestLogFileNameUsesZeroPaddedTimestampWithoutSpaces;
+  TestRotateLogsKeepsNewestBuildLogs;
   TestLogEnvSnapshotUsesSameProcessPath;
 
   WriteLn;

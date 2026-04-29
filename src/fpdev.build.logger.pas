@@ -52,6 +52,9 @@ type
     { Logs test summary with version, context, result and elapsed time }
     procedure LogTestSummary(const AVersion, AContext, AResult: string; AElapsedMs: Integer);
 
+    { Removes older build_*.log files, keeping the newest AMaxFiles entries }
+    procedure RotateLogs(AMaxFiles: Integer);
+
     { Log file path }
     property LogFileName: string read GetLogFileName;
 
@@ -62,6 +65,9 @@ type
   end;
 
 implementation
+
+const
+  DEFAULT_BUILD_LOG_RETENTION = 20;
 
 { TBuildLogger }
 
@@ -75,6 +81,8 @@ begin
   // Ensure log directory exists
   if (FLogDir <> '') and (not DirectoryExists(FLogDir)) then
     ForceDirectories(FLogDir);
+
+  RotateLogs(DEFAULT_BUILD_LOG_RETENTION);
 end;
 
 function TBuildLogger.GetLogFileName: string;
@@ -184,6 +192,39 @@ begin
     ' result=' + AResult +
     ' elapsed_ms=' + IntToStr(AElapsedMs)
   );
+end;
+
+procedure TBuildLogger.RotateLogs(AMaxFiles: Integer);
+var
+  Logs: TStringList;
+  SR: TSearchRec;
+  Base: string;
+  I: Integer;
+begin
+  if (AMaxFiles <= 0) or (FLogDir = '') or (not DirectoryExists(FLogDir)) then
+    Exit;
+
+  Logs := TStringList.Create;
+  try
+    Base := IncludeTrailingPathDelimiter(FLogDir);
+    if FindFirst(Base + 'build_*.log', faAnyFile, SR) = 0 then
+    begin
+      repeat
+        if (SR.Attr and faDirectory) = 0 then
+          Logs.Add(Base + SR.Name);
+      until FindNext(SR) <> 0;
+      FindClose(SR);
+    end;
+
+    if Logs.Count <= AMaxFiles then
+      Exit;
+
+    Logs.Sort;
+    for I := 0 to Logs.Count - AMaxFiles - 1 do
+      DeleteFile(Logs[I]);
+  finally
+    Logs.Free;
+  end;
 end;
 
 function TBuildLogger.GetVerbosity: Integer;

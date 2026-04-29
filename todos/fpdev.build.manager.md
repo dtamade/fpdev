@@ -6,10 +6,10 @@
 - [x] 示例增强：示例中演示 SetTarget/SetPrefix/SetMakeCmd 的用法（注释或参数）
 
 ## 中期
-- [ ] 产物快照比对：支持将沙箱 bin/lib 生成清单（hash/size），便于比较不同版本构建产物
-- [ ] 交叉编译示例：使用 SetTarget 组合（如 CPU_TARGET=x86_64/arm，OS_TARGET=win32/linux），视上游 Makefile 支持情况
-- [ ] 更详细严格校验报告：按配置输出缺失项明细
+- [x] 产物快照比对：TestResults 会在沙箱安装根生成 artifact-manifest.txt（relative path / size / sha256）
+- [x] 交叉编译示例：docs/build-manager.md 已覆盖 SetTarget/SetPrefix/SetMakeCmd 与 CPU_TARGET/OS_TARGET 组合
+- [x] 更详细严格校验报告：严格清单会聚合输出所有已配置 section 的缺失项明细
 
 ## 可选
-- [ ] CI 自托管 Runner 方案脚本化（Windows/Linux/macOS）
-- [ ] REAL 模式前置“Preflight 必须通过”的强约束
+- [x] CI 自托管 Runner 方案脚本化（Linux/macOS 脚本：scripts/build_manager_self_hosted_ci.sh；Windows 继续使用 tests/fpdev.build.manager/run_tests.bat）
+- [x] REAL 模式前置“Preflight 必须通过”的强约束：FullBuild 固定以 Preflight 开始，失败时在构建阶段前中止

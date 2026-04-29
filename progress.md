@@ -1,5 +1,54 @@
 # Progress Log
 
+## Session: 2026-04-29 (task tree drain and BuildManager backlog closure)
+
+### Phase 118: Task Tree Drain And BuildManager Backlog Closure
+- **Status:** complete
+- **Started:** 2026-04-29
+- Actions taken:
+  - 确认最新提交 `ed349de` 后工作区干净
+  - 盘点根 `task_plan.md`、`progress.md`、`findings.md` 与 `todos/*.md`
+  - 确认活跃未清项集中在 BuildManager backlog 和历史 stale `in_progress` 记录
+  - 创建正式计划 `docs/plans/2026-04-29-task-tree-drain-buildmanager.md`
+  - 扩展 RED/focused tests：
+    - `tests/test_build_logger.lpr`
+    - `tests/test_build_testresultsflow.lpr`
+    - `tests/fpdev.build.manager/test_build_manager_make_missing.lpr`
+    - `tests/test_build_fullbuildflow.lpr`
+    - `tests/test_build_manager_docs_truth_contract.py`
+  - RED 结果：
+    - docs contract 因 unchecked BuildManager backlog 失败
+    - logger focused test 因缺少 `RotateLogs` 无法编译
+    - testresults focused test 因缺少 `artifact-manifest.txt` 失败
+    - strict focused test 因没有聚合报告所有 section 失败而失败
+  - 最小实现：
+    - `src/fpdev.build.logger.pas` 新增 `RotateLogs(...)`，默认保留最近 20 个 `build_*.log`
+    - `src/fpdev.build.testresultsflow.pas` 在 sandbox success 后写 `artifact-manifest.txt`
+    - `src/fpdev.build.strict.pas` 增加 robust bool parse，并聚合所有 configured section failures
+    - 新增 `scripts/build_manager_self_hosted_ci.sh`
+  - focused GREEN 已通过：
+    - `tests/test_build_logger.lpr` → `13/13`
+    - `tests/test_build_testresultsflow.lpr` → `34/34`
+    - `tests/fpdev.build.manager/test_build_manager_make_missing.lpr` → pass
+    - `tests/test_build_fullbuildflow.lpr` → `15/15`
+    - `python3 -m unittest tests.test_build_manager_docs_truth_contract -v` → `6/6`
+  - 顶层 `scripts/run_all_tests.sh` 首次 fresh 回归时仅 `test_build_manager_strict_fail` 失败
+  - 根因定位：
+    - 顶层 runner 在隔离 workspace 中执行测试，只链接 `tests/examples/docs/src/.git`
+    - `test_build_manager_strict_fail.lpr` / `strict_pass.lpr` 使用相对路径 `plays/fpdev.build.manager.demo/build-manager.strict.ini`
+    - 结果 strict config 未命中，`TestResults(...)` 退回到基础沙箱检查并错误返回 success
+  - 最小修复：
+    - `tests/fpdev.build.manager/test_build_manager_strict_fail.lpr`
+    - `tests/fpdev.build.manager/test_build_manager_strict_pass.lpr`
+    - 通过 `FPDEV_TEST_PROJECT_ROOT` 解析 demo strict ini 的绝对路径
+    - 在 strict ini 缺失或解析失败时直接 `Halt(1)`，避免假阳性
+- Verification completed:
+  - `bash scripts/build_manager_self_hosted_ci.sh` → pass
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `642/642`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → exit `0`
+  - `git diff --check` → clean
+
 ## Session: 2026-04-29 (continuous repo closeout)
 
 ### Phase 117: Continuous Repo Closeout And Test Inventory Truth Sync
@@ -1509,7 +1558,7 @@
 ## Session: 2026-03-27
 
 ### Phase 1: Requirements & Discovery
-- **Status:** in_progress
+- **Status:** complete (superseded by later review/closeout phases)
 - **Started:** 2026-03-27
 - Actions taken:
   - Read relevant workflow skills for review and roadmap assessment
@@ -1560,7 +1609,7 @@
 ## Session: 2026-04-02
 
 ### Phase 4: Synthesis
-- **Status:** in_progress
+- **Status:** complete (superseded by later implementation/closeout phases)
 - **Started:** 2026-04-02
 - Actions taken:
   - Reused prior repository review context and refreshed planning files for the narrower “biggest problem” question
@@ -4091,7 +4140,7 @@
 ## Session: 2026-04-14 (next wave pack planning)
 
 ### Phase 73: 2026-04-14 Wave Pack Planning
-- **Status:** in_progress
+- **Status:** complete (superseded by later completed wave pack phases)
 - **Started:** 2026-04-14
 - Actions taken:
   - 重新读取 `task_plan.md`、`findings.md`、`progress.md` 与上一轮 `cross.manager` 收口结果

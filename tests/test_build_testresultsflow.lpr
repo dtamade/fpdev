@@ -123,15 +123,19 @@ end;
 procedure TestSandboxSuccessLogsSummaryAndSamples;
 var
   Harness: TTestResultsHarness;
-  RootDir, SandboxRoot, BinDir, LibDir: string;
+  RootDir, SandboxRoot, DestRoot, BinDir, LibDir, ManifestPath: string;
   OK: Boolean;
+  Manifest: TStringList;
 begin
   Harness := TTestResultsHarness.Create;
+  Manifest := nil;
   RootDir := CreateUniqueTempDir('build-testresults-ok');
   try
     SandboxRoot := RootDir + PathDelim + 'sandbox';
-    BinDir := SandboxRoot + PathDelim + 'fpc-demo' + PathDelim + 'bin';
-    LibDir := SandboxRoot + PathDelim + 'fpc-demo' + PathDelim + 'lib' + PathDelim + 'fpc';
+    DestRoot := SandboxRoot + PathDelim + 'fpc-demo';
+    BinDir := DestRoot + PathDelim + 'bin';
+    LibDir := DestRoot + PathDelim + 'lib' + PathDelim + 'fpc';
+    ManifestPath := DestRoot + PathDelim + 'artifact-manifest.txt';
     ForceDirectories(BinDir);
     ForceDirectories(LibDir);
     WriteTextFile(BinDir + PathDelim + 'fpc', 'demo');
@@ -166,7 +170,28 @@ begin
       'sample count=' + IntToStr(Harness.SampledDirs.Count));
     Check('sandbox success skips strict config when disabled', Harness.StrictCalls = 0,
       'strict calls=' + IntToStr(Harness.StrictCalls));
+    Check('sandbox success writes artifact manifest', FileExists(ManifestPath),
+      'manifest missing: ' + ManifestPath);
+
+    if FileExists(ManifestPath) then
+    begin
+      Manifest := TStringList.Create;
+      Manifest.LoadFromFile(ManifestPath);
+      Check('artifact manifest includes header',
+        (Manifest.Count > 0) and (Manifest[0] = '# fpdev build artifact manifest'),
+        Manifest.Text);
+      Check('artifact manifest records bin artifact',
+        Pos('bin/fpc|', Manifest.Text) > 0,
+        Manifest.Text);
+      Check('artifact manifest records lib artifact',
+        Pos('lib/fpc/placeholder|', Manifest.Text) > 0,
+        Manifest.Text);
+      Check('artifact manifest records sha256 hashes',
+        Pos('|sha256=', Manifest.Text) > 0,
+        Manifest.Text);
+    end;
   finally
+    Manifest.Free;
     CleanupTempDir(RootDir);
     Harness.Free;
   end;

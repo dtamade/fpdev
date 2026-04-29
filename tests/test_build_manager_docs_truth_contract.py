@@ -40,11 +40,11 @@ class BuildManagerDocsTruthContractTests(unittest.TestCase):
 
     def test_git2_todo_marks_testresults_sandbox_structure_validation_complete(self):
         text = TODO_GIT2_MD.read_text(encoding='utf-8')
-        self.assertIn('- [ ] BuildManager 强化', text)
+        self.assertIn('- [x] BuildManager 强化', text)
         self.assertIn('  - [x] TestResults 校验沙箱输出结构（允许安装时）', text)
         self.assertIn('  - [x] 日志分文件（per-run 独立日志文件）', text)
         self.assertIn('  - [x] verbosity 开关', text)
-        self.assertIn('  - [ ] 日志轮转', text)
+        self.assertIn('  - [x] 日志轮转', text)
 
     def test_build_manager_todo_marks_runbook_and_api_examples_complete(self):
         text = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')
@@ -59,6 +59,18 @@ class BuildManagerDocsTruthContractTests(unittest.TestCase):
         self.assertIn('Windows 日志文件名当前已使用零填充时间戳', doc_text)
         self.assertNotIn('Windows 日志时间戳可能含空格', doc_text)
         self.assertIn('- [x] 日志优化：Windows 时间戳零填充（避免空格）', todo_text)
+
+    def test_build_manager_backlog_is_drained_into_verified_artifacts(self):
+        build_todo = TODO_BUILD_MANAGER_MD.read_text(encoding='utf-8')
+        git2_todo = TODO_GIT2_MD.read_text(encoding='utf-8')
+        doc_text = BUILD_MANAGER_MD.read_text(encoding='utf-8')
+        self.assertNotIn('- [ ]', build_todo)
+        self.assertNotIn('- [ ]', git2_todo)
+        self.assertIn('artifact-manifest.txt', doc_text)
+        self.assertIn('日志轮转', doc_text)
+        self.assertIn('scripts/build_manager_self_hosted_ci.sh', doc_text)
+        self.assertIn('FullBuild 会先执行 Preflight', doc_text)
+        self.assertTrue((REPO_ROOT / 'scripts' / 'build_manager_self_hosted_ci.sh').exists())
 
 
 if __name__ == '__main__':

@@ -1,12 +1,32 @@
 # Task Plan
 
 ## Active Goal
-完成 2026-04-29 continuous repo closeout：修复当前已知 test inventory truth drift，复核关键 contract/boundary/full verification，并将本轮收口 review 后提交。
+彻底清空当前活跃任务树：实现并验证 BuildManager backlog 中仍可执行的低风险项，归档非活跃候选项，最后完成 review 与提交。
 
 ## Current Phase
-Phase 117 complete
+Phase 118 complete
 
 ## Active Phases
+### Phase 118: Task Tree Drain And BuildManager Backlog Closure
+- [x] 新增正式计划：`docs/plans/2026-04-29-task-tree-drain-buildmanager.md`
+- [x] 盘点当前任务树：根 `task_plan.md` 已在 Phase 117 complete；剩余 unchecked 项集中在 `todos/fpdev.build.manager.md` 与 `todos/fpdev.git2.md`
+- [x] 为 BuildManager backlog 增加 RED/focused contracts：
+  - 日志轮转
+  - 沙箱 artifact manifest
+  - strict 清单聚合失败报告
+  - FullBuild preflight gate
+  - docs/todos active backlog drain
+- [x] 最小实现：
+  - `TBuildLogger.RotateLogs(...)`
+  - `artifact-manifest.txt` 产物快照
+  - strict INI robust bool parse + all-section failure aggregation
+  - `scripts/build_manager_self_hosted_ci.sh`
+- [x] 同步 `docs/build-manager*.md` 与 `todos/*.md`
+- [x] 清理历史 `progress.md` 中被后续 complete phase 覆盖的 stale `in_progress`
+- [x] 运行 focused/full verification
+- [x] 提交本轮任务树清空收口
+- **Status:** complete
+
 ### Phase 117: Continuous Repo Closeout And Test Inventory Truth Sync
 - [x] 创建连续收口实施计划：`docs/plans/2026-04-29-continuous-repo-closeout.md`
 - [x] 确认当前工作树仍是大 dirty tree，且 prior planning state 已停在 Phase 116 checkpoint

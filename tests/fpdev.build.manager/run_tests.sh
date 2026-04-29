@@ -10,7 +10,7 @@ fpc -Fu./src -obin/test_bm_pass tests/fpdev.build.manager/test_build_manager_str
 
 # run
 ./bin/test_bm
-./bin/test_bm_fail || true
+./bin/test_bm_fail
 ./bin/test_bm_pass
 
 # show latest log
@@ -21,4 +21,3 @@ if [[ -n "$LATEST_LOG" ]]; then
 else
   echo "(no log found)"
 fi
-
