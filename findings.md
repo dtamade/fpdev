@@ -1,5 +1,25 @@
 # Findings & Decisions
 
+## 2026-04-30 Git2 Modern Legacy Test Lane Split
+- 当前 Git2 focused runner 的主要问题不是测试数量不够，而是 lane 语义不清：
+  - `tests/fpdev.git2/` 既承载 `fpdev.git2` legacy concrete-wrapper coverage，又在一些说明里被读成 modern interface 入口旁证
+- 如果不先把这层拆清楚，后续 `git2.impl` 脱离 `fpdev.git2` 时，focused runner 无法作为明确护栏使用。
+- 因此本轮优先做 lane split，而不是直接动 `src/git2.impl.pas`：
+  - 新增 `tests/test_git2_lane_contract.py`
+  - 为现有 legacy runner 补显式 legacy lane 注释
+  - 新增 `tests/fpdev.git2.modern/fpdev.git2.modern.basic.lpr`
+  - 同步 `docs/history/git2-status-and-tests.md` 与 `report/fpdev.git2.md`
+- 结果：
+  - `tests/fpdev.git2/` 现在被显式定义为 `legacy concrete-wrapper lane`
+  - `tests/fpdev.git2.modern/` 现在被显式定义为 `modern interface lane`
+  - modern-only runner 已经可离线运行，并且不依赖 `fpdev.git2`
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_git2_lane_contract tests.test_git2_status_docs_contract -v` → `9/9`
+  - `bash tests/fpdev.git2.modern/run_tests.sh` → pass
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `647/647`
+  - `git diff --check` → clean
+- 这条 lane 关闭后，下一步更自然的是执行 plan pack 中的 Lane C 或直接进入 Lane B 的 boundary phase；不需要再为 Git2 test surface 补新的微小 truth-sync。
+
 ## 2026-04-30 Throughput Plan Pack Reset
 - 用户对当前推进节奏的判断是对的：最近几轮虽然都是真实收口，但粒度太细，导致“看起来一直在动，单位时间内实质推进不够大”。
 - 在 `fpdev` 当前状态下，继续沿用“一个小 drift -> 一个 phase -> 一个 commit”的模式会进一步拉低吞吐。

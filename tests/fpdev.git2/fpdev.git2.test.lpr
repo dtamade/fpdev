@@ -6,6 +6,8 @@ uses
   SysUtils, Classes,
   git2.api, git2.impl, fpdev.git2;
 
+// Legacy Git2 lane: this focused runner keeps compatibility coverage for fpdev.git2.
+
 procedure Test_DiscoverRepository_Fallback;
 var
   LMgr: IGitManager;

@@ -14,7 +14,9 @@
   - 若未提供 libgit2.dll，则仅可使用不依赖 libgit2 的函数（如 DiscoverRepository 回退）
 
 ## 离线测试
-- 路径：tests/fpdev.git2/
+- 路径：
+  - `tests/fpdev.git2/`（legacy concrete-wrapper lane）
+  - `tests/fpdev.git2.modern/`（modern interface lane）
 - 构建与运行：
   - Windows：
     - 双击 `buildOrTest.bat`：串行编译/运行 basic status focused runners
@@ -26,7 +28,7 @@
     - `bin\fpdev.git2.fpcunit.exe --all --format=plain`
 
 ## 状态测试（离线，默认启用 -gh/-gl，无泄漏为准）
-- 路径：tests/fpdev.git2/
+- 路径：`tests/fpdev.git2/`（legacy concrete-wrapper lane）
 - 用例：
   - fpdev.git2.test.lpr：Discover 回退与 OID 辅助
   - fpdev.git2.status_test.lpr：`Status` 路径列表、`IsClean` / `HasUncommittedChanges` 基础语义
@@ -46,6 +48,16 @@
     - `fpdev.git2.status_index_test.lpr`
     - `fpdev.git2.status_conflict_test.lpr`
   - 运行脚本自动设置 HEAPTRC 并打印日志，期望“0 memory blocks were not freed”
+
+## 现代接口 focused runner（默认离线）
+- 路径：`tests/fpdev.git2.modern/`（modern interface lane）
+- 用例：
+  - `fpdev.git2.modern.basic.lpr`：仅使用 `git2.api + git2.impl`，覆盖 DiscoverRepository 回退与本地 InitRepository/Status 基础语义
+- 运行：
+  - `bash tests/fpdev.git2.modern/run_tests.sh`
+- 约束：
+  - modern lane 不得导入 `fpdev.git2`
+  - legacy concrete-wrapper coverage 继续留在 `tests/fpdev.git2/`
 
 ### 关于 merge-conflict 覆盖（真实本地冲突仓库）
 - 当前用例通过本地 `git` CLI 在临时仓库里构造真实 merge-conflict，不依赖网络。

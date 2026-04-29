@@ -1,5 +1,39 @@
 # Progress Log
 
+## Session: 2026-04-30 (git2 modern legacy test lane split)
+
+### Phase 122: Git2 Modern Legacy Test Lane Split
+- **Status:** complete
+- **Started:** 2026-04-30
+- Actions taken:
+  - 复核当前 Git2 focused runners 后确认一个真实问题：
+    - `tests/fpdev.git2/` 里的 focused runner 仍混合承担 legacy wrapper 叙事与 modern interface 说明
+    - 这会让后续 `git2.impl` 脱离 `fpdev.git2` 时，focused runner 的语义边界不清晰
+  - 新增 lane contract：
+    - `tests/test_git2_lane_contract.py`
+    - 明确要求 legacy focused runner 显式标记为 legacy lane
+    - 明确要求 modern-only runner 不得导入 `fpdev.git2`
+    - 明确要求 docs/report 拆成 `tests/fpdev.git2/` 与 `tests/fpdev.git2.modern/`
+  - 为现有 legacy focused files 补显式注释：
+    - `tests/fpdev.git2/fpdev.git2.test.lpr`
+    - `tests/fpdev.git2/fpdev.git2.testcase.pas`
+    - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas`
+  - 新增 modern-only focused runner：
+    - `tests/fpdev.git2.modern/fpdev.git2.modern.basic.lpr`
+    - `tests/fpdev.git2.modern/run_tests.sh`
+    - 覆盖 `DiscoverRepository()` fallback 与 `InitRepository()/Status` 基础语义
+    - 仅使用 `git2.api + git2.impl`
+  - 同步文档：
+    - `docs/history/git2-status-and-tests.md`
+    - `report/fpdev.git2.md`
+  - Verification completed:
+    - `python3 -m unittest tests.test_git2_lane_contract tests.test_git2_status_docs_contract -v` → `9/9`
+    - `bash tests/fpdev.git2.modern/run_tests.sh` → pass
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `647/647`
+    - `git diff --check` → clean
+  - Scope note:
+    - 本轮未修改 Pascal 生产代码，因此未重新跑 `bash scripts/run_all_tests.sh` 或 `lazbuild -B --build-mode=Release fpdev.lpi`
+
 ## Session: 2026-04-30 (throughput plan pack reset)
 
 ### Phase 121: Throughput Plan Pack Reset

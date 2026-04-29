@@ -9,15 +9,19 @@
   - `Status/StatusEntries/IsClean/HasUncommittedChanges`
   - `git2.api` / `git2.impl` 与 `fpdev.git2` 都已提供对应入口
 - 当前 focused runners 已覆盖：
-  - `fpdev.git2.test.lpr`
-  - `fpdev.git2.status_test.lpr`
-  - `fpdev.git2.status_entries_test.lpr`
-  - `fpdev.git2.status_ignore_test.lpr`
-  - `fpdev.git2.status_index_test.lpr`
-  - `fpdev.git2.status_conflict_test.lpr`
-  - `fpdev.git2.fpcunit.lpr`
+  - `tests/fpdev.git2/`（legacy concrete-wrapper lane）
+    - `fpdev.git2.test.lpr`
+    - `fpdev.git2.status_test.lpr`
+    - `fpdev.git2.status_entries_test.lpr`
+    - `fpdev.git2.status_ignore_test.lpr`
+    - `fpdev.git2.status_index_test.lpr`
+    - `fpdev.git2.status_conflict_test.lpr`
+    - `fpdev.git2.fpcunit.lpr`
+  - `tests/fpdev.git2.modern/`（modern interface lane）
+    - `fpdev.git2.modern.basic.lpr`
 - `buildOrTest.bat` 用于 basic/status focused runners，`buildOrTest.fpcunit.bat` 用于 fpcunit 聚合运行
 - 文档对齐 README：说明 git2.api/impl 的推荐使用方式并标注 fpdev.git 为 deprecated
+- modern-only focused runner 现已独立到 `tests/fpdev.git2.modern/`，用于后续 `git2.impl` 脱离 `fpdev.git2` 前的前置护栏
 
 ## 执行与验证
 - 构建命令：tests/fpdev.git2/buildOrTest.bat

@@ -4,9 +4,27 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 121 complete
+Phase 122 complete
 
 ## Active Phases
+### Phase 122: Git2 Modern Legacy Test Lane Split
+- [x] 复核当前 Git2 focused runners、测试文档与报告，确认 `tests/fpdev.git2/` 同时承担 legacy wrapper 叙事与 modern interface 入口说明
+- [x] 新增 `tests/test_git2_lane_contract.py`，锁定：
+  - legacy focused runners 必须显式标记为 legacy lane
+  - modern-only runner 不得导入 `fpdev.git2`
+  - docs/report 必须拆分 legacy / modern lane
+- [x] 为现有 legacy runner 补显式定位注释：
+  - `tests/fpdev.git2/fpdev.git2.test.lpr`
+  - `tests/fpdev.git2/fpdev.git2.testcase.pas`
+  - `tests/fpdev.git2/fpdev.git2.fpcunit.tests.pas`
+- [x] 新增 modern-only focused runner：
+  - `tests/fpdev.git2.modern/fpdev.git2.modern.basic.lpr`
+  - `tests/fpdev.git2.modern/run_tests.sh`
+- [x] 同步 `docs/history/git2-status-and-tests.md` 与 `report/fpdev.git2.md`
+- [x] 运行 focused/broad verification
+- [x] 提交本轮 Lane A 收口
+- **Status:** complete
+
 ### Phase 121: Throughput Plan Pack Reset
 - [x] 复核当前工作树与 planning 状态，确认此前节奏的问题是“微型收口波次过多”
 - [x] 基于当前 repo 真相整理下一批主线：

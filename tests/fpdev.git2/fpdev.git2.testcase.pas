@@ -8,6 +8,8 @@ uses
   SysUtils, Classes,
   git2.api, git2.impl, fpdev.git2;
 
+// Legacy Git2 lane: helper bridge for the fpdev.git2 compatibility-focused runner family.
+
 procedure RunAll;
 
 implementation
@@ -18,4 +20,3 @@ begin
 end;
 
 end.
-

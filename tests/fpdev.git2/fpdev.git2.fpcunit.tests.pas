@@ -9,6 +9,8 @@ uses
   fpcunit, testregistry,
   git2.types, git2.api, git2.impl, fpdev.git2;
 
+// Legacy Git2 lane: fpcunit coverage for the fpdev.git2 compatibility wrapper.
+
 type
   { TTestCase_Global }
   TTestCase_Global = class(TTestCase)
