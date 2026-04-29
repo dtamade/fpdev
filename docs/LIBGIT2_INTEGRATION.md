@@ -14,7 +14,12 @@
 ┌─────────────────────────────────────┐
 │        应用层 (FPDev)               │
 ├─────────────────────────────────────┤
-│     现代接口层 (git2.modern.pas)    │
+│ 首选现代接口层                      │
+│ (git2.api.pas + git2.impl.pas)      │
+├─────────────────────────────────────┤
+│ 便利 concrete wrapper (git2.modern) │
+├─────────────────────────────────────┤
+│ legacy 兼容包装 (fpdev.git2.pas)    │
 ├─────────────────────────────────────┤
 │     C API绑定层 (libgit2.pas)       │
 ├─────────────────────────────────────┤
@@ -27,9 +32,11 @@
 ### 核心组件
 
 1. **libgit2.pas** - 完整的C API绑定
-2. **git2.modern.pas** - 现代Pascal接口封装
-3. **运行时/构建布局约定** - 说明当前工作树期望的 libgit2 产物位置
-4. **测试套件** - 功能验证和历史手动样例
+2. **git2.api.pas + git2.impl.pas** - 首选现代接口（`IGitManager` / `IGitRepository` + `NewGitManager()`）
+3. **git2.modern.pas** - 基于现代接口的便利包装
+4. **fpdev.git2.pas** - legacy 兼容包装
+5. **运行时/构建布局约定** - 说明当前工作树期望的 libgit2 产物位置
+6. **测试套件** - 功能验证和历史手动样例
 
 ## 📁 文件结构
 
@@ -37,7 +44,10 @@
 fpdev/
 ├── src/
 │   ├── libgit2.pas           # C API绑定
-│   ├── git2.modern.pas       # 现代接口封装
+│   ├── git2.api.pas          # 首选现代接口定义
+│   ├── git2.impl.pas         # 首选现代接口实现
+│   ├── git2.modern.pas       # 基于现代接口的便利包装
+│   ├── fpdev.git2.pas        # legacy 兼容包装
 │   └── fpdev.fpc.source.pas  # FPC源码管理
 ├── 3rd/
 │   └── libgit2/              # libgit2源码和构建
@@ -110,7 +120,7 @@ function git_reference_lookup(out ref: git_reference; repo: git_repository; cons
 function git_repository_head(out ref: git_reference; repo: git_repository): cint;
 ```
 
-### git2.modern.pas - 现代接口封装
+### git2.api.pas + git2.impl.pas - 首选现代接口
 
 **设计原则**:
 
@@ -121,38 +131,34 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 
 **核心类**:
 
-#### TGitManager - Git管理器
+#### IGitManager - Git管理器接口
 
 ```pascal
-TGitManager = class
+IGitManager = interface
   function Initialize: Boolean;
-  function OpenRepository(const APath: string): TGitRepository;
-  function CloneRepository(const AURL, ALocalPath: string): TGitRepository;
+  function OpenRepository(const APath: string): IGitRepository;
+  function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
   function IsRepository(const APath: string): Boolean;
 end;
 ```
 
-#### TGitRepository - 仓库封装
+#### IGitRepository - 仓库接口
 
 ```pascal
-TGitRepository = class
-  function GetCurrentBranch: string;
+IGitRepository = interface
+  function CurrentBranch: string;
   function ListBranches: TStringArray;
-  function GetLastCommit: TGitCommit;
-  function GetRemote(const AName: string = 'origin'): TGitRemote;
+  function HeadCommit: IGitCommit;
+  function Remote(const AName: string = 'origin'): IGitRemote;
   function Fetch: Boolean;
 end;
 ```
 
-#### TGitCommit - 提交封装
+#### 便利包装与 legacy 包装
 
 ```pascal
-TGitCommit = class
-  property OID: TGitOID read FOID;
-  property Message: string read GetMessage;
-  property Author: TGitSignature read GetAuthor;
-  property Time: TDateTime read GetTime;
-end;
+git2.modern.pas   // TGitManagerWrapper / TGitRepository（基于 IGitManager）
+fpdev.git2.pas    // TGitManager / TGitRepository / TGit2Manager（legacy 兼容）
 ```
 
 ## 🔨 构建与运行时布局
@@ -262,39 +268,28 @@ fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 
 ```pascal
 var
-  Manager: TGitManager;
-  Repo: TGitRepository;
-  Commit: TGitCommit;
+  Manager: IGitManager;
+  Repo: IGitRepository;
+  Commit: IGitCommit;
 begin
-  Manager := TGitManager.Create;
-  try
-    Manager.Initialize;
+  Manager := NewGitManager();
+  if not Manager.Initialize then
+    Halt(1);
 
-    // 克隆仓库
-    Repo := Manager.CloneRepository(
-      'https://github.com/user/repo.git',
-      'local-repo'
-    );
-    try
-      // 获取当前分支
-      WriteLn('Current branch: ', Repo.GetCurrentBranch);
+  // 克隆仓库
+  Repo := Manager.CloneRepository(
+    'https://github.com/user/repo.git',
+    'local-repo'
+  );
 
-      // 获取最新提交
-      Commit := Repo.GetLastCommit;
-      try
-        WriteLn('Last commit: ', GitOIDToString(Commit.OID));
-        WriteLn('Message: ', Commit.Message);
-        WriteLn('Author: ', Commit.Author.ToString);
-      finally
-        Commit.Free;
-      end;
+  // 获取当前分支
+  WriteLn('Current branch: ', Repo.CurrentBranch);
 
-    finally
-      Repo.Free;
-    end;
-  finally
-    Manager.Free;
-  end;
+  // 获取最新提交
+  Commit := Repo.HeadCommit;
+  WriteLn('Last commit: ', Commit.OIDString);
+  WriteLn('Message: ', Commit.Message);
+  WriteLn('Author: ', Commit.AuthorString);
 end;
 ```
 
@@ -322,21 +317,20 @@ begin
 end;
 ```
 
-## 🚀 集成到FPDev
+## 🚀 集成示例
 
-### 主程序集成
+### 现代接口集成示例
 
 ```pascal
-// fpdev.lpr
 uses
-  libgit2, git2.modern, fpdev.fpc.source;
+  git2.api, git2.impl, fpdev.fpc.source;
 
 var
-  GitManager: TGitManager;
+  GitManager: IGitManager;
   FPCManager: TFPCSourceManager;
 
 begin
-  GitManager := TGitManager.Create;
+  GitManager := NewGitManager();
   FPCManager := TFPCSourceManager.Create;
   try
     GitManager.Initialize;
@@ -351,7 +345,6 @@ begin
 
   finally
     FPCManager.Free;
-    GitManager.Free;
   end;
 end;
 ```

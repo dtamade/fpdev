@@ -28,6 +28,11 @@ LIBGIT2_DOCS = [
     REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.en.md',
 ]
 
+GIT2_USAGE_DOCS = [
+    REPO_ROOT / 'docs' / 'GIT2_USAGE.md',
+    REPO_ROOT / 'docs' / 'GIT2_USAGE.en.md',
+]
+
 CROSS_TARGET_SPEC_DOCS = [
     REPO_ROOT / 'docs' / 'FPDEV_TOML_SPEC.md',
     REPO_ROOT / 'docs' / 'FPDEV_TOML_SPEC.en.md',
@@ -140,6 +145,53 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             self.assertIn('src/libgit2.pas', text)
             self.assertNotIn('libgit2.dll not found', text)
             self.assertNotIn('libgit2.dll未找到', text)
+
+    def test_libgit2_integration_docs_describe_current_modern_layers(self):
+        expectations = {
+            REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.md': (
+                'git2.api.pas + git2.impl.pas',
+                '基于现代接口的便利包装',
+                'legacy 兼容包装',
+                'IGitManager',
+                'NewGitManager()',
+            ),
+            REPO_ROOT / 'docs' / 'LIBGIT2_INTEGRATION.en.md': (
+                'git2.api.pas + git2.impl.pas',
+                'Convenience wrapper built on the modern interfaces',
+                'Legacy compatibility wrapper',
+                'IGitManager',
+                'NewGitManager()',
+            ),
+        }
+        for path, needles in expectations.items():
+            text = path.read_text(encoding='utf-8')
+            for needle in needles:
+                self.assertIn(needle, text, f'{path} should contain current Git2 layering note {needle!r}')
+            self.assertNotIn('2. **git2.modern.pas** - 现代Pascal接口封装', text)
+            self.assertNotIn('2. **git2.modern.pas** - Modern Pascal interface wrappers', text)
+            self.assertNotIn('// fpdev.lpr', text)
+            self.assertNotIn('libgit2, git2.modern, fpdev.fpc.source;', text)
+
+    def test_git2_usage_docs_keep_git2_modern_as_wrapper_and_not_as_fpdev_git2_rewrite(self):
+        expectations = {
+            REPO_ROOT / 'docs' / 'GIT2_USAGE.md': (
+                'Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`',
+                'Legacy compatibility: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`',
+                '`git2.modern` already wraps `git2.api + git2.impl`.',
+                'Prefer extending `git2.api` / `git2.impl` (or `git2.modern` when you need a concrete wrapper)',
+            ),
+            REPO_ROOT / 'docs' / 'GIT2_USAGE.en.md': (
+                'Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`',
+                'Legacy compatibility: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`',
+                '`git2.modern` already wraps `git2.api + git2.impl`.',
+                'Prefer extending `git2.api` / `git2.impl` (or `git2.modern` when you need a concrete wrapper)',
+            ),
+        }
+        for path, needles in expectations.items():
+            text = path.read_text(encoding='utf-8')
+            for needle in needles:
+                self.assertIn(needle, text, f'{path} should describe the current git2.modern / fpdev.git2 split')
+            self.assertNotIn('Replace any `uses git2.modern` with `uses fpdev.git2`.', text)
 
     def test_official_docs_do_not_advertise_removed_top_level_commands(self):
         offenders = []

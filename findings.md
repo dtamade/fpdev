@@ -1,5 +1,22 @@
 # Findings & Decisions
 
+## 2026-04-29 Git2 Modern Docs Truth Sync
+- BuildManager backlog 已清空，继续推进不应再靠 `todos/*.md` 的 checkbox，而应切回新的真实代码/文档闭环面。
+- `git2.impl` 当前仍通过 adapter 复用 deprecated `fpdev.git2`；这说明“modern interface”与“legacy concrete wrapper”尚未完全去耦。
+- 但直接做 `git2.impl` 去耦会扩大到实现层与测试层，不适合作为本轮最小闭环。
+- 当前公开 Git2 文档存在明确 truth drift：
+  - `docs/LIBGIT2_INTEGRATION*.md` 仍把 `git2.modern.pas` 写成现代接口层，并给出过时的 `fpdev.lpr` 集成示例
+  - `docs/GIT2_USAGE*.md` 虽然顶部已说明新代码优先 `git2.api + git2.impl`，但迁移段落仍错误要求把 `uses git2.modern` 替换为 `uses fpdev.git2`
+- 因此本轮选择 docs truth-sync，而不是硬开一条更大的实现迁移线。
+- 本轮收口结果：
+  - `tests/test_official_docs_cli_contract.py` 新增针对 Git2 当前分层真相的断言
+  - `docs/LIBGIT2_INTEGRATION*.md` 已改为把 `git2.api + git2.impl` 作为 modern layer，把 `git2.modern` 标成 convenience wrapper，把 `fpdev.git2` 标成 legacy compatibility
+  - `docs/GIT2_USAGE*.md` 已移除“`git2.modern -> fpdev.git2`”的错误迁移建议
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_official_docs_cli_contract tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v` → `79/79`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `644/644`
+  - `git diff --check` → clean
+
 ## 2026-04-29 Task Tree Drain And BuildManager Backlog Closure
 - 最新基线提交为 `ed349de chore(closeout): sync verified repo state`，接手时工作区干净。
 - 根 `task_plan.md` 当前没有未完成 checkbox；实际未清空任务树集中在：

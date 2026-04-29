@@ -1,5 +1,40 @@
 # Progress Log
 
+## Session: 2026-04-29 (git2 modern docs truth sync)
+
+### Phase 119: Git2 Modern Docs Truth Sync
+- **Status:** complete
+- **Started:** 2026-04-29
+- Actions taken:
+  - 复核 `todos/*.md` 后确认 BuildManager 活跃任务树已清空，本轮不再沿 backlog checkbox 推进
+  - 重新扫描当前热点与 Git2 公开文档，确认 `git2.impl` 仍依赖 deprecated `fpdev.git2`，直接做实现去耦会扩大范围
+  - 识别当前更适合闭环的切口是公开文档 truth sync：
+    - `docs/LIBGIT2_INTEGRATION.md`
+    - `docs/LIBGIT2_INTEGRATION.en.md`
+    - `docs/GIT2_USAGE.md`
+    - `docs/GIT2_USAGE.en.md`
+  - 具体漂移：
+    - 文档仍把 `git2.modern.pas` 写成现代接口层
+    - 迁移说明仍写成把 `uses git2.modern` 替换为 `uses fpdev.git2`
+    - `LIBGIT2_INTEGRATION*` 仍展示 `fpdev.lpr` + `git2.modern` 的旧主程序集成样例
+  - 最小实现：
+    - `tests/test_official_docs_cli_contract.py` 新增 Git2 docs truth-contract
+    - `docs/GIT2_USAGE*.md` 现在明确：
+      - 新代码首选 `git2.api + git2.impl`
+      - `git2.modern` 是 convenience wrapper
+      - `fpdev.git2` 是 legacy compatibility
+    - `docs/LIBGIT2_INTEGRATION*.md` 现在明确：
+      - modern layer 是 `git2.api.pas + git2.impl.pas`
+      - `git2.modern.pas` 是基于现代接口的包装
+      - `fpdev.git2.pas` 是 legacy 兼容包装
+      - 移除过时的 `fpdev.lpr` / `git2.modern` 主程序集成示例
+  - Verification completed:
+    - `python3 -m unittest tests.test_official_docs_cli_contract tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v` → `79/79`
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `644/644`
+    - `git diff --check` → clean
+  - Scope note:
+    - 本轮未修改 Pascal 生产代码，因此未重新跑 `scripts/run_all_tests.sh` 或 Release build
+
 ## Session: 2026-04-29 (task tree drain and BuildManager backlog closure)
 
 ### Phase 118: Task Tree Drain And BuildManager Backlog Closure

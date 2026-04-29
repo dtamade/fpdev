@@ -4,9 +4,17 @@
 彻底清空当前活跃任务树：实现并验证 BuildManager backlog 中仍可执行的低风险项，归档非活跃候选项，最后完成 review 与提交。
 
 ## Current Phase
-Phase 118 complete
+Phase 119 complete
 
 ## Active Phases
+### Phase 119: Git2 Modern Docs Truth Sync
+- [x] 为 Git2 当前公开文档补 docs contract，锁定 modern layer 与 migration 指引
+- [x] 同步 `docs/LIBGIT2_INTEGRATION*.md` 到当前 `git2.api + git2.impl` 真相
+- [x] 同步 `docs/GIT2_USAGE*.md` 中过时的 `git2.modern -> fpdev.git2` 迁移说法
+- [x] 运行 focused/full Python docs verification
+- [x] 提交本轮 Git2 docs truth-sync 收口
+- **Status:** complete
+
 ### Phase 118: Task Tree Drain And BuildManager Backlog Closure
 - [x] 新增正式计划：`docs/plans/2026-04-29-task-tree-drain-buildmanager.md`
 - [x] 盘点当前任务树：根 `task_plan.md` 已在 Phase 117 complete；剩余 unchecked 项集中在 `todos/fpdev.build.manager.md` 与 `todos/fpdev.git2.md`

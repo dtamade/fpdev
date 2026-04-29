@@ -14,8 +14,12 @@ The current-worktree system-git facade is out of scope for this document; its de
 +-------------------------------------+
 |      Application Layer (FPDev)      |
 +-------------------------------------+
-|  Modern Interface Layer             |
-|  (git2.modern.pas)                  |
+| Preferred modern interfaces         |
+| (git2.api.pas + git2.impl.pas)      |
++-------------------------------------+
+| Convenience wrapper (git2.modern)   |
++-------------------------------------+
+| Legacy compatibility (fpdev.git2)   |
 +-------------------------------------+
 |  C API Binding Layer (libgit2.pas)  |
 +-------------------------------------+
@@ -26,9 +30,11 @@ The current-worktree system-git facade is out of scope for this document; its de
 ### Core Components
 
 1. **libgit2.pas** - Complete C API bindings
-2. **git2.modern.pas** - Modern Pascal interface wrappers
-3. **Runtime/build layout expectations** - documents where the current worktree expects libgit2 artifacts
-4. **Test suite** - functional verification and historical manual samples
+2. **git2.api.pas + git2.impl.pas** - Preferred modern interfaces (`IGitManager` / `IGitRepository` + `NewGitManager()`)
+3. **git2.modern.pas** - Convenience wrapper built on the modern interfaces
+4. **fpdev.git2.pas** - Legacy compatibility wrapper
+5. **Runtime/build layout expectations** - documents where the current worktree expects libgit2 artifacts
+6. **Test suite** - functional verification and historical manual samples
 
 ## File Structure
 
@@ -36,7 +42,10 @@ The current-worktree system-git facade is out of scope for this document; its de
 fpdev/
 ├── src/
 │   ├── libgit2.pas           # C API bindings
-│   ├── git2.modern.pas       # Modern interface wrappers
+│   ├── git2.api.pas          # Preferred modern interface definitions
+│   ├── git2.impl.pas         # Preferred modern interface implementation
+│   ├── git2.modern.pas       # Convenience wrapper built on the modern interfaces
+│   ├── fpdev.git2.pas        # Legacy compatibility wrapper
 │   └── fpdev.fpc.source.pas  # FPC source management
 ├── 3rd/
 │   └── libgit2/              # libgit2 source and build
@@ -109,7 +118,7 @@ function git_reference_lookup(out ref: git_reference; repo: git_repository; cons
 function git_repository_head(out ref: git_reference; repo: git_repository): cint;
 ```
 
-### git2.modern.pas - Modern Interface Wrappers
+### git2.api.pas + git2.impl.pas - Preferred Modern Interfaces
 
 **Design Principles**:
 
@@ -120,38 +129,34 @@ function git_repository_head(out ref: git_reference; repo: git_repository): cint
 
 **Core Classes**:
 
-#### TGitManager - Git Manager
+#### IGitManager - Git Manager Interface
 
 ```pascal
-TGitManager = class
+IGitManager = interface
   function Initialize: Boolean;
-  function OpenRepository(const APath: string): TGitRepository;
-  function CloneRepository(const AURL, ALocalPath: string): TGitRepository;
+  function OpenRepository(const APath: string): IGitRepository;
+  function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
   function IsRepository(const APath: string): Boolean;
 end;
 ```
 
-#### TGitRepository - Repository Wrapper
+#### IGitRepository - Repository Interface
 
 ```pascal
-TGitRepository = class
-  function GetCurrentBranch: string;
+IGitRepository = interface
+  function CurrentBranch: string;
   function ListBranches: TStringArray;
-  function GetLastCommit: TGitCommit;
-  function GetRemote(const AName: string = 'origin'): TGitRemote;
+  function HeadCommit: IGitCommit;
+  function Remote(const AName: string = 'origin'): IGitRemote;
   function Fetch: Boolean;
 end;
 ```
 
-#### TGitCommit - Commit Wrapper
+#### Convenience and legacy wrappers
 
 ```pascal
-TGitCommit = class
-  property OID: TGitOID read FOID;
-  property Message: string read GetMessage;
-  property Author: TGitSignature read GetAuthor;
-  property Time: TDateTime read GetTime;
-end;
+git2.modern.pas   // TGitManagerWrapper / TGitRepository on top of IGitManager
+fpdev.git2.pas    // TGitManager / TGitRepository / TGit2Manager for legacy compatibility
 ```
 
 ## Build and Runtime Layout
@@ -261,39 +266,28 @@ fpc -Fusrc -Fisrc -FEbin -FUlib tests/migrated/root-lpr/test_fpc_source.lpr
 
 ```pascal
 var
-  Manager: TGitManager;
-  Repo: TGitRepository;
-  Commit: TGitCommit;
+  Manager: IGitManager;
+  Repo: IGitRepository;
+  Commit: IGitCommit;
 begin
-  Manager := TGitManager.Create;
-  try
-    Manager.Initialize;
+  Manager := NewGitManager();
+  if not Manager.Initialize then
+    Halt(1);
 
-    // Clone repository
-    Repo := Manager.CloneRepository(
-      'https://github.com/user/repo.git',
-      'local-repo'
-    );
-    try
-      // Get current branch
-      WriteLn('Current branch: ', Repo.GetCurrentBranch);
+  // Clone repository
+  Repo := Manager.CloneRepository(
+    'https://github.com/user/repo.git',
+    'local-repo'
+  );
 
-      // Get latest commit
-      Commit := Repo.GetLastCommit;
-      try
-        WriteLn('Last commit: ', GitOIDToString(Commit.OID));
-        WriteLn('Message: ', Commit.Message);
-        WriteLn('Author: ', Commit.Author.ToString);
-      finally
-        Commit.Free;
-      end;
+  // Get current branch
+  WriteLn('Current branch: ', Repo.CurrentBranch);
 
-    finally
-      Repo.Free;
-    end;
-  finally
-    Manager.Free;
-  end;
+  // Get latest commit
+  Commit := Repo.HeadCommit;
+  WriteLn('Last commit: ', Commit.OIDString);
+  WriteLn('Message: ', Commit.Message);
+  WriteLn('Author: ', Commit.AuthorString);
 end;
 ```
 
@@ -321,21 +315,20 @@ begin
 end;
 ```
 
-## Integration into FPDev
+## Integration Example
 
-### Main Program Integration
+### Modern interface integration sample
 
 ```pascal
-// fpdev.lpr
 uses
-  libgit2, git2.modern, fpdev.fpc.source;
+  git2.api, git2.impl, fpdev.fpc.source;
 
 var
-  GitManager: TGitManager;
+  GitManager: IGitManager;
   FPCManager: TFPCSourceManager;
 
 begin
-  GitManager := TGitManager.Create;
+  GitManager := NewGitManager();
   FPCManager := TFPCSourceManager.Create;
   try
     GitManager.Initialize;
@@ -350,7 +343,6 @@ begin
 
   finally
     FPCManager.Free;
-    GitManager.Free;
   end;
 end;
 ```

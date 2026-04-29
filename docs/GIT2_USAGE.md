@@ -4,6 +4,7 @@ The repository provides a layered Git integration:
 
 - Public OO wrapper over libgit2: `src/fpdev.git2.pas`
 - Modern interfaces (recommended for new code): `src/git2.api.pas` + adapter impl `src/git2.impl.pas`
+- Convenience concrete wrapper over the modern interfaces: `src/git2.modern.pas`
 - C API bindings (libgit2): `src/libgit2.pas`
 
 Notes:
@@ -22,7 +23,8 @@ Notes:
 
 - Recommended imports in applications/tests:
   - Preferred: `uses git2.api, git2.impl;` then `NewGitManager()` to obtain `IGitManager`
-  - Compatible: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`
+  - Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`
+  - Legacy compatibility: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`
   - Only import `libgit2` when you must call the C API directly
 
 - Build (Lazarus is on PATH):
@@ -121,7 +123,10 @@ end.
 
 ## Migration Notes
 
-- Replace any `uses git2.modern` with `uses fpdev.git2`.
+- `git2.modern` already wraps `git2.api + git2.impl`.
+- For new code, prefer `uses git2.api, git2.impl;` and `NewGitManager()`.
+- Keep `uses git2.modern;` when you want a concrete wrapper without falling back to the legacy `fpdev.git2` surface.
+- Use `fpdev.git2` only when you need its legacy concrete classes or compatibility shim names.
 - Replace any `uses libgit2_netstructs` or `libgit2.dynamic` with nothing (types/options are unified in `libgit2.pas`).
 - Where old code passed `libgit2.dynamic.git_branch_t(...)`, use plain `GIT_BRANCH_LOCAL/REMOTE/ALL` directly.
 
@@ -143,5 +148,5 @@ Build tests individually with `lazbuild --build-all --no-write-project <project>
 
 ## Contact / Contributing
 
-- Open issues for missing libgit2 API you need. Prefer adding to `fpdev.git2` first; expose C API only when necessary.
+- Open issues for missing libgit2 API you need. Prefer extending `git2.api` / `git2.impl` (or `git2.modern` when you need a concrete wrapper) before widening the legacy `fpdev.git2` surface; expose C API only when necessary.
 - Keep the one‑unit‑per‑layer rule: high‑level in `fpdev.git2`, C API in `libgit2`.
