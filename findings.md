@@ -1,5 +1,21 @@
 # Findings & Decisions
 
+## 2026-04-30 Throughput Plan Pack Reset
+- 用户对当前推进节奏的判断是对的：最近几轮虽然都是真实收口，但粒度太细，导致“看起来一直在动，单位时间内实质推进不够大”。
+- 在 `fpdev` 当前状态下，继续沿用“一个小 drift -> 一个 phase -> 一个 commit”的模式会进一步拉低吞吐。
+- 更合适的方式是把后续推进切换成 plan pack：
+  - 先一次性落多个可执行计划
+  - 再按依赖关系执行更大的波次
+  - 把 commit 粒度提高到 lane closeout，而不是 tiny docs fix
+- 基于当前 repo 真相，后续最值得执行的 3 条主线是：
+  - `Git2 modern/legacy test lane split`
+  - `git2.impl decoupling from fpdev.git2`
+  - `release packaging step consolidation`
+- 其中：
+  - `git2.impl` 当前仍直接 `uses fpdev.git2`，这是明确的结构残留
+  - `.github/workflows/ci.yml` 当前仍存在重复的 release asset packaging shell block，这是另一条独立的脚本收敛主线
+- 因此本轮不继续补微小修正，而是优先把 1 份总计划 + 3 份子计划落盘，作为后续连续实施入口。
+
 ## 2026-04-29 Git2 Legacy Entrypoint Docs Correction
 - Phase 119 提交后复核 `fpdev.git2` 真实导出，确认该单元只有 `TGitManager.Create` 与兼容壳 `TGit2Manager.Create`，并不存在 `GitManager` singleton。
 - 因此 `docs/GIT2_USAGE*.md` 与 `tests/test_official_docs_cli_contract.py` 刚刚同步出的 legacy 入口描述仍有残余 truth drift。

@@ -1,5 +1,27 @@
 # Progress Log
 
+## Session: 2026-04-30 (throughput plan pack reset)
+
+### Phase 121: Throughput Plan Pack Reset
+- **Status:** complete
+- **Started:** 2026-04-30
+- Actions taken:
+  - 复核当前工作树与近期推进节奏，确认效率低点不是缺执行，而是连续做了过多微型 closeout
+  - 结合 repo 当前真相与历史未完主线，改为 plan-pack 驱动
+  - 新增总计划：
+    - `docs/plans/2026-04-30-throughput-plan-pack.md`
+  - 新增 3 条可执行子计划：
+    - `docs/plans/2026-04-30-git2-test-lane-split-wave.md`
+    - `docs/plans/2026-04-30-git2-impl-decoupling-wave.md`
+    - `docs/plans/2026-04-30-release-packaging-consolidation-wave.md`
+  - 新节奏约束：
+    - 一次先准备多个可执行波次，而不是每次只做一个小 truth-sync
+    - 每条主线以 lane closeout 为单位提交，不再默认用 tiny docs-only wave 充当主节奏
+  - Verification completed:
+    - `git diff --check`
+  - Scope note:
+    - 本轮只改 planning/docs/plans，没有改 Pascal 或脚本实现
+
 ## Session: 2026-04-29 (git2 legacy entrypoint docs correction)
 
 ### Phase 120: Git2 Legacy Entrypoint Docs Correction

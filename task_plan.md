@@ -1,12 +1,23 @@
 # Task Plan
 
 ## Active Goal
-持续清理当前最高收益、低风险的 Git2 真相漂移，并保持计划/验证/提交链路同步闭环。
+把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 120 complete
+Phase 121 complete
 
 ## Active Phases
+### Phase 121: Throughput Plan Pack Reset
+- [x] 复核当前工作树与 planning 状态，确认此前节奏的问题是“微型收口波次过多”
+- [x] 基于当前 repo 真相整理下一批主线：
+  - Git2 modern/legacy test lane split
+  - git2.impl 脱离 `fpdev.git2`
+  - release packaging step consolidation
+- [x] 在 `docs/plans/` 落盘总计划与 3 份子计划
+- [x] 同步根 planning files，作为后续连续执行的入口
+- [x] 提交本轮 workflow reset / plan-pack 收口
+- **Status:** complete
+
 ### Phase 120: Git2 Legacy Entrypoint Docs Correction
 - [x] 复核 `fpdev.git2` 当前真实导出，确认并不存在 `GitManager` singleton
 - [x] 修正 `docs/GIT2_USAGE*.md` 中过时的 legacy entrypoint 描述
