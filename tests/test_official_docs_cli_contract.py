@@ -178,12 +178,14 @@ class OfficialDocsCliContractTests(unittest.TestCase):
                 'Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`',
                 'Legacy compatibility: `uses fpdev.git2;` then `TGitManager.Create` or `TGit2Manager.Create`',
                 '`git2.modern` already wraps `git2.api + git2.impl`.',
+                'legacy `fpdev.git2` surface is now a compatibility re-export over the shared `git2.core` backend.',
                 'Prefer extending `git2.api` / `git2.impl` (or `git2.modern` when you need a concrete wrapper)',
             ),
             REPO_ROOT / 'docs' / 'GIT2_USAGE.en.md': (
                 'Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`',
                 'Legacy compatibility: `uses fpdev.git2;` then `TGitManager.Create` or `TGit2Manager.Create`',
                 '`git2.modern` already wraps `git2.api + git2.impl`.',
+                'legacy `fpdev.git2` surface is now a compatibility re-export over the shared `git2.core` backend.',
                 'Prefer extending `git2.api` / `git2.impl` (or `git2.modern` when you need a concrete wrapper)',
             ),
         }

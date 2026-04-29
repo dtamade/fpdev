@@ -7,7 +7,7 @@ interface
 uses
   SysUtils, Classes, DateUtils,
   git2.api, git2.types,
-  libgit2, fpdev.git2; // Reuse unified external interface, internally still implemented by modern wrapper
+  libgit2, git2.core;
 
 type
   // Adapter implementation using existing TGit* classes as backend
@@ -213,15 +213,13 @@ end;
 procedure TGitManagerImpl.SetCredentialAcquireHandler({%H-} AHandler: TCredentialAcquireEvent);
 begin
   if Assigned(AHandler) then;
-  // AHandler parameter reserved for future callback adapter implementation
-  // Currently no direct mapping in fpdev.git2
+  // AHandler parameter reserved for future callback adapter implementation.
 end;
 
 procedure TGitManagerImpl.SetCertificateCheckHandler({%H-} AHandler: TCertificateCheckEvent);
 begin
   if Assigned(AHandler) then;
-  // AHandler parameter reserved for future callback adapter implementation
-  // Currently no direct mapping in fpdev.git2
+  // AHandler parameter reserved for future callback adapter implementation.
 end;
 
 function TGitManagerImpl.Initialized: Boolean;

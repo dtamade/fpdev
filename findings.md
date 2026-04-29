@@ -1,5 +1,36 @@
 # Findings & Decisions
 
+## 2026-04-30 Git2 Impl Decoupling Wave
+- Lane B 的关键发现是：`git2.impl` 并不是“借用了几个 legacy helper”，而是整个 modern adapter 直接包在 `fpdev.git2` concrete classes 上：
+  - `TGitManagerImpl -> TGitManager`
+  - `TGitRepositoryImpl -> TGitRepository`
+  - `TGitCommitImpl -> TGitCommit`
+  - `TGitReferenceImpl -> TGitReference`
+  - `TGitRemoteImpl -> TGitRemote`
+- 因此如果只做 helper extraction，`src/git2.impl.pas` 仍然会继续 `uses fpdev.git2`，无法完成真正的 modern/legacy 去耦。
+- 本轮采用的正确形态是 shared backend 提升，而不是局部 helper 下沉：
+  - 新增 `src/git2.core.pas`，承接原 `fpdev.git2` 中真实 libgit2 backend 的 concrete implementation 与 helper functions
+  - `src/git2.impl.pas` 改为直接依赖 `git2.core`
+  - `src/fpdev.git2.pas` 改为 legacy compatibility wrapper / re-export，继续暴露原有 concrete names
+- 这样做的收益是：
+  - modern layer 不再直接叠在 deprecated unit 上
+  - legacy callers 无需迁移即可继续工作
+  - 未来如果还要继续压缩 legacy surface，`git2.impl` 已经不再被它反向卡住
+- 新增 contract `tests/test_git2_impl_boundary.py` 后，这条结构边界被持续锁定：
+  - `git2.impl` 不得导入或提及 `fpdev.git2`
+  - 必须存在 shared `git2.core`
+  - `fpdev.git2` 必须保持 legacy compatibility wrapper 角色
+- 同步的文档真相：
+  - `docs/GIT2_USAGE*.md` 现在显式补充 internal layering note，说明 legacy `fpdev.git2` 只是 shared `git2.core` backend 的 compatibility re-export
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_git2_impl_boundary tests.test_official_docs_cli_contract -v` → `18/18`
+  - `bash tests/fpdev.git2.modern/run_tests.sh` → pass
+  - `python3 -m unittest tests.test_git2_impl_boundary tests.test_git_runtime_boundary tests.test_git2_status_docs_contract -v` → `46/46`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `652/652`
+  - `bash scripts/run_all_tests.sh` → `335/335`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 这条 lane 关闭后，plan pack 里 Git2 的结构残留已经被清掉，下一步更自然的是继续 release packaging consolidation，而不是再 reopen Git2 docs/test lane。
+
 ## 2026-04-30 Git2 Modern Legacy Test Lane Split
 - 当前 Git2 focused runner 的主要问题不是测试数量不够，而是 lane 语义不清：
   - `tests/fpdev.git2/` 既承载 `fpdev.git2` legacy concrete-wrapper coverage，又在一些说明里被读成 modern interface 入口旁证

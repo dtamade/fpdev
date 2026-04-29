@@ -4,9 +4,37 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 122 complete
+Phase 123 complete
 
 ## Active Phases
+### Phase 123: Git2 Impl Decoupling From Legacy Wrapper
+- [x] 复核 `src/git2.impl.pas` / `src/fpdev.git2.pas` / `src/git2.api.pas` 与 lane docs，确认当前 modern adapter 的真实问题不是少量 helper 复用，而是整个实现直接包在 legacy concrete classes 上
+- [x] 新增 `tests/test_git2_impl_boundary.py`，锁定：
+  - `src/git2.impl.pas` 不得再导入或提及 `fpdev.git2`
+  - 必须存在共享 backend core 单元
+  - `fpdev.git2` 必须退为 legacy compatibility wrapper
+  - Git2 usage docs 必须继续把 modern 与 legacy 分层讲清楚
+- [x] 同步 Git2 usage docs 的 internal layering note：
+  - `docs/GIT2_USAGE.md`
+  - `docs/GIT2_USAGE.en.md`
+  - `tests/test_official_docs_cli_contract.py`
+- [x] 新增 `src/git2.core.pas`，承接原 `fpdev.git2` 中真实 libgit2 backend 的 concrete classes 与 helper functions
+- [x] 重构 `src/fpdev.git2.pas` 为 compatibility re-export：
+  - legacy 类型别名回指 `git2.core`
+  - helper functions 转发到 `git2.core`
+  - 保留现有 legacy public surface 不变
+- [x] 重构 `src/git2.impl.pas`，改为直接依赖 `git2.core`
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_git2_impl_boundary tests.test_official_docs_cli_contract -v`
+  - `bash tests/fpdev.git2.modern/run_tests.sh`
+  - `python3 -m unittest tests.test_git2_impl_boundary tests.test_git_runtime_boundary tests.test_git2_status_docs_contract -v`
+- [x] 运行 broad verification：
+  - `python3 -m unittest discover -s tests -p 'test_*.py'`
+  - `bash scripts/run_all_tests.sh`
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步根 planning files 并准备提交本轮 Lane B 收口
+- **Status:** complete
+
 ### Phase 122: Git2 Modern Legacy Test Lane Split
 - [x] 复核当前 Git2 focused runners、测试文档与报告，确认 `tests/fpdev.git2/` 同时承担 legacy wrapper 叙事与 modern interface 入口说明
 - [x] 新增 `tests/test_git2_lane_contract.py`，锁定：

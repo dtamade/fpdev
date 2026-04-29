@@ -11,6 +11,7 @@ Notes:
 
 - `fpdev.git2` exposes concrete classes (TGitManager/TGitRepository/...) and keeps a compatibility shim `TGit2Manager`.
 - New code should prefer `git2.api` + `git2.impl` (interfaces first, easy to replace backends). Existing code can continue to use `fpdev.git2` safely.
+- Internal layering note: legacy `fpdev.git2` surface is now a compatibility re-export over the shared `git2.core` backend.
 - `fpdev.git` (system git command wrapper) is deprecated; libgit2 path is the preferred backend.
 - Current worktree note for the system-git facade:
   - Use `fpdev.git.operations` as the default entrypoint for `TGitOperations` / `IGitCliRunner`.

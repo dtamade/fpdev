@@ -1,5 +1,40 @@
 # Progress Log
 
+## Session: 2026-04-30 (git2 impl decoupling wave)
+
+### Phase 123: Git2 Impl Decoupling From Legacy Wrapper
+- **Status:** complete
+- **Started:** 2026-04-30
+- Actions taken:
+  - 复核 `src/git2.impl.pas` 后确认旧方案假设过轻：
+    - `TGitManagerImpl` / `TGitRepositoryImpl` / `TGitCommitImpl` / `TGitReferenceImpl` / `TGitRemoteImpl`
+      全部直接包装 `fpdev.git2` 的 concrete classes
+    - 因此单纯抽 OID/status/error helper 并不能完成 modern/legacy 去耦
+  - 新增 boundary contract：
+    - `tests/test_git2_impl_boundary.py`
+    - 锁定 `git2.impl` 必须改依赖 shared core，且 `fpdev.git2` 必须退为 legacy compatibility wrapper
+  - 同步 usage docs 与 docs contract：
+    - `docs/GIT2_USAGE.md`
+    - `docs/GIT2_USAGE.en.md`
+    - `tests/test_official_docs_cli_contract.py`
+    - 新增 internal layering note，说明 `fpdev.git2` 现为 shared `git2.core` backend 的 compatibility re-export
+  - 实现 shared backend 提升：
+    - 新增 `src/git2.core.pas`
+    - 将原 `src/fpdev.git2.pas` 的真实 libgit2 backend 实现整体提升到 `git2.core`
+    - `src/fpdev.git2.pas` 改为轻量 compatibility re-export，保留 legacy surface
+    - `src/git2.impl.pas` 改为直接 `uses git2.core`
+  - 关键结果：
+    - modern adapter 不再直接依赖 deprecated `fpdev.git2`
+    - legacy callers 仍可继续使用 `fpdev.git2` 原有类型与 helper names
+    - modern / legacy 两层现在共享同一 backend core，而不是 modern 层叠在 legacy wrapper 上
+  - Verification completed:
+    - `python3 -m unittest tests.test_git2_impl_boundary tests.test_official_docs_cli_contract -v` → `18/18`
+    - `bash tests/fpdev.git2.modern/run_tests.sh` → pass
+    - `python3 -m unittest tests.test_git2_impl_boundary tests.test_git_runtime_boundary tests.test_git2_status_docs_contract -v` → `46/46`
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `652/652`
+    - `bash scripts/run_all_tests.sh` → `335/335`
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+
 ## Session: 2026-04-30 (git2 modern legacy test lane split)
 
 ### Phase 122: Git2 Modern Legacy Test Lane Split
