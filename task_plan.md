@@ -1,12 +1,20 @@
 # Task Plan
 
 ## Active Goal
-彻底清空当前活跃任务树：实现并验证 BuildManager backlog 中仍可执行的低风险项，归档非活跃候选项，最后完成 review 与提交。
+持续清理当前最高收益、低风险的 Git2 真相漂移，并保持计划/验证/提交链路同步闭环。
 
 ## Current Phase
-Phase 119 complete
+Phase 120 complete
 
 ## Active Phases
+### Phase 120: Git2 Legacy Entrypoint Docs Correction
+- [x] 复核 `fpdev.git2` 当前真实导出，确认并不存在 `GitManager` singleton
+- [x] 修正 `docs/GIT2_USAGE*.md` 中过时的 legacy entrypoint 描述
+- [x] 同步 `tests/test_official_docs_cli_contract.py`
+- [x] 运行 focused/full Python verification
+- [x] 提交本轮 Git2 docs follow-up 修复
+- **Status:** complete
+
 ### Phase 119: Git2 Modern Docs Truth Sync
 - [x] 为 Git2 当前公开文档补 docs contract，锁定 modern layer 与 migration 指引
 - [x] 同步 `docs/LIBGIT2_INTEGRATION*.md` 到当前 `git2.api + git2.impl` 真相

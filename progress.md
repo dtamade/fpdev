@@ -1,5 +1,27 @@
 # Progress Log
 
+## Session: 2026-04-29 (git2 legacy entrypoint docs correction)
+
+### Phase 120: Git2 Legacy Entrypoint Docs Correction
+- **Status:** complete
+- **Started:** 2026-04-29
+- Actions taken:
+  - 在 Phase 119 提交后复核 `fpdev.git2` 真实导出，确认该单元并不存在 `GitManager` singleton
+  - 识别漂移源：
+    - `docs/GIT2_USAGE.md`
+    - `docs/GIT2_USAGE.en.md`
+    - `tests/test_official_docs_cli_contract.py`
+    都把 legacy 入口错误写成 `GitManager` singleton 或 `TGitManager.Create`
+  - 最小修复：
+    - `docs/GIT2_USAGE*.md` 改为 `uses fpdev.git2;` 后使用 `TGitManager.Create` 或 `TGit2Manager.Create`
+    - `tests/test_official_docs_cli_contract.py` 同步到真实导出符号
+  - Verification completed:
+    - `python3 -m unittest tests.test_official_docs_cli_contract tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v`
+    - `python3 -m unittest discover -s tests -p 'test_*.py'`
+    - `git diff --check`
+  - Scope note:
+    - 本轮未修改 Pascal 生产代码，因此未重新跑 `scripts/run_all_tests.sh` 或 Release build
+
 ## Session: 2026-04-29 (git2 modern docs truth sync)
 
 ### Phase 119: Git2 Modern Docs Truth Sync

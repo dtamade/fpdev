@@ -24,7 +24,7 @@ Notes:
 - Recommended imports in applications/tests:
   - Preferred: `uses git2.api, git2.impl;` then `NewGitManager()` to obtain `IGitManager`
   - Convenience wrapper: `uses git2.modern;` then `TGitManagerWrapper`
-  - Legacy compatibility: `uses fpdev.git2;` then `GitManager` singleton or `TGitManager.Create`
+  - Legacy compatibility: `uses fpdev.git2;` then `TGitManager.Create` or `TGit2Manager.Create`
   - Only import `libgit2` when you must call the C API directly
 
 - Build (Lazarus is on PATH):

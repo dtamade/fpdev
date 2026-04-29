@@ -1,5 +1,17 @@
 # Findings & Decisions
 
+## 2026-04-29 Git2 Legacy Entrypoint Docs Correction
+- Phase 119 提交后复核 `fpdev.git2` 真实导出，确认该单元只有 `TGitManager.Create` 与兼容壳 `TGit2Manager.Create`，并不存在 `GitManager` singleton。
+- 因此 `docs/GIT2_USAGE*.md` 与 `tests/test_official_docs_cli_contract.py` 刚刚同步出的 legacy 入口描述仍有残余 truth drift。
+- 这不是实现层问题，而是文档与契约测试误写了一个不存在的公开入口；继续保留会把错误说明固化到主线。
+- 本轮最小修复：
+  - `docs/GIT2_USAGE*.md` 改为 `TGitManager.Create` / `TGit2Manager.Create`
+  - `tests/test_official_docs_cli_contract.py` 同步到真实导出
+- fresh 验证要求仍保持在 docs/contracts lane：
+  - `python3 -m unittest tests.test_official_docs_cli_contract tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'`
+  - `git diff --check`
+
 ## 2026-04-29 Git2 Modern Docs Truth Sync
 - BuildManager backlog 已清空，继续推进不应再靠 `todos/*.md` 的 checkbox，而应切回新的真实代码/文档闭环面。
 - `git2.impl` 当前仍通过 adapter 复用 deprecated `fpdev.git2`；这说明“modern interface”与“legacy concrete wrapper”尚未完全去耦。
