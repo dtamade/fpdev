@@ -16,6 +16,7 @@ This document replaces the earlier MVP-era checklist with a bounded release clos
 | Entry Point | Purpose |
 |------------|---------|
 | `bash scripts/build_release.sh` | Shared maintainer Release build entrypoint |
+| `bash scripts/package_release_asset.sh --output-dir <asset-dir> --data-dir src/data --linux-bin <binary>` | Shared release asset packaging entrypoint |
 | `bash scripts/release_acceptance_linux.sh` | Automated Linux release gate |
 | `bash scripts/release_acceptance_linux.sh --with-install` | Optional clean-root binary-install proof on Linux |
 | `python3 scripts/update_test_stats.py --check` | Test inventory drift gate |
@@ -25,7 +26,7 @@ This document replaces the earlier MVP-era checklist with a bounded release clos
 
 | Lane | Scope | Status | Evidence |
 |------|-------|--------|----------|
-| Linux automated baseline | toolchain, inventory sync, Python regression, focused IO bridge stability gate, full Pascal regression, Release build, CLI smoke | pass | `logs/release_acceptance/20260325_204342/summary.txt` |
+| Linux automated baseline | toolchain, inventory sync, Python regression, focused IO bridge stability gate, full Pascal regression, Release build, shared Linux asset packaging, CLI smoke | pass | `logs/release_acceptance/20260325_204342/summary.txt` |
 | Linux isolated binary install | `fpc install/use/current/verify` in an isolated data root | pass | `logs/release_acceptance/20260325_205542/summary.txt` |
 | Windows x64 release proof | release asset extraction + CLI smoke transcript | pass | published `RELEASE_EVIDENCE.md` + owner-proof ledger (`windows-x64-owner-smoke.txt`) |
 | macOS x64 release proof | release asset extraction + CLI smoke transcript | pass | published `RELEASE_EVIDENCE.md` + owner-proof ledger (`macos-x64-owner-smoke.txt`) |
@@ -39,6 +40,7 @@ This document replaces the earlier MVP-era checklist with a bounded release clos
 - [x] `tests/test_fpc_installer_iobridge.lpr` passes 5 repeated focused runs in the Linux acceptance lane
 - [x] Full Pascal regression suite is green
 - [x] `bash scripts/build_release.sh` succeeds
+- [x] `bash scripts/package_release_asset.sh --output-dir <asset-dir> --data-dir src/data --linux-bin <binary>` succeeds for the Linux release binary
 - [x] `fpdev system help` exits `0` and shows the registered command surface
 - [x] `fpdev system version` exits `0`
 - [x] `fpdev fpc --help` exits `0` and shows the FPC namespace

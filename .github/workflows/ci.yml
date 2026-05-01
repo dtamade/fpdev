@@ -39,6 +39,7 @@ jobs:
           tests.test_lazarus_callback_contract \
           tests.test_release_docs_contract \
           tests.test_release_scripts_contract \
+          tests.test_release_packaging_contract \
           tests.test_package_release_assets \
           tests.test_generate_release_checksums \
           tests.test_generate_release_evidence \
@@ -52,8 +53,7 @@ jobs:
 
     - name: Package Linux release asset
       run: |
-        rm -rf release-assets
-        python3 scripts/package_release_assets.py \
+        FPDEV_PACKAGE_PYTHON_BIN=python3 bash scripts/package_release_asset.sh \
           --output-dir release-assets \
           --data-dir src/data \
           --linux-bin bin/fpdev
@@ -321,8 +321,7 @@ jobs:
     - name: Package release asset
       shell: bash
       run: |
-        rm -rf release-assets
-        ${{ matrix.python_cmd }} scripts/package_release_assets.py \
+        FPDEV_PACKAGE_PYTHON_BIN=${{ matrix.python_cmd }} bash scripts/package_release_asset.sh \
           --output-dir release-assets \
           --data-dir src/data \
           ${{ matrix.package_arg }}

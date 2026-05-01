@@ -14,6 +14,7 @@ This script verifies:
   - focused IO bridge stability gate
   - full Pascal regression suite
   - shared Release build entrypoint
+  - shared release asset packaging entrypoint
   - CLI smoke commands with isolated FPDEV data roots
 
 Options:
@@ -209,6 +210,14 @@ if [[ ! -x "${RELEASE_BIN}" ]]; then
   exit 1
 fi
 append_summary "release_build: pass"
+
+step "Release asset packaging"
+run_logged release_asset_package \
+  bash scripts/package_release_asset.sh \
+    --output-dir "${RUN_DIR}/release-assets" \
+    --data-dir src/data \
+    --linux-bin "${RELEASE_BIN}"
+append_summary "release_asset_package: pass"
 
 step "CLI smoke"
 run_cli_smoke system_help 0 "${RELEASE_BIN}" system help
