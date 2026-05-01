@@ -69,7 +69,7 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('Package Linux release asset', self.text)
         self.assertIn('release-asset-linux-x64', self.text)
         self.assertIn('release-assets/fpdev-linux-x64.tar.gz', self.text)
-        self.assertIn('scripts/package_release_assets.py', self.text)
+        self.assertIn('scripts/package_release_asset.sh', self.text)
         self.assertIn('--data-dir src/data', self.text)
 
     def test_ci_uploads_cross_platform_release_assets(self):
@@ -218,6 +218,7 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_runs_release_packaging_contract_suites(self):
         self.assertIn('tests.test_package_release_assets', self.text)
         self.assertIn('tests.test_generate_release_checksums', self.text)
+        self.assertIn('tests.test_release_packaging_contract', self.text)
         self.assertIn('tests.test_ci_workflow_contract', self.text)
 
 

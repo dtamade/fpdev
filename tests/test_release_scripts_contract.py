@@ -11,6 +11,7 @@ CHECKSUM_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_checksums.py'
 PACKAGE_SCRIPT = REPO_ROOT / 'scripts' / 'package_release_assets.py'
 EVIDENCE_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_evidence.py'
 ASSEMBLE_BUNDLE_SCRIPT = REPO_ROOT / 'scripts' / 'assemble_release_ready_bundle.sh'
+PACKAGE_ENTRYPOINT_SCRIPT = REPO_ROOT / 'scripts' / 'package_release_asset.sh'
 RELEASE_ACCEPTANCE_SCRIPT = REPO_ROOT / 'scripts' / 'release_acceptance_linux.sh'
 BUILD_RELEASE_SCRIPT = REPO_ROOT / 'scripts' / 'build_release.sh'
 CHECK_TOOLCHAIN_SCRIPT = REPO_ROOT / 'scripts' / 'check_toolchain.sh'
@@ -64,6 +65,13 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('fpdev-windows-x64.zip', text)
         self.assertIn('fpdev-macos-x64.tar.gz', text)
         self.assertIn('fpdev-macos-arm64.tar.gz', text)
+
+    def test_shared_release_packaging_entrypoint_exists_and_wraps_python_packager(self):
+        self.assertTrue(PACKAGE_ENTRYPOINT_SCRIPT.exists(), f'Missing {PACKAGE_ENTRYPOINT_SCRIPT}')
+        text = PACKAGE_ENTRYPOINT_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('package_release_assets.py', text)
+        self.assertIn('--output-dir', text)
+        self.assertIn('--data-dir', text)
 
     def test_release_evidence_script_exists_and_targets_ledger_content(self):
         self.assertTrue(EVIDENCE_SCRIPT.exists(), f'Missing {EVIDENCE_SCRIPT}')
