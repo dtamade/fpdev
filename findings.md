@@ -1,5 +1,34 @@
 # Findings & Decisions
 
+## 2026-05-02 Release Packaging Consolidation Wave
+- 这条 wave 的真实问题不在 `scripts/package_release_assets.py`，而在其外层调用方式：
+  - Linux release asset packaging 在 CI 里内联了一份 shell block
+  - cross-platform matrix packaging 在 CI 里又内联了一份 shell block
+  - Linux release acceptance lane 只验证 Release build 和 CLI smoke，没有复用同一个 packaging entrypoint
+- 因此本轮的正确切口不是重写 packager，而是加一个非常薄的 shared shell entrypoint：
+  - 新增 `scripts/package_release_asset.sh`
+  - 负责统一 output dir reset、Python executable 选择与参数透传
+  - 内部仍复用现有 `scripts/package_release_assets.py`
+- 收口后的新入口形态：
+  - `.github/workflows/ci.yml` 的 Linux asset packaging step 通过 shared script 调用
+  - `.github/workflows/ci.yml` 的 cross-platform matrix packaging step 通过 shared script 调用
+  - `scripts/release_acceptance_linux.sh` 在解析出实际 `RELEASE_BIN` 后，也通过 shared script 进行 Linux asset packaging
+- 这样做解决了两个问题：
+  - CI 不再保留重复 shell glue，后续变更 packaging 行为时只需要改一个入口
+  - 本地 Linux acceptance lane 不再假定 `bin/fpdev`；它直接使用 `build_release.sh` 报告出来的实际 release binary path
+- 新增 `tests/test_release_packaging_contract.py` 后，这条边界被持续锁定：
+  - CI 必须包含 shared packaging entrypoint
+  - CI 不得继续内联 `rm -rf release-assets` + `package_release_assets.py`
+- release acceptance docs 现在也同步到同一真相：
+  - `docs/MVP_ACCEPTANCE_CRITERIA*.md` 新增 shared packaging entrypoint
+  - Linux automated baseline scope 现在明确包含 shared Linux asset packaging
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_release_packaging_contract tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_release_docs_contract -v` → `52/52`
+  - `bash -n scripts/package_release_asset.sh` → pass
+  - `bash -n scripts/assemble_release_ready_bundle.sh` → pass
+  - `bash -n scripts/build_release.sh` → pass
+- 这条 lane 关闭后，plan pack 里的 release packaging dedup 已经收口；后续若继续 release 方向，应该转向更高层的 release proof / bundle 维护，而不是再保留 inline packaging 变体。
+
 ## 2026-04-30 Git2 Impl Decoupling Wave
 - Lane B 的关键发现是：`git2.impl` 并不是“借用了几个 legacy helper”，而是整个 modern adapter 直接包在 `fpdev.git2` concrete classes 上：
   - `TGitManagerImpl -> TGitManager`

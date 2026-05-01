@@ -1,5 +1,41 @@
 # Progress Log
 
+## Session: 2026-05-02 (release packaging consolidation wave)
+
+### Phase 124: Release Packaging Consolidation
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `.github/workflows/ci.yml`、`scripts/release_acceptance_linux.sh`、`scripts/build_release.sh` 与 release docs 后确认本轮真实缺口不是 Python packager 本身，而是外层 shell glue 重复：
+    - Linux release asset packaging 在 CI 中内联一份
+    - cross-platform matrix packaging 在 CI 中再内联一份
+    - 本地 Linux acceptance lane 还没有共用同一 packaging entrypoint
+  - 新增 RED contract：
+    - `tests/test_release_packaging_contract.py`
+    - `tests/test_ci_workflow_contract.py`
+    - `tests/test_release_scripts_contract.py`
+    - 锁定 CI 不能再继续内联 `rm -rf release-assets` + `scripts/package_release_assets.py`
+  - 实现 shared packaging entrypoint：
+    - 新增 `scripts/package_release_asset.sh`
+    - 统一处理 output dir reset、Python executable 选择、参数透传
+  - 切换调用点：
+    - `.github/workflows/ci.yml` 的 Linux release asset packaging step
+    - `.github/workflows/ci.yml` 的 matrix packaging step
+    - `scripts/release_acceptance_linux.sh` 在 Release build 后新增共享 packaging step，并使用已解析的实际 `RELEASE_BIN`
+  - 同步 release docs：
+    - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+    - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+    - 补充 shared packaging entrypoint，并把 Linux automated baseline scope 更新为包含 shared Linux asset packaging
+  - Verification completed:
+    - `python3 -m unittest tests.test_release_packaging_contract tests.test_ci_workflow_contract tests.test_release_scripts_contract -v` → RED as expected
+    - `python3 -m unittest tests.test_release_packaging_contract tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_release_docs_contract -v` → `52/52`
+    - `bash -n scripts/package_release_asset.sh` → pass
+    - `bash -n scripts/assemble_release_ready_bundle.sh` → pass
+    - `bash -n scripts/build_release.sh` → pass
+  - Commits:
+    - `a7bf333 test(release): add shared packaging step contract`
+    - `d552f79 refactor(release): share release asset packaging entrypoint`
+
 ## Session: 2026-04-30 (git2 impl decoupling wave)
 
 ### Phase 123: Git2 Impl Decoupling From Legacy Wrapper

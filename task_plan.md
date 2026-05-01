@@ -4,9 +4,40 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 123 complete
+Phase 124 complete
 
 ## Active Phases
+### Phase 124: Release Packaging Consolidation
+- [x] 复核当前 release packaging 入口，确认重复点集中在：
+  - `.github/workflows/ci.yml` 的 Linux release asset packaging block
+  - `.github/workflows/ci.yml` 的 cross-platform matrix packaging block
+  - 本地 `release_acceptance_linux.sh` 尚未复用同一 shared packaging entrypoint
+- [x] 新增 release packaging contract：
+  - `tests/test_release_packaging_contract.py`
+  - `tests/test_ci_workflow_contract.py`
+  - `tests/test_release_scripts_contract.py`
+  - 锁定 CI 不得继续内联 `rm -rf release-assets` + `package_release_assets.py`
+- [x] 新增 `scripts/package_release_asset.sh`，承接共享 shell entrypoint：
+  - 支持传入 output dir / data dir / 平台 binary 参数
+  - 自动解析 Python 可执行文件
+  - 保持 package 前清空 output dir 的旧行为
+- [x] 切换调用点到 shared entrypoint：
+  - `.github/workflows/ci.yml` 的 Linux packaging step
+  - `.github/workflows/ci.yml` 的 cross-platform matrix packaging step
+  - `scripts/release_acceptance_linux.sh` 的本地 Linux release acceptance packaging step
+- [x] 同步 release acceptance docs：
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+- [x] focused verification：
+  - `python3 -m unittest tests.test_release_packaging_contract tests.test_ci_workflow_contract tests.test_release_scripts_contract -v`
+  - `python3 -m unittest tests.test_release_packaging_contract tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_release_docs_contract -v`
+  - `bash -n scripts/package_release_asset.sh`
+  - `bash -n scripts/assemble_release_ready_bundle.sh`
+  - `bash -n scripts/build_release.sh`
+- [x] 提交 shared packaging contract 与 shared packaging entrypoint 两轮收口
+- [x] 同步根 planning files 并准备提交本轮 Lane C 收口
+- **Status:** complete
+
 ### Phase 123: Git2 Impl Decoupling From Legacy Wrapper
 - [x] 复核 `src/git2.impl.pas` / `src/fpdev.git2.pas` / `src/git2.api.pas` 与 lane docs，确认当前 modern adapter 的真实问题不是少量 helper 复用，而是整个实现直接包在 legacy concrete classes 上
 - [x] 新增 `tests/test_git2_impl_boundary.py`，锁定：
