@@ -1,5 +1,54 @@
 # Progress Log
 
+## Session: 2026-05-02 (fresh hotspot checkpoint and test inventory truth sync)
+
+### Phase 141: Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 接续 `refactor(build-cache): extract binaryartifactflow helper` 提交后的 clean tree 做 fresh re-rank，复核 `build.manager`、`fpc.manager`、`fpc.builder`、`fpc.source`、`package.manager`、`resource.repo`、`lazarus.manager`、`fpc.installer` 等剩余大单元。
+  - 结论不是继续机械开 helper wave，而是先做 closeout truth checkpoint：
+    - 当前没有新的 “3-5 个方法成组、测试护栏成熟、爆炸半径低” seam
+    - 根 `task_plan.md` 已无 unchecked box：`rg -n "^- \\[ \\]" task_plan.md` 无输出
+  - 为本轮落盘 checkpoint 计划：
+    - 新增 `docs/plans/2026-05-02-fresh-hotspot-checkpoint-and-test-inventory-truth-sync.md`
+  - 复现当前真实漂移：
+    - `python3 scripts/update_test_stats.py --count` → `346`
+    - `python3 scripts/update_test_stats.py --check` → failed
+    - out-of-sync files:
+      - `README.md`
+      - `README.en.md`
+      - `docs/testing.md`
+      - `docs/ROADMAP.md`
+      - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+      - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+    - `tests.test_release_status_wording` 初次 RED 反映的是同一件事：release wording 还停在旧的 `335`
+  - 进行 canonical sync：
+    - `python3 scripts/update_test_stats.py --write`
+  - focused Python/docs verification：
+    - `python3 scripts/update_test_stats.py --check` → pass
+    - `python3 -m unittest tests.test_release_status_wording tests.test_update_test_stats tests.test_contributor_docs_contract -v` → `46 passed`
+    - `python3 -m unittest discover -s tests -p 'test_*.py'` → `700 passed`
+  - broad Pascal verification：
+    - `bash scripts/run_all_tests.sh` → `346/346`
+  - release verification：
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+  - 同步 `task_plan.md` / `progress.md` / `findings.md`
+- Files created/modified:
+  - `docs/plans/2026-05-02-fresh-hotspot-checkpoint-and-test-inventory-truth-sync.md`
+  - `README.md`
+  - `README.en.md`
+  - `docs/testing.md`
+  - `docs/ROADMAP.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+  - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮没有新增生产代码修改，也没有重开任何 helper seam；这是一次 closeout truth-sync checkpoint
+  - 当前 discoverable test inventory 的 canonical truth 是 `346`，后续若继续增加 `test_*.lpr` runner，应再次通过 `python3 scripts/update_test_stats.py --write` 同步公共文案
+
 ## Session: 2026-05-02 (build cache binaryartifactflow wave)
 
 ### Phase 140: Build Cache Binaryartifactflow Wave

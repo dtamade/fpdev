@@ -1,12 +1,44 @@
 # Task Plan
 
 ## Active Goal
-`src/fpdev.build.cache.pas` 的 binaryartifactflow wave 已收口；下一步应再次基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 时再开波次，而不是机械重开刚完成的 `build.cache` / `toolchain` / `index` / `fpc.source` seam。
+discoverable test inventory 的文档真相已同步到当前 `346`；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 时再开波次，而不是机械重开刚完成的 `build.cache` / `toolchain` / `index` / `fpc.source` seam。
 
 ## Current Phase
-Phase 140 complete
+Phase 141 complete
 
 ## Active Phases
+### Phase 141: Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
+- [x] fresh re-rank 当前树剩余热点，并确认 `build.cache binaryartifactflow`、`toolchain reportflow`、`fpc.source sourcemanagerflow`、`index metadataflow` 等刚收口 seam 不 reopen
+- [x] 新增 checkpoint 计划：
+  - `docs/plans/2026-05-02-fresh-hotspot-checkpoint-and-test-inventory-truth-sync.md`
+- [x] 确认根任务树已清空：
+  - `rg -n "^- \[ \]" task_plan.md` 无命中
+- [x] 识别当前唯一真实 closeout 漂移：
+  - `python3 scripts/update_test_stats.py --count` 返回 `346`
+  - `python3 scripts/update_test_stats.py --check` 初次失败，命中：
+    - `README.md`
+    - `README.en.md`
+    - `docs/testing.md`
+    - `docs/ROADMAP.md`
+    - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+    - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+  - 根因是 discoverable test inventory 已增长到 `346`，而上述文档与 release wording 仍停留在旧的 `335`
+- [x] 运行 canonical truth sync：
+  - `python3 scripts/update_test_stats.py --write`
+- [x] 运行 focused Python/docs verification：
+  - `python3 scripts/update_test_stats.py --check`
+  - `python3 -m unittest tests.test_release_status_wording tests.test_update_test_stats tests.test_contributor_docs_contract -v`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'`
+- [x] 运行 Pascal 全量回归：
+  - `bash scripts/run_all_tests.sh`
+  - 结果：`346/346`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md` / `progress.md` / `findings.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 closeout checkpoint
+- **Status:** complete
+
 ### Phase 140: Build Cache Binaryartifactflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `toolchain reportflow`、`build cache sourceartifactflow`、`fpc.source sourcemanagerflow` 等已关闭 seam 不 reopen
 - [x] 锁定本轮最保守切口：

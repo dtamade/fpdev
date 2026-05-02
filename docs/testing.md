@@ -272,7 +272,7 @@ end;
 <!-- TEST-INVENTORY-COVERAGE:BEGIN -->
 Current discoverable test-program inventory:
 
-- Discoverable `test_*.lpr` programs: 335
+- Discoverable `test_*.lpr` programs: 346
 - Shared discovery rules: CI and `scripts/run_all_tests.sh` use the same inventory source
 - Default exclusions: `examples`, `fpdev.git2.adapter`, `fpdev.libgit2.base`, `fpdev.core.misc`, `migrated`
 - Sync command: `python3 scripts/update_test_stats.py --write`
@@ -361,5 +361,5 @@ If you prefer system packages, that is also fine; the important part is that the
 **Test Framework**: fpcunit
 
 <!-- TEST-INVENTORY-FOOTER:BEGIN -->
-**Test Inventory**: 335 discoverable test programs (same rules as CI)
+**Test Inventory**: 346 discoverable test programs (same rules as CI)
 <!-- TEST-INVENTORY-FOOTER:END -->

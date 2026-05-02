@@ -1,5 +1,41 @@
 # Findings & Decisions
 
+## 2026-05-02 Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
+- `build.cache binaryartifactflow` 提交收口后，对当前树剩余大单元重新 fresh re-rank，结论不是继续机械开新 helper wave：
+  - `build.manager`
+  - `fpc.manager`
+  - `fpc.builder`
+  - `fpc.source`
+  - `package.manager`
+  - `resource.repo`
+  - `lazarus.manager`
+  - `fpc.installer`
+  - 当前都没有新的 “3-5 个方法成组、测试护栏成熟、爆炸半径低” seam
+- 根 `task_plan.md` 当前已无 unchecked box，因此这轮更高 ROI 的动作不是 reopen backlog，而是做 closeout truth checkpoint。
+- 当前唯一真实失败是 discoverable test inventory drift：
+  - `python3 scripts/update_test_stats.py --count` 返回 `346`
+  - `python3 scripts/update_test_stats.py --check` 初次失败，命中：
+    - `README.md`
+    - `README.en.md`
+    - `docs/testing.md`
+    - `docs/ROADMAP.md`
+    - `docs/MVP_ACCEPTANCE_CRITERIA.md`
+    - `docs/MVP_ACCEPTANCE_CRITERIA.en.md`
+  - 根因是这些文档与 release wording 仍停留在旧的 `335`
+- 这类漂移的 canonical 修复路径仍然是脚本，而不是手工分别改文案：
+  - `python3 scripts/update_test_stats.py --write`
+  - 同步后 `python3 scripts/update_test_stats.py --check` 恢复为绿
+- focused Python/docs 证据链已确认 truth sync 完成：
+  - `python3 -m unittest tests.test_release_status_wording tests.test_update_test_stats tests.test_contributor_docs_contract -v` → `46/46`
+  - `python3 -m unittest discover -s tests -p 'test_*.py'` → `700/700`
+- broad verification 继续证明这轮只是文档/计划真相同步，没有引入实现回退：
+  - `bash scripts/run_all_tests.sh` → `346/346`
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 因此当前 checkpoint 结论是：
+  - discoverable test inventory 的公共真相已同步到 `346`
+  - 本轮不应伪装成新 helper wave
+  - 后续继续推进前，仍应再次 fresh re-rank，只在出现新的真实 seam 或新的 RED 时再开下一波
+
 ## 2026-05-02 Build Cache Binaryartifactflow Wave
 - `src/fpdev.build.cache.pas` 在 `sourceartifactflow` 收口之后，剩余最像独立 helper seam 的，是 binary artifact lifecycle orchestration：
   - `SaveBinaryArtifact(...)`
