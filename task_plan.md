@@ -1,12 +1,49 @@
 # Task Plan
 
 ## Active Goal
-Git 总览文档已经同步记录 `transportflow` helper 与 focused runner；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 或新的 RED 时再开波次，而不是机械重开刚完成的 `git operations` / `build.cache` / `toolchain` / `index` / `fpc.source` seam。
+`git operations` 已继续完成 `queryflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里的低 blast-radius helper seam，而不是再回到 docs-only truth-sync。
 
 ## Current Phase
-Phase 143 complete
+Phase 144 complete
 
 ## Active Phases
+### Phase 144: Git Operations Queryflow Wave
+- [x] 在 `transportflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 read/query surface，而不是继续扩大到 merge/push 主体逻辑
+- [x] 接手并利用已写好的 RED 护栏：
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_queryflow.lpr`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.queryflow.pas`
+  - 承接：
+    - `ExecuteGitHasRemoteSurfaceCore(...)`
+    - `ExecuteGitRemoteURLSurfaceCore(...)`
+    - `ExecuteGitCurrentBranchSurfaceCore(...)`
+    - `ExecuteGitShortHeadHashSurfaceCore(...)`
+    - `ExecuteGitListBranchesSurfaceCore(...)`
+    - `ExecuteGitListRemoteBranchesSurfaceCore(...)`
+    - `NormalizeBranchRef(...)`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - `HasRemote(...)`
+  - `GetRemoteURL(...)`
+  - `GetCurrentBranch(...)`
+  - `GetShortHeadHash(...)`
+  - `ListBranches(...)`
+  - `ListRemoteBranches(...)`
+  - 改为统一委托 `queryflow` helper
+- [x] 补齐 libgit2 bridge methods，保持 public facade `src/fpdev.git.operations.pas` 不暴露 internal helper
+- [x] 运行 focused / boundary / regression verification：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr`
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 queryflow wave
+- **Status:** complete
+
 ### Phase 143: Git Operations Docs Transportflow Truth Sync
 - [x] fresh re-rank 后不强开新的 helper seam，先识别上一波遗留的真实 closeout 漂移：
   - `docs/GIT_OPERATIONS.md`

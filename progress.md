@@ -1,5 +1,58 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations queryflow wave)
+
+### Phase 144: Git Operations Queryflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `transportflow` 和随后的 docs truth-sync 之后重新做 fresh re-rank，确认新的真实低 blast-radius seam 不是继续碰 merge/push 主体，而是 `src/fpdev.git.operations.impl.pas` 里成组的 read/query surface。
+  - 接手已写好的 RED 护栏：
+    - `tests/test_git_runtime_boundary.py`
+    - `tests/test_git_operations_queryflow.lpr`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.queryflow.pas`
+    - 提供 `ExecuteGitHasRemoteSurfaceCore(...)`
+    - 提供 `ExecuteGitRemoteURLSurfaceCore(...)`
+    - 提供 `ExecuteGitCurrentBranchSurfaceCore(...)`
+    - 提供 `ExecuteGitShortHeadHashSurfaceCore(...)`
+    - 提供 `ExecuteGitListBranchesSurfaceCore(...)`
+    - 提供 `ExecuteGitListRemoteBranchesSurfaceCore(...)`
+    - 提供 `NormalizeBranchRef(...)` 与相关 branch normalization / de-dup / error mapping glue
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - `HasRemote(...)`
+    - `GetRemoteURL(...)`
+    - `GetCurrentBranch(...)`
+    - `GetShortHeadHash(...)`
+    - `ListBranches(...)`
+    - `ListRemoteBranches(...)`
+    - 改为统一委托 `queryflow` helper
+  - 为 helper 接回 libgit2-first / CLI-fallback 契约，补上 facade 内部 bridge methods：
+    - `TryHasRemoteWithLibgit2(...)`
+    - `TryGetRemoteURLWithLibgit2(...)`
+    - `TryGetCurrentBranchWithLibgit2(...)`
+    - `TryGetShortHeadHashWithLibgit2(...)`
+    - `TryListBranchesWithLibgit2(...)`
+    - `TryListRemoteBranchesWithLibgit2(...)`
+  - Verification completed:
+    - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `39 passed`
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `src/fpdev.git.operations.queryflow.pas`
+  - `src/fpdev.git.operations.impl.pas`
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_queryflow.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 这轮只抽 read/query surface，不碰 fetch/pull/merge/push 的业务主体与 public facade
+  - `git operations` 之后若继续推进，应重新 fresh re-rank，优先代码主线里仍成组的低 blast-radius glue，而不是回到文档 truth-sync
+
 ## Session: 2026-05-02 (git operations docs transportflow truth sync)
 
 ### Phase 143: Git Operations Docs Transportflow Truth Sync

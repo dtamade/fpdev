@@ -1,5 +1,49 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Queryflow Wave
+- `git operations` 在 `transportflow` 与 docs truth-sync 之后，并不是已经没有代码 seam；重新按最新工作树看，`src/fpdev.git.operations.impl.pas` 里仍有一组很干净的 read/query surface：
+  - `HasRemote(...)`
+  - `GetRemoteURL(...)`
+  - `GetCurrentBranch(...)`
+  - `GetShortHeadHash(...)`
+  - `ListBranches(...)`
+  - `ListRemoteBranches(...)`
+- 这组方法共享的真实形态非常一致：
+  - libgit2-first
+  - command-line git fallback
+  - branch/ref normalization
+  - string / string-array surface mapping
+  - error text folding
+- 因此比起继续动 merge/push 主体逻辑，更保守且高收益的切口是新增 `src/fpdev.git.operations.queryflow.pas`，只把上述 query glue 下沉。
+- 这轮明确不动的边界是：
+  - fetch/pull/merge/push 主体流程
+  - checkout 行为
+  - public facade `src/fpdev.git.operations.pas`
+  - 任何 docs-only truth-sync 扩散
+- helper 的最终承接面为：
+  - `ExecuteGitHasRemoteSurfaceCore(...)`
+  - `ExecuteGitRemoteURLSurfaceCore(...)`
+  - `ExecuteGitCurrentBranchSurfaceCore(...)`
+  - `ExecuteGitShortHeadHashSurfaceCore(...)`
+  - `ExecuteGitListBranchesSurfaceCore(...)`
+  - `ExecuteGitListRemoteBranchesSurfaceCore(...)`
+  - `NormalizeBranchRef(...)`
+- `src/fpdev.git.operations.impl.pas` 现在只保留 facade-local bridge methods 与 ownership：
+  - `TryHasRemoteWithLibgit2(...)`
+  - `TryGetRemoteURLWithLibgit2(...)`
+  - `TryGetCurrentBranchWithLibgit2(...)`
+  - `TryGetShortHeadHashWithLibgit2(...)`
+  - `TryListBranchesWithLibgit2(...)`
+  - `TryListRemoteBranchesWithLibgit2(...)`
+- focused 与主线验证都说明 blast radius 被控制住了：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `39/39`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 到这里，`git operations` 已把 identity/signature、transport credential、query/read surface 三块重复 glue 都 helper 化；下一步如果继续推进，应再次 fresh re-rank，而不是顺势把业务主体重构范围拉大。
+
 ## 2026-05-02 Git Operations Docs Transportflow Truth Sync
 - 在 `transportflow` helper 提交之后，当前最真实的剩余问题不是新的代码 seam，而是 Git 总览文档真相滞后：
   - `docs/GIT_OPERATIONS.md`

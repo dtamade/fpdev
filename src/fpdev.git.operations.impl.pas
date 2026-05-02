@@ -53,7 +53,12 @@ type
     function FetchWithLibgit2(const ARepoPath, ARemote: string; out AError: string): Boolean;
     function PullWithLibgit2(const ARepoPath: string; out AError: string;
       out ANeedsFallback: Boolean; const AAllowMerge: Boolean = True): Boolean;
-    function GetBranchWithLibgit2(const ARepoPath: string): string;
+    function TryHasRemoteWithLibgit2(const ARepoPath: string; out AHasRemote: Boolean): Boolean;
+    function TryGetRemoteURLWithLibgit2(const ARepoPath, ARemote: string; out AURL: string): Boolean;
+    function TryGetCurrentBranchWithLibgit2(const ARepoPath: string; out ABranch: string): Boolean;
+    function TryGetShortHeadHashWithLibgit2(const ARepoPath: string; out AFullHash: string): Boolean;
+    function TryListBranchesWithLibgit2(const ARepoPath: string; out ARefs: TStringArray): Boolean;
+    function TryListRemoteBranchesWithLibgit2(const ARepoPath, ARemote: string; out ARefs: TStringArray): Boolean;
     function CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
     function AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
     function CommitWithLibgit2(
@@ -101,7 +106,7 @@ implementation
 
 uses
   git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
-  fpdev.git.operations.transportflow;
+  fpdev.git.operations.queryflow, fpdev.git.operations.transportflow;
 
 var
   Libgit2Available: Boolean = False;
@@ -709,180 +714,53 @@ begin
 end;
 
 function TGitOperations.HasRemote(const ARepoPath: string): Boolean;
-var
-  Repo: IGitRepository;
-  Ext: IGitRepositoryExt;
-  Remotes: TStringArray;
-  LResult: TProcessResult;
 begin
-  Result := False;
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    try
-      Repo := FGitManager.OpenRepository(ARepoPath);
-      if (Repo <> nil) and Supports(Repo, IGitRepositoryExt, Ext) then
-      begin
-        Remotes := Ext.ListRemotes;
-        Result := Length(Remotes) > 0;
-        Exit;
-      end;
-    except
-      // Fall back to command-line when libgit2 query fails.
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-    Exit(False);
-
-  LResult := ExecuteGitCli(['remote'], ARepoPath);
-  if LResult.Success then
-    Result := Trim(LResult.StdOut) <> '';
+  Result := ExecuteGitHasRemoteSurfaceCore(
+    ARepoPath,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryHasRemoteWithLibgit2,
+    @ExecuteGitCli
+  );
 end;
 
 function TGitOperations.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;
-var
-  Repo: IGitRepository;
-  Remote: IGitRemote;
-  LResult: TProcessResult;
 begin
-  Result := '';
   FLastError := '';
-
-  if Trim(ARemote) = '' then
-    Exit('');
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    try
-      Repo := FGitManager.OpenRepository(ARepoPath);
-      if Repo <> nil then
-      begin
-        Remote := Repo.Remote(ARemote);
-        if Remote <> nil then
-        begin
-          Result := Trim(Remote.URL);
-          if Result <> '' then
-            Exit;
-        end;
-      end;
-    except
-      // Fall back to command-line when libgit2 remote lookup fails.
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-    Exit('');
-
-  LResult := ExecuteGitCli(['remote', 'get-url', ARemote], ARepoPath);
-  if LResult.Success then
-    Result := Trim(LResult.StdOut)
-  else if LResult.StdErr <> '' then
-    FLastError := Trim(LResult.StdErr)
-  else if LResult.ErrorMessage <> '' then
-    FLastError := Trim(LResult.ErrorMessage);
+  Result := ExecuteGitRemoteURLSurfaceCore(
+    ARepoPath,
+    ARemote,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryGetRemoteURLWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.GetCurrentBranch(const ARepoPath: string): string;
-var
-  LResult: TProcessResult;
 begin
-  Result := '';
-
-  // Try libgit2 first
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      Result := GetBranchWithLibgit2(ARepoPath);
-      if Result <> '' then Exit;
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 get branch exception: ', E.Message, ', falling back to command-line');
-      end;
-    end;
-  end;
-
-  // Command-line fallback
-  if not CommandLineGitAvailable then
-    Exit('');
-  LResult := ExecuteGitCli(['symbolic-ref', '--quiet', 'HEAD'], ARepoPath);
-  if LResult.Success then
-  begin
-    Result := Trim(LResult.StdOut);
-    if Pos('refs/heads/', Result) = 1 then
-      Result := Copy(Result, Length('refs/heads/') + 1, MaxInt)
-    else if Pos('heads/', Result) = 1 then
-      Result := Copy(Result, Length('heads/') + 1, MaxInt);
-    if Result <> '' then
-      Exit;
-  end;
-  LResult := ExecuteGitCli(['rev-parse', '--abbrev-ref', 'HEAD'], ARepoPath);
-  if LResult.Success then
-  begin
-    Result := Trim(LResult.StdOut);
-    if Pos('refs/heads/', Result) = 1 then
-      Result := Copy(Result, Length('refs/heads/') + 1, MaxInt)
-    else if Pos('heads/', Result) = 1 then
-      Result := Copy(Result, Length('heads/') + 1, MaxInt);
-  end;
+  Result := ExecuteGitCurrentBranchSurfaceCore(
+    ARepoPath,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryGetCurrentBranchWithLibgit2,
+    @ExecuteGitCli
+  );
 end;
 
 function TGitOperations.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
-var
-  Repo: IGitRepository;
-  HeadCommit: IGitCommit;
-  FullHash: string;
-  LLen: Integer;
-  LResult: TProcessResult;
 begin
-  Result := '';
   FLastError := '';
-  if ALength <= 0 then
-    Exit;
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    try
-      Repo := FGitManager.OpenRepository(ARepoPath);
-      if Repo <> nil then
-      begin
-        HeadCommit := Repo.HeadCommit;
-        if HeadCommit <> nil then
-        begin
-          FullHash := HeadCommit.OIDString;
-          LLen := ALength;
-          if LLen > Length(FullHash) then
-            LLen := Length(FullHash);
-          Result := Copy(FullHash, 1, LLen);
-          Exit;
-        end;
-      end;
-    except
-      // Fall back to command-line
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'No command-line git available';
-    Exit('');
-  end;
-
-  if ALength >= 40 then
-    LResult := ExecuteGitCli(['rev-parse', 'HEAD'], ARepoPath)
-  else
-    LResult := ExecuteGitCli(['rev-parse', '--short=' + IntToStr(ALength), 'HEAD'], ARepoPath);
-
-  if LResult.Success then
-    Result := Trim(LResult.StdOut)
-  else if LResult.StdErr <> '' then
-    FLastError := Trim(LResult.StdErr)
-  else if LResult.ErrorMessage <> '' then
-    FLastError := Trim(LResult.ErrorMessage)
-  else
-    FLastError := 'git rev-parse failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+  Result := ExecuteGitShortHeadHashSurfaceCore(
+    ARepoPath,
+    ALength,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryGetShortHeadHashWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.AddAllWithLibgit2(
@@ -1673,218 +1551,30 @@ begin
 end;
 
 function TGitOperations.ListBranches(const ARepoPath: string): TStringArray;
-var
-  Repo: IGitRepository;
-  BranchRefs: TStringArray;
-  List: TStringList;
-  LResult: TProcessResult;
-  i: Integer;
-
-  function NormalizeBranchRef(const ARef: string): string;
-  var
-    LValue: string;
-    LSlashPos: Integer;
-  begin
-    Result := '';
-    LValue := Trim(ARef);
-    if LValue = '' then
-      Exit('');
-
-    if Pos('refs/heads/', LValue) = 1 then
-      LValue := Copy(LValue, Length('refs/heads/') + 1, MaxInt)
-    else if Pos('refs/remotes/', LValue) = 1 then
-    begin
-      LValue := Copy(LValue, Length('refs/remotes/') + 1, MaxInt);
-      LSlashPos := Pos('/', LValue);
-      if LSlashPos > 0 then
-        LValue := Copy(LValue, LSlashPos + 1, MaxInt);
-    end
-    else if Pos('heads/', LValue) = 1 then
-      LValue := Copy(LValue, Length('heads/') + 1, MaxInt)
-    else if Pos('remotes/', LValue) = 1 then
-    begin
-      LValue := Copy(LValue, Length('remotes/') + 1, MaxInt);
-      LSlashPos := Pos('/', LValue);
-      if LSlashPos > 0 then
-        LValue := Copy(LValue, LSlashPos + 1, MaxInt);
-    end;
-
-    if (LValue = '') or SameText(LValue, 'HEAD') then
-      Exit('');
-
-    Result := LValue;
-  end;
-
-  function BranchExists(const AName: string): Boolean;
-  var
-    j: Integer;
-  begin
-    Result := False;
-    for j := 0 to List.Count - 1 do
-      if SameText(List[j], AName) then
-        Exit(True);
-  end;
-
-  procedure AddBranch(const ARef: string);
-  var
-    LName: string;
-  begin
-    LName := NormalizeBranchRef(ARef);
-    if (LName = '') or BranchExists(LName) then
-      Exit;
-    List.Add(LName);
-  end;
 begin
-  Result := nil;
   FLastError := '';
-  List := TStringList.Create;
-  try
-    if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-    begin
-      try
-        Repo := FGitManager.OpenRepository(ARepoPath);
-        if Repo <> nil then
-        begin
-          BranchRefs := Repo.ListBranches(gbAll);
-          for i := 0 to High(BranchRefs) do
-            AddBranch(BranchRefs[i]);
-
-          SetLength(Result, List.Count);
-          for i := 0 to List.Count - 1 do
-            Result[i] := List[i];
-          Exit;
-        end;
-      except
-        // Fall back to command-line
-      end;
-    end;
-
-    if not CommandLineGitAvailable then
-    begin
-      FLastError := 'No command-line git available';
-      Exit(nil);
-    end;
-
-    LResult := ExecuteGitCli(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes'], ARepoPath);
-    if not LResult.Success then
-    begin
-      if LResult.StdErr <> '' then
-        FLastError := Trim(LResult.StdErr)
-      else if LResult.ErrorMessage <> '' then
-        FLastError := Trim(LResult.ErrorMessage)
-      else
-        FLastError := 'git for-each-ref failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
-      Exit(nil);
-    end;
-
-    BranchRefs := LResult.StdOut.Split([#10, #13]);
-    for i := 0 to High(BranchRefs) do
-      AddBranch(BranchRefs[i]);
-
-    SetLength(Result, List.Count);
-    for i := 0 to List.Count - 1 do
-      Result[i] := List[i];
-  finally
-    List.Free;
-  end;
+  Result := ExecuteGitListBranchesSurfaceCore(
+    ARepoPath,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryListBranchesWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.ListRemoteBranches(const ARepoPath: string; const ARemote: string): TStringArray;
-var
-  Repo: IGitRepository;
-  BranchRefs: TStringArray;
-  Prefix: string;
-  Line: string;
-  i: Integer;
-  List: TStringList;
-  LResult: TProcessResult;
 begin
-  Result := nil;
   FLastError := '';
-
-  if Trim(ARemote) = '' then
-    Exit(nil);
-
-  // Try libgit2 first
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    try
-      Repo := FGitManager.OpenRepository(ARepoPath);
-      if Repo <> nil then
-      begin
-        BranchRefs := Repo.ListBranches(gbRemote);
-        Prefix := 'refs/remotes/' + ARemote + '/';
-
-        List := TStringList.Create;
-        try
-          for i := 0 to High(BranchRefs) do
-          begin
-            Line := Trim(BranchRefs[i]);
-            if (Line = '') or (Pos(Prefix, Line) <> 1) then
-              Continue;
-            Line := Copy(Line, Length(Prefix) + 1, MaxInt);
-            if (Line = '') or SameText(Line, 'HEAD') then
-              Continue;
-            List.Add(Line);
-          end;
-
-          SetLength(Result, List.Count);
-          for i := 0 to List.Count - 1 do
-            Result[i] := List[i];
-          Exit;
-        finally
-          List.Free;
-        end;
-      end;
-    except
-      // Fall back to command-line
-    end;
-  end;
-
-  // Command-line fallback
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'No command-line git available';
-    Exit(nil);
-  end;
-
-  LResult := ExecuteGitCli(['branch', '-r'], ARepoPath);
-  if not LResult.Success then
-  begin
-    if LResult.StdErr <> '' then
-      FLastError := Trim(LResult.StdErr)
-    else if LResult.ErrorMessage <> '' then
-      FLastError := Trim(LResult.ErrorMessage)
-    else
-      FLastError := 'git branch -r failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
-    Exit(nil);
-  end;
-
-  List := TStringList.Create;
-  try
-    BranchRefs := LResult.StdOut.Split([#10, #13]);
-    Prefix := ARemote + '/';
-    for i := 0 to High(BranchRefs) do
-    begin
-      Line := Trim(BranchRefs[i]);
-      if (Line = '') then
-        Continue;
-      if Pos('->', Line) > 0 then
-        Continue;
-      if Pos(Prefix, Line) <> 1 then
-        Continue;
-      Line := Copy(Line, Length(Prefix) + 1, MaxInt);
-      if (Line = '') or SameText(Line, 'HEAD') then
-        Continue;
-      List.Add(Line);
-    end;
-
-    SetLength(Result, List.Count);
-    for i := 0 to List.Count - 1 do
-      Result[i] := List[i];
-  finally
-    List.Free;
-  end;
+  Result := ExecuteGitListRemoteBranchesSurfaceCore(
+    ARepoPath,
+    ARemote,
+    FBackend,
+    CommandLineGitAvailable,
+    @TryListRemoteBranchesWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 // ============================================================================
@@ -2651,24 +2341,156 @@ begin
   end;
 end;
 
-function TGitOperations.GetBranchWithLibgit2(const ARepoPath: string): string;
+function TGitOperations.TryHasRemoteWithLibgit2(const ARepoPath: string;
+  out AHasRemote: Boolean): Boolean;
 var
   Repo: IGitRepository;
+  Ext: IGitRepositoryExt;
+  Remotes: TStringArray;
 begin
-  Result := '';
+  Result := False;
+  AHasRemote := False;
 
   if FGitManager = nil then
-    Exit;
+    Exit(False);
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if (Repo <> nil) and Supports(Repo, IGitRepositoryExt, Ext) then
+    begin
+      Remotes := Ext.ListRemotes;
+      AHasRemote := Length(Remotes) > 0;
+      Exit(True);
+    end;
+  except
+    AHasRemote := False;
+  end;
+end;
+
+function TGitOperations.TryGetRemoteURLWithLibgit2(const ARepoPath, ARemote: string;
+  out AURL: string): Boolean;
+var
+  Repo: IGitRepository;
+  Remote: IGitRemote;
+begin
+  Result := False;
+  AURL := '';
+
+  if FGitManager = nil then
+    Exit(False);
 
   try
     Repo := FGitManager.OpenRepository(ARepoPath);
     if Repo <> nil then
     begin
-      Result := Repo.CurrentBranch;
-      // No manual Free needed - interface reference counting
+      Remote := Repo.Remote(ARemote);
+      if Remote <> nil then
+      begin
+        AURL := Trim(Remote.URL);
+        Exit(True);
+      end;
     end;
   except
-    Result := '';
+    AURL := '';
+  end;
+end;
+
+function TGitOperations.TryGetCurrentBranchWithLibgit2(const ARepoPath: string;
+  out ABranch: string): Boolean;
+var
+  Repo: IGitRepository;
+begin
+  Result := False;
+  ABranch := '';
+
+  if FGitManager = nil then
+    Exit(False);
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if Repo <> nil then
+    begin
+      ABranch := Repo.CurrentBranch;
+      Exit(True);
+    end;
+  except
+    ABranch := '';
+  end;
+end;
+
+function TGitOperations.TryGetShortHeadHashWithLibgit2(const ARepoPath: string;
+  out AFullHash: string): Boolean;
+var
+  Repo: IGitRepository;
+  HeadCommit: IGitCommit;
+begin
+  Result := False;
+  AFullHash := '';
+
+  if FGitManager = nil then
+    Exit(False);
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if Repo <> nil then
+    begin
+      HeadCommit := Repo.HeadCommit;
+      if HeadCommit <> nil then
+      begin
+        AFullHash := HeadCommit.OIDString;
+        Exit(AFullHash <> '');
+      end;
+    end;
+  except
+    AFullHash := '';
+  end;
+end;
+
+function TGitOperations.TryListBranchesWithLibgit2(const ARepoPath: string;
+  out ARefs: TStringArray): Boolean;
+var
+  Repo: IGitRepository;
+begin
+  Result := False;
+  ARefs := nil;
+
+  if FGitManager = nil then
+    Exit(False);
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if Repo <> nil then
+    begin
+      ARefs := Repo.ListBranches(gbAll);
+      Exit(True);
+    end;
+  except
+    ARefs := nil;
+  end;
+end;
+
+function TGitOperations.TryListRemoteBranchesWithLibgit2(
+  const ARepoPath, ARemote: string; out ARefs: TStringArray): Boolean;
+var
+  Repo: IGitRepository;
+begin
+  Result := False;
+  ARefs := nil;
+  if ARemote = '' then
+    Exit(False);
+
+  if FGitManager = nil then
+    Exit(False);
+
+  try
+    Repo := FGitManager.OpenRepository(ARepoPath);
+    if Repo <> nil then
+    begin
+      ARefs := Repo.ListBranches(gbRemote);
+      Exit(True);
+    end;
+  except
+    ARefs := nil;
   end;
 end;
 

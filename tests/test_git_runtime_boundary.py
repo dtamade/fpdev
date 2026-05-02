@@ -10,6 +10,7 @@ OPERATIONS_PATH = SRC / 'fpdev.git.operations.pas'
 OPERATIONS_IMPL_PATH = SRC / 'fpdev.git.operations.impl.pas'
 OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
+OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -242,6 +243,85 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.transportflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; transportflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_read_queries_to_internal_queryflow(self):
+        self.assertTrue(
+            OPERATIONS_QUERYFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_QUERYFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_QUERYFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+
+        has_remote_section = impl_text.split(
+            'function TGitOperations.HasRemote(const ARepoPath: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;', 1
+        )[0]
+        remote_url_section = impl_text.split(
+            'function TGitOperations.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;', 1
+        )[1].split(
+            'function TGitOperations.GetCurrentBranch(const ARepoPath: string): string;', 1
+        )[0]
+        current_branch_section = impl_text.split(
+            'function TGitOperations.GetCurrentBranch(const ARepoPath: string): string;', 1
+        )[1].split(
+            'function TGitOperations.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;', 1
+        )[0]
+        short_hash_section = impl_text.split(
+            'function TGitOperations.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;', 1
+        )[1].split(
+            'function TGitOperations.AddAllWithLibgit2(', 1
+        )[0]
+        list_branches_section = impl_text.split(
+            'function TGitOperations.ListBranches(const ARepoPath: string): TStringArray;', 1
+        )[1].split(
+            'function TGitOperations.ListRemoteBranches(const ARepoPath: string; const ARemote: string): TStringArray;', 1
+        )[0]
+        list_remote_branches_section = impl_text.split(
+            'function TGitOperations.ListRemoteBranches(const ARepoPath: string; const ARemote: string): TStringArray;', 1
+        )[1].split(
+            'function TGitOperations.CloneWithLibgit2(const AURL, ALocalPath: string; out AError: string): Boolean;', 1
+        )[0]
+
+        self.assertIn('function ExecuteGitHasRemoteSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitRemoteURLSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitCurrentBranchSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitShortHeadHashSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitListBranchesSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitListRemoteBranchesSurfaceCore(', helper_text)
+        self.assertIn('NormalizeBranchRef', helper_text)
+        self.assertIn('fpdev.git.operations.queryflow', impl_text)
+
+        self.assertIn('ExecuteGitHasRemoteSurfaceCore(', has_remote_section)
+        self.assertNotIn('ListRemotes', has_remote_section)
+        self.assertNotIn("ExecuteGitCli(['remote']", has_remote_section)
+
+        self.assertIn('ExecuteGitRemoteURLSurfaceCore(', remote_url_section)
+        self.assertNotIn("ExecuteGitCli(['remote', 'get-url', ARemote]", remote_url_section)
+        self.assertNotIn('Repo.Remote(ARemote)', remote_url_section)
+
+        self.assertIn('ExecuteGitCurrentBranchSurfaceCore(', current_branch_section)
+        self.assertNotIn("ExecuteGitCli(['symbolic-ref', '--quiet', 'HEAD']", current_branch_section)
+        self.assertNotIn("ExecuteGitCli(['rev-parse', '--abbrev-ref', 'HEAD']", current_branch_section)
+
+        self.assertIn('ExecuteGitShortHeadHashSurfaceCore(', short_hash_section)
+        self.assertNotIn("ExecuteGitCli(['rev-parse', 'HEAD']", short_hash_section)
+        self.assertNotIn('Repo.HeadCommit', short_hash_section)
+
+        self.assertIn('ExecuteGitListBranchesSurfaceCore(', list_branches_section)
+        self.assertNotIn('NormalizeBranchRef', list_branches_section)
+        self.assertNotIn("ExecuteGitCli(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes']", list_branches_section)
+
+        self.assertIn('ExecuteGitListRemoteBranchesSurfaceCore(', list_remote_branches_section)
+        self.assertNotIn("ExecuteGitCli(['branch', '-r']", list_remote_branches_section)
+        self.assertNotIn("Prefix := 'refs/remotes/' + ARemote + '/';", list_remote_branches_section)
+
+        self.assertNotIn(
+            'fpdev.git.operations.queryflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; queryflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):
