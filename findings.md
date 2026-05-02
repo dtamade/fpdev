@@ -1,5 +1,59 @@
 # Findings & Decisions
 
+## 2026-05-02 Toolchain Reportflow Wave
+- `src/fpdev.toolchain.pas` 在 `policyflow` 之后，剩余最像独立 helper seam 的，是 report/probe/path/writability/JSON assembly cluster：
+  - `SplitPathHead(...)`
+  - `RunAndCaptureFirstLine(...)`
+  - `ResolvePathOf(...)`
+  - `ResolveRealPath(...)`
+  - `IsLazarusRootDir(...)`
+  - `DirIsWritableNoSideEffects(...)`
+  - `ParentDirWritableNoSideEffects(...)`
+  - `FindRepoRootFromDir(...)`
+  - `ResolveRepoRootForToolchain(...)`
+  - `ProbeRepoBuildOutput(...)`
+  - `ProbeLazarusRoot(...)`
+  - `AddTool(...)`
+  - `AddIssue(...)`
+  - `HasIssueContaining(...)`
+  - `ProbeOne(...)`
+  - `ProbeFirstAvailable(...)`
+  - `ReportToJSON(...)`
+  - `BuildToolchainReportJSON(...)` 内部装配
+- 这条线当前比继续拆 `fpc.source` 其它残余点更合适，原因是：
+  - 文档已经把 report contract 写死在 `docs/toolchain.md`
+  - `tests/test_toolchain.lpr` 与 `tests/test_check_toolchain_*.py` 已经覆盖 repo-root override、repo build output required-fail 和 CLI parity
+  - `CheckFPCVersionPolicy(...)` 已独立到 `policyflow`，现在可以把 report/probe 从主 unit 单独拿掉
+- 本轮明确不 reopen 的是：
+  - `policyflow`
+  - shell/bat 脚本行为
+  - `BuildManager` strict preflight 的消费契约
+- helper 设计应优先采用 callback-driven report builder：
+  - direct helper test 用 fake probe callback 验证 JSON/report level
+  - 主 unit 通过默认 helper wrapper 继续走真实进程/path 探测
+  - 避免为了测试去修改生产脚本或真实环境依赖
+- 最终 helper 已按这个边界落地：
+  - `src/fpdev.toolchain.reportflow.pas`
+  - `SplitToolchainPathHeadCore(...)`
+  - `GetToolchainFPCVersionCore(...)`
+  - `BuildToolchainReportJSONCore(...)`
+- 主 unit 的收缩保持了 facade-only 结构：
+  - `BuildToolchainReportJSON(...)` 只做 thin delegate
+  - `GetFPCVersion(...)` 只做 thin delegate
+  - `CheckFPCVersionPolicy(...)` 继续走 `fpdev.toolchain.policyflow`
+- temp-hygiene 这轮有一个明确教训：
+  - focused Pascal runner 为了避免重复，已经把 temp fixture 创建收敛成 `CreateToolchainRepoFixture(...)`
+  - 因此 hygiene contract 应锁定“共享 temp helper 被使用、路径仍落在系统 temp root、cleanup 仍走统一 helper”，而不是死盯旧的字面量 `CreateUniqueTempDir(...)`
+- focused verification 说明 blast radius 被压住了：
+  - `tests/test_toolchain_boundary.py`
+  - `tests/test_temp_hygiene.py`
+  - `tests/test_toolchain_reportflow.lpr`
+  - `tests/test_toolchain.lpr`
+  - `tests/test_check_toolchain_sh.py`
+  - `tests/test_check_toolchain_bat.py`
+  - 全部保持绿色
+- 到这里，`toolchain` 在 policy/report 两团核心 helper seam 都已经收口；下一步应 fresh re-rank 其它大单元，而不是回头重开刚稳定下来的 toolchain 内部实现。
+
 ## 2026-05-02 FPC Sourcemanagerflow Wave
 - `src/fpdev.fpc.source.pas` 在 `sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow` 之后，剩余最像独立 helper seam 的不是 public build/install surface，而是 private build-manager bridge：
   - `BuildCompilerWithManager(...)`

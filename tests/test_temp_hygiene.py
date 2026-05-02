@@ -616,6 +616,18 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertIn('CleanupTempDir(TempRoot);', text)
         self.assertNotIn('GetTempDir(False)', text)
 
+    def test_toolchain_reportflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_toolchain_reportflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateToolchainRepoFixture('test_toolchain_reportflow_ok'", text)
+        self.assertIn("CreateToolchainRepoFixture('test_toolchain_reportflow_fail'", text)
+        self.assertIn('PathUsesSystemTempRoot(RepoRoot)', text)
+        self.assertIn('PathUsesSystemTempRoot(LazarusRoot)', text)
+        self.assertIn('CleanupToolchainRepoFixture(RepoRoot, LazarusRoot);', text)
+        self.assertNotIn('GetTempDir(False)', text)
+
 
 if __name__ == '__main__':
     unittest.main()

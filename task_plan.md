@@ -1,12 +1,61 @@
 # Task Plan
 
 ## Active Goal
-`src/fpdev.toolchain.pas` 的 `policyflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是顺手把 repo-root / lazarus-root / report JSON 这一团继续拖进本轮。
+`src/fpdev.toolchain.pas` 的 `reportflow` wave 已收口；下一步应基于当前树重新 fresh re-rank，选择新的低 blast-radius helper wave，而不是回头重开刚完成的 `toolchain` / `index` / `fpc.source` seam。
 
 ## Current Phase
-Phase 138 complete
+Phase 139 complete
 
 ## Active Phases
+### Phase 139: Toolchain Reportflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `index metadataflow`、`fpc.source sourcemanagerflow`、`toolchain policyflow` 等已关闭 seam 不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.toolchain.pas`
+  - 仅处理 report/probe cluster：
+    - `SplitPathHead(...)`
+    - `RunAndCaptureFirstLine(...)`
+    - `ResolvePathOf(...)`
+    - `ResolveRealPath(...)`
+    - `IsLazarusRootDir(...)`
+    - `DirIsWritableNoSideEffects(...)`
+    - `ParentDirWritableNoSideEffects(...)`
+    - `FindRepoRootFromDir(...)`
+    - `ResolveRepoRootForToolchain(...)`
+    - `ProbeRepoBuildOutput(...)`
+    - `ProbeLazarusRoot(...)`
+    - `AddTool(...)`
+    - `AddIssue(...)`
+    - `HasIssueContaining(...)`
+    - `ProbeOne(...)`
+    - `ProbeFirstAvailable(...)`
+    - `ReportToJSON(...)`
+    - `BuildToolchainReportJSON(...)` 内部报告装配
+  - `BuildToolchainReportJSON` / `GetFPCVersion` / `CheckFPCVersionPolicy` 的 public facade 继续留在主 unit
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-toolchain-reportflow-wave.md`
+- [x] 为 `src/fpdev.toolchain.pas` 增加 reportflow RED：
+  - 扩展 `tests/test_toolchain_boundary.py`
+  - 要求 `GetFPCVersion(...)` 与 `BuildToolchainReportJSON(...)` 改为 helper delegate
+  - 要求 inline report/probe helpers 离开主 unit
+- [x] 新增 focused Pascal RED：
+  - `tests/test_toolchain_reportflow.lpr`
+  - `tests/test_toolchain_reportflow.lpi`
+  - 覆盖 PATH split、repo-root override、repo build output writability、lazarus-root override、report level fail gate
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.toolchain.reportflow.pas`
+- [x] 收缩 `src/fpdev.toolchain.pas`：
+  - report/probe/path/writability/JSON assembly 改为委托 helper
+  - `CheckFPCVersionPolicy(...)` 继续通过 `policyflow` 判定
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_toolchain_reportflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_toolchain.lpr`
+  - `python3 -m unittest tests.test_check_toolchain_sh tests.test_check_toolchain_bat -v`
+- [x] 同步根 planning files 并准备提交本轮 Wave I 收口
+- **Status:** complete
+
 ### Phase 138: FPC Sourcemanagerflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `index metadataflow`、`toolchain policyflow`、`fpc.sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow` 等已关闭 seam 不 reopen
 - [x] 锁定本轮最保守切口：

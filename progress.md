@@ -1,5 +1,46 @@
 # Progress Log
 
+## Session: 2026-05-02 (toolchain reportflow wave)
+
+### Phase 139: Toolchain Reportflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `index metadataflow` 与 `fpc.source sourcemanagerflow` 提交收口后，重新基于 clean tree 做 fresh re-rank。
+  - 复核 `src/fpdev.toolchain.pas`、`tests/test_toolchain_boundary.py`、`tests/test_toolchain.lpr`、`tests/test_check_toolchain_sh.py`、`tests/test_check_toolchain_bat.py` 后确认：
+    - `policyflow` 已经接管版本策略判定
+    - 剩余最清晰的新切口是 report/probe/path/writability/JSON assembly 这一整团 helper 逻辑
+    - `BuildManager` strict preflight 和 CLI 只消费现有 JSON/report contract，不要求主 unit 继续内联这些实现
+  - 本轮明确不动：
+    - `CheckFPCVersionPolicy(...)` 的 public contract
+    - `policyflow` 已稳定的策略逻辑
+    - shell/bat 脚本自身行为
+  - 已落盘本轮计划：
+    - 新增 `docs/plans/2026-05-02-toolchain-reportflow-wave.md`
+  - RED evidence completed:
+    - 扩展 `tests/test_toolchain_boundary.py`
+    - 新增 `tests/test_toolchain_reportflow.lpr`
+    - 新增 `tests/test_toolchain_reportflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+    - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v` → 初次仅剩 `test_toolchain_reportflow_uses_shared_temp_helpers` 失败，原因是 hygiene contract 仍匹配旧的 `CreateUniqueTempDir(...)` 文本，而 focused runner 已抽成 `CreateToolchainRepoFixture(...)`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.toolchain.reportflow.pas`
+    - 提供 callback-driven `BuildToolchainReportJSONCore(...)`
+    - 提供 `SplitToolchainPathHeadCore(...)`
+    - 提供 `GetToolchainFPCVersionCore(...)`
+  - 收缩 `src/fpdev.toolchain.pas`：
+    - `BuildToolchainReportJSON(...)` 改为委托 reportflow helper
+    - `GetFPCVersion(...)` 改为委托 reportflow helper
+    - `CheckFPCVersionPolicy(...)` 保持通过 `policyflow` 判定
+  - 一个测试侧收口修正是：
+    - `tests/test_temp_hygiene.py` 的 `toolchain_reportflow` 断言改为匹配 `CreateToolchainRepoFixture(...)` / `CleanupToolchainRepoFixture(...)`
+    - 继续保留 `PathUsesSystemTempRoot(RepoRoot)` / `PathUsesSystemTempRoot(LazarusRoot)` 约束，不回退到手写 temp-dir
+  - Verification completed:
+    - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v` → `58/58`
+    - `bash scripts/run_single_test.sh tests/test_toolchain_reportflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_toolchain.lpr` → pass
+    - `python3 -m unittest tests.test_check_toolchain_sh tests.test_check_toolchain_bat -v` → `7/7`
+
 ## Session: 2026-05-02 (fpc sourcemanagerflow wave)
 
 ### Phase 138: FPC Sourcemanagerflow Wave
