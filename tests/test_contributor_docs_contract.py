@@ -27,6 +27,8 @@ HISTORY_README = HISTORY_DIR / 'README.md'
 INTERNAL_README = INTERNAL_DIR / 'README.md'
 LIBGIT2_DYNAMIC_MD = HISTORY_DIR / 'LIBGIT2_DYNAMIC.md'
 TEST_PLAN_GIT2_LOCAL_MD = HISTORY_DIR / 'TEST_PLAN_GIT2_LOCAL.md'
+GIT_OPERATIONS_MD = DOCS_DIR / 'GIT_OPERATIONS.md'
+GIT_OPERATIONS_EN_MD = DOCS_DIR / 'GIT_OPERATIONS.en.md'
 AGENT_TEAM_KICKOFF_MD = INTERNAL_DIR / 'AGENT_TEAM_KICKOFF.md'
 TODO_FPC_V1_MD = HISTORY_DIR / 'TODO-FPC-v1.md'
 DEPRECATED_CODE_AUDIT_MD = HISTORY_DIR / 'DEPRECATED_CODE_AUDIT.md'
@@ -35,6 +37,7 @@ V11_TEST_REPORT = REPO_ROOT / 'TEST_REPORT_v1.1.md'
 V11_RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES_v1.1.md'
 SLEEP_MODE_SUMMARY = REPO_ROOT / 'SLEEP_MODE_SUMMARY.md'
 TODO_SLEEP = REPO_ROOT / 'TODO_SLEEP.md'
+TODO_GIT_MD = REPO_ROOT / 'todo' / 'git' / 'todo.md'
 DEVELOPMENT_ROADMAP_DOCS = [
     HISTORY_DIR / 'DEVELOPMENT_ROADMAP.md',
     HISTORY_DIR / 'DEVELOPMENT_ROADMAP.en.md',
@@ -394,6 +397,17 @@ class ContributorDocsContractTests(unittest.TestCase):
             text = path.read_text(encoding='utf-8')
             self.assertNotIn('在 `src/fpdev.lpr` 的 uses 中引入该单元', text)
             self.assertNotIn('Import the unit from `src/fpdev.lpr`', text)
+
+    def test_git_module_summary_docs_exist_as_bilingual_current_state_docs(self):
+        for path in [GIT_OPERATIONS_MD, GIT_OPERATIONS_EN_MD]:
+            self.assertTrue(path.exists(), f'Missing {path}')
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('fpdev.git.operations', text)
+            self.assertIn('tests/test_git_operations.lpr', text)
+
+    def test_git_todo_marks_module_summary_doc_item_complete(self):
+        text = TODO_GIT_MD.read_text(encoding='utf-8')
+        self.assertIn('- [x] 产出模块总结性文档（接口说明、用例、注意事项）', text)
 
 
 if __name__ == '__main__':

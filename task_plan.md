@@ -1,12 +1,31 @@
 # Task Plan
 
 ## Active Goal
-把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
+按 plan pack 持续清空当前高收益 backlog；Wave B 收口后，下一波转向 `fpdev.git.operations.impl` 的 identityflow seam。
 
 ## Current Phase
-Phase 127 complete
+Phase 128 complete
 
 ## Active Phases
+### Phase 128: Git Module Closeout
+- [x] 在 `tests/test_git_runtime_boundary.py` 与 `tests/test_contributor_docs_contract.py` 增加 Git 模块总结文档 / TODO closeout 的 docs contracts
+- [x] 新增 current-state Git 模块总结文档：
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+- [x] 同步现有 Git guide / backlog 真相：
+  - `docs/GIT2_USAGE.md`
+  - `docs/GIT2_USAGE.en.md`
+  - `todo/git/todo.md`
+- [x] 收掉 active-doc whitelist 残留：
+  - 移除 `docs/GIT_OPERATIONS*.md` 中不该继续出现的 `fpdev.utils.git` 字面量
+  - 保留“removed compatibility shim / old compat entrypoint”语义
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v`
+  - `python3 -m unittest tests.test_docs_taxonomy_contract -v`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave B 收口
+- **Status:** complete
+
 ### Phase 127: Cross-Platform Release Proof Path Parity
 - [x] 为 cross-platform built-binary path parity 增加 RED contracts：
   - `tests/test_ci_workflow_contract.py`

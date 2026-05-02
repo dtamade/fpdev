@@ -17,6 +17,7 @@ Notes:
   - Use `fpdev.git.operations` as the default entrypoint for `TGitOperations` / `IGitCliRunner`.
   - The concrete implementation lives in `src/fpdev.git.operations.impl.pas`.
   - `src/fpdev.utils.git.pas` has been removed and now survives only as a removed compatibility shim note in migration-focused docs.
+  - For the current module map and focused test entrypoints, see `docs/GIT_OPERATIONS.en.md`.
 
 ---
 

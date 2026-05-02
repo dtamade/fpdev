@@ -1,5 +1,29 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Module Closeout
+- 这条 wave 的真实缺口不是 Git 实现继续重构，而是 Git 文档真相还有一个显式 backlog 没收：
+  - `todo/git/todo.md` 仍保留 “产出模块总结性文档” 未完成项
+  - repo 也确实缺一份把当前 system-git / libgit2 / legacy 入口讲清楚的 current-state summary doc
+- 因此本轮保持保守，只做 docs closeout，不去重开 `src/fpdev.git.operations.impl.pas`：
+  - 新增 `docs/GIT_OPERATIONS.md`
+  - 新增 `docs/GIT_OPERATIONS.en.md`
+  - 同步 `docs/GIT2_USAGE.md` / `.en.md`
+  - 同步 `todo/git/todo.md`
+- 新 summary docs 现在明确了 3 个活跃 Git 面：
+  - `fpdev.git.operations`：默认 system-git facade
+  - `git2.api + git2.impl`：默认 libgit2 modern interface
+  - `fpdev.git2`：legacy concrete wrapper
+  - 并补了 focused test entrypoints 与 migration cautions
+- 这条 wave 收尾时暴露出一个很具体的文档边界细节：
+  - active docs whitelist 只允许 `fpdev.utils.git` 字面量留在 migration / compat-scope guides
+  - 新增的 `docs/GIT_OPERATIONS*.md` 初版虽然语义正确，但仍直接写了这个字面量
+  - 最终修正不是放宽白名单，而是把新文档里的表述改成 “removed compatibility shim / old compat entrypoint”，继续保留迁移含义
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v` → `69/69`
+  - `python3 -m unittest tests.test_docs_taxonomy_contract -v` → `6/6`
+  - `git diff --check` → clean
+- 这条 wave 关闭后，Git backlog 里那条显式 module-summary doc 待办已经收口；按当前 plan pack，下一波最高价值未收项就是 `src/fpdev.git.operations.impl.pas` 的 identityflow seam。
+
 ## 2026-05-02 Cross-Platform Release Proof Path Parity
 - 本地 `build_release.sh` 的 canonical path report 已经建立，但 cross-platform CI smoke lane 仍把 `bin/fpdev` / `bin/fpdev.exe` 直接硬编码在 3 类消费点里：
   - CLI smoke

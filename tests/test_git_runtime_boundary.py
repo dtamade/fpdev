@@ -15,6 +15,8 @@ CLAUDE_MD = REPO_ROOT / 'CLAUDE.md'
 CHANGELOG = REPO_ROOT / 'CHANGELOG.md'
 RELEASE_NOTES = REPO_ROOT / 'RELEASE_NOTES.md'
 BREAKING_REMOVAL_PLAN = DOCS / 'plans' / '2026-04-10-git-compat-breaking-removal.md'
+GIT_OPERATIONS_MD = DOCS / 'GIT_OPERATIONS.md'
+GIT_OPERATIONS_EN_MD = DOCS / 'GIT_OPERATIONS.en.md'
 
 
 class GitRuntimeBoundaryTests(unittest.TestCase):
@@ -376,6 +378,31 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             self.assertIn('fpdev.git.operations', text)
             self.assertIn('fpdev.utils.git', text)
             self.assertIn('removed compatibility shim', text)
+
+    def test_git_operations_summary_docs_exist_and_capture_current_surfaces(self):
+        expectations = {
+            GIT_OPERATIONS_MD: (
+                'fpdev.git.operations',
+                'src/fpdev.git.operations.impl.pas',
+                'git2.api + git2.impl',
+                'fpdev.git2',
+                'tests/test_git_operations.lpr',
+                'tests/fpdev.git2.modern/',
+            ),
+            GIT_OPERATIONS_EN_MD: (
+                'fpdev.git.operations',
+                'src/fpdev.git.operations.impl.pas',
+                'git2.api + git2.impl',
+                'fpdev.git2',
+                'tests/test_git_operations.lpr',
+                'tests/fpdev.git2.modern/',
+            ),
+        }
+        for path, required in expectations.items():
+            self.assertTrue(path.exists(), f'Missing {path}')
+            text = path.read_text(encoding='utf-8')
+            for needle in required:
+                self.assertIn(needle, text, f'{path} should contain {needle!r}')
 
     def test_architecture_guides_point_system_git_facade_at_operations_units(self):
         for path in [

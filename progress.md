@@ -1,5 +1,31 @@
 # Progress Log
 
+## Session: 2026-05-02 (git module closeout wave)
+
+### Phase 128: Git Module Closeout
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `docs/plans/2026-05-02-git-module-closeout-wave.md`、`tests/test_git_runtime_boundary.py`、`tests/test_contributor_docs_contract.py`、`docs/GIT2_USAGE*.md` 与 `todo/git/todo.md`，确认这一波只做 current-state docs closeout，不重开 Git 实现
+  - 新增 docs contracts：
+    - `tests/test_git_runtime_boundary.py` 锁定 `docs/GIT_OPERATIONS*.md` 必须覆盖当前 system-git / libgit2 / legacy surfaces，并限制 active docs 对已删除 compat shim 的字面量引用范围
+    - `tests/test_contributor_docs_contract.py` 锁定 bilingual module summary docs 必须存在，且 `todo/git/todo.md` 需要将模块总结文档项标记完成
+  - 新增 current-state Git 模块总结文档：
+    - `docs/GIT_OPERATIONS.md`
+    - `docs/GIT_OPERATIONS.en.md`
+    - 明确 `fpdev.git.operations`、`git2.api + git2.impl`、`fpdev.git2` 三层入口顺序，以及 focused test entrypoints
+  - 同步现有 guide / backlog：
+    - `docs/GIT2_USAGE.md`
+    - `docs/GIT2_USAGE.en.md`
+    - `todo/git/todo.md`
+  - 收尾时定位到 1 个真实残留：
+    - 新文档里仍直接写了 `fpdev.utils.git`，触发 active-doc whitelist 失败
+    - 以最小改动改成 “已删除的兼容 shim / old compat entrypoint” 叙述，保留迁移语义但移除受限字面量
+  - Verification completed:
+    - `python3 -m unittest tests.test_git_runtime_boundary tests.test_contributor_docs_contract -v` → `69/69`
+    - `python3 -m unittest tests.test_docs_taxonomy_contract -v` → `6/6`
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (cross-platform release proof path parity)
 
 ### Phase 127: Cross-Platform Release Proof Path Parity
