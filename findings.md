@@ -1,5 +1,35 @@
 # Findings & Decisions
 
+## 2026-05-02 Build Cache Sourceartifactflow Wave
+- 这条 wave 的关键判断是：`src/fpdev.build.cache.pas` 里真正适合 helper 化的，不是整个 artifact/cache surface，而是 source artifact lifecycle 这 4 个方法：
+  - `SaveArtifacts(...)`
+  - `RestoreArtifacts(...)`
+  - `GetArtifactInfo(...)`
+  - `DeleteArtifacts(...)`
+- 一个关键保守决策是 `HasArtifacts(...)` 明确不下沉：
+  - 它当前承担 source archive 与 binary metadata 的混合兼容判定
+  - 这是历史 cache-hit 语义的一部分，helper 化时如果顺手一起搬，很容易把 source/binary 分支重新搅在一起
+- 最终下沉到 `src/fpdev.build.cache.sourceartifactflow.pas` 的，是 4 个 source artifact helper：
+  - `BuildCacheSaveSourceArtifactsCore(...)`
+  - `BuildCacheRestoreSourceArtifactsCore(...)`
+  - `BuildCacheGetSourceArtifactInfoCore(...)`
+  - `BuildCacheDeleteSourceArtifactsCore(...)`
+- 一个关键实现决策是 restore helper 同时承接 source artifact 的 verify gate，但继续通过回调吃 `VerifyArtifact(...)`：
+  - 这样 `TBuildCache` 仍保留 `FVerifyOnRestore` 和 hit/miss ownership
+  - 同时 `RestoreArtifacts(...)` 本体不再内联 tar/7z/extract 细节
+- direct helper test 锁住了 4 个容易回退的点：
+  - install dir 缺失时 save 失败
+  - old `.meta` 能正确转成 source artifact info
+  - archive/meta 删除逻辑保持不变
+  - restore 仍使用 tar extraction 语义
+- focused regression 结果说明 blast radius 被压住了：
+  - `tests/test_cache_metadata.lpr`
+  - `tests/test_cache_verification.lpr`
+  - `tests/test_fpc_install_cli.lpr`
+  - `tests/test_temp_hygiene.py`
+  - 全部保持绿色
+- 到这里，下一步不该围着 build cache 再继续机械拆 `HasArtifacts(...)`，而应回到 clean tree fresh re-rank 下一条高 ROI 波次。
+
 ## 2026-05-02 Lazarus Config Envoptions Wave
 - 这条 wave 的关键判断是：`src/fpdev.lazarus.config.pas` 真正重复、且适合 helper 化的，不是 backup/import/export，而是 `environmentoptions.xml` 的单字段 XML glue。
   - `SetCompilerPath` / `GetCompilerPath`

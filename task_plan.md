@@ -1,12 +1,48 @@
 # Task Plan
 
 ## Active Goal
-`src/fpdev.lazarus.config.pas` 的 `envoptionsflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是把刚完成的 Lazarus config seam 再继续机械细拆。
+`src/fpdev.build.cache.pas` 的 `sourceartifactflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是把刚完成的 build-cache seam 再继续机械细拆。
 
 ## Current Phase
-Phase 134 complete
+Phase 135 complete
 
 ## Active Phases
+### Phase 135: Build Cache Sourceartifactflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `lazarus.manager` runtimeactions 等旧 helper 波次不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.build.cache.pas`
+  - 仅处理 source artifact lifecycle：
+    - `SaveArtifacts(...)`
+    - `RestoreArtifacts(...)`
+    - `GetArtifactInfo(...)`
+    - `DeleteArtifacts(...)`
+  - `HasArtifacts(...)` 继续留在 class 内，保持 source/binary 兼容判定
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-build-cache-sourceartifactflow-wave.md`
+- [x] 为 `src/fpdev.build.cache.pas` 增加 boundary RED：
+  - 新增 `tests/test_build_cache_sourceartifact_boundary.py`
+  - 要求 build cache implementation 通过 `fpdev.build.cache.sourceartifactflow` 委托 source artifact lifecycle
+  - 要求 inline tar/meta/delete glue 离开对应 class methods
+- [x] 新增 focused Pascal RED：
+  - `tests/test_build_cache_sourceartifactflow.lpr`
+  - `tests/test_build_cache_sourceartifactflow.lpi`
+  - 覆盖 missing install dir、old meta 读取、archive/meta 删除、restore tar extraction
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.build.cache.sourceartifactflow.pas`
+- [x] 收缩 `src/fpdev.build.cache.pas`：
+  - source artifact lifecycle 改为委托 helper
+  - `TBuildCache` 保留 path/state ownership、`HasArtifacts(...)`、hit/miss、verify policy
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_build_cache_sourceartifact_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_build_cache_sourceartifactflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cache_metadata.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cache_verification.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_install_cli.lpr`
+- [x] 同步根 planning files 并准备提交本轮 Wave E 收口
+- **Status:** complete
+
 ### Phase 134: Lazarus Config Envoptions Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认旧的 `build.manager` / `fpc.builder` / `fpc.source` helper 波次不 reopen
 - [x] 锁定本轮最保守切口：

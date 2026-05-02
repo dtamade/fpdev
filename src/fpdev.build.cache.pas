@@ -161,6 +161,7 @@ uses
   fpdev.build.cache.binaryinfo,
   fpdev.build.cache.binaryrestore,
   fpdev.build.cache.binarysave,
+  fpdev.build.cache.sourceartifactflow,
   fpdev.build.cache.cleanup,
   fpdev.build.cache.cleanupscan,
   fpdev.build.cache.detailedstats,
@@ -373,57 +374,19 @@ end;
 function TBuildCache.SaveArtifacts(const AVersion, AInstallPath: string): Boolean;
 var
   ArchivePath, MetaPath: string;
-  SR: TSearchRec;
-  ArchiveSize: Int64;
 begin
-  Result := False;
-
-  if not DirectoryExists(AInstallPath) then
-    Exit;
-
-  // Ensure cache directory exists
-  ForceDirectories(FCacheDir);
-
   ArchivePath := GetArtifactArchivePath(AVersion);
   MetaPath := GetArtifactMetaPath(AVersion);
-
-  // Create tar.gz archive using system tar command
-  // tar -czf archive.tar.gz -C /path/to/install .
-  {$IFDEF MSWINDOWS}
-  // On Windows, try tar (available in Windows 10+) or fall back to 7z
-  if not RunCommand('tar', ['--version'], '') then
-  begin
-    // Try 7z as fallback
-    Result := RunCommand('7z', ['a', '-ttar', ArchivePath + '.tar', AInstallPath + PathDelim + '*'], '');
-    if Result then
-      Result := RunCommand('7z', ['a', '-tgzip', ArchivePath, ArchivePath + '.tar'], '');
-    if FileExists(ArchivePath + '.tar') then
-      DeleteFile(ArchivePath + '.tar');
-  end
-  else
-    Result := RunCommand('tar', ['-czf', ArchivePath, '-C', AInstallPath, '.'], '');
-  {$ELSE}
-  Result := RunCommand('tar', ['-czf', ArchivePath, '-C', AInstallPath, '.'], '');
-  {$ENDIF}
-
-  if not Result then
-    Exit;
-
-  // Get archive size
-  ArchiveSize := 0;
-  if FindFirst(ArchivePath, faAnyFile, SR) = 0 then
-  begin
-    try
-      ArchiveSize := SR.Size;
-    finally
-      FindClose(SR);
-    end;
-  end;
-
-  // Write metadata file using helper
-  BuildCacheSaveOldMeta(MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
-    AInstallPath, ArchiveSize);
-  Result := True;
+  Result := BuildCacheSaveSourceArtifactsCore(
+    AVersion,
+    AInstallPath,
+    FCacheDir,
+    ArchivePath,
+    MetaPath,
+    GetCurrentCPU,
+    GetCurrentOS,
+    @RunCommand
+  );
 end;
 
 function TBuildCache.RestoreArtifacts(const AVersion, ADestPath: string): Boolean;
@@ -434,41 +397,18 @@ begin
   Result := False;
 
   ArchivePath := GetArtifactArchivePath(AVersion);
-  if not FileExists(ArchivePath) then
-    Exit;
+  if not GetArtifactInfo(AVersion, Info) then
+    Initialize(Info);
 
-  // Verify integrity before extraction (Fix: add integrity verification)
-  if FVerifyOnRestore then
-  begin
-    if GetArtifactInfo(AVersion, Info) then
-      if Info.SHA256 <> '' then
-      begin
-        if not VerifyArtifact(ArchivePath, Info.SHA256) then
-        begin
-          WriteLn('Error: Cache integrity verification failed for ', AVersion);
-          WriteLn('  Expected SHA256: ', Info.SHA256);
-          WriteLn('  The cached artifact may be corrupted or tampered with.');
-          Inc(FCacheMisses);
-          Exit;
-        end;
-      end;
-  end;
-
-  // Ensure destination directory exists
-  ForceDirectories(ADestPath);
-
-  // Extract tar.gz archive
-  {$IFDEF MSWINDOWS}
-  if not RunCommand('tar', ['--version'], '') then
-  begin
-    // Try 7z as fallback
-    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, ArchivePath], '');
-  end
-  else
-    Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
-  {$ELSE}
-  Result := RunCommand('tar', ['-xzf', ArchivePath, '-C', ADestPath], '');
-  {$ENDIF}
+  Result := BuildCacheRestoreSourceArtifactsCore(
+    ArchivePath,
+    ADestPath,
+    AVersion,
+    Info,
+    FVerifyOnRestore,
+    @VerifyArtifact,
+    @RunCommand
+  );
 
   if Result then
     Inc(FCacheHits)
@@ -480,19 +420,10 @@ function TBuildCache.GetArtifactInfo(const AVersion: string; out AInfo: TArtifac
 var
   ArchivePath: string;
   MetaPath: string;
-  OldInfo: TOldMetaArtifactInfo;
 begin
-  Result := False;
-  Initialize(AInfo);
-
   MetaPath := GetArtifactMetaPath(AVersion);
   ArchivePath := GetArtifactArchivePath(AVersion);
-
-  if not BuildCacheLoadOldMeta(MetaPath, OldInfo) then
-    Exit;
-
-  AInfo := BuildCacheCreateSourceArtifactInfo(ArchivePath, OldInfo);
-  Result := AInfo.Version <> '';
+  Result := BuildCacheGetSourceArtifactInfoCore(MetaPath, ArchivePath, AInfo);
 end;
 
 function TBuildCache.DeleteArtifacts(const AVersion: string): Boolean;
@@ -502,7 +433,7 @@ var
 begin
   ArchivePath := GetArtifactArchivePath(AVersion);
   MetaPath := GetArtifactMetaPath(AVersion);
-  Result := BuildCacheDeleteArtifactFiles(ArchivePath, MetaPath);
+  Result := BuildCacheDeleteSourceArtifactsCore(ArchivePath, MetaPath);
 end;
 
 function TBuildCache.GetTotalCacheSize: Int64;

@@ -403,6 +403,18 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertGreaterEqual(text.count('CleanupTempDir(TempRoot);'), 4)
         self.assertNotIn('GetTempDir(False)', text)
 
+    def test_build_cache_sourceartifactflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_build_cache_sourceartifactflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_sourceartifactflow_missing')", text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_sourceartifactflow_info')", text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_sourceartifactflow_delete')", text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_sourceartifactflow_restore')", text)
+        self.assertGreaterEqual(text.count('CleanupTempDir(TempRoot);'), 4)
+        self.assertNotIn('GetTempDir(False)', text)
+
     def test_cross_cache_uses_shared_temp_helpers(self):
         source_path = REPO_ROOT / 'tests' / 'test_cross_cache.lpr'
         text = source_path.read_text(encoding='utf-8')

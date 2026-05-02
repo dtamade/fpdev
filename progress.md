@@ -1,5 +1,42 @@
 # Progress Log
 
+## Session: 2026-05-02 (build cache sourceartifactflow wave)
+
+### Phase 135: Build Cache Sourceartifactflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在当前 clean tree 上再次 fresh re-rank，确认 `lazarus.manager` 的 runtimeactions、`lazarus.config` 的 envoptionsflow 等已收口 helper 面不 reopen。
+  - 新的最高 ROI 切口落在 `src/fpdev.build.cache.pas` 的 source artifact lifecycle：
+    - `SaveArtifacts(...)`
+    - `RestoreArtifacts(...)`
+    - `GetArtifactInfo(...)`
+    - `DeleteArtifacts(...)`
+    - 同时保守地把 `HasArtifacts(...)` 留在 class 内，因为它仍承担 source/binary 混合兼容判定
+  - 先写 RED：
+    - 新增 `tests/test_build_cache_sourceartifact_boundary.py`
+    - 新增 `tests/test_build_cache_sourceartifactflow.lpr`
+    - 新增 `tests/test_build_cache_sourceartifactflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+    - Python RED 命中的是主 unit 仍内联 source artifact glue；Pascal RED 命中的是 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.build.cache.sourceartifactflow.pas`
+    - 提供 `BuildCacheSaveSourceArtifactsCore(...)`
+    - 提供 `BuildCacheRestoreSourceArtifactsCore(...)`
+    - 提供 `BuildCacheGetSourceArtifactInfoCore(...)`
+    - 提供 `BuildCacheDeleteSourceArtifactsCore(...)`
+  - 收缩 `src/fpdev.build.cache.pas`：
+    - `SaveArtifacts(...)` / `RestoreArtifacts(...)` / `GetArtifactInfo(...)` / `DeleteArtifacts(...)` 改为 thin delegate
+    - `HasArtifacts(...)` 继续留在 class 内，维持 source archive / binary meta 的混合存在性判定
+    - hit/miss 计数和 verify policy 仍由 `TBuildCache` 持有
+  - Verification completed:
+    - `python3 -m unittest tests.test_build_cache_sourceartifact_boundary tests.test_temp_hygiene -v` → `52/52`
+    - `bash scripts/run_single_test.sh tests/test_build_cache_sourceartifactflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cache_metadata.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cache_verification.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_install_cli.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (lazarus config envoptions wave)
 
 ### Phase 134: Lazarus Config Envoptions Wave
