@@ -11,10 +11,11 @@
 **A**: 从源码构建：
 
 ```bash
-git clone https://github.com/fpdev/fpdev.git
+git clone https://github.com/dtamade/fpdev.git
 cd fpdev
-lazbuild -B fpdev.lpi
-./bin/fpdev system version
+bash scripts/build_release.sh
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
 
 ### Q2: 需要哪些依赖？

@@ -70,7 +70,8 @@ bash scripts/release_acceptance_linux.sh --with-install
 git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
-./bin/fpdev system version
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
 
 ## 已发布的发布证明

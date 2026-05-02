@@ -4,9 +4,31 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 124 complete
+Phase 125 complete
 
 ## Active Phases
+### Phase 125: Release Build Path Reporting Truth Sync
+- [x] 为 release build path discoverability 增加 RED contracts：
+  - `tests/test_release_scripts_contract.py`
+  - `tests/test_official_docs_cli_contract.py`
+  - `tests/test_release_docs_contract.py`
+- [x] 为 `scripts/build_release.sh` 增加稳定的默认 release binary path report file，并保留 `FPDEV_RELEASE_BIN_PATH_FILE` override
+- [x] 同步当前 public source-build docs 到同一真相：
+  - `README.md`
+  - `README.en.md`
+  - `FAQ.md`
+  - `docs/FAQ.md`
+  - `docs/FAQ.en.md`
+  - `docs/INSTALLATION.md`
+  - `docs/INSTALLATION.en.md`
+  - `RELEASE_NOTES.md`
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_release_scripts_contract tests.test_official_docs_cli_contract tests.test_release_docs_contract -v`
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_readme_testing_contract -v`
+  - `bash -n scripts/build_release.sh`
+- [x] 同步根 planning files 并准备提交本轮收口
+- **Status:** complete
+
 ### Phase 124: Release Packaging Consolidation
 - [x] 复核当前 release packaging 入口，确认重复点集中在：
   - `.github/workflows/ci.yml` 的 Linux release asset packaging block

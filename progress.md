@@ -1,5 +1,40 @@
 # Progress Log
 
+## Session: 2026-05-02 (release build path reporting truth-sync wave)
+
+### Phase 125: Release Build Path Reporting Truth Sync
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `scripts/build_release.sh`、`scripts/release_acceptance_linux.sh`、`README*`、`FAQ*`、`INSTALLATION*`、`RELEASE_NOTES.md` 后确认真实问题不是 build entrypoint 缺失，而是 release binary path 只被 acceptance caller 消费，公开源码构建文档仍假定 `./bin/fpdev`
+  - 新增 RED contracts：
+    - `tests/test_release_scripts_contract.py`
+    - `tests/test_official_docs_cli_contract.py`
+    - `tests/test_release_docs_contract.py`
+    - 锁定 canonical report file 与 public source-build docs 的消费方式
+  - 实现 canonical path reporting：
+    - `scripts/build_release.sh` 新增 `logs/release_build/latest-release-bin-path.txt`
+    - `write_release_bin_path(...)` 总是写 canonical report file
+    - `FPDEV_RELEASE_BIN_PATH_FILE` 继续作为额外 caller-specific output
+  - 同步 public source-build docs：
+    - `README.md`
+    - `README.en.md`
+    - `FAQ.md`
+    - `docs/FAQ.md`
+    - `docs/FAQ.en.md`
+    - `docs/INSTALLATION.md`
+    - `docs/INSTALLATION.en.md`
+    - `RELEASE_NOTES.md`
+    - 均改为读取 `logs/release_build/latest-release-bin-path.txt` 后再调用发布二进制
+  - Additional truth-sync:
+    - 根 `FAQ.md` 不再直接展示 `lazbuild -B fpdev.lpi`
+    - 根 `FAQ.md` clone URL 统一到 `https://github.com/dtamade/fpdev.git`
+  - Verification completed:
+    - `python3 -m unittest tests.test_release_scripts_contract tests.test_official_docs_cli_contract tests.test_release_docs_contract -v` → `42/42`
+    - `python3 -m unittest tests.test_contributor_docs_contract tests.test_readme_testing_contract -v` → `33/33`
+    - `bash -n scripts/build_release.sh` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (release packaging consolidation wave)
 
 ### Phase 124: Release Packaging Consolidation

@@ -128,8 +128,11 @@ cd fpdev
 bash scripts/build_release.sh
 
 # Verify
-./bin/fpdev system version
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
+
+`build_release.sh` always writes `logs/release_build/latest-release-bin-path.txt`. If the repo `bin/` or `lib/` directories are not writable, that file automatically points at the real release binary inside the fallback build root.
 
 ### Method 3: Package Manager Installation (Planned)
 

@@ -16,6 +16,7 @@ RELEASE_ACCEPTANCE_SCRIPT = REPO_ROOT / 'scripts' / 'release_acceptance_linux.sh
 BUILD_RELEASE_SCRIPT = REPO_ROOT / 'scripts' / 'build_release.sh'
 CHECK_TOOLCHAIN_SCRIPT = REPO_ROOT / 'scripts' / 'check_toolchain.sh'
 CHECK_TOOLCHAIN_BAT = REPO_ROOT / 'scripts' / 'check_toolchain.bat'
+DEFAULT_RELEASE_BIN_REPORT = 'logs/release_build/latest-release-bin-path.txt'
 
 
 class ReleaseScriptsContractTests(unittest.TestCase):
@@ -101,10 +102,11 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('--build-mode=Release', text)
         self.assertIn('fpdev.lpi', text)
 
-    def test_release_build_script_reports_actual_release_binary_path_when_requested(self):
+    def test_release_build_script_reports_actual_release_binary_path_via_canonical_and_override_files(self):
         text = BUILD_RELEASE_SCRIPT.read_text(encoding='utf-8')
         self.assertIn('FPDEV_RELEASE_BIN_PATH_FILE', text)
         self.assertIn('FPDEV_RELEASE_BUILD_ROOT', text)
+        self.assertIn(DEFAULT_RELEASE_BIN_REPORT, text)
 
     def test_toolchain_check_script_validates_lazarus_root_for_release_builds(self):
         self.assertTrue(CHECK_TOOLCHAIN_SCRIPT.exists(), f'Missing {CHECK_TOOLCHAIN_SCRIPT}')

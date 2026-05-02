@@ -128,8 +128,11 @@ cd fpdev
 bash scripts/build_release.sh
 
 # 验证
-./bin/fpdev system version
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
+
+`build_release.sh` 会始终写出 `logs/release_build/latest-release-bin-path.txt`。如果仓库内 `bin/` 或 `lib/` 不可写，该文件会自动指向 fallback build root 中的真实发布二进制。
 
 ### 方法三：包管理器安装 (计划中)
 

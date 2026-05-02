@@ -7,11 +7,15 @@ Usage: scripts/build_release.sh [--help]
 
 Build FPDev in Release mode using a shared maintainer entrypoint.
 
+Default output:
+  logs/release_build/latest-release-bin-path.txt
+      Canonical report file for the resolved release binary path
+
 Environment overrides:
   FPDEV_LAZBUILD_BIN          Override the lazbuild executable path
   FPDEV_LAZARUSDIR            Override the Lazarus root directory (must contain lcl/)
   FPDEV_RELEASE_BUILD_ROOT    Override the writable fallback build workspace root
-  FPDEV_RELEASE_BIN_PATH_FILE Write the resolved release binary path to this file
+  FPDEV_RELEASE_BIN_PATH_FILE Also write the resolved release binary path to this file
 EOF
 }
 
@@ -32,6 +36,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LAZBUILD_BIN="${FPDEV_LAZBUILD_BIN:-$(command -v lazbuild || true)}"
+DEFAULT_RELEASE_BIN_PATH_FILE="${REPO_ROOT}/logs/release_build/latest-release-bin-path.txt"
 
 if [[ -z "${LAZBUILD_BIN}" ]]; then
   echo "[FAIL] lazbuild not found on PATH" >&2
@@ -54,15 +59,22 @@ PY
   printf '%s\n' "$input_path"
 }
 
+write_release_bin_path_file() {
+  local output_path="$1"
+  local bin_path="$2"
+
+  mkdir -p "$(dirname "${output_path}")"
+  printf '%s\n' "${bin_path}" > "${output_path}"
+}
+
 write_release_bin_path() {
   local bin_path="$1"
 
-  if [[ -z "${FPDEV_RELEASE_BIN_PATH_FILE:-}" ]]; then
-    return 0
-  fi
+  write_release_bin_path_file "${DEFAULT_RELEASE_BIN_PATH_FILE}" "${bin_path}"
 
-  mkdir -p "$(dirname "${FPDEV_RELEASE_BIN_PATH_FILE}")"
-  printf '%s\n' "${bin_path}" > "${FPDEV_RELEASE_BIN_PATH_FILE}"
+  if [[ -n "${FPDEV_RELEASE_BIN_PATH_FILE:-}" && "${FPDEV_RELEASE_BIN_PATH_FILE}" != "${DEFAULT_RELEASE_BIN_PATH_FILE}" ]]; then
+    write_release_bin_path_file "${FPDEV_RELEASE_BIN_PATH_FILE}" "${bin_path}"
+  fi
 }
 
 detect_lazarus_dir() {
@@ -136,4 +148,5 @@ echo "+ ${BUILD_CMD[*]}"
 )
 
 write_release_bin_path "${RELEASE_BIN_PATH}"
+echo "[INFO] Release binary path file: ${DEFAULT_RELEASE_BIN_PATH_FILE}"
 echo "[INFO] Release binary: ${RELEASE_BIN_PATH}"

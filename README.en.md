@@ -54,8 +54,11 @@
 git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
-./bin/fpdev system version
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
+
+`build_release.sh` always writes the resolved binary path to `logs/release_build/latest-release-bin-path.txt`; when the repo `bin/` directory is not writable, that file points at the fallback build root automatically.
 
 ### 2. Install FPC Compiler
 

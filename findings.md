@@ -1,5 +1,31 @@
 # Findings & Decisions
 
+## 2026-05-02 Release Build Path Reporting Truth Sync Wave
+- 当前 release build path 的真实问题已经从“构建入口不统一”转成了“真实二进制路径只对脚本调用者可见，对公开文档不可见”：
+  - `scripts/build_release.sh` 只在调用者显式设置 `FPDEV_RELEASE_BIN_PATH_FILE` 时写路径文件
+  - `scripts/release_acceptance_linux.sh` 已经消费这条真相
+  - 但 `README*`、`FAQ*`、`INSTALLATION*`、`RELEASE_NOTES.md` 仍把 `bash scripts/build_release.sh` 后的下一步写成 `./bin/fpdev ...`
+- 这在 repo `bin/` / `lib/` 不可写、脚本切到 fallback build root 时会产生公开文档漂移；因此本轮正确切口不是再改 acceptance，而是把 shared build entrypoint 的路径报告面公开化并文档化。
+- 本轮实现：
+  - `scripts/build_release.sh` 新增稳定的默认 report file：
+    - `logs/release_build/latest-release-bin-path.txt`
+  - `write_release_bin_path(...)` 现在总会写 canonical report file
+  - `FPDEV_RELEASE_BIN_PATH_FILE` 保留为额外 caller-specific output，不破坏 `scripts/release_acceptance_linux.sh` 现有行为
+  - `README.md`、`README.en.md`、`FAQ.md`、`docs/FAQ.md`、`docs/FAQ.en.md`、`docs/INSTALLATION.md`、`docs/INSTALLATION.en.md`、`RELEASE_NOTES.md` 都改为读取 canonical path file，再执行 `system version` / `system help`
+- 额外真相同步：
+  - 根 `FAQ.md` 的源码构建示例从直接 `lazbuild -B fpdev.lpi` 切回 shared entrypoint `bash scripts/build_release.sh`
+  - 根 `FAQ.md` 的 clone URL 与其他公开文档统一到 `https://github.com/dtamade/fpdev.git`
+- 新增 docs/script contracts 后，这条边界被持续锁定：
+  - `tests/test_release_scripts_contract.py` 要求 shared build entrypoint 明确包含 canonical report file
+  - `tests/test_official_docs_cli_contract.py` 要求当前 public source-build docs 读取 `logs/release_build/latest-release-bin-path.txt`
+  - `tests/test_release_docs_contract.py` 要求 `RELEASE_NOTES.md` 同步到同一消费方式
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_release_scripts_contract tests.test_official_docs_cli_contract tests.test_release_docs_contract -v` → `42/42`
+  - `python3 -m unittest tests.test_contributor_docs_contract tests.test_readme_testing_contract -v` → `33/33`
+  - `bash -n scripts/build_release.sh` → pass
+  - `git diff --check` → clean
+- 这条 wave 关闭后，`build_release.sh` / `release_acceptance_linux.sh` / public source-build docs 对 release binary path 的消费面已经统一；后续若再有 release docs drift，应优先指向 canonical path file，而不是重新引入 `./bin/fpdev` 假设。
+
 ## 2026-05-02 Release Packaging Consolidation Wave
 - 这条 wave 的真实问题不在 `scripts/package_release_assets.py`，而在其外层调用方式：
   - Linux release asset packaging 在 CI 里内联了一份 shell block

@@ -320,6 +320,25 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             text = path.read_text(encoding='utf-8')
             self.assertIn('bash scripts/build_release.sh', text, f'{path} should use the shared release build entrypoint')
 
+    def test_current_public_source_build_docs_use_reported_release_binary_path(self):
+        for path in [
+            REPO_ROOT / 'README.md',
+            REPO_ROOT / 'README.en.md',
+            REPO_ROOT / 'FAQ.md',
+            REPO_ROOT / 'docs' / 'FAQ.md',
+            REPO_ROOT / 'docs' / 'FAQ.en.md',
+            REPO_ROOT / 'docs' / 'INSTALLATION.md',
+            REPO_ROOT / 'docs' / 'INSTALLATION.en.md',
+        ]:
+            text = path.read_text(encoding='utf-8')
+            self.assertIn(
+                'logs/release_build/latest-release-bin-path.txt',
+                text,
+                f'{path} should read the reported release binary path',
+            )
+            self.assertNotIn('./bin/fpdev system version', text, f'{path} should not assume ./bin/fpdev after build_release')
+            self.assertNotIn('./bin/fpdev system help', text, f'{path} should not assume ./bin/fpdev after build_release')
+
 
 if __name__ == '__main__':
     unittest.main()

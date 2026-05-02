@@ -14,8 +14,11 @@ This document answers common questions about using FPDev.
 git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
-./bin/fpdev system help
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system help
 ```
+
+`build_release.sh` writes the resolved release binary path to `logs/release_build/latest-release-bin-path.txt`, so the documented flow still works when the repo `bin/` directory is not writable and the build falls back to a temporary workspace.
 
 ### Q: What dependencies are required?
 

@@ -54,8 +54,11 @@
 git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
-./bin/fpdev system version
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system version
 ```
+
+`build_release.sh` 会始终把本次解析到的真实二进制路径写入 `logs/release_build/latest-release-bin-path.txt`；当仓库内 `bin/` 不可写时，这里会自动指向 fallback build root。
 
 ### 2. 安装 FPC 编译器
 

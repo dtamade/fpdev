@@ -14,8 +14,11 @@
 git clone https://github.com/dtamade/fpdev.git
 cd fpdev
 bash scripts/build_release.sh
-./bin/fpdev system help
+release_bin="$(cat logs/release_build/latest-release-bin-path.txt)"
+"$release_bin" system help
 ```
+
+`build_release.sh` 会把解析到的真实二进制路径写入 `logs/release_build/latest-release-bin-path.txt`，因此即使仓库内 `bin/` 不可写，也能继续消费 fallback build root 中的发布二进制。
 
 ### Q: 需要哪些依赖？
 

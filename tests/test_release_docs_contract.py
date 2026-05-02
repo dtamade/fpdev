@@ -67,6 +67,11 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('bash scripts/build_release.sh', text)
         self.assertNotIn('lazbuild -B --build-mode=Release fpdev.lpi', text)
 
+    def test_release_notes_use_reported_release_binary_path(self):
+        text = RELEASE_NOTES.read_text(encoding='utf-8')
+        self.assertIn('logs/release_build/latest-release-bin-path.txt', text)
+        self.assertNotIn('./bin/fpdev system version', text)
+
     def test_roadmap_points_to_final_delivery_route_and_owner_checkpoint_docs(self):
         text = ROADMAP.read_text(encoding='utf-8')
         self.assertIn('docs/plans/2026-04-08-final-delivery-route.md', text)
