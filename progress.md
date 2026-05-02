@@ -1,5 +1,44 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations identityflow wave)
+
+### Phase 129: Git Operations Identityflow Seam
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `docs/plans/2026-05-02-git-operations-identityflow-wave.md` 与 `src/fpdev.git.operations.impl.pas`，确认 seam 是真的：
+    - `CommitWithLibgit2` 内联 repo/default config + env fallback + signature creation
+    - `PullWithLibgit2` 的 diverged merge path 内联 repo/default/local config + env fallback + signature creation
+    - credential transport wiring 不在这条 seam 内，本轮保持不动
+  - 先写 RED boundary：
+    - `tests/test_git_runtime_boundary.py` 改为要求 `src/fpdev.git.operations.identityflow.pas` 存在
+    - 要求 `fpdev.git.operations.impl.pas` 不再直接调用 `ResolveGitIdentityEnv` / `git_signature_now`
+    - 要求 public facade `src/fpdev.git.operations.pas` 不暴露 internal helper
+  - 新增 focused Pascal runner：
+    - `tests/test_git_operations_identityflow.lpr`
+    - `tests/test_git_operations_identityflow.lpi`
+    - 覆盖 local `.git/config`、env fallback、committer fallback、missing identity 与 signature creation
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.identityflow.pas`
+    - 提供 `TryResolveGitOperationIdentity(...)`
+    - 提供 `TryCreateGitOperationSignatures(...)`
+    - 保持 commit path 不启用 local config fallback，pull merge path 保留 local config fallback
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - `CommitWithLibgit2` 改为委托 identityflow
+    - `PullWithLibgit2` 的 diverged merge path 改为委托 identityflow
+  - 过程中的两处真实阻塞：
+    - focused signature test 初版直接调用 `git_signature_now` 时缺少 `git_libgit2_init`，补初始化后恢复
+    - `run_single_test.sh` 初版 build 失败并不是 helper 问题，而是新 focused runner 缺少 `.lpi` 且使用了未引入的 `cint`；补最小 `.lpi` 并改为 `Integer` 后与 repo 现有 focused 路径对齐
+  - 同步 current-state docs：
+    - `docs/GIT_OPERATIONS.md`
+    - `docs/GIT_OPERATIONS.en.md`
+    - 补上 `src/fpdev.git.operations.identityflow.pas` 与 `tests/test_git_operations_identityflow.lpr`
+  - Verification completed:
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `37/37`
+    - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (git module closeout wave)
 
 ### Phase 128: Git Module Closeout

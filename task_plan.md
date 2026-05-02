@@ -1,12 +1,36 @@
 # Task Plan
 
 ## Active Goal
-按 plan pack 持续清空当前高收益 backlog；Wave B 收口后，下一波转向 `fpdev.git.operations.impl` 的 identityflow seam。
+2026-05-02 的 plan pack 已全部收口；下一步应基于最新工作树 fresh re-rank 下一批高 ROI 波次，而不是机械重开旧 seam。
 
 ## Current Phase
-Phase 128 complete
+Phase 129 complete
 
 ## Active Phases
+### Phase 129: Git Operations Identityflow Seam
+- [x] 在 `tests/test_git_runtime_boundary.py` 增加 identityflow boundary RED：
+  - 要求存在 `src/fpdev.git.operations.identityflow.pas`
+  - 要求 `CommitWithLibgit2` / `PullWithLibgit2` 通过 helper 委托 identity/signature 准备
+  - 要求 `fpdev.git.operations` public facade 不暴露 internal helper
+- [x] 新增 focused Pascal runner：
+  - `tests/test_git_operations_identityflow.lpr`
+  - `tests/test_git_operations_identityflow.lpi`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.identityflow.pas`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - `CommitWithLibgit2` 改为委托 helper 处理 author/committer identity 与 signatures
+  - `PullWithLibgit2` 的 diverged-merge path 改为委托同一 helper，并保留 local `.git/config` fallback 语义
+- [x] 同步 current-state docs：
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave C 收口
+- **Status:** complete
+
 ### Phase 128: Git Module Closeout
 - [x] 在 `tests/test_git_runtime_boundary.py` 与 `tests/test_contributor_docs_contract.py` 增加 Git 模块总结文档 / TODO closeout 的 docs contracts
 - [x] 新增 current-state Git 模块总结文档：

@@ -8,6 +8,7 @@ RUNTIME_PATH = SRC / 'fpdev.git.runtime.pas'
 RUNTIME_IMPL_PATH = SRC / 'fpdev.git.runtime.impl.pas'
 OPERATIONS_PATH = SRC / 'fpdev.git.operations.pas'
 OPERATIONS_IMPL_PATH = SRC / 'fpdev.git.operations.impl.pas'
+OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -97,10 +98,64 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             1,
             'fpdev.git.operations.impl should use the shared git env helper in internal credential loading after compat wrapper removal',
         )
+
+    def test_operations_impl_delegates_identity_signature_setup_to_internal_identityflow(self):
+        self.assertTrue(
+            OPERATIONS_IDENTITYFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_IDENTITYFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_IDENTITYFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+        self.assertIn(
+            'function TryResolveGitOperationIdentity(',
+            helper_text,
+            'identityflow helper should own author/committer identity resolution',
+        )
+        self.assertIn(
+            'function TryCreateGitOperationSignatures(',
+            helper_text,
+            'identityflow helper should own libgit2 signature creation helpers',
+        )
+        self.assertIn(
+            'fpdev.git.env.ResolveGitIdentityEnv(',
+            helper_text,
+            'identityflow helper should be the place that consumes the shared identity env helper',
+        )
+        self.assertIn(
+            'git_signature_now(',
+            helper_text,
+            'identityflow helper should be the place that creates libgit2 signatures',
+        )
+        self.assertIn(
+            'fpdev.git.operations.identityflow',
+            impl_text,
+            'fpdev.git.operations.impl should import the internal identityflow helper',
+        )
         self.assertGreaterEqual(
-            text.count('fpdev.git.env.ResolveGitIdentityEnv('),
+            impl_text.count('TryResolveGitOperationIdentity('),
             2,
-            'fpdev.git.operations.impl should use the shared git env helper in internal commit flows after compat wrapper removal',
+            'CommitWithLibgit2 and PullWithLibgit2 should both delegate identity resolution to identityflow',
+        )
+        self.assertGreaterEqual(
+            impl_text.count('TryCreateGitOperationSignatures('),
+            2,
+            'CommitWithLibgit2 and PullWithLibgit2 should both delegate signature creation to identityflow',
+        )
+        self.assertNotIn(
+            'fpdev.git.env.ResolveGitIdentityEnv(',
+            impl_text,
+            'fpdev.git.operations.impl should stop loading identity env inline once identityflow exists',
+        )
+        self.assertNotIn(
+            'git_signature_now(',
+            impl_text,
+            'fpdev.git.operations.impl should stop creating libgit2 signatures inline once identityflow exists',
+        )
+        self.assertNotIn(
+            'fpdev.git.operations.identityflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; identityflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):

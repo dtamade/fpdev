@@ -19,6 +19,7 @@ Start with this:
   - `src/fpdev.git.types.pas`
   - `src/fpdev.git.errors.pas`
   - `src/fpdev.git.env.pas`
+  - `src/fpdev.git.operations.identityflow.pas`
   - `src/fpdev.git.runtime.pas`
   - `src/fpdev.git.runtime.impl.pas`
 
@@ -68,12 +69,14 @@ There are two focused test groups.
 ### System-git facade focused tests
 
 - `tests/test_git_operations.lpr`
+- `tests/test_git_operations_identityflow.lpr`
 - `tests/test_git_env_identity.lpr`
 - `tests/test_git_env_credentials.lpr`
 
 These lock:
 
 - the default `fpdev.git.operations` facade behavior
+- the current internal identity/signature helper behavior
 - environment-based credential and identity resolution
 - the lightweight shared helper surfaces
 

@@ -1,5 +1,36 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Identityflow Seam
+- 这条 wave 的前提判断成立：`src/fpdev.git.operations.impl.pas` 里真正重复、且能独立收口的不是 transport callback，而是 identity/signature 准备逻辑：
+  - `CommitWithLibgit2` 内联 repo/default config + env fallback + `git_signature_now`
+  - `PullWithLibgit2` 的 diverged merge path 内联 repo/default/local config + env fallback + `git_signature_now`
+- 因此本轮只抽一个 internal helper，不扩大 public surface：
+  - 新增 `src/fpdev.git.operations.identityflow.pas`
+  - `src/fpdev.git.operations.pas` 继续保持唯一 public facade，不重导出 helper
+- 这个 helper 当前承接的真相边界是：
+  - repo/default config identity lookup
+  - pull merge path 需要的 local `.git/config` fallback
+  - env fallback via `fpdev.git.env.ResolveGitIdentityEnv`
+  - committer fallback to author
+  - libgit2 signature creation
+- 一个关键保守决策是保留两条调用路径的细粒度差异：
+  - commit path 调 helper 时不启用 local config fallback
+  - pull merge path 调 helper 时继续启用 local config fallback
+  - 这样做避免把“只是抽 helper”变成潜在行为改动
+- focused Pascal runner 也暴露出两条仓库级工程事实：
+  - 直接测 `git_signature_now` 时需要显式 `git_libgit2_init`
+  - 新 focused runner 若想稳定接入 `run_single_test.sh`，应补最小 `.lpi`，不要只靠手工 `fpc -Fu./tests ...`
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `37/37`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `git diff --check` → clean
+- 到这里，2026-05-02 的 3 条主线都已收口：
+  - Wave A：cross-platform release proof path parity
+  - Wave B：git module closeout
+  - Wave C：git operations identityflow seam
+- 下一个合理动作不再是机械继续拆同一单元，而是基于最新工作树 fresh re-rank 下一批高 ROI 波次。
+
 ## 2026-05-02 Git Module Closeout
 - 这条 wave 的真实缺口不是 Git 实现继续重构，而是 Git 文档真相还有一个显式 backlog 没收：
   - `todo/git/todo.md` 仍保留 “产出模块总结性文档” 未完成项
