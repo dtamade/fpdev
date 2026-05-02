@@ -20,6 +20,7 @@
   - `src/fpdev.git.errors.pas`
   - `src/fpdev.git.env.pas`
   - `src/fpdev.git.operations.identityflow.pas`
+  - `src/fpdev.git.operations.transportflow.pas`
   - `src/fpdev.git.runtime.pas`
   - `src/fpdev.git.runtime.impl.pas`
 
@@ -70,6 +71,7 @@
 
 - `tests/test_git_operations.lpr`
 - `tests/test_git_operations_identityflow.lpr`
+- `tests/test_git_operations_transportflow.lpr`
 - `tests/test_git_env_identity.lpr`
 - `tests/test_git_env_credentials.lpr`
 
@@ -77,6 +79,7 @@
 
 - `fpdev.git.operations` 的默认 facade 语义
 - internal identity/signature helper 的当前行为
+- internal transport credential/options helper 的当前行为
 - environment-based credential / identity resolution
 - 轻量 shared helper 是否继续按当前真相工作
 

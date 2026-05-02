@@ -1,12 +1,32 @@
 # Task Plan
 
 ## Active Goal
-`fpdev.git.operations.impl` 中重复的 transport credential / options-init glue 已收口到 internal `fpdev.git.operations.transportflow`；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 或新的 RED 时再开波次，而不是机械重开刚完成的 `git operations` / `build.cache` / `toolchain` / `index` / `fpc.source` seam。
+Git 总览文档已经同步记录 `transportflow` helper 与 focused runner；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 或新的 RED 时再开波次，而不是机械重开刚完成的 `git operations` / `build.cache` / `toolchain` / `index` / `fpc.source` seam。
 
 ## Current Phase
-Phase 142 complete
+Phase 143 complete
 
 ## Active Phases
+### Phase 143: Git Operations Docs Transportflow Truth Sync
+- [x] fresh re-rank 后不强开新的 helper seam，先识别上一波遗留的真实 closeout 漂移：
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+  - 仍未记录 `src/fpdev.git.operations.transportflow.pas` 与 `tests/test_git_operations_transportflow.lpr`
+- [x] 锁定本轮只做文档/边界 truth-sync，不扩成新的实现重构
+- [x] 同步 Git 总览文档：
+  - supporting helper units 增加 `src/fpdev.git.operations.transportflow.pas`
+  - system-git focused tests 增加 `tests/test_git_operations_transportflow.lpr`
+  - helper behavior 描述补 transport credential/options helper
+- [x] 收紧文档边界测试：
+  - `tests/test_git_runtime_boundary.py` 现在要求两份 Git 总览文档包含 `transportflow` helper 与 focused runner
+- [x] 运行 focused docs verification：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `python3 -m unittest tests.test_contributor_docs_contract -v`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 docs truth-sync
+- **Status:** complete
+
 ### Phase 142: Git Operations Transportflow Wave
 - [x] 在 `identityflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 clone/fetch/pull/push 共用的 transport credential payload / callback / options-init glue，而不是继续泛化重构整个 git 实现
 - [x] 新增执行计划：

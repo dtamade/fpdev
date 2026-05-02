@@ -1,5 +1,37 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations docs transportflow truth sync)
+
+### Phase 143: Git Operations Docs Transportflow Truth Sync
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `refactor(git): extract transportflow helper` 提交后重新做 fresh re-rank，没有强开新的 helper wave。
+  - 识别出当前最真实的 closeout drift：
+    - `docs/GIT_OPERATIONS.md`
+    - `docs/GIT_OPERATIONS.en.md`
+    - 仍未写入 `src/fpdev.git.operations.transportflow.pas`
+    - 仍未列出 `tests/test_git_operations_transportflow.lpr`
+  - 收口文档真相：
+    - supporting helper units 增加 `src/fpdev.git.operations.transportflow.pas`
+    - system-git focused tests 增加 `tests/test_git_operations_transportflow.lpr`
+    - helper behavior 说明补 transport credential/options helper
+  - 收紧边界测试：
+    - `tests/test_git_runtime_boundary.py` 现在要求两份 Git 总览文档包含 `transportflow` helper 与 focused runner
+  - Verification completed:
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `38 passed`
+    - `python3 -m unittest tests.test_contributor_docs_contract -v` → `33 passed`
+- Files created/modified:
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+  - `tests/test_git_runtime_boundary.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 本轮是纯文档/测试真相同步，没有新增生产代码改动
+  - 下一步若继续推进，应重新寻找新的真实 seam，而不是继续围绕 Git 文档做局部修补
+
 ## Session: 2026-05-02 (git operations transportflow wave)
 
 ### Phase 142: Git Operations Transportflow Wave

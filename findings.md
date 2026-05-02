@@ -1,5 +1,21 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Docs Transportflow Truth Sync
+- 在 `transportflow` helper 提交之后，当前最真实的剩余问题不是新的代码 seam，而是 Git 总览文档真相滞后：
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+  - supporting helper units 仍只写到 `identityflow`
+  - focused tests 列表还没把 `tests/test_git_operations_transportflow.lpr` 收进去
+- 这类 drift 的 blast radius 很低，但如果不补，会让下一轮读文档或看边界测试的人拿到过期模块图。
+- 因此本轮的最小正确动作不是再拆 `git.operations.impl`，而是做一个纯 truth-sync closeout：
+  - 文档明确 `src/fpdev.git.operations.transportflow.pas` 是当前 internal helper surface 的一部分
+  - focused tests 明确包含 `tests/test_git_operations_transportflow.lpr`
+  - `tests/test_git_runtime_boundary.py` 继续把两份 Git 总览文档锁到当前真相
+- focused docs verification 已证明这只是叙事同步，没有引入其它回退：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `38/38`
+  - `python3 -m unittest tests.test_contributor_docs_contract -v` → `33/33`
+- 到这里，`git operations` 这条线的代码和说明文档都对齐了；下一步如果继续推进，应重新寻找新的真实 helper seam，而不是围绕刚收口的 Git 文档继续打转。
+
 ## 2026-05-02 Git Operations Transportflow Wave
 - `src/fpdev.git.operations.impl.pas` 在 `identityflow` 收口之后，剩余最像独立 internal helper seam 的不是 push/pull 核心逻辑，而是 clone/fetch/pull/push 共享的 transport credential glue：
   - credential payload record

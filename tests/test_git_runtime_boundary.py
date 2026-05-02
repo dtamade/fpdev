@@ -527,7 +527,9 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
                 'src/fpdev.git.operations.impl.pas',
                 'git2.api + git2.impl',
                 'fpdev.git2',
+                'src/fpdev.git.operations.transportflow.pas',
                 'tests/test_git_operations.lpr',
+                'tests/test_git_operations_transportflow.lpr',
                 'tests/fpdev.git2.modern/',
             ),
             GIT_OPERATIONS_EN_MD: (
@@ -535,7 +537,9 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
                 'src/fpdev.git.operations.impl.pas',
                 'git2.api + git2.impl',
                 'fpdev.git2',
+                'src/fpdev.git.operations.transportflow.pas',
                 'tests/test_git_operations.lpr',
+                'tests/test_git_operations_transportflow.lpr',
                 'tests/fpdev.git2.modern/',
             ),
         }
