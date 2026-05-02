@@ -1,5 +1,25 @@
 # Findings & Decisions
 
+## 2026-05-02 Throughput Plan Pack V3 Refresh
+- 这次重新排波次时，不应该继续沿着刚收口完的 Git seam 做“再拆一点”的惯性推进；当前更高 ROI 的动作是把下一批真正可执行的 helper-wave 一次性规划好。
+- fresh hotspot 里最值得继续推进的是 3 个点：
+  - `src/fpdev.version.registry.pas`：`Reload` / `LoadFromJSON` / `LoadDefaults` / `Parse*` 和 singleton/query API 混在一起，且下游测试成熟，适合先做 loader/default seam
+  - `src/fpdev.package.registry.pas`：query/read methods 与 index mutation/lifecycle methods 并存，queryflow 有天然切口
+  - `src/fpdev.cross.downloader.pas`：verification、`ld --version` 探测、metadata writeback、metadata JSON reload 形成一个清晰但略高耦合的 verification slice
+- 本轮没有把 `src/fpdev.lazarus.config.pas` 或 `docs/LIBGIT2_INTEGRATION*.md` 放进新 pack，原因很直接：
+  - 前者虽然不小，但 getter/setter 与配置持有逻辑较多，当前没有像 A/B/C 这么清晰的 3-5 方法 seam
+  - 后者更多是文档/愿景层 backlog，不是这轮“马上能连续实施”的主线
+- 因此 Phase 130 的策略不是立刻改代码，而是先把下一批执行边界写死：
+  - `docs/plans/2026-05-02-throughput-plan-pack-v3.md`
+  - `docs/plans/2026-05-02-version-registry-loader-wave.md`
+  - `docs/plans/2026-05-02-package-registry-queryflow-wave.md`
+  - `docs/plans/2026-05-02-cross-downloader-verificationflow-wave.md`
+- 新 pack 的关键约束是：
+  - 每波都必须先有 Python boundary RED 和 Pascal focused RED
+  - 若 seam 审核失败，就记录 no-go checkpoint，而不是为了“继续”硬开更大重构
+  - 若要提高吞吐，最适合并行的是 Wave A + Wave B；Wave C 更适合单独 worktree
+- 这轮收口是 planning-only closeout，没有重新跑生产测试矩阵；当前只需要保证计划文件与根 planning files 自洽，并保持工作树文本层 clean。
+
 ## 2026-05-02 Git Operations Identityflow Seam
 - 这条 wave 的前提判断成立：`src/fpdev.git.operations.impl.pas` 里真正重复、且能独立收口的不是 transport callback，而是 identity/signature 准备逻辑：
   - `CommitWithLibgit2` 内联 repo/default config + env fallback + `git_signature_now`

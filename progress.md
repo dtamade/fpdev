@@ -1,5 +1,31 @@
 # Progress Log
 
+## Session: 2026-05-02 (throughput plan pack v3 refresh)
+
+### Phase 130: Throughput Plan Pack V3 Refresh
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核当前工作树与最新收口状态，确认 `main` 干净，`2026-05-02` 的 Wave A/B/C 已全部完成，不需要再围绕 Git seam 做补丁式续写
+  - 结合 fresh hotspot 结果重新筛选下一批候选：
+    - `src/fpdev.version.registry.pas`：`Reload` / `LoadFromJSON` / `LoadDefaults` / `Parse*` 与查询 API 混居
+    - `src/fpdev.package.registry.pas`：query/read surface 与 lifecycle/mutation surface 并存
+    - `src/fpdev.cross.downloader.pas`：verification / metadata writeback / JSON reload 仍内联
+  - 明确放弃继续重开已完成的 Git / release docs closeout，避免再次回到低吞吐的微型收口节奏
+  - 新增 1 份总计划：
+    - `docs/plans/2026-05-02-throughput-plan-pack-v3.md`
+  - 新增 3 份子计划：
+    - `docs/plans/2026-05-02-version-registry-loader-wave.md`
+    - `docs/plans/2026-05-02-package-registry-queryflow-wave.md`
+    - `docs/plans/2026-05-02-cross-downloader-verificationflow-wave.md`
+  - 在总计划里明确执行关系：
+    - Wave A / Wave B 可并行
+    - Wave C 更适合单独 worktree 或顺序执行
+    - 每波先写 Python boundary RED + focused Pascal RED，再决定是否落 helper
+  - 同步 `task_plan.md` / `findings.md` / `progress.md`，把 repo 入口切到新的 Phase 130
+  - Verification completed:
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (git operations identityflow wave)
 
 ### Phase 129: Git Operations Identityflow Seam

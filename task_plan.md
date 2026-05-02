@@ -1,12 +1,32 @@
 # Task Plan
 
 ## Active Goal
-2026-05-02 的 plan pack 已全部收口；下一步应基于最新工作树 fresh re-rank 下一批高 ROI 波次，而不是机械重开旧 seam。
+按 2026-05-02 throughput plan pack v3 连续执行下一批高 ROI 波次：先做 version-registry loader/default seam，再做 package-registry queryflow，最后视 seam 审核结果推进 cross-downloader verificationflow。
 
 ## Current Phase
-Phase 129 complete
+Phase 130 complete
 
 ## Active Phases
+### Phase 130: Throughput Plan Pack V3 Refresh
+- [x] 基于最新干净工作树重新评估下一批可执行主线，避免继续回到“单个微小 truth-sync”节奏
+- [x] 复核当前候选热点与 blast radius：
+  - `src/fpdev.version.registry.pas`
+  - `src/fpdev.package.registry.pas`
+  - `src/fpdev.cross.downloader.pas`
+- [x] 在 `docs/plans/` 落盘新的总计划：
+  - `docs/plans/2026-05-02-throughput-plan-pack-v3.md`
+- [x] 落盘 3 条新的子计划：
+  - `docs/plans/2026-05-02-version-registry-loader-wave.md`
+  - `docs/plans/2026-05-02-package-registry-queryflow-wave.md`
+  - `docs/plans/2026-05-02-cross-downloader-verificationflow-wave.md`
+- [x] 明确依赖与并行关系：
+  - Wave A：version-registry loader/default seam
+  - Wave B：package-registry queryflow seam
+  - Wave C：cross-downloader verificationflow seam
+  - 建议并行：Wave A + Wave B；Wave C 单独 worktree 或顺序执行
+- [x] 同步根 planning files 并准备提交本轮 plan-pack refresh
+- **Status:** complete
+
 ### Phase 129: Git Operations Identityflow Seam
 - [x] 在 `tests/test_git_runtime_boundary.py` 增加 identityflow boundary RED：
   - 要求存在 `src/fpdev.git.operations.identityflow.pas`
