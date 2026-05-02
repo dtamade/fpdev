@@ -1,5 +1,55 @@
 # Progress Log
 
+## Session: 2026-05-02 (package registry queryflow wave)
+
+### Phase 132: Package Registry Queryflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `src/fpdev.package.registry.pas` 后确认 query seam 成立：
+    - `GetPackageMetadata(...)`
+    - `GetPackageVersions(...)`
+    - `HasPackage(...)`
+    - `HasPackageVersion(...)`
+    - `GetPackageArchive(...)`
+    - `ListPackages`
+    - `SearchPackages(...)`
+    - 这一组都是纯读逻辑，只依赖 `FIndex` 与 `FRegistryPath`
+  - 保持不动的边界也很清楚：
+    - `LoadIndex` / `SaveIndex` / `Initialize`
+    - `ExtractPackageInfo`
+    - `AddPackage(...)`
+    - `RemovePackage(...)`
+    - `FLastError` ownership
+  - 先写 RED：
+    - 新增 `tests/test_package_registry_boundary.py`
+    - 新增 `tests/test_package_registry_queryflow.lpr`
+    - 新增 `tests/test_package_registry_queryflow.lpi`
+    - Python RED 命中的是 query methods 仍内联；Pascal RED 命中的是 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.package.registry.queryflow.pas`
+    - 提供 `GetPackageMetadataCore(...)`
+    - 提供 `GetPackageVersionsCore(...)`
+    - 提供 `HasPackageCore(...)`
+    - 提供 `HasPackageVersionCore(...)`
+    - 提供 `GetPackageArchiveCore(...)`
+    - 提供 `ListPackagesCore(...)`
+    - 提供 `SearchPackagesCore(...)`
+  - 收缩 `src/fpdev.package.registry.pas`：
+    - 纯 query/read methods 全部改为 thin delegate
+    - `AddPackage(...)` / `RemovePackage(...)` 继续留在 class 内，只通过既有 query methods 复用 helper
+  - 一个关键保守决策是 helper 直接围绕 `TJSONObject` index 与 `RegistryPath` 工作：
+    - 不引入新的 registry facade 或 state record
+    - 不把 error state / mutation logic 拖进 helper
+  - Verification completed:
+    - `python3 -m unittest tests.test_package_registry_boundary -v` → `3/3`
+    - `bash scripts/run_single_test.sh tests/test_package_registry_queryflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_package_registry.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_package_search.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_package_publish.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_integration_e2e.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (version registry loader wave)
 
 ### Phase 131: Version Registry Loader Wave

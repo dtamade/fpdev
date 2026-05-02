@@ -1,5 +1,30 @@
 # Findings & Decisions
 
+## 2026-05-02 Package Registry Queryflow Wave
+- 这条 wave 的 seam 比 `version-registry` 还更直接：
+  - `src/fpdev.package.registry.pas` 的 query/read methods 只依赖 `FIndex` 和 `FRegistryPath`
+  - `LoadIndex` / `SaveIndex` / `Initialize` / `AddPackage` / `RemovePackage` 则承担状态变更和文件写入
+  - 因此只抽 queryflow，不碰 lifecycle/mutation，是最小且清晰的切口
+- 新 helper `src/fpdev.package.registry.queryflow.pas` 最终承接的是 7 个纯读函数：
+  - `GetPackageMetadataCore(...)`
+  - `GetPackageVersionsCore(...)`
+  - `HasPackageCore(...)`
+  - `HasPackageVersionCore(...)`
+  - `GetPackageArchiveCore(...)`
+  - `ListPackagesCore(...)`
+  - `SearchPackagesCore(...)`
+- 一个关键实现选择是 helper 直接吃 `TJSONObject` index，而不是造新的 registry state abstraction：
+  - 对这条 seam 来说，`TJSONObject` 已经是天然的 read model
+  - 这样可以避免为了“抽 helper”额外引入一层没有收益的 wrapper
+  - 也让 `AddPackage(...)` / `RemovePackage(...)` 继续通过 class-owned state 修改同一个 index，对调用方完全透明
+- focused regression 结果说明这个选择是成立的：
+  - `tests/test_package_registry.lpr`
+  - `tests/test_package_search.lpr`
+  - `tests/test_package_publish.lpr`
+  - `tests/test_integration_e2e.lpr`
+  - 全部保持绿色，说明 query helper 没有打坏 package runtime surface
+- 到这里 throughput plan pack v3 只剩 Wave C：`src/fpdev.cross.downloader.pas` verificationflow seam。它仍然比 A/B 更 stateful，开工前应先用 fresh clean-tree 再核一次 helper 边界。
+
 ## 2026-05-02 Version Registry Loader Wave
 - 这条 wave 的 seam 是真的，而且比最初计划还更干净：
   - `src/fpdev.version.registry.pas` 的 public query methods 只是读取 state

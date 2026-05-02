@@ -1,12 +1,43 @@
 # Task Plan
 
 ## Active Goal
-按 2026-05-02 throughput plan pack v3 继续执行下一批高 ROI 波次：Wave A `version-registry` 已收口，下一步进入 Wave B `package-registry` queryflow，再视 clean-tree 状态推进 Wave C `cross-downloader` verificationflow。
+按 2026-05-02 throughput plan pack v3 继续执行下一批高 ROI 波次：Wave A `version-registry` 与 Wave B `package-registry` 已收口；下一步在 fresh clean-tree 上进入 Wave C `cross-downloader` verificationflow。
 
 ## Current Phase
-Phase 131 complete
+Phase 132 complete
 
 ## Active Phases
+### Phase 132: Package Registry Queryflow Wave
+- [x] 为 `src/fpdev.package.registry.pas` 增加 boundary RED：
+  - 新增 `tests/test_package_registry_boundary.py`
+  - 要求 query/read methods 通过 `fpdev.package.registry.queryflow` 委托
+  - 要求 inline metadata/version/archive/search loops 不再留在 registry class
+- [x] 新增 focused Pascal runner：
+  - `tests/test_package_registry_queryflow.lpr`
+  - `tests/test_package_registry_queryflow.lpi`
+  - 覆盖 metadata clone、version list copy、archive lookup、case-insensitive search
+- [x] 新增 internal helper：
+  - `src/fpdev.package.registry.queryflow.pas`
+- [x] 收缩 `src/fpdev.package.registry.pas`：
+  - `GetPackageMetadata(...)`
+  - `GetPackageVersions(...)`
+  - `HasPackage(...)`
+  - `HasPackageVersion(...)`
+  - `GetPackageArchive(...)`
+  - `ListPackages`
+  - `SearchPackages(...)`
+  - 全部改为委托 helper，保留 add/remove/index lifecycle ownership
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_package_registry_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_package_registry_queryflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_package_registry.lpr`
+  - `bash scripts/run_single_test.sh tests/test_package_search.lpr`
+  - `bash scripts/run_single_test.sh tests/test_package_publish.lpr`
+  - `bash scripts/run_single_test.sh tests/test_integration_e2e.lpr`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave B 收口
+- **Status:** complete
+
 ### Phase 131: Version Registry Loader Wave
 - [x] 为 `src/fpdev.version.registry.pas` 增加 boundary RED：
   - 新增 `tests/test_version_registry_boundary.py`
