@@ -1,5 +1,34 @@
 # Findings & Decisions
 
+## 2026-05-02 Cross Downloader Verificationflow Wave
+- 这条 wave 的关键判断是：`src/fpdev.cross.downloader.pas` 里可以安全抽离的是 verification glue，不是 manifest/download 生命周期。
+  - `LoadManifest` / `RefreshManifest`
+  - `DetectHostPlatform`
+  - `SelectToolchainVariant`
+  - `DownloadBinutils` / `DownloadLibraries` / `InstallToolchain`
+  - 这些都仍然是 downloader-owned orchestration
+- 最终下沉到 `src/fpdev.cross.verifyflow.pas` 的，是 4 个 verification-specific helper：
+  - `VerifyCrossBinutilsInstallationCore(...)`
+  - `ExecuteCrossVersionCheckCore(...)`
+  - `UpdateCrossVerificationMetadataCore(...)`
+  - `LoadCrossMetadataJSONCore(...)`
+- 一个关键保守决策是 `VerifyInstallation(...)` 仍在 downloader 内完成 manifest / host / entry resolution，然后只把 install-dir 级别的 verification 交给 helper：
+  - 这样不会把 `FManifest` / `FLastError` / `GetInstallDir(...)` 等对象状态抽出 class
+  - 也避免 helper 反向拿 downloader 全对象，保持 API 还是以 pre-resolved inputs 为主
+- direct helper test 也验证了这条 seam 的两个容易回退的点：
+  - missing binaries 必须成组返回，而不是遇到第一个就提前退出
+  - metadata 写回必须能在已有文件损坏时自愈，重建为合法 JSON
+- focused regression 结果说明改动 blast radius 被控制住了：
+  - `tests/test_cross_downloader.lpr`
+  - `tests/test_cli_cross.lpr`
+  - `tests/test_temp_hygiene.py`
+  - 全部保持绿色
+- 到这里，2026-05-02 throughput plan pack v3 的 3 条主线都已收口：
+  - Wave A：`version-registry` loadflow
+  - Wave B：`package-registry` queryflow
+  - Wave C：`cross-downloader` verifyflow
+- 下一步不应该立刻沿着同一批 helper 再拆，而应先基于当前 clean tree fresh re-rank。
+
 ## 2026-05-02 Package Registry Queryflow Wave
 - 这条 wave 的 seam 比 `version-registry` 还更直接：
   - `src/fpdev.package.registry.pas` 的 query/read methods 只依赖 `FIndex` 和 `FRegistryPath`

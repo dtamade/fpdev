@@ -1,5 +1,40 @@
 # Progress Log
 
+## Session: 2026-05-02 (cross downloader verificationflow wave)
+
+### Phase 133: Cross Downloader Verificationflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `src/fpdev.cross.downloader.pas` 后确认 verification seam 成立：
+    - `VerifyInstallation(...)` 同时承担 manifest gating、entry selection、binary existence check、`ld --version` probe、metadata writeback
+    - 其中真正可抽离的是 verification-specific glue，而不是 manifest refresh / download orchestration
+  - 先写 RED：
+    - 新增 `tests/test_cross_downloader_boundary.py`
+    - 新增 `tests/test_cross_verifyflow.lpr`
+    - 新增 `tests/test_cross_verifyflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`，把新 focused runner 纳入 shared temp-helper contract
+    - Python RED 命中的是 downloader 仍内联 verification logic；Pascal RED 命中的是 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.cross.verifyflow.pas`
+    - 提供 `VerifyCrossBinutilsInstallationCore(...)`
+    - 提供 `ExecuteCrossVersionCheckCore(...)`
+    - 提供 `UpdateCrossVerificationMetadataCore(...)`
+    - 提供 `LoadCrossMetadataJSONCore(...)`
+  - 收缩 `src/fpdev.cross.downloader.pas`：
+    - 去掉 private `ExecuteVersionCheck` / `UpdateVerificationMetadata` / `LoadJSONFromFile`
+    - `VerifyInstallation(...)` 保留 manifest load、host detect、entry resolve、install-dir resolve
+    - verification-specific binary probe / metadata persistence 改为委托 helper
+  - 一个测试侧小修正是：
+    - `test_cross_verifyflow.lpr` 初版只 `uses fpdev.cross.verifyflow`
+    - 编译后发现 `TCrossVerificationResult` 仍需显式从 `fpdev.cross.downloader` 取类型定义，因此补上该 unit 引入
+  - Verification completed:
+    - `python3 -m unittest tests.test_cross_downloader_boundary tests.test_temp_hygiene -v` → `50/50`
+    - `bash scripts/run_single_test.sh tests/test_cross_verifyflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cross_downloader.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cli_cross.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (package registry queryflow wave)
 
 ### Phase 132: Package Registry Queryflow Wave

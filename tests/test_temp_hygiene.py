@@ -379,6 +379,18 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertNotIn('GetTempDir(False)', text)
         self.assertNotIn('procedure CleanupDir(', text)
 
+    def test_cross_verifyflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_cross_verifyflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateUniqueTempDir('test_cross_verifyflow_missing')", text)
+        self.assertIn("CreateUniqueTempDir('test_cross_verifyflow_version')", text)
+        self.assertIn("CreateUniqueTempDir('test_cross_verifyflow_metadata_new')", text)
+        self.assertIn("CreateUniqueTempDir('test_cross_verifyflow_metadata_invalid')", text)
+        self.assertIn('CleanupTempDir(TempRoot);', text)
+        self.assertNotIn('GetTempDir(False)', text)
+
     def test_cross_cache_uses_shared_temp_helpers(self):
         source_path = REPO_ROOT / 'tests' / 'test_cross_cache.lpr'
         text = source_path.read_text(encoding='utf-8')

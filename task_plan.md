@@ -1,12 +1,37 @@
 # Task Plan
 
 ## Active Goal
-按 2026-05-02 throughput plan pack v3 继续执行下一批高 ROI 波次：Wave A `version-registry` 与 Wave B `package-registry` 已收口；下一步在 fresh clean-tree 上进入 Wave C `cross-downloader` verificationflow。
+2026-05-02 throughput plan pack v3 已全部收口；下一步应基于最新干净工作树 fresh re-rank 下一批高 ROI 波次，而不是机械重开刚完成的 helper seam。
 
 ## Current Phase
-Phase 132 complete
+Phase 133 complete
 
 ## Active Phases
+### Phase 133: Cross Downloader Verificationflow Wave
+- [x] 为 `src/fpdev.cross.downloader.pas` 增加 boundary RED：
+  - 新增 `tests/test_cross_downloader_boundary.py`
+  - 要求 downloader 通过 `fpdev.cross.verifyflow` 委托 verification glue
+  - 要求 inline `ExecuteVersionCheck` / `UpdateVerificationMetadata` / `LoadJSONFromFile` 不再留在 downloader
+- [x] 新增 focused Pascal runner：
+  - `tests/test_cross_verifyflow.lpr`
+  - `tests/test_cross_verifyflow.lpi`
+  - 覆盖 missing binaries、version check first-line、metadata create/recover behavior
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.cross.verifyflow.pas`
+- [x] 收缩 `src/fpdev.cross.downloader.pas`：
+  - `VerifyInstallation(...)` 保留 manifest/host/entry resolution
+  - verification-specific probe / metadata / JSON reload 改为委托 helper
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_cross_downloader_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_cross_verifyflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cross_downloader.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cli_cross.lpr`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave C 收口
+- **Status:** complete
+
 ### Phase 132: Package Registry Queryflow Wave
 - [x] 为 `src/fpdev.package.registry.pas` 增加 boundary RED：
   - 新增 `tests/test_package_registry_boundary.py`

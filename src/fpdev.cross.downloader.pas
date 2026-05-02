@@ -5,7 +5,7 @@ unit fpdev.cross.downloader;
 interface
 
 uses
-  SysUtils, Classes, Process, fpjson, jsonparser,
+  SysUtils, Classes,
   fpdev.cross.manifest, fpdev.cross.cache, fpdev.toolchain.fetcher,
   fpdev.toolchain.extract;
 
@@ -75,10 +75,7 @@ type
     procedure ReportProgress(const AProgress: TDownloadProgress);
     function DownloadWithRetry(const AURLs: TStringDynArray; const ADestFile, ASHA256: string): Boolean;
     function SleepMS(AMilliseconds: Integer): Boolean;
-    function ExecuteVersionCheck(const ABinaryPath: string): string;
-    procedure UpdateVerificationMetadata(const ATarget, AVersion, ASHA256: string; AVerified: Boolean);
-    function LoadJSONFromFile(const APath: string): TJSONObject;
-    
+
   public
     constructor Create(const ADataRoot: string; const AManifestURL: string = '');
     destructor Destroy; override;
@@ -116,6 +113,9 @@ type
 function DefaultDownloadOptions: TDownloadOptions;
 
 implementation
+
+uses
+  fpdev.cross.verifyflow;
 
 function DefaultDownloadOptions: TDownloadOptions;
 begin
@@ -531,11 +531,7 @@ function TCrossToolchainDownloader.VerifyInstallation(const ATarget: string): TC
 var
   Host: THostPlatform;
   Entry: TCrossToolchainEntry;
-  InstallDir, BinDir, Prefix: string;
-  RequiredBins: array[0..2] of string;
-  i: Integer;
-  BinPath, LdPath: string;
-  VersionOutput: string;
+  InstallDir: string;
 begin
   Result.Success := False;
   Result.MissingBinaries := TStringList.Create;
@@ -560,176 +556,10 @@ begin
     Result.ErrorMessage := 'No binutils entry found for target ' + ATarget;
     Exit;
   end;
-  
+
   InstallDir := GetInstallDir(ATarget);
-  BinDir := InstallDir + 'bin' + PathDelim;
-
-  // Determine prefix from target (e.g., 'win64' -> 'x86_64-w64-mingw32-')
-  case LowerCase(ATarget) of
-    'win64': Prefix := 'x86_64-w64-mingw32-';
-    'win32': Prefix := 'i686-w64-mingw32-';
-    'linux64': Prefix := 'x86_64-linux-gnu-';
-    'linux32': Prefix := 'i686-linux-gnu-';
-  else
-    Prefix := ATarget + '-';
-  end;
-  
-  // Check for required binaries
-  RequiredBins[0] := 'ld';
-  RequiredBins[1] := 'as';
-  RequiredBins[2] := 'ar';
-  
-  for i := 0 to High(RequiredBins) do
-  begin
-    BinPath := BinDir + Prefix + RequiredBins[i];
-    {$IFDEF WINDOWS}
-    BinPath := BinPath + '.exe';
-    {$ENDIF}
-    
-    if not FileExists(BinPath) then
-      Result.MissingBinaries.Add(Prefix + RequiredBins[i]);
-  end;
-  
-  if Result.MissingBinaries.Count > 0 then
-  begin
-    Result.ErrorMessage := 'Missing binaries: ' + Result.MissingBinaries.CommaText;
-    Exit;
-  end;
-  
-  // Execute version check using ld --version
-  LdPath := BinDir + Prefix + 'ld';
-  {$IFDEF WINDOWS}
-  LdPath := LdPath + '.exe';
-  {$ENDIF}
-  
-  VersionOutput := ExecuteVersionCheck(LdPath);
-  if VersionOutput <> '' then
-    Result.VersionInfo := VersionOutput;
-  
-  // Update verification metadata
-  UpdateVerificationMetadata(ATarget, Entry.Version, Entry.SHA256, True);
-  
-  Result.Success := True;
-end;
-
-function TCrossToolchainDownloader.ExecuteVersionCheck(const ABinaryPath: string): string;
-var
-  Process: TProcess;
-  Output: TStringList;
-begin
-  Result := '';
-  
-  if not FileExists(ABinaryPath) then
-    Exit;
-  
-  Process := TProcess.Create(nil);
-  Output := TStringList.Create;
-  try
-    Process.Executable := ABinaryPath;
-    Process.Parameters.Add('--version');
-    Process.Options := [poUsePipes, poWaitOnExit, poNoConsole];
-    
-    try
-      Process.Execute;
-      Output.LoadFromStream(Process.Output);
-      if Output.Count > 0 then
-        Result := Output[0]; // First line typically contains version
-    except
-      // Ignore errors - version check is optional
-    end;
-  finally
-    Output.Free;
-    Process.Free;
-  end;
-end;
-
-procedure TCrossToolchainDownloader.UpdateVerificationMetadata(
-  const ATarget, AVersion, ASHA256: string;
-  AVerified: Boolean
-);
-var
-  MetaPath, InstallDir: string;
-  MetaJSON: TJSONObject;
-  BinutilsObj: TJSONObject;
-  F: TFileStream;
-  JSONStr: string;
-begin
-  InstallDir := GetInstallDir(ATarget);
-  MetaPath := InstallDir + '.fpdev-cross-meta.json';
-  
-  // Create or load existing metadata
-  MetaJSON := TJSONObject.Create;
-  try
-    if FileExists(MetaPath) then
-    begin
-      try
-        MetaJSON.Free;
-        MetaJSON := LoadJSONFromFile(MetaPath);
-      except
-        MetaJSON := TJSONObject.Create;
-      end;
-    end;
-    
-    // Update target
-    MetaJSON.Strings['target'] := ATarget;
-    
-    // Update installedAt if not present
-    if MetaJSON.IndexOfName('installedAt') < 0 then
-      MetaJSON.Strings['installedAt'] := FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', Now);
-    
-    // Create or update binutils section
-    if MetaJSON.IndexOfName('binutils') >= 0 then
-      BinutilsObj := MetaJSON.Objects['binutils']
-    else
-    begin
-      BinutilsObj := TJSONObject.Create;
-      MetaJSON.Objects['binutils'] := BinutilsObj;
-    end;
-    
-    BinutilsObj.Strings['version'] := AVersion;
-    BinutilsObj.Strings['sha256'] := ASHA256;
-    BinutilsObj.Booleans['verified'] := AVerified;
-    BinutilsObj.Strings['verifiedAt'] := FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', Now);
-    
-    // Write to file
-    ForceDirectories(ExtractFileDir(MetaPath));
-    JSONStr := MetaJSON.FormatJSON;
-    F := TFileStream.Create(MetaPath, fmCreate);
-    try
-      F.Write(JSONStr[1], Length(JSONStr));
-    finally
-      F.Free;
-    end;
-  finally
-    MetaJSON.Free;
-  end;
-end;
-
-function TCrossToolchainDownloader.LoadJSONFromFile(const APath: string): TJSONObject;
-var
-  F: TFileStream;
-  Parser: TJSONParser;
-  Data: TJSONData;
-begin
-  Result := nil;
-  F := TFileStream.Create(APath, fmOpenRead or fmShareDenyWrite);
-  try
-    Parser := TJSONParser.Create(F, []);
-    try
-      Data := Parser.Parse;
-      if Data is TJSONObject then
-        Result := TJSONObject(Data)
-      else
-      begin
-        Data.Free;
-        Result := TJSONObject.Create;
-      end;
-    finally
-      Parser.Free;
-    end;
-  finally
-    F.Free;
-  end;
+  Result.MissingBinaries.Free;
+  Result := VerifyCrossBinutilsInstallationCore(InstallDir, ATarget, Entry.Version, Entry.SHA256);
 end;
 
 end.
