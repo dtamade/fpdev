@@ -1,12 +1,47 @@
 # Task Plan
 
 ## Active Goal
-`git operations` 已继续完成 `queryflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里的低 blast-radius helper seam，而不是再回到 docs-only truth-sync。
+`git operations` 已继续完成 `mutationflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里仍成组的低 blast-radius glue，而不是回到 docs-only truth-sync 或直接扩大到 merge/push 主体重构。
 
 ## Current Phase
-Phase 144 complete
+Phase 145 complete
 
 ## Active Phases
+### Phase 145: Git Operations Mutationflow Wave
+- [x] 在 `queryflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 public mutation surface，而不是继续扩大到 merge/push 主体逻辑
+- [x] 先写 RED 护栏：
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_mutationflow.lpr`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.mutationflow.pas`
+  - 承接：
+    - `ExecuteGitCheckoutSurfaceCore(...)`
+    - `ExecuteGitAddSurfaceCore(...)`
+    - `ExecuteGitCommitSurfaceCore(...)`
+    - `ExecuteGitPushSurfaceCore(...)`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - `Checkout(...)`
+  - `Add(...)`
+  - `Commit(...)`
+  - `Push(...)`
+  - 改为统一委托 `mutationflow` helper
+- [x] 补上 facade-local libgit2 bridge：
+  - `AddPathspecWithLibgit2(...)`
+  - 保持 `AddAllWithLibgit2(...)` / `CommitWithLibgit2(...)` / `PushWithLibgit2(...)` / `CheckoutWithLibgit2(...)` 继续留在 `impl`
+- [x] 运行 focused / boundary / regression verification：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr`
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 mutationflow wave
+- **Status:** complete
+
 ### Phase 144: Git Operations Queryflow Wave
 - [x] 在 `transportflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 read/query surface，而不是继续扩大到 merge/push 主体逻辑
 - [x] 接手并利用已写好的 RED 护栏：

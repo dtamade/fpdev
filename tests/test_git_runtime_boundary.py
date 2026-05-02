@@ -11,6 +11,7 @@ OPERATIONS_IMPL_PATH = SRC / 'fpdev.git.operations.impl.pas'
 OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
+OPERATIONS_MUTATIONFLOW_PATH = SRC / 'fpdev.git.operations.mutationflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -322,6 +323,66 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.queryflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; queryflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_mutation_surface_to_internal_mutationflow(self):
+        self.assertTrue(
+            OPERATIONS_MUTATIONFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_MUTATIONFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_MUTATIONFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+
+        checkout_section = impl_text.split(
+            'function TGitOperations.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.IsRepository(const APath: string): Boolean;', 1
+        )[0]
+        add_section = impl_text.split(
+            'function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.Commit(const ARepoPath, AMessage: string): Boolean;', 1
+        )[0]
+        commit_section = impl_text.split(
+            'function TGitOperations.Commit(const ARepoPath, AMessage: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;', 1
+        )[0]
+        push_section = impl_text.split(
+            'function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.GetVersion: string;', 1
+        )[0]
+
+        self.assertIn('function ExecuteGitCheckoutSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitAddSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitCommitSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitPushSurfaceCore(', helper_text)
+        self.assertIn('fpdev.git.operations.mutationflow', impl_text)
+
+        self.assertIn('ExecuteGitCheckoutSurfaceCore(', checkout_section)
+        self.assertNotIn('CliRefExists(', checkout_section)
+        self.assertNotIn("ExecuteGitCommand(['checkout'", checkout_section)
+        self.assertNotIn("ExecuteGitCli(['show-ref', '--verify', '--quiet'", checkout_section)
+
+        self.assertIn('ExecuteGitAddSurfaceCore(', add_section)
+        self.assertNotIn('git_repository_open(', add_section)
+        self.assertNotIn('git_index_add_all(', add_section)
+        self.assertNotIn("ExecuteGitCommand(['add', '-A']", add_section)
+
+        self.assertIn('ExecuteGitCommitSurfaceCore(', commit_section)
+        self.assertNotIn("ExecuteGitCommand(['commit', '-m', AMessage]", commit_section)
+        self.assertNotIn('Command-line git is required for commit; please install git', commit_section)
+
+        self.assertIn('ExecuteGitPushSurfaceCore(', push_section)
+        self.assertNotIn('BranchParam := GetCurrentBranch(ARepoPath);', push_section)
+        self.assertNotIn("ExecuteGitCommand(['push', RemoteName, BranchParam]", push_section)
+
+        self.assertNotIn(
+            'fpdev.git.operations.mutationflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; mutationflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):

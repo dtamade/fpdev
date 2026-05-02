@@ -1,5 +1,50 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations mutationflow wave)
+
+### Phase 145: Git Operations Mutationflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `queryflow` 收口后重新做 fresh re-rank，确认下一个仍然低 blast-radius 的切口不是 merge/push 主体，而是 `src/fpdev.git.operations.impl.pas` 里成组的 public mutation surface。
+  - 先写 RED 护栏：
+    - `tests/test_git_runtime_boundary.py`
+    - `tests/test_git_operations_mutationflow.lpr`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.mutationflow.pas`
+    - 提供 `ExecuteGitCheckoutSurfaceCore(...)`
+    - 提供 `ExecuteGitAddSurfaceCore(...)`
+    - 提供 `ExecuteGitCommitSurfaceCore(...)`
+    - 提供 `ExecuteGitPushSurfaceCore(...)`
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - `Checkout(...)`
+    - `Add(...)`
+    - `Commit(...)`
+    - `Push(...)`
+    - 改为统一委托 `mutationflow` helper
+  - 为 add pathspec 补 facade-local libgit2 bridge：
+    - 新增 `AddPathspecWithLibgit2(...)`
+    - 保持 `AddAllWithLibgit2(...)` / `CommitWithLibgit2(...)` / `PushWithLibgit2(...)` / `CheckoutWithLibgit2(...)` 继续留在 `impl`
+  - Verification completed:
+    - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr` → pass
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `40 passed`
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `src/fpdev.git.operations.mutationflow.pas`
+  - `src/fpdev.git.operations.impl.pas`
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_mutationflow.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 这轮只抽 public mutation surface，不碰 merge / fetch / pull 的业务主体，也不动 public facade
+  - `git operations` 如果继续推进，下一步应重新 fresh re-rank，而不是顺手扩成更大范围的业务重构
+
 ## Session: 2026-05-02 (git operations queryflow wave)
 
 ### Phase 144: Git Operations Queryflow Wave

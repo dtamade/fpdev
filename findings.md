@@ -1,5 +1,42 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Mutationflow Wave
+- 在 `queryflow` 收口之后，`git operations` 里仍有一组非常一致的 public mutation surface：
+  - `Checkout(...)`
+  - `Add(...)`
+  - `Commit(...)`
+  - `Push(...)`
+- 这组方法的共同点不是共享底层 git object 逻辑，而是共享同一类 facade orchestration：
+  - backend availability guard
+  - libgit2-first / CLI-fallback surface policy
+  - default remote / branch / checkout target 解析
+  - CLI command construction与错误折叠
+- 因此继续往下抽的保守切口不是 merge/pull/push 主体，而是新增 `src/fpdev.git.operations.mutationflow.pas`，只承接这层 surface orchestration。
+- 这轮明确不动的边界是：
+  - `AddAllWithLibgit2(...)`
+  - `CommitWithLibgit2(...)`
+  - `PushWithLibgit2(...)`
+  - `CheckoutWithLibgit2(...)`
+  - fetch / pull / merge / push 的主体实现
+  - public facade `src/fpdev.git.operations.pas`
+- helper 的最终承接面为：
+  - `ExecuteGitCheckoutSurfaceCore(...)`
+  - `ExecuteGitAddSurfaceCore(...)`
+  - `ExecuteGitCommitSurfaceCore(...)`
+  - `ExecuteGitPushSurfaceCore(...)`
+- `src/fpdev.git.operations.impl.pas` 这轮只补了一个 facade-local bridge：
+  - `AddPathspecWithLibgit2(...)`
+  - 作用是把 `Add(...)` 里原来那段 libgit2 pathspec staging 内联逻辑留在 `impl` ownership 内，但从 public surface 中移走
+- focused 与主线验证都说明 blast radius 仍被控制住了：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr` → pass
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `40/40`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 到这里，`git operations` 已经把 identity/signature、transport credential、query/read surface、mutation surface 四块重复 facade glue 都 helper 化；下一步如果继续推进，应再次 fresh re-rank，而不是直接把剩余 core git logic 一并重构。
+
 ## 2026-05-02 Git Operations Queryflow Wave
 - `git operations` 在 `transportflow` 与 docs truth-sync 之后，并不是已经没有代码 seam；重新按最新工作树看，`src/fpdev.git.operations.impl.pas` 里仍有一组很干净的 read/query surface：
   - `HasRemote(...)`

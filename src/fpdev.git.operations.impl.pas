@@ -61,6 +61,8 @@ type
     function TryListRemoteBranchesWithLibgit2(const ARepoPath, ARemote: string; out ARefs: TStringArray): Boolean;
     function CheckoutWithLibgit2(const ARepoPath, AName: string; const Force: Boolean; out AError: string): Boolean;
     function AddAllWithLibgit2(const ARepoPath: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+    function AddPathspecWithLibgit2(const ARepoPath, APathSpec: string;
+      out AError: string; out ANeedsFallback: Boolean): Boolean;
     function CommitWithLibgit2(
       const ARepoPath, AMessage: string;
       out AError: string;
@@ -106,7 +108,8 @@ implementation
 
 uses
   git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
-  fpdev.git.operations.queryflow, fpdev.git.operations.transportflow;
+  fpdev.git.operations.mutationflow, fpdev.git.operations.queryflow,
+  fpdev.git.operations.transportflow;
 
 var
   Libgit2Available: Boolean = False;
@@ -583,111 +586,18 @@ begin
 end;
 
 function TGitOperations.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
-var
-  LError: string;
-  LCheckoutTarget: string;
-  LDetach: Boolean;
-  LCreateLocalBranch: Boolean;
-  LCheckoutStartPoint: string;
-
-  function CliRefExists(const ARefName: string): Boolean;
-  var
-    LResult: TProcessResult;
-  begin
-    if Trim(ARefName) = '' then
-      Exit(False);
-    LResult := ExecuteGitCli(['show-ref', '--verify', '--quiet', ARefName], ARepoPath);
-    Result := LResult.Success and (LResult.ExitCode = 0);
-  end;
 begin
-  Result := False;
   FLastError := '';
-
-  if Trim(AName) = '' then
-    Exit(True);
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit(False);
-  end;
-
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      LError := '';
-      Result := CheckoutWithLibgit2(ARepoPath, AName, Force, LError);
-      if Result then
-        Exit(True);
-      if LError <> '' then
-        FLastError := LError;
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 checkout exception: ', E.Message, ', falling back to git command-line');
-      end;
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    if FLastError = '' then
-      FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-
-  FLastError := '';
-  LCheckoutTarget := AName;
-  LDetach := False;
-  LCreateLocalBranch := False;
-  LCheckoutStartPoint := '';
-
-  if Pos('refs/', AName) = 1 then
-  begin
-    if Pos('refs/heads/', AName) = 1 then
-      LCheckoutTarget := Copy(AName, Length('refs/heads/') + 1, MaxInt)
-    else if (Pos('refs/remotes/', AName) = 1) or (Pos('refs/tags/', AName) = 1) then
-      LDetach := True;
-  end
-  else
-  begin
-    if CliRefExists('refs/heads/' + AName) then
-      LCheckoutTarget := AName
-    else if CliRefExists('refs/remotes/origin/' + AName) then
-    begin
-      LCheckoutTarget := AName;
-      LCheckoutStartPoint := 'origin/' + AName;
-      LCreateLocalBranch := True;
-    end
-    else if CliRefExists('refs/tags/' + AName) then
-    begin
-      LCheckoutTarget := 'refs/tags/' + AName;
-      LDetach := True;
-    end;
-  end;
-
-  if LCreateLocalBranch then
-  begin
-    if Force then
-      Result := ExecuteGitCommand(['checkout', '-f', '-B', LCheckoutTarget, LCheckoutStartPoint], ARepoPath)
-    else
-      Result := ExecuteGitCommand(['checkout', '-b', LCheckoutTarget, LCheckoutStartPoint], ARepoPath);
-  end
-  else if Force then
-  begin
-    if LDetach then
-      Result := ExecuteGitCommand(['checkout', '-f', '--detach', LCheckoutTarget], ARepoPath)
-    else
-      Result := ExecuteGitCommand(['checkout', '-f', LCheckoutTarget], ARepoPath);
-  end
-  else
-  begin
-    if LDetach then
-      Result := ExecuteGitCommand(['checkout', '--detach', LCheckoutTarget], ARepoPath)
-    else
-      Result := ExecuteGitCommand(['checkout', LCheckoutTarget], ARepoPath);
-  end;
+  Result := ExecuteGitCheckoutSurfaceCore(
+    ARepoPath,
+    AName,
+    Force,
+    FBackend,
+    CommandLineGitAvailable,
+    @CheckoutWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.IsRepository(const APath: string): Boolean;
@@ -896,6 +806,142 @@ begin
   finally
     RemovePaths.Free;
     AddPaths.Free;
+    if IndexHandle <> nil then
+      git_index_free(IndexHandle);
+    if RepoHandle <> nil then
+      git_repository_free(RepoHandle);
+  end;
+end;
+
+function TGitOperations.AddPathspecWithLibgit2(const ARepoPath,
+  APathSpec: string; out AError: string; out ANeedsFallback: Boolean): Boolean;
+var
+  RepoHandle: git_repository;
+  IndexHandle: git_index;
+  WorkDirP: PChar;
+  WorkDir: string;
+  PathSpecAbs: string;
+  WorkDirAbs: string;
+  RelPath: string;
+  RelPathFs: string;
+  AbsCandidate: string;
+  RC: Integer;
+  LErr: string;
+  PathSpecStr: AnsiString;
+  PathSpecPtrs: array[0..0] of PChar;
+  PathSpecs: git_strarray;
+  MatchPayload: TIndexMatchPayload;
+begin
+  Result := False;
+  AError := '';
+  ANeedsFallback := True;
+
+  if FGitManager = nil then
+  begin
+    AError := 'libgit2 not initialized';
+    Exit(False);
+  end;
+
+  RepoHandle := nil;
+  IndexHandle := nil;
+  try
+    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open repository failed: ' + LErr
+      else
+        AError := 'libgit2 open repository failed';
+      Exit(False);
+    end;
+
+    WorkDir := '';
+    WorkDirP := git_repository_workdir(RepoHandle);
+    if WorkDirP <> nil then
+      WorkDir := string(WorkDirP);
+
+    RelPath := APathSpec;
+
+    if WorkDir <> '' then
+    begin
+      PathSpecAbs := ExpandFileName(APathSpec);
+      WorkDirAbs := ExpandFileName(IncludeTrailingPathDelimiter(WorkDir));
+      {$IFDEF MSWINDOWS}
+      if Pos(AnsiLowerCase(WorkDirAbs), AnsiLowerCase(PathSpecAbs)) = 1 then
+      {$ELSE}
+      if Pos(WorkDirAbs, PathSpecAbs) = 1 then
+      {$ENDIF}
+        RelPath := Copy(PathSpecAbs, Length(WorkDirAbs) + 1, MaxInt);
+    end;
+
+    RelPath := StringReplace(RelPath, '\', '/', [rfReplaceAll]);
+
+    RC := git_repository_index(IndexHandle, RepoHandle);
+    if RC <> GIT_OK then
+    begin
+      LErr := Libgit2LastErrorText;
+      if LErr <> '' then
+        AError := 'libgit2 open index failed: ' + LErr
+      else
+        AError := 'libgit2 open index failed';
+      Exit(False);
+    end;
+
+    PathSpecStr := AnsiString(RelPath);
+    PathSpecPtrs[0] := PChar(PathSpecStr);
+    PathSpecs.strings := @PathSpecPtrs[0];
+    PathSpecs.count := 1;
+
+    MatchPayload.MatchCount := 0;
+
+    RC := git_index_update_all(IndexHandle, @PathSpecs, @IndexMatchedCb, @MatchPayload);
+    if RC = GIT_OK then
+      RC := git_index_add_all(
+        IndexHandle,
+        @PathSpecs,
+        GIT_INDEX_ADD_CHECK_PATHSPEC,
+        @IndexMatchedCb,
+        @MatchPayload
+      );
+
+    if RC = GIT_OK then
+    begin
+      if MatchPayload.MatchCount = 0 then
+      begin
+        AbsCandidate := '';
+        if (Pos('*', RelPath) = 0) and (Pos('?', RelPath) = 0) and (WorkDir <> '') then
+        begin
+          RelPathFs := StringReplace(RelPath, '/', PathDelim, [rfReplaceAll]);
+          AbsCandidate := IncludeTrailingPathDelimiter(WorkDir) + RelPathFs;
+        end;
+
+        if (AbsCandidate <> '') and DirectoryExists(AbsCandidate) then
+        begin
+          Result := True;
+          ANeedsFallback := False;
+          Exit(True);
+        end;
+
+        AError := Format('libgit2 add failed: pathspec ''%s'' did not match any files', [APathSpec]);
+        Exit(False);
+      end;
+
+      RC := git_index_write(IndexHandle);
+      if RC = GIT_OK then
+      begin
+        Result := True;
+        ANeedsFallback := False;
+        Exit(True);
+      end;
+    end;
+
+    LErr := Libgit2LastErrorText;
+    if LErr <> '' then
+      AError := 'libgit2 add failed: ' + LErr
+    else if AError = '' then
+      AError := 'libgit2 add failed';
+  finally
     if IndexHandle <> nil then
       git_index_free(IndexHandle);
     if RepoHandle <> nil then
@@ -1213,307 +1259,48 @@ begin
 end;
 
 function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;
-var
-  RepoHandle: git_repository;
-  IndexHandle: git_index;
-  WorkDirP: PChar;
-  WorkDir: string;
-  PathSpecAbs: string;
-  WorkDirAbs: string;
-  RelPath: string;
-  RelPathFs: string;
-  AbsCandidate: string;
-  RC: Integer;
-  LErr: string;
-  LNeedsFallback: Boolean;
-  LPathSpec: string;
-  PathSpecStr: AnsiString;
-  PathSpecPtrs: array[0..0] of PChar;
-  PathSpecs: git_strarray;
-  MatchPayload: TIndexMatchPayload;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit(False);
-  end;
-
-  if Trim(ARepoPath) = '' then
-  begin
-    FLastError := 'Repository path is empty';
-    Exit(False);
-  end;
-
-  if Trim(APathSpec) = '' then
-  begin
-    FLastError := 'Pathspec is empty';
-    Exit(False);
-  end;
-
-  LPathSpec := Trim(APathSpec);
-
-  // Try libgit2 first for add-all ('.'). Fallback to CLI only for rare unsupported states.
-  if (LPathSpec = '.') and (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    LErr := '';
-    LNeedsFallback := False;
-    Result := AddAllWithLibgit2(ARepoPath, LErr, LNeedsFallback);
-    if Result then
-      Exit(True);
-    if not LNeedsFallback then
-    begin
-      if LErr <> '' then
-        FLastError := LErr
-      else
-        FLastError := 'libgit2 add-all failed';
-      Exit(False);
-    end;
-    if LErr <> '' then
-      FLastError := LErr;
-  end;
-
-  // Try libgit2 first for pathspec add (supports directories and wildcards).
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) and (LPathSpec <> '.') then
-  begin
-    RepoHandle := nil;
-    IndexHandle := nil;
-    try
-      RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-      if RC = GIT_OK then
-      begin
-        WorkDir := '';
-        WorkDirP := git_repository_workdir(RepoHandle);
-        if WorkDirP <> nil then
-          WorkDir := string(WorkDirP);
-
-        RelPath := APathSpec;
-
-        // Convert absolute file path to repo-relative when possible.
-        // libgit2 uses '/' in index paths even on Windows.
-        if (WorkDir <> '') then
-        begin
-          PathSpecAbs := ExpandFileName(APathSpec);
-          WorkDirAbs := ExpandFileName(IncludeTrailingPathDelimiter(WorkDir));
-          {$IFDEF MSWINDOWS}
-          if (Pos(AnsiLowerCase(WorkDirAbs), AnsiLowerCase(PathSpecAbs)) = 1) then
-          {$ELSE}
-          if (Pos(WorkDirAbs, PathSpecAbs) = 1) then
-          {$ENDIF}
-            RelPath := Copy(PathSpecAbs, Length(WorkDirAbs) + 1, MaxInt);
-        end;
-
-        RelPath := StringReplace(RelPath, '\', '/', [rfReplaceAll]);
-
-        RC := git_repository_index(IndexHandle, RepoHandle);
-        if RC = GIT_OK then
-        begin
-          PathSpecStr := AnsiString(RelPath);
-          PathSpecPtrs[0] := PChar(PathSpecStr);
-          PathSpecs.strings := @PathSpecPtrs[0];
-          PathSpecs.count := 1;
-
-          MatchPayload.MatchCount := 0;
-
-          RC := git_index_update_all(IndexHandle, @PathSpecs, @IndexMatchedCb, @MatchPayload);
-          if RC = GIT_OK then
-            RC := git_index_add_all(
-              IndexHandle,
-              @PathSpecs,
-              GIT_INDEX_ADD_CHECK_PATHSPEC,
-              @IndexMatchedCb,
-              @MatchPayload
-            );
-
-          if RC = GIT_OK then
-          begin
-            // Mimic `git add`: if nothing matched, treat as error except when
-            // an existing directory pathspec is given (empty directories are OK).
-            if MatchPayload.MatchCount = 0 then
-            begin
-              AbsCandidate := '';
-              if (Pos('*', RelPath) = 0) and (Pos('?', RelPath) = 0) and (WorkDir <> '') then
-              begin
-                RelPathFs := StringReplace(RelPath, '/', PathDelim, [rfReplaceAll]);
-                AbsCandidate := IncludeTrailingPathDelimiter(WorkDir) + RelPathFs;
-              end;
-
-              if (AbsCandidate <> '') and DirectoryExists(AbsCandidate) then
-              begin
-                Result := True;
-                Exit;
-              end;
-
-              FLastError := Format('libgit2 add failed: pathspec ''%s'' did not match any files', [APathSpec]);
-            end
-            else
-            begin
-              RC := git_index_write(IndexHandle);
-              if RC = GIT_OK then
-              begin
-                Result := True;
-                Exit;
-              end;
-            end;
-          end;
-        end;
-
-        LErr := Libgit2LastErrorText;
-        if (FLastError = '') then
-        begin
-          if LErr <> '' then
-            FLastError := 'libgit2 add failed: ' + LErr
-          else
-            FLastError := 'libgit2 add failed';
-        end;
-      end
-      else
-      begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          FLastError := 'libgit2 open repository failed: ' + LErr
-        else
-          FLastError := 'libgit2 open repository failed';
-      end;
-    finally
-      if IndexHandle <> nil then
-        git_index_free(IndexHandle);
-      if RepoHandle <> nil then
-        git_repository_free(RepoHandle);
-    end;
-  end;
-
-  // Command-line fallback
-  if not CommandLineGitAvailable then
-  begin
-    if FLastError = '' then
-      FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-
-  FLastError := '';
-  if LPathSpec = '.' then
-    Result := ExecuteGitCommand(['add', '-A'], ARepoPath)
-  else
-    Result := ExecuteGitCommand(['add', APathSpec], ARepoPath);
+  Result := ExecuteGitAddSurfaceCore(
+    ARepoPath,
+    APathSpec,
+    FBackend,
+    CommandLineGitAvailable,
+    @AddAllWithLibgit2,
+    @AddPathspecWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.Commit(const ARepoPath, AMessage: string): Boolean;
-var
-  LErr: string;
-  LNeedsFallback: Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit(False);
-  end;
-
-  if Trim(ARepoPath) = '' then
-  begin
-    FLastError := 'Repository path is empty';
-    Exit(False);
-  end;
-
-  if Trim(AMessage) = '' then
-  begin
-    FLastError := 'Commit message is empty';
-    Exit(False);
-  end;
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    LErr := '';
-    LNeedsFallback := False;
-    Result := CommitWithLibgit2(ARepoPath, AMessage, LErr, LNeedsFallback);
-    if Result then
-      Exit(True);
-    if not LNeedsFallback then
-    begin
-      if LErr <> '' then
-        FLastError := LErr
-      else
-        FLastError := 'libgit2 commit failed';
-      Exit(False);
-    end;
-    if LErr <> '' then
-      FLastError := LErr;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    if FLastError = '' then
-      FLastError := 'Command-line git is required for commit; please install git';
-    Exit(False);
-  end;
-
-  FLastError := '';
-  Result := ExecuteGitCommand(['commit', '-m', AMessage], ARepoPath);
+  Result := ExecuteGitCommitSurfaceCore(
+    ARepoPath,
+    AMessage,
+    FBackend,
+    CommandLineGitAvailable,
+    @CommitWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
-var
-  BranchParam: string;
-  RemoteName: string;
-  LErr: string;
-  LNeedsFallback: Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit(False);
-  end;
-
-  if Trim(ARepoPath) = '' then
-  begin
-    FLastError := 'Repository path is empty';
-    Exit(False);
-  end;
-
-  RemoteName := Trim(ARemote);
-  if RemoteName = '' then
-    RemoteName := 'origin';
-
-  BranchParam := ABranch;
-  if Trim(BranchParam) = '' then
-    BranchParam := GetCurrentBranch(ARepoPath);
-  if Trim(BranchParam) = '' then
-    BranchParam := 'HEAD';
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    LErr := '';
-    LNeedsFallback := False;
-    Result := PushWithLibgit2(ARepoPath, RemoteName, BranchParam, LErr, LNeedsFallback);
-    if Result then
-      Exit(True);
-    if not LNeedsFallback then
-    begin
-      if LErr <> '' then
-        FLastError := LErr
-      else
-        FLastError := 'libgit2 push failed';
-      Exit(False);
-    end;
-    if LErr <> '' then
-      FLastError := LErr;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'Command-line git is required for push; please install git';
-    Exit(False);
-  end;
-
-  Result := ExecuteGitCommand(['push', RemoteName, BranchParam], ARepoPath);
+  Result := ExecuteGitPushSurfaceCore(
+    ARepoPath,
+    ARemote,
+    ABranch,
+    FBackend,
+    CommandLineGitAvailable,
+    @PushWithLibgit2,
+    @GetCurrentBranch,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.GetVersion: string;
