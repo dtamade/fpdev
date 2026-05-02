@@ -1,12 +1,48 @@
 # Task Plan
 
 ## Active Goal
-discoverable test inventory 的文档真相已同步到当前 `346`；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 时再开波次，而不是机械重开刚完成的 `build.cache` / `toolchain` / `index` / `fpc.source` seam。
+`fpdev.git.operations.impl` 中重复的 transport credential / options-init glue 已收口到 internal `fpdev.git.operations.transportflow`；下一步仍应基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 或新的 RED 时再开波次，而不是机械重开刚完成的 `git operations` / `build.cache` / `toolchain` / `index` / `fpc.source` seam。
 
 ## Current Phase
-Phase 141 complete
+Phase 142 complete
 
 ## Active Phases
+### Phase 142: Git Operations Transportflow Wave
+- [x] 在 `identityflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 clone/fetch/pull/push 共用的 transport credential payload / callback / options-init glue，而不是继续泛化重构整个 git 实现
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-git-operations-transportflow-wave.md`
+- [x] 接手并利用已写好的 RED 护栏：
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_transportflow.lpr`
+  - `tests/test_git_operations_transportflow.lpi`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.transportflow.pas`
+  - 承接：
+    - `TGitTransportCredentialPayload`
+    - `LoadGitTransportCredentialPayload(...)`
+    - `GitTransportCredentialAcquireCb(...)`
+    - `TryInitGitCloneTransportOptions(...)`
+    - `TryInitGitFetchTransportOptions(...)`
+    - `TryInitGitPushTransportOptions(...)`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - 删除 inline transport payload / credential callback
+  - `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)` / `PushWithLibgit2(...)` 改为委托 transportflow helper
+  - 保持 branch/refspec、ahead-behind、merge、checkout、fallback 判定继续留在主 unit
+- [x] 修正测试真相与 focused runner 编译细节：
+  - `tests/test_git_runtime_boundary.py` 中旧的 shared env 断言改为命中 `transportflow` helper，而不是继续要求 `impl` 内联 credential env 读取
+  - `tests/test_git_operations_transportflow.lpr` 补充 `ctypes`，修复 `cint` 未定义导致的 compile fail
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 transportflow wave
+- **Status:** complete
+
 ### Phase 141: Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
 - [x] fresh re-rank 当前树剩余热点，并确认 `build.cache binaryartifactflow`、`toolchain reportflow`、`fpc.source sourcemanagerflow`、`index metadataflow` 等刚收口 seam 不 reopen
 - [x] 新增 checkpoint 计划：

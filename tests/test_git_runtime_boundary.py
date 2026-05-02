@@ -9,6 +9,7 @@ RUNTIME_IMPL_PATH = SRC / 'fpdev.git.runtime.impl.pas'
 OPERATIONS_PATH = SRC / 'fpdev.git.operations.pas'
 OPERATIONS_IMPL_PATH = SRC / 'fpdev.git.operations.impl.pas'
 OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
+OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -88,15 +89,16 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
 
     def test_operations_impl_reuses_shared_pull_failure_type(self):
         text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        helper_text = OPERATIONS_TRANSPORTFLOW_PATH.read_text(encoding='utf-8') if OPERATIONS_TRANSPORTFLOW_PATH.exists() else ''
         self.assertGreaterEqual(
             text.count('fpdev.git.errors.ClassifyGitPullFailure('),
             1,
             'fpdev.git.operations.impl should use the shared git error helper in internal logic after compat wrapper removal',
         )
         self.assertGreaterEqual(
-            text.count('fpdev.git.env.ResolveGitCredentialEnv('),
+            helper_text.count('fpdev.git.env.ResolveGitCredentialEnv('),
             1,
-            'fpdev.git.operations.impl should use the shared git env helper in internal credential loading after compat wrapper removal',
+            'transportflow helper should use the shared git env helper in internal credential loading after compat wrapper removal',
         )
 
     def test_operations_impl_delegates_identity_signature_setup_to_internal_identityflow(self):
@@ -156,6 +158,90 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.identityflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; identityflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_transport_credential_setup_to_internal_transportflow(self):
+        self.assertTrue(
+            OPERATIONS_TRANSPORTFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_TRANSPORTFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_TRANSPORTFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+        self.assertIn(
+            'procedure LoadGitTransportCredentialPayload(',
+            helper_text,
+            'transportflow helper should own credential payload loading',
+        )
+        self.assertIn(
+            'function GitTransportCredentialAcquireCb(',
+            helper_text,
+            'transportflow helper should own the libgit2 credential callback',
+        )
+        self.assertIn(
+            'function TryInitGitCloneTransportOptions(',
+            helper_text,
+            'transportflow helper should own clone transport option wiring',
+        )
+        self.assertIn(
+            'function TryInitGitFetchTransportOptions(',
+            helper_text,
+            'transportflow helper should own fetch transport option wiring',
+        )
+        self.assertIn(
+            'function TryInitGitPushTransportOptions(',
+            helper_text,
+            'transportflow helper should own push transport option wiring',
+        )
+        self.assertIn(
+            'fpdev.git.env.ResolveGitCredentialEnv(',
+            helper_text,
+            'transportflow helper should be the place that consumes the shared credential env helper',
+        )
+        self.assertIn(
+            'git_credential_userpass_plaintext_new(',
+            helper_text,
+            'transportflow helper should own plaintext credential fallback',
+        )
+        self.assertIn(
+            'git_credential_username_new(',
+            helper_text,
+            'transportflow helper should own username-only credential fallback',
+        )
+        self.assertIn(
+            'fpdev.git.operations.transportflow',
+            impl_text,
+            'fpdev.git.operations.impl should import the internal transportflow helper',
+        )
+        self.assertIn(
+            'TryInitGitCloneTransportOptions(',
+            impl_text,
+            'CloneWithLibgit2 should delegate transport setup to transportflow',
+        )
+        self.assertGreaterEqual(
+            impl_text.count('TryInitGitFetchTransportOptions('),
+            2,
+            'FetchWithLibgit2 and PullWithLibgit2 should both delegate fetch transport setup to transportflow',
+        )
+        self.assertIn(
+            'TryInitGitPushTransportOptions(',
+            impl_text,
+            'PushWithLibgit2 should delegate transport setup to transportflow',
+        )
+        self.assertNotIn(
+            'LoadCredentialPayloadFromEnv(',
+            impl_text,
+            'fpdev.git.operations.impl should stop loading transport credential payload inline once transportflow exists',
+        )
+        self.assertNotIn(
+            'CredentialAcquireCb(',
+            impl_text,
+            'fpdev.git.operations.impl should stop owning the credential callback inline once transportflow exists',
+        )
+        self.assertNotIn(
+            'fpdev.git.operations.transportflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; transportflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):

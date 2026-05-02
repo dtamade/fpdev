@@ -100,7 +100,8 @@ type
 implementation
 
 uses
-  git2.impl, libgit2, ctypes, fpdev.git.env, fpdev.git.operations.identityflow;
+  git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
+  fpdev.git.operations.transportflow;
 
 var
   Libgit2Available: Boolean = False;
@@ -125,17 +126,6 @@ type
   PIndexMatchPayload = ^TIndexMatchPayload;
   TIndexMatchPayload = record
     MatchCount: Integer;
-  end;
-
-  PGitCredentialPayload = ^TGitCredentialPayload;
-  TGitCredentialPayload = record
-    TriedDefault: Boolean;
-    TriedUserPass: Boolean;
-    TriedSshAgent: Boolean;
-    TriedUsernameOnly: Boolean;
-    Username: AnsiString;
-    Password: AnsiString;
-    SshUsername: AnsiString;
   end;
 
 // Forward declaration for standalone function
@@ -237,116 +227,6 @@ begin
   P := PIndexMatchPayload(APayload);
   if P <> nil then
     Inc(P^.MatchCount);
-end;
-
-procedure LoadCredentialPayloadFromEnv(out APayload: TGitCredentialPayload);
-var
-  U: string;
-  P: string;
-  SU: string;
-begin
-  APayload.TriedDefault := False;
-  APayload.TriedUserPass := False;
-  APayload.TriedSshAgent := False;
-  APayload.TriedUsernameOnly := False;
-  APayload.Username := '';
-  APayload.Password := '';
-  APayload.SshUsername := '';
-
-  fpdev.git.env.ResolveGitCredentialEnv(U, P, SU);
-
-  APayload.Username := AnsiString(U);
-  APayload.Password := AnsiString(P);
-  APayload.SshUsername := AnsiString(SU);
-end;
-
-function CredentialAcquireCb(
-  out ACred: Pointer;
-  const AUrl, AUserFromUrl: PChar;
-  AAllowedTypes: cuint;
-  APayload: Pointer
-): cint; cdecl;
-var
-  P: PGitCredentialPayload;
-  UserFromUrl: string;
-  UseUser: string;
-  RC: cint;
-begin
-  Result := GIT_PASSTHROUGH;
-  ACred := nil;
-
-  P := PGitCredentialPayload(APayload);
-  if P = nil then
-    Exit(GIT_PASSTHROUGH);
-
-  UserFromUrl := '';
-  if AUserFromUrl <> nil then
-    UserFromUrl := Trim(string(AUserFromUrl));
-
-  // Try platform default credentials first (e.g. NTLM/Kerberos).
-  if ((AAllowedTypes and GIT_CREDENTIAL_DEFAULT) <> 0) and (not P^.TriedDefault) then
-  begin
-    P^.TriedDefault := True;
-    RC := git_credential_default_new(ACred);
-    if (RC = GIT_OK) and (ACred <> nil) then
-      Exit(0);
-  end;
-
-  // Some transports (notably SSH) may ask for username only first.
-  if ((AAllowedTypes and GIT_CREDENTIAL_USERNAME) <> 0) and (not P^.TriedUsernameOnly) then
-  begin
-    P^.TriedUsernameOnly := True;
-    UseUser := UserFromUrl;
-    if UseUser = '' then
-      UseUser := string(P^.SshUsername);
-    if UseUser = '' then
-      UseUser := string(P^.Username);
-    if UseUser = '' then
-      UseUser := 'git';
-
-    RC := git_credential_username_new(ACred, PChar(UseUser));
-    if (RC = GIT_OK) and (ACred <> nil) then
-      Exit(0);
-  end;
-
-  // Prefer ssh-agent when SSH key authentication is allowed.
-  if ((AAllowedTypes and GIT_CREDENTIAL_SSH_KEY) <> 0) and (not P^.TriedSshAgent) then
-  begin
-    P^.TriedSshAgent := True;
-    UseUser := UserFromUrl;
-    if UseUser = '' then
-      UseUser := string(P^.SshUsername);
-    if UseUser = '' then
-      UseUser := string(P^.Username);
-    if UseUser = '' then
-      UseUser := 'git';
-
-    RC := git_credential_ssh_key_from_agent(ACred, PChar(UseUser));
-    if (RC = GIT_OK) and (ACred <> nil) then
-      Exit(0);
-  end;
-
-  // Finally, try plaintext user/pass from environment variables.
-  if ((AAllowedTypes and GIT_CREDENTIAL_USERPASS_PLAINTEXT) <> 0) and (not P^.TriedUserPass) then
-  begin
-    P^.TriedUserPass := True;
-    UseUser := UserFromUrl;
-    if UseUser = '' then
-      UseUser := string(P^.Username);
-    if UseUser = '' then
-      UseUser := 'git';
-
-    if P^.Password <> '' then
-    begin
-      RC := git_credential_userpass_plaintext_new(ACred, PChar(UseUser), PChar(P^.Password));
-      if (RC = GIT_OK) and (ACred <> nil) then
-        Exit(0);
-    end;
-  end;
-
-  // No credential acquired: let libgit2 behave as if this callback isn't set.
-  Result := GIT_PASSTHROUGH;
-  if AUrl <> nil then;
 end;
 
 { TGitOperations }
@@ -1344,7 +1224,7 @@ var
   RefSpecPtrs: array[0..0] of PChar;
   RefSpecs: git_strarray;
   PushOpts: git_push_options;
-  CredPayload: TGitCredentialPayload;
+  CredPayload: TGitTransportCredentialPayload;
   RC: cint;
   LErr: string;
 begin
@@ -1425,22 +1305,11 @@ begin
     RefSpecs.strings := @RefSpecPtrs[0];
     RefSpecs.count := 1;
 
-    PushOpts := Default(git_push_options);
-    LoadCredentialPayloadFromEnv(CredPayload);
-    RC := git_push_options_init(@PushOpts, GIT_PUSH_OPTIONS_VERSION);
-    if RC <> GIT_OK then
+    if not TryInitGitPushTransportOptions(PushOpts, CredPayload, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 push options init failed: ' + LErr
-      else
-        AError := 'libgit2 push options init failed';
       ANeedsFallback := True;
       Exit(False);
     end;
-
-    PushOpts.callbacks.credentials := @CredentialAcquireCb;
-    PushOpts.callbacks.payload := @CredPayload;
 
     RC := git_remote_push(RemoteHandle, @RefSpecs, @PushOpts);
     if RC <> GIT_OK then
@@ -2026,7 +1895,7 @@ function TGitOperations.CloneWithLibgit2(const AURL, ALocalPath: string; out AEr
 var
   RepoHandle: git_repository;
   CloneOpts: git_clone_options;
-  CredPayload: TGitCredentialPayload;
+  CredPayload: TGitTransportCredentialPayload;
   RC: cint;
   LErr: string;
 begin
@@ -2042,22 +1911,8 @@ begin
   RepoHandle := nil;
   try
     try
-      CloneOpts := Default(git_clone_options);
-      LoadCredentialPayloadFromEnv(CredPayload);
-
-      RC := git_clone_options_init(@CloneOpts, GIT_CLONE_OPTIONS_VERSION);
-      if RC <> GIT_OK then
-      begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 clone options init failed: ' + LErr
-        else
-          AError := 'libgit2 clone options init failed';
+      if not TryInitGitCloneTransportOptions(CloneOpts, CredPayload, AError) then
         Exit(False);
-      end;
-
-      CloneOpts.fetch_opts.callbacks.credentials := @CredentialAcquireCb;
-      CloneOpts.fetch_opts.callbacks.payload := @CredPayload;
 
       RC := git_clone(RepoHandle, PChar(AURL), PChar(ALocalPath), @CloneOpts);
       if RC <> GIT_OK then
@@ -2089,7 +1944,7 @@ var
   RepoHandle: git_repository;
   RemoteHandle: git_remote;
   FetchOpts: git_fetch_options;
-  CredPayload: TGitCredentialPayload;
+  CredPayload: TGitTransportCredentialPayload;
   RemoteName: string;
   RC: cint;
   LErr: string;
@@ -2133,21 +1988,8 @@ begin
         Exit(False);
       end;
 
-      FetchOpts := Default(git_fetch_options);
-      LoadCredentialPayloadFromEnv(CredPayload);
-      RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
-      if RC <> GIT_OK then
-      begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 fetch options init failed: ' + LErr
-        else
-          AError := 'libgit2 fetch options init failed';
+      if not TryInitGitFetchTransportOptions(FetchOpts, CredPayload, AError) then
         Exit(False);
-      end;
-
-      FetchOpts.callbacks.credentials := @CredentialAcquireCb;
-      FetchOpts.callbacks.payload := @CredPayload;
 
       RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
       if RC <> GIT_OK then
@@ -2185,7 +2027,7 @@ var
   RemoteHandle: git_remote;
   FetchOpts: git_fetch_options;
   CheckoutOpts: git_checkout_options;
-  CredPayload: TGitCredentialPayload;
+  CredPayload: TGitTransportCredentialPayload;
   LocalRef: git_reference;
   RemoteRef: git_reference;
   UpdatedRef: git_reference;
@@ -2296,22 +2138,11 @@ begin
       Exit(False);
     end;
 
-    FetchOpts := Default(git_fetch_options);
-    LoadCredentialPayloadFromEnv(CredPayload);
-    RC := git_fetch_options_init(@FetchOpts, GIT_FETCH_OPTIONS_VERSION);
-    if RC <> GIT_OK then
+    if not TryInitGitFetchTransportOptions(FetchOpts, CredPayload, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 fetch options init failed: ' + LErr
-      else
-        AError := 'libgit2 fetch options init failed';
       ANeedsFallback := True;
       Exit(False);
     end;
-
-    FetchOpts.callbacks.credentials := @CredentialAcquireCb;
-    FetchOpts.callbacks.payload := @CredPayload;
 
     RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
     if RC <> GIT_OK then

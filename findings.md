@@ -1,5 +1,44 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Transportflow Wave
+- `src/fpdev.git.operations.impl.pas` 在 `identityflow` 收口之后，剩余最像独立 internal helper seam 的不是 push/pull 核心逻辑，而是 clone/fetch/pull/push 共享的 transport credential glue：
+  - credential payload record
+  - env-based payload loading
+  - libgit2 credential callback
+  - clone/fetch/push options init + callback/payload wiring
+- 这轮明确不动的边界是：
+  - push refspec / branch resolution
+  - pull ahead-behind 判定
+  - merge commit / checkout 行为
+  - public facade `src/fpdev.git.operations.pas`
+- 因此 helper 的保守形态应是新增 `src/fpdev.git.operations.transportflow.pas`，只承接：
+  - `TGitTransportCredentialPayload`
+  - `LoadGitTransportCredentialPayload(...)`
+  - `GitTransportCredentialAcquireCb(...)`
+  - `TryInitGitCloneTransportOptions(...)`
+  - `TryInitGitFetchTransportOptions(...)`
+  - `TryInitGitPushTransportOptions(...)`
+- 一个关键测试真相修正是：
+  - 旧的 `tests/test_git_runtime_boundary.py::test_operations_impl_reuses_shared_pull_failure_type` 还要求 `impl` 继续直接出现 `fpdev.git.env.ResolveGitCredentialEnv(...)`
+  - 这与 transportflow seam 的新边界冲突，因此应改为要求 shared env helper 由 `transportflow` helper 消费，而不是继续让 `impl` 内联 credential env 读取
+- focused Pascal runner 的唯一实现外问题，是 `tests/test_git_operations_transportflow.lpr` 初版漏了 `ctypes`：
+  - 导致 `cint` 未定义
+  - 补上后 runner 即恢复为绿
+- 最终 helper 已按预期收口，且 blast radius 保持在 transport setup 这一层：
+  - `CloneWithLibgit2(...)`
+  - `FetchWithLibgit2(...)`
+  - `PullWithLibgit2(...)`
+  - `PushWithLibgit2(...)`
+  - 都只把 options/payload wiring 委托出去
+  - repo open / remote lookup / refspec / fetch/push/pull failure handling 仍留在主 unit
+- focused verification 说明边界保持住了：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `38/38`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 到这里，`git operations` 在 identity/signature 与 transport credential 这两块真实重复 glue 都已经 helper 化；下一步继续推进前，应再次 fresh re-rank，而不是顺手扩大到 merge/push 业务逻辑重构。
+
 ## 2026-05-02 Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
 - `build.cache binaryartifactflow` 提交收口后，对当前树剩余大单元重新 fresh re-rank，结论不是继续机械开新 helper wave：
   - `build.manager`

@@ -1,5 +1,55 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations transportflow wave)
+
+### Phase 142: Git Operations Transportflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 接续上一轮 `identityflow` 收口与 fresh re-rank 结果，确认当前 `src/fpdev.git.operations.impl.pas` 的真实低 blast-radius seam 是 transport credential glue，而不是 push/pull 主体逻辑。
+  - 复核现有 RED 护栏：
+    - `tests/test_git_runtime_boundary.py`
+    - `tests/test_git_operations_transportflow.lpr`
+    - `tests/test_git_operations_transportflow.lpi`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.transportflow.pas`
+    - 提供 `TGitTransportCredentialPayload`
+    - 提供 `LoadGitTransportCredentialPayload(...)`
+    - 提供 `GitTransportCredentialAcquireCb(...)`
+    - 提供 `TryInitGitCloneTransportOptions(...)`
+    - 提供 `TryInitGitFetchTransportOptions(...)`
+    - 提供 `TryInitGitPushTransportOptions(...)`
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - 删除 inline `TGitCredentialPayload`
+    - 删除 inline `LoadCredentialPayloadFromEnv(...)`
+    - 删除 inline `CredentialAcquireCb(...)`
+    - `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)` / `PushWithLibgit2(...)` 改为委托 transportflow helper
+    - branch/refspec 解析、ahead-behind、merge、fallback 逻辑保持在主 unit
+  - 同步 Python 边界真相：
+    - `tests/test_git_runtime_boundary.py` 中 shared env helper 的断言改为命中 `transportflow` helper，而不是继续要求 `impl` 内联 credential env 读取
+  - 修正 focused Pascal runner：
+    - `tests/test_git_operations_transportflow.lpr` 补上 `ctypes`
+    - 修复 `cint` 未定义导致的 compile fail
+  - Verification completed:
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `38 passed`
+    - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `docs/plans/2026-05-02-git-operations-transportflow-wave.md`
+  - `src/fpdev.git.operations.transportflow.pas`
+  - `src/fpdev.git.operations.impl.pas`
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_transportflow.lpr`
+  - `tests/test_git_operations_transportflow.lpi`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - `tests/test_git_operations_transportflow.lpi` 只有 default build mode；focused runner 要用默认模式编译，仓库级最终验证仍走 `lazbuild -B --build-mode=Release fpdev.lpi`
+  - 本轮只收 transport setup glue，不扩大到 push/pull 核心行为重构
+
 ## Session: 2026-05-02 (fresh hotspot checkpoint and test inventory truth sync)
 
 ### Phase 141: Fresh Hotspot Re-rank Checkpoint And Test Inventory Truth Sync
