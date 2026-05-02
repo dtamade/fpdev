@@ -1,5 +1,25 @@
 # Findings & Decisions
 
+## 2026-05-02 Throughput Plan Pack V2 Refresh
+- 用户对当前节奏的批评是成立的：虽然前两波都是真实收口，但还是偏“做完一波再想下一波”，吞吐不够高。
+- 这次调整不再只给一个下一步，而是一次性补出 1 份总计划 + 3 份子计划，确保后续能按波次持续推进：
+  - `docs/plans/2026-05-02-throughput-plan-pack-v2.md`
+  - `docs/plans/2026-05-02-cross-platform-release-proof-path-parity-wave.md`
+  - `docs/plans/2026-05-02-git-module-closeout-wave.md`
+  - `docs/plans/2026-05-02-git-operations-identityflow-wave.md`
+- 新 plan pack 的选择依据：
+  - Wave A：`.github/workflows/ci.yml` 的 cross-platform smoke / owner-proof / package steps 仍硬编码 `./bin/fpdev` / `.\bin\fpdev.exe`，与本地 `build_release.sh` 的 reported-path truth surface 仍不完全一致
+  - Wave B：`todo/git/todo.md` 仍有显式未完成项，且当前仓库缺一份 system-git facade 的 current-state module summary doc
+  - Wave C：`src/fpdev.git.operations.impl.pas` 仍是最大的 Git 热点，但不能再笼统重构；本轮只把可见的 identity/signature 重复逻辑收敛成一个候选 seam
+- 对 Wave C 的 fresh code read 结果：
+  - `CommitWithLibgit2(...)` 与 `PullWithLibgit2(...)` 都内联了 config/env identity lookup 与 signature creation
+  - `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PushWithLibgit2(...)` 共享的是 credential payload/callback wiring
+  - 因此更保守的切口是先做 `identityflow`，暂时不碰 transport/credential callback
+- 新执行顺序：
+  - 先做 Wave A（release proof path parity）
+  - Wave B 可独立并行/穿插
+  - Wave C 必须先过 RED seam audit，再决定是否真正实施
+
 ## 2026-05-02 Release Build Path Reporting Truth Sync Wave
 - 当前 release build path 的真实问题已经从“构建入口不统一”转成了“真实二进制路径只对脚本调用者可见，对公开文档不可见”：
   - `scripts/build_release.sh` 只在调用者显式设置 `FPDEV_RELEASE_BIN_PATH_FILE` 时写路径文件

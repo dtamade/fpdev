@@ -4,9 +4,24 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 125 complete
+Phase 126 complete
 
 ## Active Phases
+### Phase 126: Throughput Plan Pack V2 Refresh
+- [x] 基于最新真相重排下一批可执行主线，避免重新退回微型 truth-sync 节奏
+- [x] 在 `docs/plans/` 落盘新的总计划：
+  - `docs/plans/2026-05-02-throughput-plan-pack-v2.md`
+- [x] 落盘 3 条新的子计划：
+  - `docs/plans/2026-05-02-cross-platform-release-proof-path-parity-wave.md`
+  - `docs/plans/2026-05-02-git-module-closeout-wave.md`
+  - `docs/plans/2026-05-02-git-operations-identityflow-wave.md`
+- [x] 明确依赖与执行顺序：
+  - Wave A：cross-platform release proof path parity
+  - Wave B：git module closeout
+  - Wave C：git operations identityflow seam
+- [x] 同步根 planning files 并准备提交本轮 plan-pack refresh
+- **Status:** complete
+
 ### Phase 125: Release Build Path Reporting Truth Sync
 - [x] 为 release build path discoverability 增加 RED contracts：
   - `tests/test_release_scripts_contract.py`

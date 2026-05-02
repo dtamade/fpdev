@@ -1,5 +1,27 @@
 # Progress Log
 
+## Session: 2026-05-02 (throughput plan pack v2 refresh)
+
+### Phase 126: Throughput Plan Pack V2 Refresh
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `task_plan.md`、`todo/git/todo.md`、`.github/workflows/ci.yml`、`docs/GIT2_USAGE.md`、`report/fpdev.git2.md` 与 `src/fpdev.git.operations.impl.pas` 的当前热点
+  - 识别 3 条新的可执行主线：
+    - cross-platform release proof path parity
+    - git module closeout
+    - git operations identityflow seam
+  - 创建新的总计划：
+    - `docs/plans/2026-05-02-throughput-plan-pack-v2.md`
+  - 创建 3 条子计划：
+    - `docs/plans/2026-05-02-cross-platform-release-proof-path-parity-wave.md`
+    - `docs/plans/2026-05-02-git-module-closeout-wave.md`
+    - `docs/plans/2026-05-02-git-operations-identityflow-wave.md`
+  - 关键 rerank 结论：
+    - CI cross-platform smoke lane 仍硬编码 `bin/fpdev` / `bin/fpdev.exe`
+    - Git backlog 仍有显式未完成 doc item
+    - `fpdev.git.operations.impl.pas` 当前最像独立切口的是 identity/signature flow，而不是整个 transport layer
+
 ## Session: 2026-05-02 (release build path reporting truth-sync wave)
 
 ### Phase 125: Release Build Path Reporting Truth Sync
