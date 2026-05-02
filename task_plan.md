@@ -1,12 +1,39 @@
 # Task Plan
 
 ## Active Goal
-按 2026-05-02 throughput plan pack v3 连续执行下一批高 ROI 波次：先做 version-registry loader/default seam，再做 package-registry queryflow，最后视 seam 审核结果推进 cross-downloader verificationflow。
+按 2026-05-02 throughput plan pack v3 继续执行下一批高 ROI 波次：Wave A `version-registry` 已收口，下一步进入 Wave B `package-registry` queryflow，再视 clean-tree 状态推进 Wave C `cross-downloader` verificationflow。
 
 ## Current Phase
-Phase 130 complete
+Phase 131 complete
 
 ## Active Phases
+### Phase 131: Version Registry Loader Wave
+- [x] 为 `src/fpdev.version.registry.pas` 增加 boundary RED：
+  - 新增 `tests/test_version_registry_boundary.py`
+  - 要求 main unit 通过 `fpdev.version.registry.loadflow` 委托 load/default logic
+  - 要求 inline `LoadFromJSON` / `LoadDefaults` / `Parse*` 不再留在 main unit
+- [x] 新增 focused Pascal runner：
+  - `tests/test_version_registry_loadflow.lpr`
+  - `tests/test_version_registry_loadflow.lpi`
+  - 覆盖 JSON parsing、embedded defaults、first-existing search path selection
+- [x] 新增 internal helper：
+  - `src/fpdev.version.registry.loadflow.pas`
+- [x] 收缩 `src/fpdev.version.registry.pas`：
+  - `Reload` 改为委托 helper 完成 search-path scan 与 data composition
+  - main unit 保留 singleton lifecycle、state ownership、public query surface
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_version_registry_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_version_registry_loadflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_version.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_indexflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_catalogflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_source_repo.lpr`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_sourceversionflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_installcallbacks.lpr`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave A 收口
+- **Status:** complete
+
 ### Phase 130: Throughput Plan Pack V3 Refresh
 - [x] 基于最新干净工作树重新评估下一批可执行主线，避免继续回到“单个微小 truth-sync”节奏
 - [x] 复核当前候选热点与 blast radius：

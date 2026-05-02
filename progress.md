@@ -1,5 +1,48 @@
 # Progress Log
 
+## Session: 2026-05-02 (version registry loader wave)
+
+### Phase 131: Version Registry Loader Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 复核 `src/fpdev.version.registry.pas` 后确认真实 seam 成立：
+    - `Reload(...)` 同时承担 search-path scan、JSON load、default fallback 与 state writeback
+    - `LoadFromJSON(...)` / `LoadDefaults` / `ParseFPCReleases(...)` / `ParseLazarusReleases(...)` / `ParseBootstrapMap(...)` 是一个完整的 helper-owned cluster
+    - public query methods 只是消费 state，不应该一起迁走
+  - 先写 RED：
+    - 新增 `tests/test_version_registry_boundary.py`
+    - 新增 `tests/test_version_registry_loadflow.lpr`
+    - 新增 `tests/test_version_registry_loadflow.lpi`
+    - Python RED 初次命中的是 main unit 仍内联 load/default logic；Pascal RED 命中的是 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.version.registry.loadflow.pas`
+    - 提供 `TVersionRegistryLoadData`
+    - 提供 `InitVersionRegistryLoadData(...)` / `DoneVersionRegistryLoadData(...)`
+    - 提供 `TryLoadVersionRegistryDataCore(...)`
+    - 提供 `TryLoadVersionRegistryDataFromJSONCore(...)`
+    - 提供 `LoadDefaultVersionRegistryDataCore(...)`
+  - 收缩 `src/fpdev.version.registry.pas`：
+    - 去掉 inline `LoadFromJSON` / `LoadDefaults` / `Parse*`
+    - `Reload(...)` 改为调用 helper，再把结果赋回 singleton state
+    - 保持 `TVersionRegistry` public query API 与 `DataPath` ownership 不变
+  - 一个关键实现决策是让 JSON load 先从 embedded defaults 起步，再覆盖显式 section：
+    - 这样缺失 section 时不会把 repo/default/bootstrap state 置空
+    - 与当前下游测试依赖的“缺字段时仍有 sane defaults”语义保持一致
+  - 一个测试侧小修正是：
+    - boundary test 初版用已删除的 `LoadFromJSON(...)` 作为 `Reload` body 截断点
+    - helper 落地后这变成错误失败，因此改为用 `GetFPCReleases(...)` 作为下一个稳定锚点
+  - Verification completed:
+    - `python3 -m unittest tests.test_version_registry_boundary -v` → `3/3`
+    - `bash scripts/run_single_test.sh tests/test_version_registry_loadflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_version.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_indexflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_lazarus_catalogflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_source_repo.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_lazarus_sourceversionflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_lazarus_installcallbacks.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (throughput plan pack v3 refresh)
 
 ### Phase 130: Throughput Plan Pack V3 Refresh

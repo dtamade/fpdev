@@ -1,5 +1,33 @@
 # Findings & Decisions
 
+## 2026-05-02 Version Registry Loader Wave
+- 这条 wave 的 seam 是真的，而且比最初计划还更干净：
+  - `src/fpdev.version.registry.pas` 的 public query methods 只是读取 state
+  - 真正混在一起的是 `Reload(...)` 的 search-path scan + JSON parse + embedded-default fallback + singleton state writeback
+  - 所以只抽 loadflow，不碰 query API，是合适的切法
+- 一个关键结构决策是让新 helper `src/fpdev.version.registry.loadflow.pas` 在 interface 里依赖 `fpdev.version.registry` 的公开 record types，而让主 unit 只在 implementation 里依赖 helper：
+  - 这样避免了 public surface 扩张
+  - 也不需要额外拆一个新的 public types unit
+- helper 最终承接的职责是：
+  - `TryLoadVersionRegistryDataCore(...)`：search-path scan + fallback orchestration
+  - `TryLoadVersionRegistryDataFromJSONCore(...)`：JSON file parsing
+  - `LoadDefaultVersionRegistryDataCore(...)`：embedded defaults
+  - `InitVersionRegistryLoadData(...)` / `DoneVersionRegistryLoadData(...)`：temporary state lifecycle
+- 一个实现细节决定了这波为什么能安全收口：
+  - JSON load 不是从“全空 state”开始，而是先装 embedded defaults，再覆盖 JSON 里显式出现的 section/field
+  - 这保证了缺失 top-level section 时，repository/bootstrap/default values 仍是 sane defaults
+  - 也解释了为什么 `tests/test_fpc_version.lpr`、`tests/test_fpc_source_repo.lpr`、`tests/test_lazarus_installcallbacks.lpr` 都能保持全绿
+- 这波没有扩大验证到全仓大回归，原因是改动虽在 shared unit，但 blast radius 仍主要落在 version-registry 消费侧；因此 focused regression 选择了最相关的 8 条 runner：
+  - `tests/test_version_registry_loadflow.lpr`
+  - `tests/test_fpc_version.lpr`
+  - `tests/test_fpc_indexflow.lpr`
+  - `tests/test_lazarus_catalogflow.lpr`
+  - `tests/test_fpc_source_repo.lpr`
+  - `tests/test_lazarus_sourceversionflow.lpr`
+  - `tests/test_lazarus_installcallbacks.lpr`
+  - 加上 `tests/test_version_registry_boundary.py`
+- 到这里 Wave A 已经收口；按 throughput plan pack v3，下一步最高价值项是 Wave B：`src/fpdev.package.registry.pas` queryflow seam。
+
 ## 2026-05-02 Throughput Plan Pack V3 Refresh
 - 这次重新排波次时，不应该继续沿着刚收口完的 Git seam 做“再拆一点”的惯性推进；当前更高 ROI 的动作是把下一批真正可执行的 helper-wave 一次性规划好。
 - fresh hotspot 里最值得继续推进的是 3 个点：

@@ -29,7 +29,7 @@ unit fpdev.version.registry;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, fpdev.constants;
+  SysUtils, Classes, fpdev.constants;
 
 type
   { TFPCReleaseInfo - FPC version release information }
@@ -79,12 +79,6 @@ type
     FBootstrapMap: TStringList;  // Key=TargetVersion, Value=RequiredVersion
     FBootstrapFallbackChain: TStringList;
 
-    procedure LoadFromJSON(const APath: string);
-    procedure LoadDefaults;
-    procedure ParseFPCReleases(AArray: TJSONArray);
-    procedure ParseLazarusReleases(AArray: TJSONArray);
-    procedure ParseBootstrapMap(AObj: TJSONObject);
-
   public
     constructor Create;
     destructor Destroy; override;
@@ -130,7 +124,7 @@ type
 implementation
 
 uses
-  fpdev.paths;
+  fpdev.paths, fpdev.version.registry.loadflow;
 
 { TVersionRegistry }
 
@@ -182,256 +176,41 @@ end;
 
 function TVersionRegistry.Reload: Boolean;
 var
-  SearchPaths: array[0..3] of string;
-  i: Integer;
+  LoadData: TVersionRegistryLoadData;
+  ResolvedPath: string;
   ExeDir: string;
 begin
-  Result := False;
-
-  // Determine search paths
   ExeDir := ExtractFileDir(ParamStr(0));
-  SearchPaths[0] := FDataPath;  // User-specified path
-  SearchPaths[1] := ExeDir + PathDelim + 'data' + PathDelim + 'versions.json';
-  SearchPaths[2] := GetDataRoot + PathDelim + 'versions.json';
-  SearchPaths[3] := ExeDir + PathDelim + '..' + PathDelim + 'data' + PathDelim + 'versions.json';
-
-  // Try each path
-  for i := 0 to High(SearchPaths) do
-  begin
-    if (SearchPaths[i] <> '') and FileExists(SearchPaths[i]) then
-    begin
-      try
-        LoadFromJSON(SearchPaths[i]);
-        FDataPath := SearchPaths[i];
-        FLoaded := True;
-        Result := True;
-        Exit;
-      except
-        // Continue to next path on error
-      end;
-    end;
-  end;
-
-  // Fallback to embedded defaults
-  LoadDefaults;
-  FLoaded := True;
-  Result := True;
-end;
-
-procedure TVersionRegistry.LoadFromJSON(const APath: string);
-var
-  JSONText: string;
-  Parser: TJSONParser;
-  Root: TJSONObject;
-  FPCObj, LazObj, BootstrapObj: TJSONObject;
-  F: TStringList;
-begin
-  F := TStringList.Create;
+  InitVersionRegistryLoadData(LoadData);
   try
-    F.LoadFromFile(APath);
-    JSONText := F.Text;
+    Result := TryLoadVersionRegistryDataCore(
+      FDataPath,
+      ExeDir,
+      GetDataRoot,
+      ResolvedPath,
+      LoadData
+    );
+    if not Result then
+      Exit;
+
+    FSchemaVersion := LoadData.SchemaVersion;
+    FUpdatedAt := LoadData.UpdatedAt;
+    FFPCReleases := Copy(LoadData.FPCReleases, 0, Length(LoadData.FPCReleases));
+    FFPCDefaultVersion := LoadData.FPCDefaultVersion;
+    FFPCRepository := LoadData.FPCRepository;
+    FLazarusReleases := Copy(LoadData.LazarusReleases, 0, Length(LoadData.LazarusReleases));
+    FLazarusDefaultVersion := LoadData.LazarusDefaultVersion;
+    FLazarusRepository := LoadData.LazarusRepository;
+    FBootstrapMap.Assign(LoadData.BootstrapMap);
+    FBootstrapFallbackChain.Assign(LoadData.BootstrapFallbackChain);
+
+    if ResolvedPath <> '' then
+      FDataPath := ResolvedPath;
+
+    FLoaded := True;
   finally
-    F.Free;
+    DoneVersionRegistryLoadData(LoadData);
   end;
-
-  Parser := TJSONParser.Create(JSONText, []);
-  try
-    Root := Parser.Parse as TJSONObject;
-    try
-      FSchemaVersion := Root.Get('schema_version', '1.0');
-      FUpdatedAt := Root.Get('updated_at', '');
-
-      // Parse FPC section
-      if Root.Find('fpc') <> nil then
-      begin
-        FPCObj := Root.Objects['fpc'];
-        FFPCDefaultVersion := FPCObj.Get('default_version', '3.2.2');
-        FFPCRepository := FPCObj.Get('repository', FPC_OFFICIAL_REPO);  // Use central constant
-        if FPCObj.Find('releases') <> nil then
-          ParseFPCReleases(FPCObj.Arrays['releases']);
-      end;
-
-      // Parse Lazarus section
-      if Root.Find('lazarus') <> nil then
-      begin
-        LazObj := Root.Objects['lazarus'];
-        FLazarusDefaultVersion := LazObj.Get('default_version', '3.6');
-        FLazarusRepository := LazObj.Get('repository', LAZARUS_OFFICIAL_REPO);  // Use central constant
-        if LazObj.Find('releases') <> nil then
-          ParseLazarusReleases(LazObj.Arrays['releases']);
-      end;
-
-      // Parse Bootstrap section
-      if Root.Find('bootstrap') <> nil then
-      begin
-        BootstrapObj := Root.Objects['bootstrap'];
-        ParseBootstrapMap(BootstrapObj);
-      end;
-
-    finally
-      Root.Free;
-    end;
-  finally
-    Parser.Free;
-  end;
-end;
-
-procedure TVersionRegistry.ParseFPCReleases(AArray: TJSONArray);
-var
-  i: Integer;
-  Item: TJSONObject;
-begin
-  SetLength(FFPCReleases, AArray.Count);
-  for i := 0 to AArray.Count - 1 do
-  begin
-    Item := AArray.Objects[i];
-    FFPCReleases[i].Version := Item.Get('version', '');
-    FFPCReleases[i].ReleaseDate := Item.Get('release_date', '');
-    FFPCReleases[i].GitTag := Item.Get('git_tag', '');
-    FFPCReleases[i].Branch := Item.Get('branch', '');
-    FFPCReleases[i].Channel := Item.Get('channel', 'stable');
-    FFPCReleases[i].LTS := Item.Get('lts', False);
-  end;
-end;
-
-procedure TVersionRegistry.ParseLazarusReleases(AArray: TJSONArray);
-var
-  i, j: Integer;
-  Item: TJSONObject;
-  CompatArray: TJSONArray;
-begin
-  SetLength(FLazarusReleases, AArray.Count);
-  for i := 0 to AArray.Count - 1 do
-  begin
-    Item := AArray.Objects[i];
-    FLazarusReleases[i].Version := Item.Get('version', '');
-    FLazarusReleases[i].ReleaseDate := Item.Get('release_date', '');
-    FLazarusReleases[i].GitTag := Item.Get('git_tag', '');
-    FLazarusReleases[i].Branch := Item.Get('branch', '');
-    FLazarusReleases[i].Channel := Item.Get('channel', 'stable');
-
-    // Parse FPC compatible versions
-    if Item.Find('fpc_compatible') <> nil then
-    begin
-      CompatArray := Item.Arrays['fpc_compatible'];
-      SetLength(FLazarusReleases[i].FPCCompatible, CompatArray.Count);
-      for j := 0 to CompatArray.Count - 1 do
-        FLazarusReleases[i].FPCCompatible[j] := CompatArray.Strings[j];
-    end;
-  end;
-end;
-
-procedure TVersionRegistry.ParseBootstrapMap(AObj: TJSONObject);
-var
-  MapObj: TJSONObject;
-  ChainArray: TJSONArray;
-  i: Integer;
-begin
-  FBootstrapMap.Clear;
-  FBootstrapFallbackChain.Clear;
-
-  // Parse version map
-  if AObj.Find('version_map') <> nil then
-  begin
-    MapObj := AObj.Objects['version_map'];
-    for i := 0 to MapObj.Count - 1 do
-      FBootstrapMap.Values[MapObj.Names[i]] := MapObj.Items[i].AsString;
-  end;
-
-  // Parse fallback chain
-  if AObj.Find('fallback_chain') <> nil then
-  begin
-    ChainArray := AObj.Arrays['fallback_chain'];
-    for i := 0 to ChainArray.Count - 1 do
-      FBootstrapFallbackChain.Add(ChainArray.Strings[i]);
-  end;
-end;
-
-procedure TVersionRegistry.LoadDefaults;
-begin
-  // Embedded defaults - used when versions.json is not available
-  FSchemaVersion := '1.0';
-  FUpdatedAt := 'embedded';
-
-  // FPC defaults
-  FFPCDefaultVersion := '3.2.2';
-  FFPCRepository := FPC_OFFICIAL_REPO;  // Use central constant
-  SetLength(FFPCReleases, 5);
-
-  FFPCReleases[0].Version := '3.2.2';
-  FFPCReleases[0].ReleaseDate := '2021-05-19';
-  FFPCReleases[0].GitTag := 'release_3_2_2';
-  FFPCReleases[0].Branch := 'fixes_3_2';
-  FFPCReleases[0].Channel := 'stable';
-  FFPCReleases[0].LTS := True;
-
-  FFPCReleases[1].Version := '3.2.0';
-  FFPCReleases[1].ReleaseDate := '2020-06-19';
-  FFPCReleases[1].GitTag := 'release_3_2_0';
-  FFPCReleases[1].Branch := 'fixes_3_2';
-  FFPCReleases[1].Channel := 'stable';
-  FFPCReleases[1].LTS := False;
-
-  FFPCReleases[2].Version := '3.0.4';
-  FFPCReleases[2].ReleaseDate := '2017-11-21';
-  FFPCReleases[2].GitTag := 'release_3_0_4';
-  FFPCReleases[2].Branch := 'fixes_3_0';
-  FFPCReleases[2].Channel := 'legacy';
-  FFPCReleases[2].LTS := False;
-
-  FFPCReleases[3].Version := '3.3.1';
-  FFPCReleases[3].ReleaseDate := 'rolling';
-  FFPCReleases[3].GitTag := 'main';
-  FFPCReleases[3].Branch := 'main';
-  FFPCReleases[3].Channel := 'development';
-  FFPCReleases[3].LTS := False;
-
-  FFPCReleases[4].Version := 'main';
-  FFPCReleases[4].ReleaseDate := 'rolling';
-  FFPCReleases[4].GitTag := 'main';
-  FFPCReleases[4].Branch := 'main';
-  FFPCReleases[4].Channel := 'development';
-  FFPCReleases[4].LTS := False;
-
-  // Lazarus defaults
-  FLazarusDefaultVersion := '3.6';
-  FLazarusRepository := LAZARUS_OFFICIAL_REPO;  // Use central constant
-  SetLength(FLazarusReleases, 2);
-
-  FLazarusReleases[0].Version := '3.6';
-  FLazarusReleases[0].ReleaseDate := '2024-10-14';
-  FLazarusReleases[0].GitTag := 'lazarus_3_6';
-  FLazarusReleases[0].Branch := 'lazarus_3_6';
-  FLazarusReleases[0].Channel := 'stable';
-  SetLength(FLazarusReleases[0].FPCCompatible, 2);
-  FLazarusReleases[0].FPCCompatible[0] := '3.2.2';
-  FLazarusReleases[0].FPCCompatible[1] := '3.2.0';
-
-  FLazarusReleases[1].Version := 'main';
-  FLazarusReleases[1].ReleaseDate := 'rolling';
-  FLazarusReleases[1].GitTag := 'main';
-  FLazarusReleases[1].Branch := 'main';
-  FLazarusReleases[1].Channel := 'development';
-  SetLength(FLazarusReleases[1].FPCCompatible, 3);
-  FLazarusReleases[1].FPCCompatible[0] := '3.2.2';
-  FLazarusReleases[1].FPCCompatible[1] := '3.3.1';
-  FLazarusReleases[1].FPCCompatible[2] := 'main';
-
-  // Bootstrap defaults
-  FBootstrapMap.Clear;
-  FBootstrapMap.Values['main'] := '3.2.2';
-  FBootstrapMap.Values['3.3.1'] := '3.2.2';
-  FBootstrapMap.Values['3.2.2'] := '3.2.0';
-  FBootstrapMap.Values['3.2.0'] := '3.0.4';
-  FBootstrapMap.Values['3.0.4'] := '3.0.2';
-
-  FBootstrapFallbackChain.Clear;
-  FBootstrapFallbackChain.Add('3.2.2');
-  FBootstrapFallbackChain.Add('3.2.0');
-  FBootstrapFallbackChain.Add('3.0.4');
-  FBootstrapFallbackChain.Add('3.0.2');
-  FBootstrapFallbackChain.Add('3.0.0');
-  FBootstrapFallbackChain.Add('2.6.4');
 end;
 
 { FPC queries }
