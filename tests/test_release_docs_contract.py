@@ -27,8 +27,9 @@ class ReleaseDocsContractTests(unittest.TestCase):
         self.assertIn('SHA256SUMS.txt', self.text)
 
     def test_owner_checkpoint_doc_uses_release_packaging_script(self):
-        self.assertIn('scripts/package_release_assets.py', self.text)
+        self.assertIn('scripts/package_release_asset.sh', self.text)
         self.assertIn('--data-dir src/data', self.text)
+        self.assertIn('--require-planned-assets', self.text)
         self.assertNotIn('--data-dir bin/data', self.text)
 
     def test_owner_checkpoint_doc_uses_release_evidence_script(self):
