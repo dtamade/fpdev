@@ -1,5 +1,32 @@
 # Progress Log
 
+## Session: 2026-05-03 (git operations focused-test truth sync)
+
+### Phase 148: Git Operations Focused-Test Truth Sync
+- **Status:** complete
+- **Started:** 2026-05-03
+- Actions taken:
+  - 在 `probeflow` 收口后重新检查当前 Git 文档与 focused-test inventory，确认 `docs/GIT_OPERATIONS*.md` 仍停留在 `identityflow/transportflow` 阶段，已经落后于当前 helper truth。
+  - 更新 Git focused-test 文档：
+    - `docs/GIT_OPERATIONS.md`
+    - `docs/GIT_OPERATIONS.en.md`
+    - 补齐 `queryflow` / `mutationflow` / `syncflow` / `probeflow`
+    - 补齐对应 helper 行为说明
+  - 同步边界护栏：
+    - 更新 `tests/test_git_runtime_boundary.py`
+    - 让文档断言命中当前完整 helper / focused-test inventory
+  - Verification completed:
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → pass
+- Files created/modified:
+  - `docs/GIT_OPERATIONS.md`
+  - `docs/GIT_OPERATIONS.en.md`
+  - `tests/test_git_runtime_boundary.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 当前 focused-test 文档真相已对齐，下一步可以继续推进 libgit2 core seam，而不再受过期测试清单干扰
+
 ## Session: 2026-05-02 (git operations probeflow wave)
 
 ### Phase 147: Git Operations Probeflow Wave

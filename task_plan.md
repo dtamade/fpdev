@@ -1,12 +1,27 @@
 # Task Plan
 
 ## Active Goal
-`git operations` 已继续完成 `probeflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续 libgit2 core 层里真实重复且低 blast-radius 的 seam，而不是回到 docs-only truth-sync 或直接把 `PullWithLibgit2(...)` 这类高风险主体一次性重构。
+`git operations` 的 focused-test 文档真相已与当前工作树同步；下一步应继续收口 `src/fpdev.git.operations.impl.pas` 里 libgit2 core 的重复低层逻辑，优先抽 repo/index/remote/tree lookup、checkout options init 与错误折叠，而不是直接重写 `PullWithLibgit2(...)` 的完整主体。
 
 ## Current Phase
-Phase 147 complete
+Phase 148 complete
 
 ## Active Phases
+### Phase 148: Git Operations Focused-Test Truth Sync
+- [x] 在 `probeflow` 收口后的 fresh re-rank 基础上，先同步 Git focused-test 文档真相，避免后续大波次继续建立在过时测试清单上
+- [x] 更新 `docs/GIT_OPERATIONS.md` / `docs/GIT_OPERATIONS.en.md`：
+  - system-git focused tests 清单补齐 `queryflow` / `mutationflow` / `syncflow` / `probeflow`
+  - helper 覆盖说明同步扩展到当前全部 internal helper 面
+- [x] 更新 `tests/test_git_runtime_boundary.py`：
+  - `test_git_operations_summary_docs_exist_and_capture_current_surfaces`
+  - 改为要求文档命中当前完整 focused-test / helper inventory
+- [x] 运行文档真相验证：
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 focused-test truth sync wave
+- **Status:** complete
+
 ### Phase 147: Git Operations Probeflow Wave
 - [x] 在 `syncflow` 收口后的 fresh re-rank 基础上，确认下一刀不该碰 `PullWithLibgit2(...)` 这类高风险主体，而是把仍留在 public facade 里的最后两段 probe surface（`IsRepository(...)` / `GetVersion`）收口成 internal helper
 - [x] 接手并利用已写好的 RED 护栏：

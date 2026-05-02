@@ -1,5 +1,16 @@
 # Findings & Decisions
 
+## 2026-05-03 Git Operations Focused-Test Truth Sync
+- `git operations` 在完成 `queryflow` / `mutationflow` / `syncflow` / `probeflow` 之后，仓库文档里的 Git focused-test 清单仍停留在 `identityflow` / `transportflow` 阶段。
+- 这不是实现 bug，但它会直接伤害后续实施节奏：
+  - 新波次会继续基于过时清单做验证选择
+  - 边界护栏会继续低估当前真实 helper inventory
+- 因此在继续推进 libgit2 core seam 前，先做一轮 focused-test truth sync 是值得的：
+  - 更新 `docs/GIT_OPERATIONS.md`
+  - 更新 `docs/GIT_OPERATIONS.en.md`
+  - 更新 `tests/test_git_runtime_boundary.py` 的文档断言
+- 这轮不碰 `src/fpdev.git.operations.impl.pas` 行为，只同步“当前真相”，把后续大波次的验证叙事补齐。
+
 ## 2026-05-02 Git Operations Probeflow Wave
 - 在 `syncflow` 收口之后，`git operations` 的 public facade 里还剩最后两段没有 helper 化的 probe surface：
   - `IsRepository(...)`

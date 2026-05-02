@@ -21,6 +21,10 @@ Start with this:
   - `src/fpdev.git.env.pas`
   - `src/fpdev.git.operations.identityflow.pas`
   - `src/fpdev.git.operations.transportflow.pas`
+  - `src/fpdev.git.operations.queryflow.pas`
+  - `src/fpdev.git.operations.mutationflow.pas`
+  - `src/fpdev.git.operations.syncflow.pas`
+  - `src/fpdev.git.operations.probeflow.pas`
   - `src/fpdev.git.runtime.pas`
   - `src/fpdev.git.runtime.impl.pas`
 
@@ -72,6 +76,10 @@ There are two focused test groups.
 - `tests/test_git_operations.lpr`
 - `tests/test_git_operations_identityflow.lpr`
 - `tests/test_git_operations_transportflow.lpr`
+- `tests/test_git_operations_queryflow.lpr`
+- `tests/test_git_operations_mutationflow.lpr`
+- `tests/test_git_operations_syncflow.lpr`
+- `tests/test_git_operations_probeflow.lpr`
 - `tests/test_git_env_identity.lpr`
 - `tests/test_git_env_credentials.lpr`
 
@@ -80,6 +88,10 @@ These lock:
 - the default `fpdev.git.operations` facade behavior
 - the current internal identity/signature helper behavior
 - the current internal transport credential/options helper behavior
+- the current internal query/read helper behavior
+- the current internal mutation-surface helper behavior
+- the current internal sync-surface helper behavior
+- the current internal probe-surface helper behavior
 - environment-based credential and identity resolution
 - the lightweight shared helper surfaces
 
