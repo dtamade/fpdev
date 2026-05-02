@@ -1,12 +1,43 @@
 # Task Plan
 
 ## Active Goal
-2026-05-02 throughput plan pack v3 已全部收口；下一步应基于最新干净工作树 fresh re-rank 下一批高 ROI 波次，而不是机械重开刚完成的 helper seam。
+`src/fpdev.lazarus.config.pas` 的 `envoptionsflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是把刚完成的 Lazarus config seam 再继续机械细拆。
 
 ## Current Phase
-Phase 133 complete
+Phase 134 complete
 
 ## Active Phases
+### Phase 134: Lazarus Config Envoptions Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认旧的 `build.manager` / `fpc.builder` / `fpc.source` helper 波次不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.lazarus.config.pas`
+  - 仅处理 `environmentoptions.xml` 的 set/get XML glue
+  - 不触碰 `BackupConfig` / `ImportConfig` / `ExportConfig` / `ValidateConfig`
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-lazarus-config-envoptions-wave.md`
+- [x] 为 `src/fpdev.lazarus.config.pas` 增加 boundary RED：
+  - 新增 `tests/test_lazarus_config_boundary.py`
+  - 要求 class implementation 通过 `fpdev.lazarus.config.envoptionsflow` 委托 envoptions set/get
+  - 要求 inline XML load/save/node helpers 离开主 unit
+- [x] 新增 focused Pascal RED：
+  - `tests/test_lazarus_config_envoptionsflow.lpr`
+  - `tests/test_lazarus_config_envoptionsflow.lpi`
+  - 覆盖新文件创建、existing node update、missing file、missing node
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.lazarus.config.envoptionsflow.pas`
+- [x] 收缩 `src/fpdev.lazarus.config.pas`：
+  - 所有 `environmentoptions.xml` setter/getter 改为委托 helper
+  - `TLazarusIDEConfig` 保留 config-root ownership 和 backup/import/export/validate logic
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_lazarus_config_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_config_envoptionsflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_ide_config.lpr`
+  - `bash scripts/run_single_test.sh tests/test_lazarus_configure_workflow.lpr`
+- [x] 同步根 planning files 并准备提交本轮 Wave D 收口
+- **Status:** complete
+
 ### Phase 133: Cross Downloader Verificationflow Wave
 - [x] 为 `src/fpdev.cross.downloader.pas` 增加 boundary RED：
   - 新增 `tests/test_cross_downloader_boundary.py`

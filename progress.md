@@ -1,5 +1,43 @@
 # Progress Log
 
+## Session: 2026-05-02 (lazarus config envoptions wave)
+
+### Phase 134: Lazarus Config Envoptions Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在当前 clean tree 上重新做了一轮 fresh re-rank，没有 reopen 旧的 `build.manager` / `fpc.builder` / `fpc.source` helper 波次。
+  - 新的最高 ROI 切口落在 `src/fpdev.lazarus.config.pas`：
+    - `SetCompilerPath` / `GetCompilerPath`
+    - `SetLibraryPath` / `GetLibraryPath`
+    - `SetFPCSourcePath` / `GetFPCSourcePath`
+    - `SetMakePath` / `GetMakePath`
+    - `SetDebuggerPath` / `GetDebuggerPath`
+    - `SetTargetOS` / `GetTargetOS`
+    - `SetTargetCPU` / `GetTargetCPU`
+    - 这一组共享同一份 `environmentoptions.xml` 读写与 XML node glue，且已有成熟回归线
+  - 先写 RED：
+    - 新增 `tests/test_lazarus_config_boundary.py`
+    - 新增 `tests/test_lazarus_config_envoptionsflow.lpr`
+    - 新增 `tests/test_lazarus_config_envoptionsflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+    - Python RED 命中的是主 unit 仍内联 XML glue；Pascal RED 命中的是 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.lazarus.config.envoptionsflow.pas`
+    - 提供 `SetLazarusEnvOptionValueCore(...)`
+    - 提供 `GetLazarusEnvOptionValueCore(...)`
+    - helper 内部接管 XML load/save、`EnvironmentOptions` 节点创建、单字段读写
+  - 收缩 `src/fpdev.lazarus.config.pas`：
+    - 删除 inline `LoadXMLDoc` / `SaveXMLDoc` / `FindOrCreateNode` / `GetNodeValue` / `SetNodeValue`
+    - 所有 envoptions setter/getter 改为 thin delegate
+    - `EnsureConfigDir`、`AddLibrarySearchPath`、`ExportConfig`、`ImportConfig`、`BackupConfig`、`RestoreConfig`、`ValidateConfig`、`GetConfigSummary` 继续留在 class 内
+  - Verification completed:
+    - `python3 -m unittest tests.test_lazarus_config_boundary tests.test_temp_hygiene -v` → `52/52`
+    - `bash scripts/run_single_test.sh tests/test_lazarus_config_envoptionsflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_lazarus_ide_config.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_lazarus_configure_workflow.lpr` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (cross downloader verificationflow wave)
 
 ### Phase 133: Cross Downloader Verificationflow Wave

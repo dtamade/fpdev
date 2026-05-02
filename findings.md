@@ -1,5 +1,37 @@
 # Findings & Decisions
 
+## 2026-05-02 Lazarus Config Envoptions Wave
+- 这条 wave 的关键判断是：`src/fpdev.lazarus.config.pas` 真正重复、且适合 helper 化的，不是 backup/import/export，而是 `environmentoptions.xml` 的单字段 XML glue。
+  - `SetCompilerPath` / `GetCompilerPath`
+  - `SetLibraryPath` / `GetLibraryPath`
+  - `SetFPCSourcePath` / `GetFPCSourcePath`
+  - `SetMakePath` / `GetMakePath`
+  - `SetDebuggerPath` / `GetDebuggerPath`
+  - `SetTargetOS` / `GetTargetOS`
+  - `SetTargetCPU` / `GetTargetCPU`
+- 最终下沉到 `src/fpdev.lazarus.config.envoptionsflow.pas` 的，是两条单项 envoptions helper：
+  - `SetLazarusEnvOptionValueCore(...)`
+  - `GetLazarusEnvOptionValueCore(...)`
+  - helper 内部统一接管 XML load/save、`CONFIG` root 创建、`EnvironmentOptions` 节点创建、`Value` 属性读写
+- 一个关键保守决策是 `TLazarusIDEConfig` 仍保留 config-root ownership 与所有非 envoptions 行为：
+  - `EnsureConfigDir`
+  - `AddLibrarySearchPath`
+  - `ExportConfig` / `ImportConfig`
+  - `BackupConfig` / `RestoreConfig`
+  - `ValidateConfig` / `GetConfigSummary`
+  - 这样不会把类的职责扩大成“通用文件系统 helper 外壳”，只是把重复的 XML glue 压缩掉
+- direct helper test 锁住了 4 个容易回退的点：
+  - 缺失文件时 setter 会创建新的 `environmentoptions.xml`
+  - getter 能取回新写入的字段值
+  - existing node update 会返回新值
+  - 缺失文件或缺失 node 时 getter 返回空字符串
+- focused regression 结果说明 blast radius 被压住了：
+  - `tests/test_lazarus_ide_config.lpr`
+  - `tests/test_lazarus_configure_workflow.lpr`
+  - `tests/test_temp_hygiene.py`
+  - 全部保持绿色
+- 到这里，下一步不该沿着 Lazarus config 再拆更细的 XML helper，而应回到 clean tree fresh re-rank 下一条高 ROI 波次。
+
 ## 2026-05-02 Cross Downloader Verificationflow Wave
 - 这条 wave 的关键判断是：`src/fpdev.cross.downloader.pas` 里可以安全抽离的是 verification glue，不是 manifest/download 生命周期。
   - `LoadManifest` / `RefreshManifest`

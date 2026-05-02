@@ -5,7 +5,7 @@ unit fpdev.lazarus.config;
 interface
 
 uses
-  SysUtils, Classes, DOM, XMLRead, XMLWrite, fpdev.utils.fs;
+  SysUtils, Classes, fpdev.utils.fs;
 
 type
   { TLazarusIDEConfig }
@@ -16,12 +16,6 @@ type
     FEditorOptionsPath: string;
 
     function EnsureConfigDir: Boolean;
-    function LoadXMLDoc(const APath: string): TXMLDocument;
-    function SaveXMLDoc(ADoc: TXMLDocument; const APath: string): Boolean;
-    function FindOrCreateNode(ADoc: TXMLDocument; AParent: TDOMElement;
-      const ANodeName: string): TDOMElement;
-    function GetNodeValue(ANode: TDOMElement; const AAttrName: string): string;
-    procedure SetNodeValue(ANode: TDOMElement; const AAttrName, AValue: string);
 
   public
     constructor Create(const AConfigDir: string);
@@ -71,6 +65,9 @@ type
 
 implementation
 
+uses
+  fpdev.lazarus.config.envoptionsflow;
+
 { TLazarusIDEConfig }
 
 constructor TLazarusIDEConfig.Create(const AConfigDir: string);
@@ -93,186 +90,38 @@ begin
     Result := EnsureDir(FConfigDir);
 end;
 
-function TLazarusIDEConfig.LoadXMLDoc(const APath: string): TXMLDocument;
-begin
-  Result := nil;
-  if not FileExists(APath) then
-    Exit;
-
-  try
-    ReadXMLFile(Result, APath);
-  except
-    on E: Exception do
-    begin
-      if Result <> nil then
-        Result.Free;
-      Result := nil;
-    end;
-  end;
-end;
-
-function TLazarusIDEConfig.SaveXMLDoc(ADoc: TXMLDocument; const APath: string): Boolean;
-begin
-  Result := False;
-  if ADoc = nil then
-    Exit;
-
-  try
-    WriteXMLFile(ADoc, APath);
-    Result := True;
-  except
-    on E: Exception do
-      Result := False;
-  end;
-end;
-
-function TLazarusIDEConfig.FindOrCreateNode(ADoc: TXMLDocument; AParent: TDOMElement;
-  const ANodeName: string): TDOMElement;
-var
-  NodeList: TDOMNodeList;
-begin
-  Result := nil;
-  if (ADoc = nil) or (AParent = nil) then
-    Exit;
-
-  NodeList := AParent.GetElementsByTagName(UnicodeString(ANodeName));
-  try
-    if NodeList.Count > 0 then
-      Result := NodeList.Item[0] as TDOMElement
-    else
-    begin
-      Result := ADoc.CreateElement(UnicodeString(ANodeName));
-      AParent.AppendChild(Result);
-    end;
-  finally
-    NodeList.Free;
-  end;
-end;
-
-function TLazarusIDEConfig.GetNodeValue(ANode: TDOMElement; const AAttrName: string): string;
-begin
-  Result := '';
-  if ANode = nil then
-    Exit;
-  Result := string(ANode.GetAttribute(UnicodeString(AAttrName)));
-end;
-
-procedure TLazarusIDEConfig.SetNodeValue(ANode: TDOMElement; const AAttrName, AValue: string);
-begin
-  if ANode = nil then
-    Exit;
-  ANode.SetAttribute(UnicodeString(AAttrName), UnicodeString(AValue));
-end;
-
 function TLazarusIDEConfig.SetCompilerPath(const AFPCPath: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, CompilerOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      // Create new document
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    CompilerOpts := FindOrCreateNode(Doc, EnvOpts, 'CompilerFilename');
-    SetNodeValue(CompilerOpts, 'Value', AFPCPath);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'CompilerFilename',
+    AFPCPath
+  );
 end;
 
 function TLazarusIDEConfig.GetCompilerPath: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('CompilerFilename');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'CompilerFilename');
 end;
 
 function TLazarusIDEConfig.SetLibraryPath(const APath: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, LibOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    LibOpts := FindOrCreateNode(Doc, EnvOpts, 'LazarusDirectory');
-    SetNodeValue(LibOpts, 'Value', APath);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'LazarusDirectory',
+    APath
+  );
 end;
 
 function TLazarusIDEConfig.GetLibraryPath: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('LazarusDirectory');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'LazarusDirectory');
 end;
 
 function TLazarusIDEConfig.AddLibrarySearchPath(const APath: string): Boolean;
@@ -287,278 +136,88 @@ begin
 end;
 
 function TLazarusIDEConfig.SetFPCSourcePath(const APath: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, SrcOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    SrcOpts := FindOrCreateNode(Doc, EnvOpts, 'FPCSourceDirectory');
-    SetNodeValue(SrcOpts, 'Value', APath);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'FPCSourceDirectory',
+    APath
+  );
 end;
 
 function TLazarusIDEConfig.GetFPCSourcePath: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('FPCSourceDirectory');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'FPCSourceDirectory');
 end;
 
 function TLazarusIDEConfig.SetMakePath(const APath: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, MakeOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    MakeOpts := FindOrCreateNode(Doc, EnvOpts, 'MakeFilename');
-    SetNodeValue(MakeOpts, 'Value', APath);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'MakeFilename',
+    APath
+  );
 end;
 
 function TLazarusIDEConfig.GetMakePath: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('MakeFilename');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'MakeFilename');
 end;
 
 function TLazarusIDEConfig.SetDebuggerPath(const APath: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, DbgOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    DbgOpts := FindOrCreateNode(Doc, EnvOpts, 'DebuggerFilename');
-    SetNodeValue(DbgOpts, 'Value', APath);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'DebuggerFilename',
+    APath
+  );
 end;
 
 function TLazarusIDEConfig.GetDebuggerPath: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('DebuggerFilename');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'DebuggerFilename');
 end;
 
 function TLazarusIDEConfig.SetTargetOS(const AOS: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, TargetOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    TargetOpts := FindOrCreateNode(Doc, EnvOpts, 'TargetOS');
-    SetNodeValue(TargetOpts, 'Value', AOS);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'TargetOS',
+    AOS
+  );
 end;
 
 function TLazarusIDEConfig.SetTargetCPU(const ACPU: string): Boolean;
-var
-  Doc: TXMLDocument;
-  Root, EnvOpts, TargetOpts: TDOMElement;
 begin
-  Result := False;
   if not EnsureConfigDir then
-    Exit;
+    Exit(False);
 
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  try
-    if Doc = nil then
-    begin
-      Doc := TXMLDocument.Create;
-      Root := Doc.CreateElement('CONFIG');
-      Doc.AppendChild(Root);
-    end
-    else
-      Root := Doc.DocumentElement;
-
-    EnvOpts := FindOrCreateNode(Doc, Root, 'EnvironmentOptions');
-    TargetOpts := FindOrCreateNode(Doc, EnvOpts, 'TargetCPU');
-    SetNodeValue(TargetOpts, 'Value', ACPU);
-
-    Result := SaveXMLDoc(Doc, FEnvOptionsPath);
-  finally
-    Doc.Free;
-  end;
+  Result := SetLazarusEnvOptionValueCore(
+    FEnvOptionsPath,
+    'TargetCPU',
+    ACPU
+  );
 end;
 
 function TLazarusIDEConfig.GetTargetOS: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('TargetOS');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'TargetOS');
 end;
 
 function TLazarusIDEConfig.GetTargetCPU: string;
-var
-  Doc: TXMLDocument;
-  Root: TDOMElement;
-  NodeList: TDOMNodeList;
 begin
-  Result := '';
-  Doc := LoadXMLDoc(FEnvOptionsPath);
-  if Doc = nil then
-    Exit;
-
-  try
-    Root := Doc.DocumentElement;
-    NodeList := Root.GetElementsByTagName('TargetCPU');
-    try
-      if NodeList.Count > 0 then
-        Result := GetNodeValue(NodeList.Item[0] as TDOMElement, 'Value');
-    finally
-      NodeList.Free;
-    end;
-  finally
-    Doc.Free;
-  end;
+  Result := GetLazarusEnvOptionValueCore(FEnvOptionsPath, 'TargetCPU');
 end;
 
 function TLazarusIDEConfig.ExportConfig(const AExportPath: string): Boolean;
