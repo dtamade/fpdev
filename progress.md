@@ -1,5 +1,60 @@
 # Progress Log
 
+## Session: 2026-05-02 (toolchain policyflow wave)
+
+### Phase 136: Toolchain Policyflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 从当前 clean tree 和 planning files 重新接管上下文，确认 `build.cache sourceartifactflow` 已收口，不 reopen 已关闭 helper 面。
+  - 对 `src/fpdev.toolchain.pas` 做 fresh re-rank，确认存在两团逻辑：
+    - policy/version-decision cluster
+    - repo-root / lazarus-root / PATH / JSON report probe cluster
+  - 本轮只打开 policyflow：
+    - `LoadPolicyFromFile(...)`
+    - `LoadPolicyAuto(...)`
+    - `GetExternalPolicy(...)`
+    - `NormalizeVersion(...)`
+    - `CmpVersion(...)`
+    - `GetPolicyForSource(...)`
+    - `CheckFPCVersionPolicy(...)` 内部判定
+  - 明确保留在主 unit 的 surface：
+    - `GetFPCVersion(...)`
+    - `BuildToolchainReportJSON(...)`
+    - 所有 repo-root / lazarus-root / tool probe / JSON report helpers
+  - 已先落盘本轮计划与 RED scaffolding：
+    - 新增 `docs/plans/2026-05-02-toolchain-policyflow-wave.md`
+    - 新增 `tests/test_toolchain_boundary.py`
+    - 新增 `tests/test_toolchain_policyflow.lpr`
+    - 新增 `tests/test_toolchain_policyflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+  - RED evidence completed:
+    - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v` → boundary 先失败在 helper import / delegate 缺失，temp-hygiene 保持绿色
+    - `bash scripts/run_single_test.sh tests/test_toolchain_policyflow.lpr` → 初次 build fail，命中 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.toolchain.policyflow.pas`
+    - 提供 `ResetToolchainPolicyFlowCore(...)`
+    - 提供 `LoadToolchainPolicyFromFileCore(...)`
+    - 提供 `LoadToolchainPolicyAutoCore(...)`
+    - 提供 `GetExternalToolchainPolicyCore(...)`
+    - 提供 `NormalizeToolchainVersionCore(...)`
+    - 提供 `CompareToolchainVersionCore(...)`
+    - 提供 `GetToolchainPolicyForSourceCore(...)`
+    - 提供 `EvaluateToolchainFPCVersionPolicyCore(...)`
+  - 收缩 `src/fpdev.toolchain.pas`：
+    - 删除 inline policy globals 和 policy helpers
+    - `CheckFPCVersionPolicy(...)` 改为保留 `GetFPCVersion(...)` 后委托 helper 做最终判定
+    - `BuildToolchainReportJSON(...)` 与所有 repo-root / lazarus-root / tool probe 逻辑保持原位
+  - 一个测试侧小修正是：
+    - `tests/test_toolchain_boundary.py` 初版抓到了 interface declaration
+    - 改为在 implementation text 中抽取 `CheckFPCVersionPolicy(...)` section 后恢复稳定
+  - Verification completed:
+    - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v` → `53/53`
+    - `bash scripts/run_single_test.sh tests/test_toolchain_policyflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_toolchain.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cli_fpc_policy.lpr` → pass
+    - `python3 -m unittest tests.test_check_toolchain_sh tests.test_check_toolchain_bat -v` → `7/7`
+
 ## Session: 2026-05-02 (build cache sourceartifactflow wave)
 
 ### Phase 135: Build Cache Sourceartifactflow Wave

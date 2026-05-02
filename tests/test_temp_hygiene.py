@@ -415,6 +415,17 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertGreaterEqual(text.count('CleanupTempDir(TempRoot);'), 4)
         self.assertNotIn('GetTempDir(False)', text)
 
+    def test_toolchain_policyflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_toolchain_policyflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateUniqueTempDir('test_toolchain_policyflow_exact')", text)
+        self.assertIn("CreateUniqueTempDir('test_toolchain_policyflow_env')", text)
+        self.assertIn('PathUsesSystemTempRoot(TempRoot)', text)
+        self.assertEqual(text.count('CleanupTempDir(TempRoot);'), 2)
+        self.assertNotIn('GetTempDir(False)', text)
+
     def test_cross_cache_uses_shared_temp_helpers(self):
         source_path = REPO_ROOT / 'tests' / 'test_cross_cache.lpr'
         text = source_path.read_text(encoding='utf-8')

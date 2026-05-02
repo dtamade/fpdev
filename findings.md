@@ -1,5 +1,69 @@
 # Findings & Decisions
 
+## 2026-05-02 Toolchain Policyflow Wave
+- `src/fpdev.toolchain.pas` 当前仍明显混有两团逻辑：
+  - policy/version-decision cluster：
+    - `LoadPolicyFromFile(...)`
+    - `LoadPolicyAuto(...)`
+    - `GetExternalPolicy(...)`
+    - `NormalizeVersion(...)`
+    - `CmpVersion(...)`
+    - `GetPolicyForSource(...)`
+    - `CheckFPCVersionPolicy(...)` 内部判定
+  - host report/probe cluster：
+    - PATH split
+    - process first-line capture
+    - lazarus-root probing
+    - repo-root writable probing
+    - JSON report assembly
+- fresh re-rank 后，本轮选择 `policyflow` 而不是 `reportflow`，原因是：
+  - `CheckFPCVersionPolicy(...)` 已有成熟 public consumers：
+    - `src/fpdev.build.manager.pas`
+    - `src/fpdev.cmd.fpc.policy.check.pas`
+  - 现有测试已覆盖 env override、CLI policy path、report shell parity：
+    - `tests/test_toolchain.lpr`
+    - `tests/test_cli_fpc_policy.lpr`
+    - `tests/test_check_toolchain_sh.py`
+    - `tests/test_check_toolchain_bat.py`
+  - report/probe cluster 仍绑定 repo writable guardrail 和 lazarus-root 判断，blast radius 更大
+- 本轮保守边界已经锁定：
+  - helper 新增 `src/fpdev.toolchain.policyflow.pas`
+  - 主 unit 保留 `GetFPCVersion(...)` 与 `BuildToolchainReportJSON(...)`
+  - 不把 repo-root / lazarus-root / JSON 报告逻辑一起迁入 helper
+- RED 设计目标：
+  - Python boundary 要求主 unit 只保留 thin delegate，不再内联 policy helpers / globals
+  - focused Pascal helper test 直接锁 env override、exact-vs-prefix、main/trunk alias、suffix-normalization 和 built-in WARN/FAIL fallback
+- 最终下沉到 `src/fpdev.toolchain.policyflow.pas` 的，是完整的 policy/version-decision helper cluster：
+  - `ResetToolchainPolicyFlowCore(...)`
+  - `LoadToolchainPolicyFromFileCore(...)`
+  - `LoadToolchainPolicyAutoCore(...)`
+  - `GetExternalToolchainPolicyCore(...)`
+  - `NormalizeToolchainVersionCore(...)`
+  - `CompareToolchainVersionCore(...)`
+  - `GetToolchainPolicyForSourceCore(...)`
+  - `EvaluateToolchainFPCVersionPolicyCore(...)`
+- 一个关键保守决策是 `GetFPCVersion(...)` 明确不下沉：
+  - 它依赖真实进程调用 `fpc -iV`
+  - 更接近 tool probe/report cluster，而不是 policy rule cluster
+  - 这样 `CheckFPCVersionPolicy(...)` 仍在主 unit 保留“先探测当前 FPC，再交给 helper 比对策略”的公共语义
+- helper 现在接管了 policy state ownership：
+  - 主 unit 不再保留 `GPolicyLoaded` / `GPolicyFPC`
+  - focused helper test 通过 `ResetToolchainPolicyFlowCore(...)` 稳定复位同进程状态
+- direct helper test 锁住了 5 个容易回退的点：
+  - env policy auto-load honors `FPDEV_POLICY_FILE`
+  - exact version key wins over prefix key
+  - `main` / `trunk` alias matching stays intact
+  - version compare strips suffixes and compares numerically
+  - built-in fallback still returns `WARN` / `FAIL` correctly
+- focused regression 结果说明 blast radius 被压住了：
+  - `tests/test_toolchain.lpr`
+  - `tests/test_cli_fpc_policy.lpr`
+  - `tests/test_check_toolchain_sh.py`
+  - `tests/test_check_toolchain_bat.py`
+  - `tests/test_temp_hygiene.py`
+  - 全部保持绿色
+- 到这里，下一步不该顺手把 `BuildToolchainReportJSON(...)` 也拖进 helper，而应回到 clean tree fresh re-rank 下一条高 ROI 波次。
+
 ## 2026-05-02 Build Cache Sourceartifactflow Wave
 - 这条 wave 的关键判断是：`src/fpdev.build.cache.pas` 里真正适合 helper 化的，不是整个 artifact/cache surface，而是 source artifact lifecycle 这 4 个方法：
   - `SaveArtifacts(...)`

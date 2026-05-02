@@ -1,12 +1,51 @@
 # Task Plan
 
 ## Active Goal
-`src/fpdev.build.cache.pas` 的 `sourceartifactflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是把刚完成的 build-cache seam 再继续机械细拆。
+`src/fpdev.toolchain.pas` 的 `policyflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是顺手把 repo-root / lazarus-root / report JSON 这一团继续拖进本轮。
 
 ## Current Phase
-Phase 135 complete
+Phase 136 complete
 
 ## Active Phases
+### Phase 136: Toolchain Policyflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `build.cache` / `lazarus.config` 等刚收口的 helper 波次不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.toolchain.pas`
+  - 仅处理 policy/version-decision cluster：
+    - `LoadPolicyFromFile(...)`
+    - `LoadPolicyAuto(...)`
+    - `GetExternalPolicy(...)`
+    - `NormalizeVersion(...)`
+    - `CmpVersion(...)`
+    - `GetPolicyForSource(...)`
+    - `CheckFPCVersionPolicy(...)` 内部判定
+  - `GetFPCVersion(...)` 与 `BuildToolchainReportJSON(...)` 继续留在主 unit
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-toolchain-policyflow-wave.md`
+- [x] 为 `src/fpdev.toolchain.pas` 增加 boundary RED：
+  - 新增 `tests/test_toolchain_boundary.py`
+  - 要求 toolchain implementation 通过 `fpdev.toolchain.policyflow` 委托 policy evaluation
+  - 要求 inline policy helpers 和 policy globals 离开主 unit
+- [x] 新增 focused Pascal RED：
+  - `tests/test_toolchain_policyflow.lpr`
+  - `tests/test_toolchain_policyflow.lpi`
+  - 覆盖 env override、exact-vs-prefix、main/trunk alias、version compare、built-in WARN/FAIL fallback
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.toolchain.policyflow.pas`
+- [x] 收缩 `src/fpdev.toolchain.pas`：
+  - policy/version-decision 改为委托 helper
+  - `fpdev.toolchain` 保留 process probing 与 host report JSON ownership
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_toolchain_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_toolchain_policyflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_toolchain.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cli_fpc_policy.lpr`
+  - `python3 -m unittest tests.test_check_toolchain_sh tests.test_check_toolchain_bat -v`
+- [x] 同步根 planning files 并准备提交本轮 Wave F 收口
+- **Status:** complete
+
 ### Phase 135: Build Cache Sourceartifactflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `lazarus.manager` runtimeactions 等旧 helper 波次不 reopen
 - [x] 锁定本轮最保守切口：

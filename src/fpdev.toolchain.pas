@@ -5,7 +5,7 @@ unit fpdev.toolchain;
 interface
 
 uses
-  SysUtils, Classes, fpjson, jsonparser, fpdev.utils, fpdev.utils.process
+  SysUtils, Classes, fpdev.utils, fpdev.utils.process
   {$IFDEF UNIX}
   , BaseUnix
   {$ENDIF}
@@ -48,131 +48,8 @@ function CheckFPCVersionPolicy(const ASourceVersion: string;
 
 implementation
 
-const
-  TOOLCHAIN_POLICY_MAINLINE_VERSION = '3.2.2';
-  TOOLCHAIN_POLICY_VERSION_320 = '3.2.0';
-  TOOLCHAIN_POLICY_VERSION_304 = '3.0.4';
-  TOOLCHAIN_POLICY_VERSION_264 = '2.6.4';
-
-var
-  GPolicyLoaded: Boolean = False;
-  GPolicyFPC: TStringList = nil; // key -> min\x1Frec
-
-function EnsurePolicyStore: TStringList;
-begin
-  if GPolicyFPC = nil then
-  begin
-    GPolicyFPC := TStringList.Create;
-    GPolicyFPC.Sorted := False;
-    GPolicyFPC.CaseSensitive := False;
-    GPolicyFPC.Duplicates := dupIgnore;
-  end;
-  Result := GPolicyFPC;
-end;
-
-function LoadPolicyFromFile(const Path: string): boolean;
-var
-  SL: TStringList;
-  Root: TJSONData;
-  Obj: TJSONObject;
-  FpcObj: TJSONObject; // map of key->object
-  Tmp: TJSONData;
-  i: Integer;
-  Key: String;
-  Item: TJSONObject;
-  MinV, RecV: String;
-begin
-  Result := False;
-  if (Path='') or (not FileExists(Path)) then Exit(False);
-  // Simplified: tolerate any failures and avoid strict fpjson API dependence
-  Result := False;
-  if (Path='') or (not FileExists(Path)) then Exit(False);
-  SL := TStringList.Create;
-  try
-    SL.LoadFromFile(Path);
-    try
-      Root := GetJSON(SL.Text);
-    except
-      Exit(False);
-    end;
-    try
-      if Root.JSONType <> jtObject then Exit(False);
-      Obj := TJSONObject(Root);
-      if Obj.Find('fpc', FpcObj) then
-      begin
-        EnsurePolicyStore;
-        for i := 0 to FpcObj.Count-1 do
-        begin
-          Key := FpcObj.Names[i];
-          if FpcObj.Find(Key, Tmp) and (Assigned(Tmp)) and (Tmp.JSONType = jtObject) then
-          begin
-            Item := TJSONObject(Tmp);
-            MinV := Item.Get('min','');
-            RecV := Item.Get('rec','');
-            if (MinV<>'') and (RecV<>'') then
-              EnsurePolicyStore.Values[Key] := MinV + #31 + RecV;
-          end;
-        end;
-        GPolicyLoaded := True;
-        Result := True;
-      end;
-    finally
-      Root.Free;
-    end;
-  finally
-    SL.Free;
-  end;
-end;
-
-function LoadPolicyAuto: boolean;
-var P: string;
-begin
-  Result := False;
-  // Environment variable takes priority
-  P := get_env('FPDEV_POLICY_FILE');
-  if (P<>'') and LoadPolicyFromFile(P) then Exit(True);
-  // Common locations
-  if LoadPolicyFromFile('src'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
-  if LoadPolicyFromFile('plays'+PathDelim+'fpdev.toolchain.policy.json') then Exit(True);
-  if LoadPolicyFromFile('fpdev.toolchain.policy.json') then Exit(True);
-end;
-
-function GetExternalPolicy(const ASource: string; out AMin, ARec, AMatchedKey: string): boolean;
-var i: Integer; Key, S: string; Val: string; BestLen: Integer; VSep: SizeInt;
-begin
-  Result := False; AMin := ''; ARec := ''; AMatchedKey := '';
-  if not GPolicyLoaded then Exit(False);
-  if (GPolicyFPC=nil) or (GPolicyFPC.Count=0) then Exit(False);
-  S := LowerCase(Trim(ASource));
-  BestLen := -1;
-  Val := '';
-  for i := 0 to GPolicyFPC.Count-1 do
-  begin
-    Key := LowerCase(Trim(GPolicyFPC.Names[i]));
-    if (Key='') then Continue;
-    if (Key=S) or ((Copy(Key,Length(Key),1)='.') and (Pos(Key, S)=1)) or
-       ((Key='trunk') and ((S='trunk') or (S='main'))) or
-       ((Key='main') and ((S='trunk') or (S='main'))) then
-    begin
-      if Length(Key) > BestLen then
-      begin
-        BestLen := Length(Key);
-        Val := GPolicyFPC.ValueFromIndex[i];
-        AMatchedKey := Key;
-      end;
-    end;
-  end;
-  if BestLen >= 0 then
-  begin
-    VSep := Pos(#31, Val);
-    if VSep>0 then
-    begin
-      AMin := Copy(Val,1,VSep-1);
-      ARec := Copy(Val,VSep+1,Length(Val));
-      Result := (AMin<>'') and (ARec<>'');
-    end;
-  end;
-end;
+uses
+  fpdev.toolchain.policyflow;
 
 function SplitPathHead(const APath: string; AMax: Integer): TStringDynArray;
 var
@@ -513,95 +390,23 @@ begin
   if Result then AFPCVersion := Trim(LLine);
 end;
 
-function NormalizeVersion(const S: string): string;
-var i: Integer; ch: Char;
-begin
-  // Keep only 0-9 and dots; strip any trailing label
-  Result := '';
-  for i := 1 to Length(S) do
-  begin
-    ch := S[i];
-    if (ch in ['0'..'9','.']) then Result += ch
-    else break;
-  end;
-end;
-
-function CmpVersion(const A, B: string): Integer;
-// Returns -1/0/1: A<B / A=B / A>B
-var
-  SA, SB: TStringList;
-  i, na, nb, va, vb: Integer;
-  pa, pb: string;
-begin
-  SA := TStringList.Create; SB := TStringList.Create;
-  try
-    SA.Delimiter := '.'; SA.StrictDelimiter := True; SA.DelimitedText := NormalizeVersion(A);
-    SB.Delimiter := '.'; SB.StrictDelimiter := True; SB.DelimitedText := NormalizeVersion(B);
-    na := SA.Count; nb := SB.Count;
-    if na<nb then na := nb; // Align lengths
-    for i := 0 to na-1 do
-    begin
-      if i < SA.Count then pa := SA[i] else pa := '0';
-      if i < SB.Count then pb := SB[i] else pb := '0';
-      va := StrToIntDef(pa,0); vb := StrToIntDef(pb,0);
-      if va < vb then begin Result := -1; Exit; end
-      else if va > vb then begin Result := 1; Exit; end;
-    end;
-    Result := 0;
-  finally
-    SA.Free; SB.Free;
-  end;
-end;
-
-procedure GetPolicyForSource(const ASource: string; out AMin, ARec: string);
-var S, MatchedKey: string;
-begin
-  S := LowerCase(Trim(ASource));
-  // Try external policy first (if loaded)
-  if GetExternalPolicy(S, AMin, ARec, MatchedKey) then Exit;
-  // Built-in conservative policy
-  if (S='trunk') or (S='main') or (Pos('3.3.', S)=1) then
-  begin AMin:=TOOLCHAIN_POLICY_MAINLINE_VERSION; ARec:=TOOLCHAIN_POLICY_MAINLINE_VERSION; Exit; end;
-  if (S=TOOLCHAIN_POLICY_MAINLINE_VERSION) then
-  begin
-    AMin := TOOLCHAIN_POLICY_VERSION_304;
-    ARec := TOOLCHAIN_POLICY_VERSION_320;
-    Exit;
-  end;
-  if (Pos('3.2.', S)=1) then
-  begin
-    AMin := TOOLCHAIN_POLICY_VERSION_304;
-    ARec := TOOLCHAIN_POLICY_MAINLINE_VERSION;
-    Exit;
-  end;
-  if (Pos('3.0.', S)=1) then
-  begin
-    AMin := TOOLCHAIN_POLICY_VERSION_264;
-    ARec := TOOLCHAIN_POLICY_VERSION_304;
-    Exit;
-  end;
-  AMin := TOOLCHAIN_POLICY_MAINLINE_VERSION;
-  ARec := TOOLCHAIN_POLICY_MAINLINE_VERSION;
-end;
-
 function CheckFPCVersionPolicy(const ASourceVersion: string;
   out AStatus, AReason, AMin, ARec, AFPCVersion: string): boolean;
-var cmpMin, cmpRec: Integer;
 begin
-  // Try to auto-load external policy (load only once)
-  if not GPolicyLoaded then LoadPolicyAuto;
-  GetPolicyForSource(ASourceVersion, AMin, ARec);
   if not GetFPCVersion(AFPCVersion) then
   begin
     AStatus := 'FAIL';
     AReason := 'fpc not found';
     Exit(False);
   end;
-  cmpMin := CmpVersion(AFPCVersion, AMin);
-  cmpRec := CmpVersion(AFPCVersion, ARec);
-  if cmpMin < 0 then begin AStatus := 'FAIL'; AReason := 'fpc < min'; Exit(False); end
-  else if cmpRec < 0 then begin AStatus := 'WARN'; AReason := 'fpc < recommended'; Result := True; Exit; end
-  else begin AStatus := 'OK'; AReason := 'fpc >= recommended'; Result := True; Exit; end;
+  Result := EvaluateToolchainFPCVersionPolicyCore(
+    ASourceVersion,
+    AFPCVersion,
+    AStatus,
+    AReason,
+    AMin,
+    ARec
+  );
 end;
 
 function BuildToolchainReportJSON: string;
