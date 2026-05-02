@@ -12,6 +12,7 @@ OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
 OPERATIONS_MUTATIONFLOW_PATH = SRC / 'fpdev.git.operations.mutationflow.pas'
+OPERATIONS_SYNCFLOW_PATH = SRC / 'fpdev.git.operations.syncflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -91,11 +92,12 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
 
     def test_operations_impl_reuses_shared_pull_failure_type(self):
         text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        sync_helper_text = OPERATIONS_SYNCFLOW_PATH.read_text(encoding='utf-8') if OPERATIONS_SYNCFLOW_PATH.exists() else ''
         helper_text = OPERATIONS_TRANSPORTFLOW_PATH.read_text(encoding='utf-8') if OPERATIONS_TRANSPORTFLOW_PATH.exists() else ''
         self.assertGreaterEqual(
-            text.count('fpdev.git.errors.ClassifyGitPullFailure('),
+            text.count('fpdev.git.errors.ClassifyGitPullFailure(') + sync_helper_text.count('ClassifyGitPullFailure('),
             1,
-            'fpdev.git.operations.impl should use the shared git error helper in internal logic after compat wrapper removal',
+            'git operations internal logic should use the shared git error helper after compat wrapper removal',
         )
         self.assertGreaterEqual(
             helper_text.count('fpdev.git.env.ResolveGitCredentialEnv('),
@@ -383,6 +385,64 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.mutationflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; mutationflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_sync_surface_to_internal_syncflow(self):
+        self.assertTrue(
+            OPERATIONS_SYNCFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_SYNCFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_SYNCFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+
+        clone_section = impl_text.split(
+            'function TGitOperations.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.Fetch(const ARepoPath: string; const ARemote: string): Boolean;', 1
+        )[0]
+        fetch_section = impl_text.split(
+            'function TGitOperations.Fetch(const ARepoPath: string; const ARemote: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.Pull(const ARepoPath: string): Boolean;', 1
+        )[0]
+        pull_section = impl_text.split(
+            'function TGitOperations.Pull(const ARepoPath: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.PullFastForwardOnly(const ARepoPath: string): Boolean;', 1
+        )[0]
+        pull_ff_section = impl_text.split(
+            'function TGitOperations.PullFastForwardOnly(const ARepoPath: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;', 1
+        )[0]
+
+        self.assertIn('function ExecuteGitCloneSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitFetchSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitPullSurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitPullFastForwardOnlySurfaceCore(', helper_text)
+        self.assertIn('ClassifyGitPullFailure', helper_text)
+        self.assertIn('fpdev.git.operations.syncflow', impl_text)
+
+        self.assertIn('ExecuteGitCloneSurfaceCore(', clone_section)
+        self.assertNotIn("ExecuteGitCommand(['clone'", clone_section)
+        self.assertNotIn('Checkout(ALocalPath, ABranch, True)', clone_section)
+
+        self.assertIn('ExecuteGitFetchSurfaceCore(', fetch_section)
+        self.assertNotIn("ExecuteGitCommand(['fetch', ARemote]", fetch_section)
+
+        self.assertIn('ExecuteGitPullSurfaceCore(', pull_section)
+        self.assertNotIn("ExecuteGitCommand(['pull']", pull_section)
+        self.assertNotIn('PullWithLibgit2(ARepoPath, FLastError, NeedsFallback, True)', pull_section)
+
+        self.assertIn('ExecuteGitPullFastForwardOnlySurfaceCore(', pull_ff_section)
+        self.assertNotIn("ExecuteGitCommand(['pull', '--ff-only']", pull_ff_section)
+        self.assertNotIn('ClassifyGitPullFailure(FLastError)', pull_ff_section)
+
+        self.assertNotIn(
+            'fpdev.git.operations.syncflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; syncflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):

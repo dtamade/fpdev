@@ -1,5 +1,53 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations syncflow wave)
+
+### Phase 146: Git Operations Syncflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `mutationflow` 收口后重新做 fresh re-rank，确认下一个仍然低 blast-radius 的切口不是直接碰 libgit2 core pull/clone/fetch 实现，而是 `src/fpdev.git.operations.impl.pas` 里成组的 public sync surface。
+  - 接手已写好的 RED 护栏：
+    - `tests/test_git_runtime_boundary.py`
+    - `tests/test_git_operations_syncflow.lpr`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.syncflow.pas`
+    - 提供 `ExecuteGitCloneSurfaceCore(...)`
+    - 提供 `ExecuteGitFetchSurfaceCore(...)`
+    - 提供 `ExecuteGitPullSurfaceCore(...)`
+    - 提供 `ExecuteGitPullFastForwardOnlySurfaceCore(...)`
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - `Clone(...)`
+    - `Fetch(...)`
+    - `Pull(...)`
+    - `PullFastForwardOnly(...)`
+    - 改为统一委托 `syncflow` helper
+  - 保持 ownership 边界：
+    - `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)` 继续留在 `impl`
+    - 新增 facade-local `CheckoutAfterClone(...)` bridge，承接 clone 成功后的 branch checkout
+    - ff-only pull 的 `ClassifyGitPullFailure(...)` 判定迁到 `syncflow` helper，`impl` 不再直接依赖该分类逻辑
+  - 清理 `src/fpdev.git.operations.impl.pas` 中已不再使用的 `fpdev.git.errors` 引用
+  - Verification completed:
+    - `bash scripts/run_single_test.sh tests/test_git_operations_syncflow.lpr` → pass
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `41 passed`
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr` → pass
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `src/fpdev.git.operations.syncflow.pas`
+  - `src/fpdev.git.operations.impl.pas`
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_syncflow.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 这轮只抽 public sync surface，不动 `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)` 的主体逻辑
+  - `git operations` 如果继续推进，下一步应 fresh re-rank 剩余 core seam，而不是机械按方法名继续拆 helper
+
 ## Session: 2026-05-02 (git operations mutationflow wave)
 
 ### Phase 145: Git Operations Mutationflow Wave

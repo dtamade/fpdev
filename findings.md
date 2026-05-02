@@ -1,5 +1,46 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Syncflow Wave
+- 在 `mutationflow` 收口之后，`git operations` 里仍有一组非常一致的 public sync surface：
+  - `Clone(...)`
+  - `Fetch(...)`
+  - `Pull(...)`
+  - `PullFastForwardOnly(...)`
+- 这组方法共享的真实形态不是 libgit2 core 操作本身，而是同一层 facade orchestration：
+  - backend availability guard
+  - libgit2-first / CLI-fallback surface policy
+  - clone 后 branch checkout bridge
+  - ff-only pull 的已知/未知失败分类与 fallback 决策
+- 因此继续往下抽的保守切口不是重写 `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)`，而是新增 `src/fpdev.git.operations.syncflow.pas`，只承接这层 public sync glue。
+- 这轮明确不动的边界是：
+  - `CloneWithLibgit2(...)`
+  - `FetchWithLibgit2(...)`
+  - `PullWithLibgit2(...)`
+  - public facade `src/fpdev.git.operations.pas`
+  - 更大的 merge / push 主体逻辑
+- helper 的最终承接面为：
+  - `ExecuteGitCloneSurfaceCore(...)`
+  - `ExecuteGitFetchSurfaceCore(...)`
+  - `ExecuteGitPullSurfaceCore(...)`
+  - `ExecuteGitPullFastForwardOnlySurfaceCore(...)`
+- `src/fpdev.git.operations.impl.pas` 这轮只补了一个 facade-local bridge：
+  - `CheckoutAfterClone(...)`
+  - 作用是把 clone 成功后按分支 checkout 的收口点继续留在 `impl` ownership 内，但从 public `Clone(...)` surface 中移走
+- 同时，`ClassifyGitPullFailure(...)` 的直接消费也转移到了 `syncflow` helper：
+  - ff-only pull 对已知错误保持 fail-closed
+  - 仅对未知错误继续走 CLI fallback
+  - `impl` 因此不再需要直接 `uses fpdev.git.errors`
+- focused 与主线验证都说明 blast radius 仍被控制住了：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_syncflow.lpr` → pass
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `41 passed`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr` → pass
+  - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr` → pass
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 到这里，`git operations` 已经把 identity/signature、transport credential、query/read surface、mutation surface、sync surface 五类重复 facade glue 都 helper 化；下一步如果继续推进，应再次 fresh re-rank 剩余 core seam，而不是直接把 libgit2 主体逻辑一起抽散。
+
 ## 2026-05-02 Git Operations Mutationflow Wave
 - 在 `queryflow` 收口之后，`git operations` 里仍有一组非常一致的 public mutation surface：
   - `Checkout(...)`

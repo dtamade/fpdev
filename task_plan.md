@@ -1,12 +1,51 @@
 # Task Plan
 
 ## Active Goal
-`git operations` 已继续完成 `mutationflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里仍成组的低 blast-radius glue，而不是回到 docs-only truth-sync 或直接扩大到 merge/push 主体重构。
+`git operations` 已继续完成 `syncflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里剩余的低 blast-radius core seam，而不是回到 docs-only truth-sync 或直接扩大到 merge/push 主体重构。
 
 ## Current Phase
-Phase 145 complete
+Phase 146 complete
 
 ## Active Phases
+### Phase 146: Git Operations Syncflow Wave
+- [x] 在 `mutationflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 public sync surface（`Clone(...)` / `Fetch(...)` / `Pull(...)` / `PullFastForwardOnly(...)`），而不是继续扩大到 libgit2 core pull/clone/fetch 实现
+- [x] 接手并利用已写好的 RED 护栏：
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_syncflow.lpr`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.syncflow.pas`
+  - 承接：
+    - `ExecuteGitCloneSurfaceCore(...)`
+    - `ExecuteGitFetchSurfaceCore(...)`
+    - `ExecuteGitPullSurfaceCore(...)`
+    - `ExecuteGitPullFastForwardOnlySurfaceCore(...)`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - `Clone(...)`
+  - `Fetch(...)`
+  - `Pull(...)`
+  - `PullFastForwardOnly(...)`
+  - 改为统一委托 `syncflow` helper
+- [x] 保持 ownership 边界稳定：
+  - `CloneWithLibgit2(...)` / `FetchWithLibgit2(...)` / `PullWithLibgit2(...)` 继续留在 `impl`
+  - `CheckoutAfterClone(...)` 作为 facade-local bridge 留在 `impl`
+  - `ClassifyGitPullFailure(...)` 下沉到 `syncflow` helper 承接 ff-only fallback 判定
+  - public facade `src/fpdev.git.operations.pas` 不暴露 internal helper
+- [x] 运行 focused / boundary / regression verification：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_syncflow.lpr`
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_identityflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_transportflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_queryflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_git_operations_mutationflow.lpr`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 清理 `src/fpdev.git.operations.impl.pas` 中已不再使用的 `fpdev.git.errors` 引用
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 syncflow wave
+- **Status:** complete
+
 ### Phase 145: Git Operations Mutationflow Wave
 - [x] 在 `queryflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 public mutation surface，而不是继续扩大到 merge/push 主体逻辑
 - [x] 先写 RED 护栏：

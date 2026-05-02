@@ -22,7 +22,7 @@ interface
 
 uses
   SysUtils, Classes, fpdev.utils.process, fpdev.git.types,
-  fpdev.git.errors, git2.api, git2.types;
+  git2.api, git2.types;
 
 type
   IGitCliRunner = interface
@@ -47,6 +47,8 @@ type
     function CommandLineGitAvailable: Boolean;
     function ExecuteGitCli(const AParams: array of string; const AWorkDir: string = ''): TProcessResult;
     function ExecuteGitCommand(const AParams: array of string; const AWorkDir: string = ''): Boolean;
+    function CheckoutAfterClone(const ARepoPath, ABranch: string;
+      const AForce: Boolean; out AError: string): Boolean;
 
     // libgit2 backend functions (use instance FGitManager)
     function CloneWithLibgit2(const AURL, ALocalPath: string; out AError: string): Boolean;
@@ -109,7 +111,7 @@ implementation
 uses
   git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
   fpdev.git.operations.mutationflow, fpdev.git.operations.queryflow,
-  fpdev.git.operations.transportflow;
+  fpdev.git.operations.syncflow, fpdev.git.operations.transportflow;
 
 var
   Libgit2Available: Boolean = False;
@@ -392,197 +394,67 @@ begin
   end;
 end;
 
+function TGitOperations.CheckoutAfterClone(const ARepoPath, ABranch: string;
+  const AForce: Boolean; out AError: string): Boolean;
+begin
+  Result := Checkout(ARepoPath, ABranch, AForce);
+  AError := FLastError;
+end;
+
 function TGitOperations.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available (neither libgit2 nor git command found)';
-    Exit;
-  end;
-
-  // Try libgit2 first
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      Result := CloneWithLibgit2(AURL, ALocalPath, FLastError);
-      if Result then
-      begin
-        if ABranch <> '' then
-          Result := Checkout(ALocalPath, ABranch, True);
-        Exit(Result);
-      end;
-
-      // Fallback to command-line on libgit2 failure
-      if FVerbose then
-        WriteLn('libgit2 clone failed, falling back to git command-line');
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 exception: ', E.Message, ', falling back to git command-line');
-      end;
-    end;
-  end;
-
-  // Command-line fallback
-  if not CommandLineGitAvailable then
-  begin
-    if FLastError = '' then
-      FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-
-  // Clear libgit2 error details on successful fallback path.
-  FLastError := '';
-
-  if ABranch <> '' then
-    Result := ExecuteGitCommand(['clone', '--depth', '1', '--branch', ABranch, AURL, ALocalPath], '')
-  else
-    Result := ExecuteGitCommand(['clone', '--depth', '1', AURL, ALocalPath], '');
+  Result := ExecuteGitCloneSurfaceCore(
+    AURL,
+    ALocalPath,
+    ABranch,
+    FBackend,
+    CommandLineGitAvailable,
+    @CloneWithLibgit2,
+    @CheckoutAfterClone,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.Fetch(const ARepoPath: string; const ARemote: string): Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit;
-  end;
-
-  // Try libgit2 first
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      Result := FetchWithLibgit2(ARepoPath, ARemote, FLastError);
-      if Result then Exit;
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 fetch exception: ', E.Message, ', falling back to git command-line');
-      end;
-    end;
-  end;
-
-  // Command-line fallback
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-  FLastError := '';
-  Result := ExecuteGitCommand(['fetch', ARemote], ARepoPath);
+  Result := ExecuteGitFetchSurfaceCore(
+    ARepoPath,
+    ARemote,
+    FBackend,
+    CommandLineGitAvailable,
+    @FetchWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.Pull(const ARepoPath: string): Boolean;
-var
-  NeedsFallback: Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit;
-  end;
-
-  // Try libgit2 fast-forward pull first. If a merge/rebase is required, fall back to CLI.
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      NeedsFallback := False;
-      Result := PullWithLibgit2(ARepoPath, FLastError, NeedsFallback, True);
-      if Result then Exit;
-
-      if (not NeedsFallback) then
-        Exit(False);
-
-      if not CommandLineGitAvailable then
-      begin
-        if FLastError = '' then
-          FLastError := 'Non-fast-forward update requires command-line git; please install git';
-        Exit(False);
-      end;
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 pull exception: ', E.Message, ', falling back to git command-line');
-      end;
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-
-  FLastError := '';
-  Result := ExecuteGitCommand(['pull'], ARepoPath);
+  Result := ExecuteGitPullSurfaceCore(
+    ARepoPath,
+    FBackend,
+    CommandLineGitAvailable,
+    @PullWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.PullFastForwardOnly(const ARepoPath: string): Boolean;
-var
-  NeedsFallback: Boolean;
 begin
-  Result := False;
   FLastError := '';
-
-  if FBackend = gbNone then
-  begin
-    FLastError := 'No Git backend available';
-    Exit;
-  end;
-
-  if FBackend = gbLibgit2 then
-  begin
-    try
-      NeedsFallback := False;
-      Result := PullWithLibgit2(ARepoPath, FLastError, NeedsFallback, False);
-      if Result then
-        Exit(True);
-
-      if not NeedsFallback then
-        Exit(False);
-
-      // Keep known worktree/ref-state failures stable instead of replacing them
-      // with backend-specific CLI stderr.
-      if fpdev.git.errors.ClassifyGitPullFailure(FLastError) <> fpdev.git.errors.gpfkUnknown then
-        Exit(False);
-
-      if not CommandLineGitAvailable then
-      begin
-        if FLastError = '' then
-          FLastError := 'No command-line git available';
-        Exit(False);
-      end;
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 fast-forward-only pull exception: ', E.Message,
-            ', falling back to git command-line');
-      end;
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    if FLastError = '' then
-      FLastError := 'No command-line git available';
-    Exit(False);
-  end;
-
-  FLastError := '';
-  Result := ExecuteGitCommand(['pull', '--ff-only'], ARepoPath);
+  Result := ExecuteGitPullFastForwardOnlySurfaceCore(
+    ARepoPath,
+    FBackend,
+    CommandLineGitAvailable,
+    @PullWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
