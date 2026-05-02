@@ -13,6 +13,7 @@ OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
 OPERATIONS_MUTATIONFLOW_PATH = SRC / 'fpdev.git.operations.mutationflow.pas'
 OPERATIONS_SYNCFLOW_PATH = SRC / 'fpdev.git.operations.syncflow.pas'
+OPERATIONS_PROBEFLOW_PATH = SRC / 'fpdev.git.operations.probeflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
 DOCS = REPO_ROOT / 'docs'
 HISTORY_DOCS = DOCS / 'history'
@@ -443,6 +444,44 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.syncflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; syncflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_probe_surface_to_internal_probeflow(self):
+        self.assertTrue(
+            OPERATIONS_PROBEFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_PROBEFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_PROBEFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+
+        is_repo_section = impl_text.split(
+            'function TGitOperations.IsRepository(const APath: string): Boolean;', 1
+        )[1].split(
+            'function TGitOperations.HasRemote(const ARepoPath: string): Boolean;', 1
+        )[0]
+        version_section = impl_text.split(
+            'function TGitOperations.GetVersion: string;', 1
+        )[1].split(
+            'function TGitOperations.ListBranches(const ARepoPath: string): TStringArray;', 1
+        )[0]
+
+        self.assertIn('function ExecuteGitIsRepositorySurfaceCore(', helper_text)
+        self.assertIn('function ExecuteGitVersionSurfaceCore(', helper_text)
+        self.assertIn('fpdev.git.operations.probeflow', impl_text)
+
+        self.assertIn('ExecuteGitIsRepositorySurfaceCore(', is_repo_section)
+        self.assertNotIn('DirectoryExists(GitDir)', is_repo_section)
+        self.assertNotIn('Result := IsRepositoryWithLibgit2(APath);', is_repo_section)
+
+        self.assertIn('ExecuteGitVersionSurfaceCore(', version_section)
+        self.assertNotIn("ExecuteGitCli(['--version']", version_section)
+        self.assertNotIn('FGitManager.Version', version_section)
+
+        self.assertNotIn(
+            'fpdev.git.operations.probeflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; probeflow should stay internal',
         )
 
     def test_utils_git_shim_is_removed(self):

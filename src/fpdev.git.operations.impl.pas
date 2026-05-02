@@ -49,6 +49,9 @@ type
     function ExecuteGitCommand(const AParams: array of string; const AWorkDir: string = ''): Boolean;
     function CheckoutAfterClone(const ARepoPath, ABranch: string;
       const AForce: Boolean; out AError: string): Boolean;
+    function DirectoryExistsForProbe(const APath: string): Boolean;
+    function TryIsRepositoryWithLibgit2(const APath: string): Boolean;
+    function TryGetVersionWithLibgit2(out AVersion: string): Boolean;
 
     // libgit2 backend functions (use instance FGitManager)
     function CloneWithLibgit2(const AURL, ALocalPath: string; out AError: string): Boolean;
@@ -111,7 +114,8 @@ implementation
 uses
   git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
   fpdev.git.operations.mutationflow, fpdev.git.operations.queryflow,
-  fpdev.git.operations.syncflow, fpdev.git.operations.transportflow;
+  fpdev.git.operations.probeflow, fpdev.git.operations.syncflow,
+  fpdev.git.operations.transportflow;
 
 var
   Libgit2Available: Boolean = False;
@@ -401,6 +405,33 @@ begin
   AError := FLastError;
 end;
 
+function TGitOperations.DirectoryExistsForProbe(const APath: string): Boolean;
+begin
+  Result := DirectoryExists(APath);
+end;
+
+function TGitOperations.TryIsRepositoryWithLibgit2(const APath: string): Boolean;
+begin
+  Result := IsRepositoryWithLibgit2(APath);
+end;
+
+function TGitOperations.TryGetVersionWithLibgit2(out AVersion: string): Boolean;
+begin
+  Result := False;
+  AVersion := '';
+
+  if (FBackend <> gbLibgit2) or (FGitManager = nil) then
+    Exit(False);
+
+  try
+    AVersion := FGitManager.Version;
+    Result := True;
+  except
+    AVersion := '';
+    Result := False;
+  end;
+end;
+
 function TGitOperations.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;
 begin
   FLastError := '';
@@ -473,26 +504,13 @@ begin
 end;
 
 function TGitOperations.IsRepository(const APath: string): Boolean;
-var
-  GitDir: string;
 begin
-  // Simple check: look for .git directory
-  GitDir := IncludeTrailingPathDelimiter(APath) + '.git';
-  Result := DirectoryExists(GitDir);
-
-  // Also try libgit2 if available for more accurate check
-  if (not Result) and (FBackend = gbLibgit2) then
-  begin
-    try
-      Result := IsRepositoryWithLibgit2(APath);
-    except
-      on E: Exception do
-      begin
-        if FVerbose then
-          WriteLn('libgit2 repository check exception: ', E.Message, ', using directory check');
-      end;
-    end;
-  end;
+  Result := ExecuteGitIsRepositorySurfaceCore(
+    APath,
+    FBackend,
+    @DirectoryExistsForProbe,
+    @TryIsRepositoryWithLibgit2
+  );
 end;
 
 function TGitOperations.HasRemote(const ARepoPath: string): Boolean;
@@ -1176,37 +1194,15 @@ begin
 end;
 
 function TGitOperations.GetVersion: string;
-var
-  LResult: TProcessResult;
 begin
-  Result := '';
   FLastError := '';
-
-  if (FBackend = gbLibgit2) and (FGitManager <> nil) then
-  begin
-    try
-      Result := FGitManager.Version;
-      Exit;
-    except
-      // Fall back to command-line
-    end;
-  end;
-
-  if not CommandLineGitAvailable then
-  begin
-    FLastError := 'No command-line git available';
-    Exit('');
-  end;
-
-  LResult := ExecuteGitCli(['--version'], '');
-  if LResult.Success then
-    Result := Trim(LResult.StdOut)
-  else if LResult.StdErr <> '' then
-    FLastError := Trim(LResult.StdErr)
-  else if LResult.ErrorMessage <> '' then
-    FLastError := Trim(LResult.ErrorMessage)
-  else
-    FLastError := 'git --version failed (exit code ' + IntToStr(LResult.ExitCode) + ')';
+  Result := ExecuteGitVersionSurfaceCore(
+    FBackend,
+    CommandLineGitAvailable,
+    @TryGetVersionWithLibgit2,
+    @ExecuteGitCli,
+    FLastError
+  );
 end;
 
 function TGitOperations.ListBranches(const ARepoPath: string): TStringArray;

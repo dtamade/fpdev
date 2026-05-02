@@ -1,5 +1,34 @@
 # Findings & Decisions
 
+## 2026-05-02 Git Operations Probeflow Wave
+- 在 `syncflow` 收口之后，`git operations` 的 public facade 里还剩最后两段没有 helper 化的 probe surface：
+  - `IsRepository(...)`
+  - `GetVersion`
+- 这两段逻辑虽然不大，但它们共享的真实职责很一致：
+  - public probe/introspection surface
+  - libgit2-first / CLI-fallback 或 filesystem-fast-path 选择
+  - facade 级错误折叠
+- 因此下一刀不该直接扩到 `PullWithLibgit2(...)` 这类高风险主体，而是新增 `src/fpdev.git.operations.probeflow.pas`，先把 public probe glue 收口干净。
+- 这轮明确不动的边界是：
+  - `PullWithLibgit2(...)`
+  - `CommitWithLibgit2(...)`
+  - `PushWithLibgit2(...)`
+  - public facade `src/fpdev.git.operations.pas`
+- helper 的最终承接面为：
+  - `ExecuteGitIsRepositorySurfaceCore(...)`
+  - `ExecuteGitVersionSurfaceCore(...)`
+- `src/fpdev.git.operations.impl.pas` 这轮只补了 facade-local bridge：
+  - `DirectoryExistsForProbe(...)`
+  - `TryIsRepositoryWithLibgit2(...)`
+  - `TryGetVersionWithLibgit2(...)`
+  - 作用是把 helper 所需的 filesystem/libgit2/version callback 都继续留在 `impl` ownership 内，不把内部实现细节泄露到 public facade
+- focused 与主线验证说明这轮 blast radius 仍很小：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_probeflow.lpr` → pass
+  - `python3 -m unittest tests.test_git_runtime_boundary -v` → `42 passed`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+  - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- 到这里，`TGitOperations` 的 public surface 已全部退成 thin facade；下一步如果继续推进，应该 fresh re-rank 剩余 libgit2 core seam，而不是为了继续拆 helper 而拆 helper。
+
 ## 2026-05-02 Git Operations Syncflow Wave
 - 在 `mutationflow` 收口之后，`git operations` 里仍有一组非常一致的 public sync surface：
   - `Clone(...)`

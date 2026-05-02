@@ -1,5 +1,45 @@
 # Progress Log
 
+## Session: 2026-05-02 (git operations probeflow wave)
+
+### Phase 147: Git Operations Probeflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 在 `syncflow` 收口后重新做 fresh re-rank，确认下一刀不该直接扩到 `PullWithLibgit2(...)` 这类高风险主体，而是先把仍留在 public facade 里的最后两段 probe surface 收口。
+  - 接手边界与 contract 入口：
+    - `tests/test_git_runtime_boundary.py`
+    - `tests/test_git_operations.lpr`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.git.operations.probeflow.pas`
+    - 提供 `ExecuteGitIsRepositorySurfaceCore(...)`
+    - 提供 `ExecuteGitVersionSurfaceCore(...)`
+  - 收缩 `src/fpdev.git.operations.impl.pas`：
+    - `IsRepository(...)`
+    - `GetVersion`
+    - 改为统一委托 `probeflow` helper
+  - 保持 ownership 边界：
+    - `IsRepositoryWithLibgit2(...)` 继续留在 `impl`
+    - `DirectoryExistsForProbe(...)` / `TryIsRepositoryWithLibgit2(...)` / `TryGetVersionWithLibgit2(...)` 作为 facade-local bridge 留在 `impl`
+  - 新增 focused Pascal 回归：
+    - `tests/test_git_operations_probeflow.lpr`
+  - Verification completed:
+    - `bash scripts/run_single_test.sh tests/test_git_operations_probeflow.lpr` → pass
+    - `python3 -m unittest tests.test_git_runtime_boundary -v` → `42 passed`
+    - `bash scripts/run_single_test.sh tests/test_git_operations.lpr` → pass
+    - `lazbuild -B --build-mode=Release fpdev.lpi` → pass
+- Files created/modified:
+  - `src/fpdev.git.operations.probeflow.pas`
+  - `src/fpdev.git.operations.impl.pas`
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations_probeflow.lpr`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- Residual notes:
+  - 到这里，`TGitOperations` 的 public surface 已经全部退成 thin facade，下一步如果继续推进，应 fresh re-rank 剩余 libgit2 core seam
+  - 这轮明确不碰 `PullWithLibgit2(...)` / `CommitWithLibgit2(...)` / `PushWithLibgit2(...)` 这类高风险主体重写
+
 ## Session: 2026-05-02 (git operations syncflow wave)
 
 ### Phase 146: Git Operations Syncflow Wave

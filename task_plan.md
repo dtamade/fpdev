@@ -1,12 +1,43 @@
 # Task Plan
 
 ## Active Goal
-`git operations` 已继续完成 `syncflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续代码主线里剩余的低 blast-radius core seam，而不是回到 docs-only truth-sync 或直接扩大到 merge/push 主体重构。
+`git operations` 已继续完成 `probeflow` seam 收口；下一步应基于最新工作树 fresh re-rank，优先继续 libgit2 core 层里真实重复且低 blast-radius 的 seam，而不是回到 docs-only truth-sync 或直接把 `PullWithLibgit2(...)` 这类高风险主体一次性重构。
 
 ## Current Phase
-Phase 146 complete
+Phase 147 complete
 
 ## Active Phases
+### Phase 147: Git Operations Probeflow Wave
+- [x] 在 `syncflow` 收口后的 fresh re-rank 基础上，确认下一刀不该碰 `PullWithLibgit2(...)` 这类高风险主体，而是把仍留在 public facade 里的最后两段 probe surface（`IsRepository(...)` / `GetVersion`）收口成 internal helper
+- [x] 接手并利用已写好的 RED 护栏：
+  - `tests/test_git_runtime_boundary.py`
+  - `tests/test_git_operations.lpr`
+- [x] 新增 internal helper：
+  - `src/fpdev.git.operations.probeflow.pas`
+  - 承接：
+    - `ExecuteGitIsRepositorySurfaceCore(...)`
+    - `ExecuteGitVersionSurfaceCore(...)`
+- [x] 收缩 `src/fpdev.git.operations.impl.pas`：
+  - `IsRepository(...)`
+  - `GetVersion`
+  - 改为统一委托 `probeflow` helper
+- [x] 保持 ownership 边界稳定：
+  - `IsRepositoryWithLibgit2(...)` 继续留在 `impl`
+  - `DirectoryExistsForProbe(...)` / `TryIsRepositoryWithLibgit2(...)` / `TryGetVersionWithLibgit2(...)` 作为 facade-local bridge 留在 `impl`
+  - public facade `src/fpdev.git.operations.pas` 不暴露 internal helper
+- [x] 新增 focused Pascal 回归：
+  - `tests/test_git_operations_probeflow.lpr`
+- [x] 运行 focused / boundary / contract verification：
+  - `bash scripts/run_single_test.sh tests/test_git_operations_probeflow.lpr`
+  - `python3 -m unittest tests.test_git_runtime_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_git_operations.lpr`
+- [x] 运行 Release build：
+  - `lazbuild -B --build-mode=Release fpdev.lpi`
+- [x] 同步 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 提交前给出简短 review 结论
+- [x] commit 本轮 probeflow wave
+- **Status:** complete
+
 ### Phase 146: Git Operations Syncflow Wave
 - [x] 在 `mutationflow` 收口后的 fresh re-rank 基础上，确认 `src/fpdev.git.operations.impl.pas` 里新的最小真实 seam 是 public sync surface（`Clone(...)` / `Fetch(...)` / `Pull(...)` / `PullFastForwardOnly(...)`），而不是继续扩大到 libgit2 core pull/clone/fetch 实现
 - [x] 接手并利用已写好的 RED 护栏：
