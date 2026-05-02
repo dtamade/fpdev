@@ -1,5 +1,54 @@
 # Findings & Decisions
 
+## 2026-05-02 Index Metadataflow Wave
+- fresh re-rank 后，`src/fpdev.index.pas` 当前剩余最清晰的 helper seam 不是 remote/cache 逻辑，那部分已经在 `src/fpdev.index.serviceflow.pas` 收口；这轮应只处理 metadata/url cluster：
+  - `GetRawURL(...)`
+  - `SelectPrimaryURL(...)`
+  - `SelectFallbackURL(...)`
+  - `GetRepoInfo(...)` 内部 JSON 提取
+  - `GetChannelInfo(...)` 内部 JSON 提取
+- 这轮明确不 reopen 的 surface 是：
+  - `FetchJSON(...)`
+  - `LoadManifestData(...)`
+  - `ResolveRepoDownloadInfo(...)`
+  - `ListRepoVersions(...)`
+  - `Initialize(...)`
+  - 现有 `fpdev.index.serviceflow` cache/remote helper
+- 一个关键保守决策是 `RepoTypeToString(...)` / `StringToRepoType(...)` 不强制迁移：
+  - 当前 `RepoTypeToString(...)` 只在 `GetRepoInfo(...)` 内部使用
+  - `StringToRepoType(...)` 目前在仓内没有调用方
+  - 若为了这两个方法新增 shared public types 或 ordinal-bridge，会把本轮 blast radius 拉大
+- 因此本轮 helper 目标应是新增 `src/fpdev.index.metadataflow.pas`，只承接：
+  - raw URL conversion
+  - primary/fallback mirror selection
+  - `repositories` metadata extraction
+  - `channels` metadata extraction
+- 现有验证护栏足够承接这波：
+  - `tests/test_index_boundary.py`
+  - `tests/test_index_serviceflow.lpr`
+  - `tests/test_cmd_index.lpr`
+  - 只需新增一个 focused direct-helper runner 即可把 repo/channel JSON parse 与 mirror 语义锁死
+- 最终 helper 已按这个保守边界落地：
+  - `BuildIndexRawURLCore(...)`
+  - `SelectIndexPrimaryURLCore(...)`
+  - `SelectIndexFallbackURLCore(...)`
+  - `TryGetIndexRepoMetadataCore(...)`
+  - `TryGetIndexChannelMetadataCore(...)`
+- 一个关键实现决策是主 unit 保留 private methods 作为 thin delegate，而不是直接删除这些 methods：
+  - 这样 `TFPDevIndex` 的类内结构、测试切面和后续局部覆写空间都不变
+  - 同时 boundary test 也能稳定锁住“主 unit 不再内联逻辑，只做转发”
+- `RepoTypeToString(...)` / `StringToRepoType(...)` 本轮仍未迁移是刻意的：
+  - `RepoTypeToString(...)` 只剩给 `GetRepoInfo(...)` 组 key 使用
+  - `StringToRepoType(...)` 当前仓内无调用方
+  - 为了这两个符号新增 shared public types 或 ordinal-bridge 不值得
+- focused verification 说明波及面被压住了：
+  - `tests/test_index_boundary.py`
+  - `tests/test_index_metadataflow.lpr`
+  - `tests/test_index_serviceflow.lpr`
+  - `tests/test_cmd_index.lpr`
+  - 全部保持绿色
+- 到这里，`index` 的 remote/cache seam 与 metadata/url seam 都已经分开收口；下一步应该重新 fresh re-rank，而不是顺手把 `FetchJSON(...)` 或 repo-type mapping 硬继续拆下去。
+
 ## 2026-05-02 Toolchain Policyflow Wave
 - `src/fpdev.toolchain.pas` 当前仍明显混有两团逻辑：
   - policy/version-decision cluster：

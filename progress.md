@@ -1,5 +1,49 @@
 # Progress Log
 
+## Session: 2026-05-02 (index metadataflow wave)
+
+### Phase 137: Index Metadataflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 从当前 clean tree 与 planning files 重新接管上下文，确认上一轮 `toolchain policyflow` 已收口，工作树仍保持干净。
+  - fresh re-rank 复核了 `src/fpdev.resource.repo.pas`、`src/fpdev.fpc.installer.pas`、`src/fpdev.fpc.source.pas` 与 `src/fpdev.index.pas`：
+    - `resource.repo` 的 `statusflow` 已存在，不 reopen
+    - `fpc.installer` 虽大，但当前主要剩 wrapper-on-wrapper，不是高 ROI seam
+    - `fpc.source` 可拆，但比 `index` 更耦合 build-manager orchestration
+    - `index` 剩余的 URL selection + repo/channel metadata parse 仍是最保守的新波次
+  - 明确保留不动的边界：
+    - `FetchJSON(...)`
+    - `LoadManifestData(...)`
+    - `ResolveRepoDownloadInfo(...)`
+    - `ListRepoVersions(...)`
+    - `Initialize(...)`
+    - cache/output ownership
+  - 已落盘本轮计划：
+    - 新增 `docs/plans/2026-05-02-index-metadataflow-wave.md`
+  - RED evidence completed:
+    - 扩展 `tests/test_index_boundary.py`
+    - 新增 `tests/test_index_metadataflow.lpr`
+    - 新增 `tests/test_index_metadataflow.lpi`
+    - `python3 -m unittest tests.test_index_boundary -v` → 先失败在 `fpdev.index.metadataflow` import 与 helper delegate 缺失
+    - `bash scripts/run_single_test.sh tests/test_index_metadataflow.lpr` → 初次 build fail，命中 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.index.metadataflow.pas`
+    - 提供 `BuildIndexRawURLCore(...)`
+    - 提供 `SelectIndexPrimaryURLCore(...)`
+    - 提供 `SelectIndexFallbackURLCore(...)`
+    - 提供 `TryGetIndexRepoMetadataCore(...)`
+    - 提供 `TryGetIndexChannelMetadataCore(...)`
+  - 收缩 `src/fpdev.index.pas`：
+    - `GetRawURL(...)`、`SelectPrimaryURL(...)`、`SelectFallbackURL(...)` 改为 thin delegate
+    - `GetRepoInfo(...)` 与 `GetChannelInfo(...)` 改为通过 helper 做 JSON 提取
+    - `FetchJSON(...)`、`Initialize(...)`、manifest/serviceflow ownership 保持原位
+  - Verification completed:
+    - `python3 -m unittest tests.test_index_boundary -v` → `8/8`
+    - `bash scripts/run_single_test.sh tests/test_index_metadataflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_index_serviceflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cmd_index.lpr` → pass
+
 ## Session: 2026-05-02 (toolchain policyflow wave)
 
 ### Phase 136: Toolchain Policyflow Wave

@@ -139,12 +139,9 @@ type
 implementation
 
 uses
+  fpdev.index.metadataflow,
   fpdev.index.serviceflow,
   fpdev.paths;
-
-const
-  URL_PATH_SEPARATOR = '/';
-  GITEE_RAW_SEGMENT = '/raw/';
 
 { Helper Functions }
 
@@ -215,66 +212,33 @@ begin
 end;
 
 function TFPDevIndex.GetRawURL(const ARepoURL, ABranch, AFilePath: string): string;
-var
-  RepoPath: string;
 begin
-  // Convert git URL to raw content URL
-  // GitHub: https://github.com/user/repo.git -> https://raw.githubusercontent.com/user/repo/branch/file
-  // Gitee: https://gitee.com/user/repo.git -> https://gitee.com/user/repo/raw/branch/file
-
-  RepoPath := ARepoURL;
-  if Pos('.git', RepoPath) > 0 then
-    RepoPath := Copy(RepoPath, 1, Pos('.git', RepoPath) - 1);
-
-  if Pos('github.com', RepoPath) > 0 then
-  begin
-    RepoPath := StringReplace(RepoPath, 'github.com', 'raw.githubusercontent.com', []);
-    Result := RepoPath + URL_PATH_SEPARATOR + ABranch +
-      URL_PATH_SEPARATOR + AFilePath;
-  end
-  else if Pos('gitee.com', RepoPath) > 0 then
-  begin
-    Result := RepoPath + GITEE_RAW_SEGMENT + ABranch +
-      URL_PATH_SEPARATOR + AFilePath;
-  end
-  else
-    Result := RepoPath + URL_PATH_SEPARATOR + ABranch +
-      URL_PATH_SEPARATOR + AFilePath;
+  Result := BuildIndexRawURLCore(ARepoURL, ABranch, AFilePath);
 end;
 
 function TFPDevIndex.SelectPrimaryURL(
   const AGitHubURL, AGiteeURL, AFilePath: string
 ): string;
 begin
-  Result := '';
-
-  if ((FMirrorPreference = 'gitee') or (FMirrorPreference = 'china')) and
-     (AGiteeURL <> '') then
-    Exit(GetRawURL(AGiteeURL, 'main', AFilePath));
-
-  if AGitHubURL <> '' then
-    Exit(GetRawURL(AGitHubURL, 'main', AFilePath));
-
-  if AGiteeURL <> '' then
-    Exit(GetRawURL(AGiteeURL, 'main', AFilePath));
+  Result := SelectIndexPrimaryURLCore(
+    FMirrorPreference,
+    AGitHubURL,
+    AGiteeURL,
+    AFilePath
+  );
 end;
 
 function TFPDevIndex.SelectFallbackURL(
   const AGitHubURL, AGiteeURL, APrimaryURL, AFilePath: string
 ): string;
 begin
-  Result := '';
-
-  if ((FMirrorPreference = 'gitee') or (FMirrorPreference = 'china')) then
-  begin
-    if AGitHubURL <> '' then
-      Result := GetRawURL(AGitHubURL, 'main', AFilePath);
-  end
-  else if AGiteeURL <> '' then
-    Result := GetRawURL(AGiteeURL, 'main', AFilePath);
-
-  if Result = APrimaryURL then
-    Result := '';
+  Result := SelectIndexFallbackURLCore(
+    FMirrorPreference,
+    AGitHubURL,
+    AGiteeURL,
+    APrimaryURL,
+    AFilePath
+  );
 end;
 
 function TFPDevIndex.FetchJSON(const AURL: string): TJSONObject;
@@ -501,10 +465,6 @@ begin
 end;
 
 function TFPDevIndex.GetRepoInfo(AType: TRepoType): TRepoInfo;
-var
-  Repos: TJSONObject;
-  RepoData: TJSONObject;
-  TypeStr: string;
 begin
   Result := Default(TRepoInfo);
   Result.RepoType := AType;
@@ -512,30 +472,16 @@ begin
   if not Assigned(FIndexData) then
     Exit;
 
-  TypeStr := RepoTypeToString(AType);
-
-  try
-    Repos := FIndexData.Objects['repositories'];
-    if not Assigned(Repos) then
-      Exit;
-
-    RepoData := Repos.Objects[TypeStr];
-    if not Assigned(RepoData) then
-      Exit;
-
-    Result.Name := RepoData.Get('name', '');
-    Result.GitHubURL := RepoData.Get('github', '');
-    Result.GiteeURL := RepoData.Get('gitee', '');
-  except
-    // Return empty result on error
-  end;
+  TryGetIndexRepoMetadataCore(
+    FIndexData,
+    RepoTypeToString(AType),
+    Result.Name,
+    Result.GitHubURL,
+    Result.GiteeURL
+  );
 end;
 
 function TFPDevIndex.GetChannelInfo(const AChannel: string): TChannelInfo;
-var
-  Channels: TJSONObject;
-  ChannelData: TJSONObject;
-  BootstrapObj, FPCObj, LazarusObj, CrossObj: TJSONObject;
 begin
   Result := Default(TChannelInfo);
   Result.Name := AChannel;
@@ -543,33 +489,14 @@ begin
   if not Assigned(FIndexData) then
     Exit;
 
-  try
-    Channels := FIndexData.Objects['channels'];
-    if not Assigned(Channels) then
-      Exit;
-
-    ChannelData := Channels.Objects[AChannel];
-    if not Assigned(ChannelData) then
-      Exit;
-
-    BootstrapObj := ChannelData.Objects['bootstrap'];
-    if Assigned(BootstrapObj) then
-      Result.BootstrapRef := BootstrapObj.Get('ref', '');
-
-    FPCObj := ChannelData.Objects['fpc'];
-    if Assigned(FPCObj) then
-      Result.FPCRef := FPCObj.Get('ref', '');
-
-    LazarusObj := ChannelData.Objects['lazarus'];
-    if Assigned(LazarusObj) then
-      Result.LazarusRef := LazarusObj.Get('ref', '');
-
-    CrossObj := ChannelData.Objects['cross'];
-    if Assigned(CrossObj) then
-      Result.CrossRef := CrossObj.Get('ref', '');
-  except
-    // Return empty result on error
-  end;
+  TryGetIndexChannelMetadataCore(
+    FIndexData,
+    AChannel,
+    Result.BootstrapRef,
+    Result.FPCRef,
+    Result.LazarusRef,
+    Result.CrossRef
+  );
 end;
 
 function TFPDevIndex.GetBootstrapDownloadInfo(const AVersion, APlatform: string;

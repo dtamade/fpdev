@@ -23,8 +23,9 @@ class IndexBoundaryTests(unittest.TestCase):
         tail = cls.commandflow.split('implementation', 1)[1].split(start, 1)[1]
         return tail.split(end, 1)[0]
 
-    def test_index_imports_serviceflow_and_paths_units(self):
+    def test_index_imports_serviceflow_metadataflow_and_paths_units(self):
         self.assertIn('fpdev.index.serviceflow', self.source)
+        self.assertIn('fpdev.index.metadataflow', self.source)
         self.assertIn('fpdev.paths', self.source)
 
     def test_constructor_uses_portable_cache_dir_helper(self):
@@ -64,6 +65,51 @@ class IndexBoundaryTests(unittest.TestCase):
             self.assertIn('ResolveRepoDownloadInfo(', section)
             self.assertNotIn('ManifestData := FetchJSON(ManifestURL);', section)
             self.assertNotIn('LayoutObj := PlatformData.Objects[\'layout\'];', section)
+
+    def test_url_helpers_delegate_to_metadataflow(self):
+        sections = (
+            (
+                'function TFPDevIndex.GetRawURL(const ARepoURL, ABranch, AFilePath: string): string;',
+                'function TFPDevIndex.SelectPrimaryURL(',
+                'BuildIndexRawURLCore(',
+                ('raw.githubusercontent.com', "GITEE_RAW_SEGMENT"),
+            ),
+            (
+                'function TFPDevIndex.SelectPrimaryURL(',
+                'function TFPDevIndex.SelectFallbackURL(',
+                'SelectIndexPrimaryURLCore(',
+                ("FMirrorPreference = 'gitee'", "FMirrorPreference = 'china'"),
+            ),
+            (
+                'function TFPDevIndex.SelectFallbackURL(',
+                'function TFPDevIndex.FetchJSON(const AURL: string): TJSONObject;',
+                'SelectIndexFallbackURLCore(',
+                ("FMirrorPreference = 'gitee'", "FMirrorPreference = 'china'"),
+            ),
+        )
+        for start, end, needle, forbidden in sections:
+            section = self._section(start, end)
+            self.assertIn(needle, section)
+            for text in forbidden:
+                self.assertNotIn(text, section)
+
+    def test_repo_and_channel_metadata_delegate_to_metadataflow(self):
+        repo_section = self._section(
+            'function TFPDevIndex.GetRepoInfo(AType: TRepoType): TRepoInfo;',
+            'function TFPDevIndex.GetChannelInfo(const AChannel: string): TChannelInfo;',
+        )
+        channel_section = self._section(
+            'function TFPDevIndex.GetChannelInfo(const AChannel: string): TChannelInfo;',
+            'function TFPDevIndex.GetBootstrapDownloadInfo(const AVersion, APlatform: string;',
+        )
+
+        self.assertIn('TryGetIndexRepoMetadataCore(', repo_section)
+        self.assertNotIn("Repos := FIndexData.Objects['repositories'];", repo_section)
+        self.assertNotIn("RepoData := Repos.Objects[TypeStr];", repo_section)
+
+        self.assertIn('TryGetIndexChannelMetadataCore(', channel_section)
+        self.assertNotIn("Channels := FIndexData.Objects['channels'];", channel_section)
+        self.assertNotIn("BootstrapObj := ChannelData.Objects['bootstrap'];", channel_section)
 
     def test_version_list_surfaces_delegate_manifest_loading_to_helper(self):
         for start, end in (

@@ -4,9 +4,43 @@
 `src/fpdev.toolchain.pas` 的 `policyflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是顺手把 repo-root / lazarus-root / report JSON 这一团继续拖进本轮。
 
 ## Current Phase
-Phase 136 complete
+Phase 137 complete
 
 ## Active Phases
+### Phase 137: Index Metadataflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `resource.repo statusflow`、`toolchain policyflow`、`index serviceflow` 等已关闭 seam 不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.index.pas`
+  - 仅处理 metadata/url cluster：
+    - `GetRawURL(...)`
+    - `SelectPrimaryURL(...)`
+    - `SelectFallbackURL(...)`
+    - `GetRepoInfo(...)` 内部 JSON 提取
+    - `GetChannelInfo(...)` 内部 JSON 提取
+  - `FetchJSON(...)`、`LoadManifestData(...)`、`ResolveRepoDownloadInfo(...)`、`ListRepoVersions(...)`、`Initialize(...)` 继续留在主 unit
+  - `RepoTypeToString(...)` 若迁移需要新增 shared public types，则保守留在主 unit
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-index-metadataflow-wave.md`
+- [x] 为 `src/fpdev.index.pas` 增加 metadataflow RED：
+  - 扩展 `tests/test_index_boundary.py`
+  - 要求 index implementation 引入 `fpdev.index.metadataflow`
+  - 要求 URL selection 与 repo/channel metadata parsing 改为 helper delegate
+- [x] 新增 focused Pascal RED：
+  - `tests/test_index_metadataflow.lpr`
+  - `tests/test_index_metadataflow.lpi`
+  - 覆盖 GitHub/Gitee raw URL、mirror preference/fallback、repo metadata、channel metadata
+- [x] 新增 internal helper：
+  - `src/fpdev.index.metadataflow.pas`
+- [x] 收缩 `src/fpdev.index.pas`：
+  - URL conversion / mirror selection / repo-channel metadata parse 改为委托 helper
+  - `fpdev.index` 保留 HTTP fetch、serviceflow orchestration、manifest query、cache/output ownership
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_index_boundary -v`
+  - `bash scripts/run_single_test.sh tests/test_index_metadataflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_index_serviceflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cmd_index.lpr`
+- [x] 同步根 planning files 并准备提交本轮 Wave G 收口
+- **Status:** complete
 ### Phase 136: Toolchain Policyflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `build.cache` / `lazarus.config` 等刚收口的 helper 波次不 reopen
 - [x] 锁定本轮最保守切口：
