@@ -1,5 +1,61 @@
 # Progress Log
 
+## Session: 2026-05-02 (build cache binaryartifactflow wave)
+
+### Phase 140: Build Cache Binaryartifactflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - `refactor(toolchain): extract reportflow helper` 提交收口后，工作树重新回到干净状态，再次 fresh re-rank 当前大文件与已有 helper 收口情况。
+  - 复核 `src/fpdev.build.cache.pas`、`src/fpdev.build.cache.binarysave.pas`、`src/fpdev.build.cache.binaryrestore.pas`、`src/fpdev.build.cache.binaryinfo.pas` 与相关测试后确认：
+    - source artifact lifecycle 已由 `sourceartifactflow` 收口，不 reopen
+    - binary artifact lifecycle 仍是主类里最后一组明显的 orchestration glue：
+      - `SaveBinaryArtifact(...)`
+      - `RestoreBinaryArtifact(...)`
+      - `GetBinaryArtifactInfo(...)`
+    - 同时已有足够现成护栏可复用：
+      - `tests/test_build_cache_binary.lpr`
+      - `tests/test_cache_verification.lpr`
+      - `tests/test_fpc_binaryflow.lpr`
+      - `tests/test_build_cache_binarysave.lpr`
+      - `tests/test_temp_hygiene.py`
+  - 本轮明确不动：
+    - `HasArtifacts(...)` 的 mixed source/binary compatibility 判定
+    - `CalculateSHA256(...)` / `VerifyArtifact(...)`
+    - `FCacheHits` / `FCacheMisses`
+    - TTL / cleanup / index / stats surfaces
+    - `fpdev.fpc.binaryflow` 的 cache callback contract
+  - 已落盘本轮计划：
+    - 新增 `docs/plans/2026-05-02-build-cache-binaryartifactflow-wave.md`
+  - RED evidence completed:
+    - 新增 `tests/test_build_cache_binary_boundary.py`
+    - 新增 `tests/test_build_cache_binaryartifactflow.lpr`
+    - 新增 `tests/test_build_cache_binaryartifactflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+    - `python3 -m unittest tests.test_build_cache_binary_boundary tests.test_temp_hygiene -v` → 初次失败在：
+      - 主 unit 还未 import `fpdev.build.cache.binaryartifactflow`
+      - `SaveBinaryArtifact(...)` / `RestoreBinaryArtifact(...)` / `GetBinaryArtifactInfo(...)` 仍内联 orchestration
+    - `fpc -Fusrc -Fisrc -FEbin -FUlib tests/test_build_cache_binaryartifactflow.lpr` → 失败为缺少 `fpdev.build.cache.binaryartifactflow`
+  - 实现 internal helper：
+    - 新增 `src/fpdev.build.cache.binaryartifactflow.pas`
+    - 提供 `BuildCacheSaveBinaryArtifactCore(...)`
+    - 提供 `BuildCacheRestoreBinaryArtifactCore(...)`
+    - 提供 `BuildCacheGetBinaryArtifactInfoCore(...)`
+  - 收缩 `src/fpdev.build.cache.pas`：
+    - `SaveBinaryArtifact(...)` 改为委托 save helper
+    - `RestoreBinaryArtifact(...)` 改为委托 restore helper
+    - `GetBinaryArtifactInfo(...)` 改为委托 info helper
+    - `HasArtifacts(...)`、`CalculateSHA256(...)`、`VerifyArtifact(...)`、hit/miss 计数仍留在 class 内
+  - 一个关键实现决策是让 restore helper 通过 `out CountAsMiss` 回传 miss-worthy failure：
+    - metadata 缺失 / archive 缺失仍保持“直接 False，不记 miss”
+    - verification mismatch 与实际 extraction fail 继续记为 miss
+  - Verification completed:
+    - `python3 -m unittest tests.test_build_cache_binary_boundary tests.test_temp_hygiene -v` → `56/56`
+    - `bash scripts/run_single_test.sh tests/test_build_cache_binaryartifactflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_build_cache_binary.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_cache_verification.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_binaryflow.lpr` → pass
+
 ## Session: 2026-05-02 (toolchain reportflow wave)
 
 ### Phase 139: Toolchain Reportflow Wave

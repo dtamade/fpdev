@@ -1,5 +1,55 @@
 # Findings & Decisions
 
+## 2026-05-02 Build Cache Binaryartifactflow Wave
+- `src/fpdev.build.cache.pas` 在 `sourceartifactflow` 收口之后，剩余最像独立 helper seam 的，是 binary artifact lifecycle orchestration：
+  - `SaveBinaryArtifact(...)`
+  - `RestoreBinaryArtifact(...)`
+  - `GetBinaryArtifactInfo(...)`
+- 这条线当前比去碰 `fpc.manager` / `build.manager` / `package.manager` 更合适，原因是：
+  - 三个方法仍明显是 facade 层 orchestration，而不是 cache core state ownership
+  - 已经有现成的低层 helper 可以复用：
+    - `fpdev.build.cache.binarysave`
+    - `fpdev.build.cache.binaryrestore`
+    - `fpdev.build.cache.binaryinfo`
+    - `fpdev.build.cache.verify`
+  - 现成 focused tests 足够承接：
+    - `tests/test_build_cache_binary.lpr`
+    - `tests/test_cache_verification.lpr`
+    - `tests/test_fpc_binaryflow.lpr`
+    - `tests/test_build_cache_binarysave.lpr`
+- 本轮明确不 reopen 的是：
+  - `HasArtifacts(...)`
+  - `CalculateSHA256(...)`
+  - `VerifyArtifact(...)`
+  - `FCacheHits` / `FCacheMisses`
+  - TTL / cleanup / index / stats surfaces
+  - `fpdev.fpc.binaryflow` 对 cache callback 的消费契约
+- helper 设计应沿用 `sourceartifactflow` 已验证模式：
+  - helper 负责 save/restore/info 的 orchestration
+  - 主类继续持有 state、verify 开关与 hit/miss 计数
+  - direct helper test 用 fake copy / verify / run callbacks 锁住 restore 行为，而不是依赖真实 tar 环境
+- 最终 helper 已按这个边界落地：
+  - `src/fpdev.build.cache.binaryartifactflow.pas`
+  - `BuildCacheSaveBinaryArtifactCore(...)`
+  - `BuildCacheRestoreBinaryArtifactCore(...)`
+  - `BuildCacheGetBinaryArtifactInfoCore(...)`
+- 一个关键实现决策是 restore helper 不直接碰 `FCacheHits/FCacheMisses`，而是通过 `out CountAsMiss` 回传失败语义：
+  - metadata 缺失 / archive 缺失保持和旧行为一致，不额外记 miss
+  - verification mismatch / extraction fail 仍由主类计入 miss
+- 主类的保守边界保持住了：
+  - `HasArtifacts(...)` 继续使用 binary meta presence 做 mixed compatibility 判定
+  - `CalculateSHA256(...)` / `VerifyArtifact(...)` 继续留在 `TBuildCache`
+  - TTL / cleanup / index / stats surface 没有被卷入这轮
+- focused verification 说明 blast radius 被压住了：
+  - `tests/test_build_cache_binary_boundary.py`
+  - `tests/test_temp_hygiene.py`
+  - `tests/test_build_cache_binaryartifactflow.lpr`
+  - `tests/test_build_cache_binary.lpr`
+  - `tests/test_cache_verification.lpr`
+  - `tests/test_fpc_binaryflow.lpr`
+  - 全部保持绿色
+- 到这里，`build.cache` 的 source/binary 两组 artifact lifecycle facade 都已经 helper 化；下一步继续推进前，应再次 fresh re-rank，而不是默认再在 cache 内部强开下一刀。
+
 ## 2026-05-02 Toolchain Reportflow Wave
 - `src/fpdev.toolchain.pas` 在 `policyflow` 之后，剩余最像独立 helper seam 的，是 report/probe/path/writability/JSON assembly cluster：
   - `SplitPathHead(...)`

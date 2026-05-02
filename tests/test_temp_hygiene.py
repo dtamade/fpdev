@@ -280,6 +280,18 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertNotIn('GetTempDir(False)', text)
         self.assertNotIn('GTempPathSequence', text)
 
+    def test_build_cache_binaryartifactflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_build_cache_binaryartifactflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_binaryartifactflow_save')", text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_binaryartifactflow_restore')", text)
+        self.assertIn("CreateUniqueTempDir('test_build_cache_binaryartifactflow_verifyfail')", text)
+        self.assertGreaterEqual(text.count('PathUsesSystemTempRoot(TempRoot)'), 3)
+        self.assertGreaterEqual(text.count('CleanupTempDir(TempRoot);'), 3)
+        self.assertNotIn('GetTempDir(False)', text)
+
     def test_build_cache_expiredscan_uses_shared_temp_helpers(self):
         source_path = REPO_ROOT / 'tests' / 'test_build_cache_expiredscan.lpr'
         text = source_path.read_text(encoding='utf-8')

@@ -157,10 +157,9 @@ uses
   fpdev.build.cache.deletefiles,
   fpdev.build.cache.sourceinfo,
   fpdev.build.cache.expiredscan,
+  fpdev.build.cache.binaryartifactflow,
   fpdev.build.cache.binarypresence,
   fpdev.build.cache.binaryinfo,
-  fpdev.build.cache.binaryrestore,
-  fpdev.build.cache.binarysave,
   fpdev.build.cache.sourceartifactflow,
   fpdev.build.cache.cleanup,
   fpdev.build.cache.cleanupscan,
@@ -449,107 +448,56 @@ end;
 { Binary Artifact Cache Methods }
 
 function TBuildCache.SaveBinaryArtifact(const AVersion, ADownloadedFile: string; const ASHA256: string = ''): Boolean;
-var
-  ArchiveSize: Int64;
-  FileExt: string;
-  Paths: TBuildCacheBinaryArtifactPaths;
-  SHA256Hash: string;
 begin
-  Result := False;
-
-  if not FileExists(ADownloadedFile) then
-    Exit;
-
-  ForceDirectories(FCacheDir);
-
-  FileExt := BuildCacheResolveBinaryFileExt(ADownloadedFile);
-  Paths := BuildCacheBuildBinaryArtifactPaths(FCacheDirWithDelim,
-    GetArtifactKey(AVersion), FileExt);
-
-  try
-    if not FileCopy(ADownloadedFile, Paths.ArchivePath) then
-      Exit;
-  except
-    on E: Exception do
-      Exit;
-  end;
-
-  ArchiveSize := BuildCacheReadBinaryArchiveSize(Paths.ArchivePath);
-  SHA256Hash := BuildCacheResolveBinarySHA256(ASHA256, Paths.ArchivePath);
-
-  BuildCacheSaveBinaryMeta(Paths.MetaPath, AVersion, GetCurrentCPU, GetCurrentOS,
-    SHA256Hash, FileExt, ArchiveSize);
-  Result := True;
+  Result := BuildCacheSaveBinaryArtifactCore(
+    AVersion,
+    ADownloadedFile,
+    FCacheDir,
+    FCacheDirWithDelim,
+    GetArtifactKey(AVersion),
+    GetCurrentCPU,
+    GetCurrentOS,
+    ASHA256,
+    @FileCopy
+  );
 end;
 
 function TBuildCache.RestoreBinaryArtifact(const AVersion, ADestPath: string): Boolean;
 var
   Info: TArtifactInfo;
-  Plan: TBuildCacheBinaryRestorePlan;
+  CountAsMiss: Boolean;
 begin
   Result := False;
 
   if not GetBinaryArtifactInfo(AVersion, Info) then
     Exit;
 
-  Plan := BuildCacheBuildBinaryRestorePlan(FCacheDirWithDelim,
-    GetArtifactKey(AVersion), Info.FileExt);
-
-  if not FileExists(Plan.ArchivePath) then
-    Exit;
-
-  if FVerifyOnRestore then
-  begin
-    if Info.SHA256 <> '' then
-    begin
-      if not VerifyArtifact(Plan.ArchivePath, Info.SHA256) then
-      begin
-        WriteLn('Error: Cache integrity verification failed for ', AVersion);
-        WriteLn('  Expected SHA256: ', Info.SHA256);
-        WriteLn('  The cached artifact may be corrupted or tampered with.');
-        Inc(FCacheMisses);
-        Exit;
-      end;
-    end;
-  end;
-
-  ForceDirectories(ADestPath);
-
-  {$IFDEF MSWINDOWS}
-  if not RunCommand('tar', ['--version'], '') then
-  begin
-    Result := RunCommand('7z', ['x', '-y', '-o' + ADestPath, Plan.ArchivePath], '');
-  end
-  else
-    Result := RunCommand('tar', [Plan.TarFlags, Plan.ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
-  {$ELSE}
-  Result := RunCommand('tar', [Plan.TarFlags, Plan.ArchivePath, '-C', ADestPath, '--strip-components=1'], '');
-  {$ENDIF}
+  CountAsMiss := False;
+  Result := BuildCacheRestoreBinaryArtifactCore(
+    AVersion,
+    ADestPath,
+    FCacheDirWithDelim,
+    GetArtifactKey(AVersion),
+    Info,
+    FVerifyOnRestore,
+    @VerifyArtifact,
+    @RunCommand,
+    CountAsMiss
+  );
 
   if Result then
     Inc(FCacheHits)
-  else
+  else if CountAsMiss then
     Inc(FCacheMisses);
 end;
 
 function TBuildCache.GetBinaryArtifactInfo(const AVersion: string; out AInfo: TArtifactInfo): Boolean;
-var
-  ArtifactKey: string;
-  BinaryInfo: TBinaryMetaArtifactInfo;
-  MetaPath: string;
 begin
-  Result := False;
-  Initialize(AInfo);
-
-  ArtifactKey := GetArtifactKey(AVersion);
-  MetaPath := BuildCacheGetBinaryMetaPath(FCacheDirWithDelim, ArtifactKey);
-
-  if not BuildCacheLoadBinaryMeta(MetaPath, BinaryInfo) then
-    Exit;
-
-  AInfo := BuildCacheCreateBinaryArtifactInfo(FCacheDirWithDelim,
-    ArtifactKey, BinaryInfo);
-  Result := AInfo.Version <> '';
+  Result := BuildCacheGetBinaryArtifactInfoCore(
+    FCacheDirWithDelim,
+    GetArtifactKey(AVersion),
+    AInfo
+  );
 end;
 
 { Cache Invalidation Methods }

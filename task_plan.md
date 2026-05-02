@@ -1,12 +1,47 @@
 # Task Plan
 
 ## Active Goal
-`src/fpdev.toolchain.pas` 的 `reportflow` wave 已收口；下一步应基于当前树重新 fresh re-rank，选择新的低 blast-radius helper wave，而不是回头重开刚完成的 `toolchain` / `index` / `fpc.source` seam。
+`src/fpdev.build.cache.pas` 的 binaryartifactflow wave 已收口；下一步应再次基于当前树 fresh re-rank，只在存在新的低 blast-radius helper seam 时再开波次，而不是机械重开刚完成的 `build.cache` / `toolchain` / `index` / `fpc.source` seam。
 
 ## Current Phase
-Phase 139 complete
+Phase 140 complete
 
 ## Active Phases
+### Phase 140: Build Cache Binaryartifactflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `toolchain reportflow`、`build cache sourceartifactflow`、`fpc.source sourcemanagerflow` 等已关闭 seam 不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.build.cache.pas`
+  - 仅处理 binary artifact lifecycle：
+    - `SaveBinaryArtifact(...)`
+    - `RestoreBinaryArtifact(...)`
+    - `GetBinaryArtifactInfo(...)`
+  - `HasArtifacts(...)`、`CalculateSHA256(...)`、`VerifyArtifact(...)`、`FCacheHits/FCacheMisses`、TTL/cleanup/index surface 继续留在 class 内
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-build-cache-binaryartifactflow-wave.md`
+- [x] 为 `src/fpdev.build.cache.pas` 增加 boundary RED：
+  - 新增 `tests/test_build_cache_binary_boundary.py`
+  - 要求 binary artifact lifecycle 通过 `fpdev.build.cache.binaryartifactflow` 委托
+  - 要求 inline binary meta load/save、restore orchestration、verification-failure text 离开对应 class methods
+- [x] 新增 focused Pascal RED：
+  - `tests/test_build_cache_binaryartifactflow.lpr`
+  - `tests/test_build_cache_binaryartifactflow.lpi`
+  - 覆盖 save copy + meta write、info rebuild、verify-before-restore、verification-fail miss gate
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.build.cache.binaryartifactflow.pas`
+- [x] 收缩 `src/fpdev.build.cache.pas`：
+  - binary artifact lifecycle 改为委托 helper
+  - `TBuildCache` 保留 state ownership、verify API、hit/miss 计数与 higher-level cache surfaces
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_build_cache_binary_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_build_cache_binaryartifactflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_build_cache_binary.lpr`
+  - `bash scripts/run_single_test.sh tests/test_cache_verification.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_binaryflow.lpr`
+- [x] 同步根 planning files 并准备提交本轮 Wave J 收口
+- **Status:** complete
+
 ### Phase 139: Toolchain Reportflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `index metadataflow`、`fpc.source sourcemanagerflow`、`toolchain policyflow` 等已关闭 seam 不 reopen
 - [x] 锁定本轮最保守切口：
