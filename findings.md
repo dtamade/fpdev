@@ -1,5 +1,47 @@
 # Findings & Decisions
 
+## 2026-05-02 FPC Sourcemanagerflow Wave
+- `src/fpdev.fpc.source.pas` 在 `sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow` 之后，剩余最像独立 helper seam 的不是 public build/install surface，而是 private build-manager bridge：
+  - `BuildCompilerWithManager(...)`
+  - `BuildRTLWithManager(...)`
+  - `BuildPackagesWithManager(...)`
+  - `InstallBinariesWithManager(...)`
+  - `ConfigureEnvironmentWithManager(...)`
+  - `TestBuildResultsWithManager(...)`
+  - 以及同一层级的 `WriteCacheMarker(...)`
+- 这条线比继续拆 `toolchain` report/probe 更适合当前节奏，原因是：
+  - 不需要新增 shared public type unit
+  - 能用 callback-driven helper 直接锁住 create/execute/free contract
+  - blast radius 限制在 `fpdev.fpc.source.pas` 私有方法，不动 public build/install orchestration
+- 本轮明确不 reopen 的是：
+  - `CreateBuildManager(...)`
+  - `BuildFPCCompiler(...)` / `BuildFPCRTL(...)` / `BuildFPCPackages(...)`
+  - `InstallFPCBinaries(...)` / `ConfigureFPCEnvironment(...)` / `TestBuildResults(...)`
+  - 已稳定的 `sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow`
+- helper 设计应保持 callback-driven，而不是在 direct test 里跑真实 `TBuildManager`：
+  - create callback：控制 `AllowInstall`
+  - execute callback：转发 version + manager handle
+  - free callback：保证失败路径也释放
+  - cache-marker helper：独立写 `<sourceRoot>/cache/fpc-<version>.cache`
+- 最终 helper 已按这个方向落地：
+  - `ExecuteFPCSourceBuildManagerBridgeCore(...)`
+  - `WriteFPCSourceCacheMarkerCore(...)`
+- 一个关键实现决策是让 `fpdev.fpc.source.pas` 只新增一个 `DispatchBuildManagerAction(...)`，而不是为每个 step 再造一层 `create/free` wrapper：
+  - helper 统一负责 create/dispatch/free 生命周期
+  - main unit 只保留 action -> `TBuildManager` method 的 case dispatch
+  - 这样把重复的 `try/finally Free` 真正从 6 个私有方法里拿掉了
+- 这轮保留 `CreateBuildManager(...)` 在主 unit 是刻意的：
+  - build-manager 的 source root / sandbox / allow-install 配置仍属于 manager-owned wiring
+  - helper 只吃 callback，不直接知道 `TFPCSourceManager` 的状态字段
+- focused verification 说明 blast radius 被压住了：
+  - `tests/test_fpc_source_boundary.py`
+  - `tests/test_temp_hygiene.py`
+  - `tests/test_fpc_sourcemanagerflow.lpr`
+  - `tests/test_fpc_sourcebuildflow.lpr`
+  - `tests/test_fpc_sourceinstallflow.lpr`
+  - 全部保持绿色
+- 到这里，`fpc.source` 在 private manager bridge 这一层也已经收口；下一步若继续 fresh re-rank，应该优先重新比较 `toolchain` report/probe 与 `fpc.source` 其他残余点，而不是回头重开已稳定的 source/install/build flow。
+
 ## 2026-05-02 Index Metadataflow Wave
 - fresh re-rank 后，`src/fpdev.index.pas` 当前剩余最清晰的 helper seam 不是 remote/cache 逻辑，那部分已经在 `src/fpdev.index.serviceflow.pas` 收口；这轮应只处理 metadata/url cluster：
   - `GetRawURL(...)`

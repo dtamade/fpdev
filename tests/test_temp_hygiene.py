@@ -606,6 +606,16 @@ class PascalTempHygieneTests(unittest.TestCase):
         self.assertIn("prefix='fpdev-cli-surface-'", text)
         self.assertIn('dir=resolve_python_test_temp_root(),', text)
 
+    def test_fpc_sourcemanagerflow_uses_shared_temp_helpers(self):
+        source_path = REPO_ROOT / 'tests' / 'test_fpc_sourcemanagerflow.lpr'
+        text = source_path.read_text(encoding='utf-8')
+
+        self.assertIn('test_temp_paths', text)
+        self.assertIn("CreateUniqueTempDir('test_fpc_sourcemanagerflow')", text)
+        self.assertIn('PathUsesSystemTempRoot(TempRoot)', text)
+        self.assertIn('CleanupTempDir(TempRoot);', text)
+        self.assertNotIn('GetTempDir(False)', text)
+
 
 if __name__ == '__main__':
     unittest.main()

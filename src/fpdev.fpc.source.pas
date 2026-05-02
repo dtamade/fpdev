@@ -50,6 +50,11 @@ type
     function GetRegisteredFPCVersionNames: TStringArray;
     function IsValidSourceDirectory(const APath: string): Boolean;
     function ExecuteBuildSourceCommand(const ASourcePath: string): Boolean;
+    function DispatchBuildManagerAction(
+      ABuildManager: TBuildManager;
+      AAction: Integer;
+      const AVersion: string
+    ): Boolean;
     function BuildCompilerWithManager(const AVersion: string): Boolean;
     function BuildRTLWithManager(const AVersion: string): Boolean;
     function BuildPackagesWithManager(const AVersion: string): Boolean;
@@ -149,7 +154,7 @@ uses
   fpdev.fpc.types, fpdev.utils.fs, fpdev.version.registry,
   fpdev.fpc.sourceflow,
   fpdev.fpc.sourceinstallflow, fpdev.fpc.sourcebootstrapflow,
-  fpdev.fpc.sourcebuildflow;
+  fpdev.fpc.sourcebuildflow, fpdev.fpc.sourcemanagerflow;
 
 function FindStaticFPCVersionIndex(const AVersion: string): Integer;
 var
@@ -343,97 +348,99 @@ begin
   Result := ExecuteCommand('make', ['clean', 'all'], ASourcePath);
 end;
 
-function TFPCSourceManager.BuildCompilerWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
+function TFPCSourceManager.DispatchBuildManagerAction(
+  ABuildManager: TBuildManager;
+  AAction: Integer;
+  const AVersion: string
+): Boolean;
 begin
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildCompiler(AVersion);
-  finally
-    LBM.Free;
+  case AAction of
+    FPC_SOURCE_MANAGER_ACTION_BUILD_COMPILER:
+      Result := ABuildManager.BuildCompiler(AVersion);
+    FPC_SOURCE_MANAGER_ACTION_BUILD_RTL:
+      Result := ABuildManager.BuildRTL(AVersion);
+    FPC_SOURCE_MANAGER_ACTION_BUILD_PACKAGES:
+      Result := ABuildManager.BuildPackages(AVersion);
+    FPC_SOURCE_MANAGER_ACTION_INSTALL_BINARIES:
+      Result := ABuildManager.Install(AVersion);
+    FPC_SOURCE_MANAGER_ACTION_CONFIGURE_ENVIRONMENT:
+      Result := ABuildManager.Configure(AVersion);
+    FPC_SOURCE_MANAGER_ACTION_TEST_RESULTS:
+      Result := ABuildManager.TestResults(AVersion);
+  else
+    Result := False;
   end;
+end;
+
+function TFPCSourceManager.BuildCompilerWithManager(const AVersion: string): Boolean;
+begin
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    False,
+    FPC_SOURCE_MANAGER_ACTION_BUILD_COMPILER,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.BuildRTLWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
 begin
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildRTL(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    False,
+    FPC_SOURCE_MANAGER_ACTION_BUILD_RTL,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.BuildPackagesWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
 begin
-  LBM := CreateBuildManager(False);
-  try
-    Result := LBM.BuildPackages(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    False,
+    FPC_SOURCE_MANAGER_ACTION_BUILD_PACKAGES,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.InstallBinariesWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.Install(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    True,
+    FPC_SOURCE_MANAGER_ACTION_INSTALL_BINARIES,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.ConfigureEnvironmentWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.Configure(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    True,
+    FPC_SOURCE_MANAGER_ACTION_CONFIGURE_ENVIRONMENT,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.TestBuildResultsWithManager(const AVersion: string): Boolean;
-var
-  LBM: TBuildManager;
 begin
-  LBM := CreateBuildManager(True);
-  try
-    Result := LBM.TestResults(AVersion);
-  finally
-    LBM.Free;
-  end;
+  Result := ExecuteFPCSourceBuildManagerBridgeCore(
+    AVersion,
+    True,
+    FPC_SOURCE_MANAGER_ACTION_TEST_RESULTS,
+    @CreateBuildManager,
+    @DispatchBuildManagerAction
+  );
 end;
 
 function TFPCSourceManager.WriteCacheMarker(const AVersion: string): Boolean;
-var
-  CacheDir: string;
-  CachePath: string;
-  CacheMeta: TStringList;
 begin
-  CacheDir := FSourceRoot + PathDelim + 'cache';
-  if not DirectoryExists(CacheDir) then
-    EnsureDir(CacheDir);
-  CachePath := CacheDir + PathDelim + 'fpc-' + AVersion + '.cache';
-  CacheMeta := TStringList.Create;
-  try
-    CacheMeta.Add('version=' + AVersion);
-    CacheMeta.Add('built_at=' + DateTimeToStr(Now));
-    CacheMeta.SaveToFile(CachePath);
-    Result := True;
-  finally
-    CacheMeta.Free;
-  end;
+  Result := WriteFPCSourceCacheMarkerCore(FSourceRoot, AVersion, Now);
 end;
 
 function TFPCSourceManager.CloneFPCSource(const AVersion: string): Boolean;

@@ -21,6 +21,7 @@ class FPCSourceBoundaryTests(unittest.TestCase):
         self.assertIn('fpdev.fpc.sourceinstallflow', self.text)
         self.assertIn('fpdev.fpc.sourcebootstrapflow', self.text)
         self.assertIn('fpdev.fpc.sourcebuildflow', self.text)
+        self.assertIn('fpdev.fpc.sourcemanagerflow', self.text)
 
     def test_lifecycle_and_query_surface_delegate_to_sourceflow(self):
         clone_section = self._section(
@@ -152,6 +153,52 @@ class FPCSourceBoundaryTests(unittest.TestCase):
         self.assertIn('ExecuteFPCSourceUseCachedBuildCore(', use_cache)
         self.assertNotIn('CacheMeta.LoadFromFile(CachePath);', use_cache)
         self.assertNotIn("CompilerDir := SourcePath + PathDelim + 'compiler';", use_cache)
+
+    def test_private_manager_bridge_and_cache_marker_delegate_to_sourcemanagerflow(self):
+        build_compiler = self._section(
+            'function TFPCSourceManager.BuildCompilerWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.BuildRTLWithManager(const AVersion: string): Boolean;',
+        )
+        build_rtl = self._section(
+            'function TFPCSourceManager.BuildRTLWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.BuildPackagesWithManager(const AVersion: string): Boolean;',
+        )
+        build_packages = self._section(
+            'function TFPCSourceManager.BuildPackagesWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.InstallBinariesWithManager(const AVersion: string): Boolean;',
+        )
+        install_bins = self._section(
+            'function TFPCSourceManager.InstallBinariesWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.ConfigureEnvironmentWithManager(const AVersion: string): Boolean;',
+        )
+        config_env = self._section(
+            'function TFPCSourceManager.ConfigureEnvironmentWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.TestBuildResultsWithManager(const AVersion: string): Boolean;',
+        )
+        test_results = self._section(
+            'function TFPCSourceManager.TestBuildResultsWithManager(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.WriteCacheMarker(const AVersion: string): Boolean;',
+        )
+        cache_marker = self._section(
+            'function TFPCSourceManager.WriteCacheMarker(const AVersion: string): Boolean;',
+            'function TFPCSourceManager.CloneFPCSource(const AVersion: string): Boolean;',
+        )
+
+        for section in (
+            build_compiler,
+            build_rtl,
+            build_packages,
+            install_bins,
+            config_env,
+            test_results,
+        ):
+            self.assertIn('ExecuteFPCSourceBuildManagerBridgeCore(', section)
+            self.assertNotIn('LBM := CreateBuildManager(', section)
+            self.assertNotIn('LBM.Free;', section)
+
+        self.assertIn('WriteFPCSourceCacheMarkerCore(', cache_marker)
+        self.assertNotIn('CacheMeta.SaveToFile(CachePath);', cache_marker)
+        self.assertNotIn("CacheDir := FSourceRoot + PathDelim + 'cache';", cache_marker)
 
 
 if __name__ == '__main__':

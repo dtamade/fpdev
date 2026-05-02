@@ -1,5 +1,50 @@
 # Progress Log
 
+## Session: 2026-05-02 (fpc sourcemanagerflow wave)
+
+### Phase 138: FPC Sourcemanagerflow Wave
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - `refactor(index): extract metadataflow helper` 已提交，工作树重新回到干净状态后开始 fresh re-rank。
+  - 复核 `src/fpdev.fpc.source.pas` 与现有测试边界后，确认：
+    - `sourceflow` 已承接 clone/update/switch/list/prereq
+    - `sourcebuildflow` 已承接 public build/cache validation glue
+    - `sourceinstallflow` / `sourcebootstrapflow` 已承接 install/bootstrap orchestration
+    - 剩余最保守的新切口是 private build-manager bridge 与 cache-marker persistence
+  - 本轮明确不动：
+    - `CreateBuildManager(...)`
+    - public managed-build wrappers
+    - `ExecuteCommand(...)`
+    - 已关闭的 `sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow`
+  - 已落盘本轮计划：
+    - 新增 `docs/plans/2026-05-02-fpc-sourcemanagerflow-wave.md`
+  - RED evidence completed:
+    - 扩展 `tests/test_fpc_source_boundary.py`
+    - 新增 `tests/test_fpc_sourcemanagerflow.lpr`
+    - 新增 `tests/test_fpc_sourcemanagerflow.lpi`
+    - 更新 `tests/test_temp_hygiene.py`
+    - `python3 -m unittest tests.test_fpc_source_boundary tests.test_temp_hygiene -v` → 先失败在 `fpdev.fpc.sourcemanagerflow` import 与 private bridge delegate 缺失
+    - `bash scripts/run_single_test.sh tests/test_fpc_sourcemanagerflow.lpr` → 初次 build fail，命中 helper unit 尚不存在
+  - 实现 internal helper：
+    - 新增 `src/fpdev.fpc.sourcemanagerflow.pas`
+    - 提供 `ExecuteFPCSourceBuildManagerBridgeCore(...)`
+    - 提供 `WriteFPCSourceCacheMarkerCore(...)`
+  - 收缩 `src/fpdev.fpc.source.pas`：
+    - 新增统一 `DispatchBuildManagerAction(...)`
+    - `BuildCompilerWithManager(...)` / `BuildRTLWithManager(...)` / `BuildPackagesWithManager(...)`
+    - `InstallBinariesWithManager(...)` / `ConfigureEnvironmentWithManager(...)` / `TestBuildResultsWithManager(...)`
+    - 全部改为通过 callback-driven bridge helper 委托
+    - `WriteCacheMarker(...)` 改为委托 cache-marker helper
+  - 一个测试侧小修正是：
+    - `tests/test_fpc_sourcemanagerflow.lpr` 初版漏了 `DateUtils`
+    - 补上后 focused Pascal runner 恢复为绿
+  - Verification completed:
+    - `python3 -m unittest tests.test_fpc_source_boundary tests.test_temp_hygiene -v` → `57/57`
+    - `bash scripts/run_single_test.sh tests/test_fpc_sourcemanagerflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_sourcebuildflow.lpr` → pass
+    - `bash scripts/run_single_test.sh tests/test_fpc_sourceinstallflow.lpr` → pass
+
 ## Session: 2026-05-02 (index metadataflow wave)
 
 ### Phase 137: Index Metadataflow Wave

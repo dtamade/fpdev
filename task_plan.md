@@ -4,9 +4,46 @@
 `src/fpdev.toolchain.pas` 的 `policyflow` wave 已收口；下一步应回到当前干净工作树继续 fresh re-rank 下一条高 ROI 波次，而不是顺手把 repo-root / lazarus-root / report JSON 这一团继续拖进本轮。
 
 ## Current Phase
-Phase 137 complete
+Phase 138 complete
 
 ## Active Phases
+### Phase 138: FPC Sourcemanagerflow Wave
+- [x] fresh re-rank 当前 clean tree 热点，并确认 `index metadataflow`、`toolchain policyflow`、`fpc.sourceflow` / `sourcebuildflow` / `sourceinstallflow` / `sourcebootstrapflow` 等已关闭 seam 不 reopen
+- [x] 锁定本轮最保守切口：
+  - `src/fpdev.fpc.source.pas`
+  - 仅处理 private build-manager bridge + cache marker cluster：
+    - `BuildCompilerWithManager(...)`
+    - `BuildRTLWithManager(...)`
+    - `BuildPackagesWithManager(...)`
+    - `InstallBinariesWithManager(...)`
+    - `ConfigureEnvironmentWithManager(...)`
+    - `TestBuildResultsWithManager(...)`
+    - `WriteCacheMarker(...)`
+  - `CreateBuildManager(...)`、public managed-build wrappers、既有 source/install/bootstrap/build flows 继续留在主 unit
+- [x] 新增执行计划：
+  - `docs/plans/2026-05-02-fpc-sourcemanagerflow-wave.md`
+- [x] 为 `src/fpdev.fpc.source.pas` 增加 sourcemanagerflow RED：
+  - 扩展 `tests/test_fpc_source_boundary.py`
+  - 要求 manager bridge 与 cache-marker persistence 改为 helper delegate
+- [x] 新增 focused Pascal RED：
+  - `tests/test_fpc_sourcemanagerflow.lpr`
+  - `tests/test_fpc_sourcemanagerflow.lpi`
+  - 覆盖 create/execute/free callback contract 与 cache-marker file write
+- [x] 将新 runner 纳入 temp-hygiene contract：
+  - `tests/test_temp_hygiene.py`
+- [x] 新增 internal helper：
+  - `src/fpdev.fpc.sourcemanagerflow.pas`
+- [x] 收缩 `src/fpdev.fpc.source.pas`：
+  - private build-manager bridge 与 cache-marker persistence 改为委托 helper
+  - `fpdev.fpc.source` 保留 state/build-manager wiring、public flow、source-dir validation
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_fpc_source_boundary tests.test_temp_hygiene -v`
+  - `bash scripts/run_single_test.sh tests/test_fpc_sourcemanagerflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_sourcebuildflow.lpr`
+  - `bash scripts/run_single_test.sh tests/test_fpc_sourceinstallflow.lpr`
+- [x] 同步根 planning files 并准备提交本轮 Wave H 收口
+- **Status:** complete
+
 ### Phase 137: Index Metadataflow Wave
 - [x] fresh re-rank 当前 clean tree 热点，并确认 `resource.repo statusflow`、`toolchain policyflow`、`index serviceflow` 等已关闭 seam 不 reopen
 - [x] 锁定本轮最保守切口：
