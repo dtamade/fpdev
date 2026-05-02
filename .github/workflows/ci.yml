@@ -126,7 +126,7 @@ jobs:
             install_step: ''
             build_flags: -B -O3 -CX -XX
             python_cmd: python
-            package_arg: --windows-bin bin/fpdev.exe
+            package_flag: --windows-bin
             asset_file: fpdev-windows-x64.zip
             artifact_name: release-asset-windows-x64
           - os: macos-15-intel
@@ -134,7 +134,7 @@ jobs:
             install_step: brew install fpc libgit2
             build_flags: -B -O3 -CX -XX -Xs
             python_cmd: python3
-            package_arg: --macos-x64-bin bin/fpdev
+            package_flag: --macos-x64-bin
             asset_file: fpdev-macos-x64.tar.gz
             artifact_name: release-asset-macos-x64
           - os: macos-15
@@ -142,7 +142,7 @@ jobs:
             install_step: brew install fpc libgit2
             build_flags: -B -O3 -CX -XX -Xs
             python_cmd: python3
-            package_arg: --macos-arm64-bin bin/fpdev
+            package_flag: --macos-arm64-bin
             asset_file: fpdev-macos-arm64.tar.gz
             artifact_name: release-asset-macos-arm64
 
@@ -298,33 +298,52 @@ jobs:
         }
         Copy-Item $LibGit2Dll.FullName (Join-Path $BinDir 'git2.dll') -Force
 
+    - name: Report CLI binary path
+      if: runner.os != 'Windows'
+      shell: bash
+      run: bash scripts/report_cli_binary_path.sh bin/fpdev cli-binary-path.txt
+
+    - name: Report CLI binary path on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: ./scripts/report_cli_binary_path.ps1 -ExecutablePath bin/fpdev.exe -OutputFile cli-binary-path.txt
+
     - name: Run CLI smoke commands
       if: runner.os != 'Windows'
       shell: bash
-      run: bash scripts/cli_smoke.sh ./bin/fpdev
+      run: |
+        CLI_BIN="$(cat cli-binary-path.txt)"
+        bash scripts/cli_smoke.sh "${CLI_BIN}"
 
     - name: Run CLI smoke commands on Windows
       if: runner.os == 'Windows'
       shell: pwsh
-      run: ./scripts/cli_smoke.ps1 -ExecutablePath .\bin\fpdev.exe
+      run: |
+        $ExecutablePath = Get-Content cli-binary-path.txt -TotalCount 1
+        ./scripts/cli_smoke.ps1 -ExecutablePath $ExecutablePath
 
     - name: Record owner smoke transcript
-      if: always() && runner.os != 'Windows' && hashFiles('bin/fpdev') != ''
+      if: always() && runner.os != 'Windows' && hashFiles('cli-binary-path.txt') != ''
       shell: bash
-      run: bash scripts/record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof
+      run: |
+        CLI_BIN="$(cat cli-binary-path.txt)"
+        bash scripts/record_owner_smoke.sh ${{ matrix.lane }} "${CLI_BIN}" owner-proof
 
     - name: Record owner smoke transcript on Windows
-      if: always() && runner.os == 'Windows' && hashFiles('bin/fpdev.exe') != ''
+      if: always() && runner.os == 'Windows' && hashFiles('cli-binary-path.txt') != ''
       shell: pwsh
-      run: ./scripts/record_owner_smoke.ps1 -Lane ${{ matrix.lane }} -ExecutablePath .\bin\fpdev.exe -OutputDir owner-proof
+      run: |
+        $ExecutablePath = Get-Content cli-binary-path.txt -TotalCount 1
+        ./scripts/record_owner_smoke.ps1 -Lane ${{ matrix.lane }} -ExecutablePath $ExecutablePath -OutputDir owner-proof
 
     - name: Package release asset
       shell: bash
       run: |
+        CLI_BIN="$(cat cli-binary-path.txt)"
         FPDEV_PACKAGE_PYTHON_BIN=${{ matrix.python_cmd }} bash scripts/package_release_asset.sh \
           --output-dir release-assets \
           --data-dir src/data \
-          ${{ matrix.package_arg }}
+          ${{ matrix.package_flag }} "${CLI_BIN}"
 
     - name: Upload packaged release asset
       uses: actions/upload-artifact@v4

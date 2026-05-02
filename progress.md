@@ -1,5 +1,28 @@
 # Progress Log
 
+## Session: 2026-05-02 (cross-platform release proof path parity)
+
+### Phase 127: Cross-Platform Release Proof Path Parity
+- **Status:** complete
+- **Started:** 2026-05-02
+- Actions taken:
+  - 为 cross-platform path parity 先写 RED contracts：
+    - `tests/test_ci_workflow_contract.py`
+    - `tests/test_release_scripts_contract.py`
+    - 锁定 CI 必须引入 built-binary path reporter，并停止在 smoke / owner-proof / package steps 中硬编码 `bin/fpdev*`
+  - 新增 shared scripts：
+    - `scripts/report_cli_binary_path.sh`
+    - `scripts/report_cli_binary_path.ps1`
+  - 修改 `.github/workflows/ci.yml`：
+    - matrix `package_arg` 拆为 `package_flag`
+    - Unix / Windows build 后分别写 `cli-binary-path.txt`
+    - smoke / owner-proof / package steps 都改为读取路径文件
+    - owner-proof artifact gate 改为检查 `cli-binary-path.txt`
+  - Verification completed:
+    - `python3 -m unittest tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_ci_release_contracts -v` → `42/42`
+    - `bash -n scripts/report_cli_binary_path.sh` → pass
+    - `git diff --check` → clean
+
 ## Session: 2026-05-02 (throughput plan pack v2 refresh)
 
 ### Phase 126: Throughput Plan Pack V2 Refresh

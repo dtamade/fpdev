@@ -4,9 +4,27 @@
 把后续推进方式切换成 plan pack：一次生成多条可执行主线，按依赖和风险顺序做更大的实施批次。
 
 ## Current Phase
-Phase 126 complete
+Phase 127 complete
 
 ## Active Phases
+### Phase 127: Cross-Platform Release Proof Path Parity
+- [x] 为 cross-platform built-binary path parity 增加 RED contracts：
+  - `tests/test_ci_workflow_contract.py`
+  - `tests/test_release_scripts_contract.py`
+- [x] 新增 shared built-binary path reporter scripts：
+  - `scripts/report_cli_binary_path.sh`
+  - `scripts/report_cli_binary_path.ps1`
+- [x] 改造 `.github/workflows/ci.yml` 的 cross-platform smoke lane：
+  - build 后写 `cli-binary-path.txt`
+  - smoke / owner-proof / package steps 改为读取路径文件
+  - owner-proof artifact gate 改为检查 `cli-binary-path.txt`
+- [x] 运行 focused verification：
+  - `python3 -m unittest tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_ci_release_contracts -v`
+  - `bash -n scripts/report_cli_binary_path.sh`
+  - `git diff --check`
+- [x] 同步根 planning files 并准备提交本轮 Wave A 收口
+- **Status:** complete
+
 ### Phase 126: Throughput Plan Pack V2 Refresh
 - [x] 基于最新真相重排下一批可执行主线，避免重新退回微型 truth-sync 节奏
 - [x] 在 `docs/plans/` 落盘新的总计划：

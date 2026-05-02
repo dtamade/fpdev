@@ -55,7 +55,6 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('macos-15', self.text)
         self.assertIn('brew install fpc', self.text)
         self.assertIn('fpc-3.2.2.i386-win32.cross.x86_64-win64.exe', self.text)
-        self.assertIn('record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof', self.text)
         self.assertIn('owner-proof-macos-x64', self.text)
         self.assertIn('owner-proof-macos-arm64', self.text)
 
@@ -64,6 +63,8 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn('scripts/cli_smoke.ps1', self.text)
         self.assertIn('scripts/record_owner_smoke.sh', self.text)
         self.assertIn('scripts/record_owner_smoke.ps1', self.text)
+        self.assertIn('scripts/report_cli_binary_path.sh', self.text)
+        self.assertIn('scripts/report_cli_binary_path.ps1', self.text)
 
     def test_ci_packages_linux_release_asset(self):
         self.assertIn('Package Linux release asset', self.text)
@@ -83,8 +84,8 @@ class CIWorkflowContractTests(unittest.TestCase):
     def test_ci_uploads_cross_platform_owner_proof_artifacts(self):
         self.assertIn('owner-proof-${{ matrix.lane }}', self.text)
         self.assertIn('owner-proof/', self.text)
-        self.assertIn("if: always() && runner.os != 'Windows' && hashFiles('bin/fpdev') != ''", self.text)
-        self.assertIn("if: always() && runner.os == 'Windows' && hashFiles('bin/fpdev.exe') != ''", self.text)
+        self.assertIn("if: always() && runner.os != 'Windows' && hashFiles('cli-binary-path.txt') != ''", self.text)
+        self.assertIn("if: always() && runner.os == 'Windows' && hashFiles('cli-binary-path.txt') != ''", self.text)
         self.assertIn("if: always() && hashFiles('owner-proof/**') != ''", self.text)
 
     def test_ci_uses_release_grade_cross_platform_build_flags(self):
@@ -170,6 +171,34 @@ class CIWorkflowContractTests(unittest.TestCase):
         self.assertIn("$env:FPC_TARGET -eq 'win64'", build_windows)
         self.assertIn("@('-Px86_64', '-Twin64')", build_windows)
         self.assertIn('& $env:FPC_EXE @ConfigFlags @TargetFlags ${{ matrix.build_flags }}', build_windows)
+
+    def test_ci_reports_built_cli_binary_path_before_consuming_it(self):
+        unix_report = self._smoke_step_block('Report CLI binary path')
+        windows_report = self._smoke_step_block('Report CLI binary path on Windows')
+        self.assertIn("if: runner.os != 'Windows'", unix_report)
+        self.assertIn('scripts/report_cli_binary_path.sh', unix_report)
+        self.assertIn('cli-binary-path.txt', unix_report)
+        self.assertIn("if: runner.os == 'Windows'", windows_report)
+        self.assertIn('scripts/report_cli_binary_path.ps1', windows_report)
+        self.assertIn('cli-binary-path.txt', windows_report)
+
+    def test_ci_smoke_and_owner_proof_steps_read_path_file(self):
+        unix_smoke = self._smoke_step_block('Run CLI smoke commands')
+        windows_smoke = self._smoke_step_block('Run CLI smoke commands on Windows')
+        unix_owner = self._smoke_step_block('Record owner smoke transcript')
+        windows_owner = self._smoke_step_block('Record owner smoke transcript on Windows')
+        package_step = self._smoke_step_block('Package release asset')
+
+        self.assertIn('cat cli-binary-path.txt', unix_smoke)
+        self.assertIn('Get-Content cli-binary-path.txt', windows_smoke)
+        self.assertIn('cat cli-binary-path.txt', unix_owner)
+        self.assertIn('Get-Content cli-binary-path.txt', windows_owner)
+        self.assertIn('cat cli-binary-path.txt', package_step)
+
+        self.assertNotIn('bash scripts/cli_smoke.sh ./bin/fpdev', unix_smoke)
+        self.assertNotIn('.\\bin\\fpdev.exe', windows_smoke)
+        self.assertNotIn('record_owner_smoke.sh ${{ matrix.lane }} ./bin/fpdev owner-proof', unix_owner)
+        self.assertNotIn('-ExecutablePath .\\bin\\fpdev.exe', windows_owner)
 
     def test_ci_assembles_release_ready_bundle(self):
         section = self._assemble_release_ready_bundle_section()

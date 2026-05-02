@@ -7,6 +7,8 @@ CLI_SMOKE_SH = REPO_ROOT / 'scripts' / 'cli_smoke.sh'
 CLI_SMOKE_PS1 = REPO_ROOT / 'scripts' / 'cli_smoke.ps1'
 OWNER_SMOKE_SH = REPO_ROOT / 'scripts' / 'record_owner_smoke.sh'
 OWNER_SMOKE_PS1 = REPO_ROOT / 'scripts' / 'record_owner_smoke.ps1'
+REPORT_CLI_BIN_SH = REPO_ROOT / 'scripts' / 'report_cli_binary_path.sh'
+REPORT_CLI_BIN_PS1 = REPO_ROOT / 'scripts' / 'report_cli_binary_path.ps1'
 CHECKSUM_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_checksums.py'
 PACKAGE_SCRIPT = REPO_ROOT / 'scripts' / 'package_release_assets.py'
 EVIDENCE_SCRIPT = REPO_ROOT / 'scripts' / 'generate_release_evidence.py'
@@ -51,6 +53,16 @@ class ReleaseScriptsContractTests(unittest.TestCase):
         self.assertIn('owner-smoke.txt', text)
         self.assertIn('windows-x64', text)
         self.assertIn('OutputDir', text)
+
+    def test_shared_cli_binary_path_reporters_exist_for_unix_and_windows(self):
+        self.assertTrue(REPORT_CLI_BIN_SH.exists(), f'Missing {REPORT_CLI_BIN_SH}')
+        self.assertTrue(REPORT_CLI_BIN_PS1.exists(), f'Missing {REPORT_CLI_BIN_PS1}')
+        sh_text = REPORT_CLI_BIN_SH.read_text(encoding='utf-8')
+        ps1_text = REPORT_CLI_BIN_PS1.read_text(encoding='utf-8')
+        self.assertIn('Usage:', sh_text)
+        self.assertIn('output file', sh_text.lower())
+        self.assertIn('ExecutablePath', ps1_text)
+        self.assertIn('OutputFile', ps1_text)
 
     def test_release_checksum_script_exists_and_targets_sha256sums(self):
         self.assertTrue(CHECKSUM_SCRIPT.exists(), f'Missing {CHECKSUM_SCRIPT}')

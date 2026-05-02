@@ -1,5 +1,32 @@
 # Findings & Decisions
 
+## 2026-05-02 Cross-Platform Release Proof Path Parity
+- 本地 `build_release.sh` 的 canonical path report 已经建立，但 cross-platform CI smoke lane 仍把 `bin/fpdev` / `bin/fpdev.exe` 直接硬编码在 3 类消费点里：
+  - CLI smoke
+  - owner-proof transcript
+  - release asset packaging
+- 这意味着 release-path truth surface 只在本地 acceptance lane 自洽，cross-platform public CI 还没有跟上。
+- 本轮采用的最小实现不是把 matrix build 改成 `build_release.sh`，而是补一层非常薄的 built-binary path reporter：
+  - `scripts/report_cli_binary_path.sh`
+  - `scripts/report_cli_binary_path.ps1`
+- `.github/workflows/ci.yml` 现在在 cross-platform build 完成后写出 `cli-binary-path.txt`，后续消费方全部改为先读这个文件：
+  - `Run CLI smoke commands`
+  - `Run CLI smoke commands on Windows`
+  - `Record owner smoke transcript`
+  - `Record owner smoke transcript on Windows`
+  - `Package release asset`
+- 额外同步：
+  - matrix 中原先带路径值的 `package_arg` 被拆成纯 flag `package_flag`
+  - owner-proof artifact gate 从检查 `bin/fpdev*` 改为检查 `cli-binary-path.txt`
+- 这样做的收益：
+  - cross-platform CI 与本地 release build/report 模式对齐
+  - smoke / owner-proof / package 不再各自重复维护目标二进制路径
+  - 后续若 cross-platform build path 再变化，只需改 report step 和 path file 真相
+- fresh 验证结果：
+  - `python3 -m unittest tests.test_ci_workflow_contract tests.test_release_scripts_contract tests.test_ci_release_contracts -v` → `42/42`
+  - `bash -n scripts/report_cli_binary_path.sh` → pass
+  - `git diff --check` → clean
+
 ## 2026-05-02 Throughput Plan Pack V2 Refresh
 - 用户对当前节奏的批评是成立的：虽然前两波都是真实收口，但还是偏“做完一波再想下一波”，吞吐不够高。
 - 这次调整不再只给一个下一步，而是一次性补出 1 份总计划 + 3 份子计划，确保后续能按波次持续推进：
