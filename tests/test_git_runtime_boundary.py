@@ -8,6 +8,7 @@ RUNTIME_PATH = SRC / 'fpdev.git.runtime.pas'
 RUNTIME_IMPL_PATH = SRC / 'fpdev.git.runtime.impl.pas'
 OPERATIONS_PATH = SRC / 'fpdev.git.operations.pas'
 OPERATIONS_IMPL_PATH = SRC / 'fpdev.git.operations.impl.pas'
+OPERATIONS_COREFLOW_PATH = SRC / 'fpdev.git.operations.coreflow.pas'
 OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
@@ -247,6 +248,112 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.transportflow',
             facade_text,
             'fpdev.git.operations must remain the only public facade; transportflow should stay internal',
+        )
+
+    def test_operations_impl_delegates_low_level_libgit2_primitives_to_internal_coreflow(self):
+        self.assertTrue(
+            OPERATIONS_COREFLOW_PATH.exists(),
+            f'Missing {OPERATIONS_COREFLOW_PATH}',
+        )
+        helper_text = OPERATIONS_COREFLOW_PATH.read_text(encoding='utf-8')
+        impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+
+        add_all_section = impl_text.split(
+            'function TGitOperations.AddAllWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.AddPathspecWithLibgit2(', 1
+        )[0]
+        add_pathspec_section = impl_text.split(
+            'function TGitOperations.AddPathspecWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.CommitWithLibgit2(', 1
+        )[0]
+        commit_section = impl_text.split(
+            'function TGitOperations.CommitWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.PushWithLibgit2(', 1
+        )[0]
+        clone_section = impl_text.split(
+            'function TGitOperations.CloneWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.FetchWithLibgit2(', 1
+        )[0]
+        fetch_section = impl_text.split(
+            'function TGitOperations.FetchWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.PullWithLibgit2(', 1
+        )[0]
+        pull_section = impl_text.split(
+            'function TGitOperations.PullWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.CheckoutWithLibgit2(', 1
+        )[0]
+        push_section = impl_text.split(
+            'function TGitOperations.PushWithLibgit2(', 1
+        )[1].split(
+            'function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;', 1
+        )[0]
+
+        self.assertIn('function FormatLibgit2Error(', helper_text)
+        self.assertIn('function BuildLibgit2Error(', helper_text)
+        self.assertIn('function TryOpenGitRepositoryCore(', helper_text)
+        self.assertIn('function TryOpenGitRepositoryIndexCore(', helper_text)
+        self.assertIn('function TryLookupGitRemoteCore(', helper_text)
+        self.assertIn('function TryLookupGitTreeCore(', helper_text)
+        self.assertIn('function TryInitGitCheckoutOptionsCore(', helper_text)
+        self.assertIn('fpdev.git.operations.coreflow', impl_text)
+        self.assertNotIn(
+            'function Libgit2LastErrorText:',
+            impl_text,
+            'fpdev.git.operations.impl should stop owning libgit2 last-error formatting once coreflow exists',
+        )
+
+        self.assertIn('TryOpenGitRepositoryCore(', add_all_section)
+        self.assertIn('TryOpenGitRepositoryIndexCore(', add_all_section)
+        self.assertNotIn('git_repository_open(', add_all_section)
+        self.assertNotIn('git_repository_index(', add_all_section)
+
+        self.assertIn('TryOpenGitRepositoryCore(', add_pathspec_section)
+        self.assertIn('TryOpenGitRepositoryIndexCore(', add_pathspec_section)
+        self.assertNotIn('git_repository_open(', add_pathspec_section)
+        self.assertNotIn('git_repository_index(', add_pathspec_section)
+
+        self.assertIn('TryOpenGitRepositoryCore(', commit_section)
+        self.assertIn('TryOpenGitRepositoryIndexCore(', commit_section)
+        self.assertIn('TryLookupGitTreeCore(', commit_section)
+        self.assertNotIn('git_repository_open(', commit_section)
+        self.assertNotIn('git_repository_index(', commit_section)
+        self.assertNotIn('git_tree_lookup(', commit_section)
+
+        self.assertIn('BuildLibgit2Error(', clone_section)
+        self.assertNotIn('Libgit2LastErrorText', clone_section)
+
+        self.assertIn('TryOpenGitRepositoryCore(', fetch_section)
+        self.assertIn('TryLookupGitRemoteCore(', fetch_section)
+        self.assertNotIn('git_repository_open(', fetch_section)
+        self.assertNotIn('git_remote_lookup(', fetch_section)
+
+        self.assertIn('TryOpenGitRepositoryCore(', push_section)
+        self.assertIn('TryLookupGitRemoteCore(', push_section)
+        self.assertNotIn('git_repository_open(', push_section)
+        self.assertNotIn('git_remote_lookup(', push_section)
+
+        self.assertIn('TryOpenGitRepositoryCore(', pull_section)
+        self.assertIn('TryLookupGitRemoteCore(', pull_section)
+        self.assertGreaterEqual(pull_section.count('TryOpenGitRepositoryIndexCore('), 2)
+        self.assertGreaterEqual(pull_section.count('TryInitGitCheckoutOptionsCore('), 2)
+        self.assertIn('TryLookupGitTreeCore(', pull_section)
+        self.assertNotIn('git_repository_open(', pull_section)
+        self.assertNotIn('git_repository_index(', pull_section)
+        self.assertNotIn('git_remote_lookup(', pull_section)
+        self.assertNotIn('git_tree_lookup(', pull_section)
+        self.assertNotIn('git_checkout_options_init(', pull_section)
+
+        self.assertNotIn(
+            'fpdev.git.operations.coreflow',
+            facade_text,
+            'fpdev.git.operations must remain the only public facade; coreflow should stay internal',
         )
 
     def test_operations_impl_delegates_read_queries_to_internal_queryflow(self):
@@ -767,12 +874,14 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
                 'src/fpdev.git.operations.impl.pas',
                 'git2.api + git2.impl',
                 'fpdev.git2',
+                'src/fpdev.git.operations.coreflow.pas',
                 'src/fpdev.git.operations.transportflow.pas',
                 'src/fpdev.git.operations.queryflow.pas',
                 'src/fpdev.git.operations.mutationflow.pas',
                 'src/fpdev.git.operations.syncflow.pas',
                 'src/fpdev.git.operations.probeflow.pas',
                 'tests/test_git_operations.lpr',
+                'tests/test_git_operations_coreflow.lpr',
                 'tests/test_git_operations_queryflow.lpr',
                 'tests/test_git_operations_mutationflow.lpr',
                 'tests/test_git_operations_syncflow.lpr',
@@ -785,12 +894,14 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
                 'src/fpdev.git.operations.impl.pas',
                 'git2.api + git2.impl',
                 'fpdev.git2',
+                'src/fpdev.git.operations.coreflow.pas',
                 'src/fpdev.git.operations.transportflow.pas',
                 'src/fpdev.git.operations.queryflow.pas',
                 'src/fpdev.git.operations.mutationflow.pas',
                 'src/fpdev.git.operations.syncflow.pas',
                 'src/fpdev.git.operations.probeflow.pas',
                 'tests/test_git_operations.lpr',
+                'tests/test_git_operations_coreflow.lpr',
                 'tests/test_git_operations_queryflow.lpr',
                 'tests/test_git_operations_mutationflow.lpr',
                 'tests/test_git_operations_syncflow.lpr',

@@ -19,6 +19,7 @@ Start with this:
   - `src/fpdev.git.types.pas`
   - `src/fpdev.git.errors.pas`
   - `src/fpdev.git.env.pas`
+  - `src/fpdev.git.operations.coreflow.pas`
   - `src/fpdev.git.operations.identityflow.pas`
   - `src/fpdev.git.operations.transportflow.pas`
   - `src/fpdev.git.operations.queryflow.pas`
@@ -74,6 +75,7 @@ There are two focused test groups.
 ### System-git facade focused tests
 
 - `tests/test_git_operations.lpr`
+- `tests/test_git_operations_coreflow.lpr`
 - `tests/test_git_operations_identityflow.lpr`
 - `tests/test_git_operations_transportflow.lpr`
 - `tests/test_git_operations_queryflow.lpr`
@@ -86,6 +88,7 @@ There are two focused test groups.
 These lock:
 
 - the default `fpdev.git.operations` facade behavior
+- the current internal libgit2 repo/index/remote/tree/checkout helper behavior
 - the current internal identity/signature helper behavior
 - the current internal transport credential/options helper behavior
 - the current internal query/read helper behavior

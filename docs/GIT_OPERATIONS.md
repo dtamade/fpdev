@@ -19,6 +19,7 @@
   - `src/fpdev.git.types.pas`
   - `src/fpdev.git.errors.pas`
   - `src/fpdev.git.env.pas`
+  - `src/fpdev.git.operations.coreflow.pas`
   - `src/fpdev.git.operations.identityflow.pas`
   - `src/fpdev.git.operations.transportflow.pas`
   - `src/fpdev.git.operations.queryflow.pas`
@@ -74,6 +75,7 @@
 ### system-git facade focused tests
 
 - `tests/test_git_operations.lpr`
+- `tests/test_git_operations_coreflow.lpr`
 - `tests/test_git_operations_identityflow.lpr`
 - `tests/test_git_operations_transportflow.lpr`
 - `tests/test_git_operations_queryflow.lpr`
@@ -86,6 +88,7 @@
 这些测试主要锁：
 
 - `fpdev.git.operations` 的默认 facade 语义
+- internal libgit2 repo/index/remote/tree/checkout helper 的当前行为
 - internal identity/signature helper 的当前行为
 - internal transport credential/options helper 的当前行为
 - internal query/read helper 的当前行为

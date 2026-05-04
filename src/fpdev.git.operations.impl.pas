@@ -112,7 +112,8 @@ type
 implementation
 
 uses
-  git2.impl, libgit2, ctypes, fpdev.git.operations.identityflow,
+  git2.impl, libgit2, ctypes, fpdev.git.operations.coreflow,
+  fpdev.git.operations.identityflow,
   fpdev.git.operations.mutationflow, fpdev.git.operations.queryflow,
   fpdev.git.operations.probeflow, fpdev.git.operations.syncflow,
   fpdev.git.operations.transportflow;
@@ -144,16 +145,6 @@ type
 
 // Forward declaration for standalone function
 function IsRepositoryWithLibgit2(const APath: string): Boolean; forward;
-
-function Libgit2LastErrorText: string;
-var
-  Err: Pgit_error_t;
-begin
-  Result := '';
-  Err := git_error_last;
-  if (Err <> nil) and (Err^.message <> nil) then
-    Result := string(Err^.message);
-end;
 
 function AddAllStatusCb(const APath: PChar; AFlags: cuint; APayload: Pointer): cint; cdecl;
 var
@@ -595,14 +586,8 @@ begin
     Payload.HadError := False;
     Payload.ErrorText := '';
 
-    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
     begin
-      AError := Libgit2LastErrorText;
-      if AError <> '' then
-        AError := 'libgit2 open repository failed: ' + AError
-      else
-        AError := 'libgit2 open repository failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -611,14 +596,8 @@ begin
     if WorkDirP <> nil then
       Payload.WorkDir := StringReplace(string(WorkDirP), '/', PathDelim, [rfReplaceAll]);
 
-    RC := git_repository_index(IndexHandle, RepoHandle);
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryIndexCore(RepoHandle, IndexHandle, AError) then
     begin
-      AError := Libgit2LastErrorText;
-      if AError <> '' then
-        AError := 'libgit2 open index failed: ' + AError
-      else
-        AError := 'libgit2 open index failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -632,11 +611,7 @@ begin
     end;
     if RC <> GIT_OK then
     begin
-      AError := Libgit2LastErrorText;
-      if AError <> '' then
-        AError := 'libgit2 status foreach failed: ' + AError
-      else
-        AError := 'libgit2 status foreach failed';
+      AError := BuildLibgit2Error('libgit2 status foreach failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -654,11 +629,7 @@ begin
         RC := git_index_remove_bypath(IndexHandle, PChar(RemovePaths[i]));
         if (RC <> GIT_OK) and (RC <> GIT_ENOTFOUND) then
         begin
-          AError := Libgit2LastErrorText;
-          if AError <> '' then
-            AError := 'libgit2 remove failed: ' + AError
-          else
-            AError := 'libgit2 remove failed';
+          AError := BuildLibgit2Error('libgit2 remove failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -669,11 +640,7 @@ begin
         RC := git_index_add_bypath(IndexHandle, PChar(AddPaths[i]));
         if RC <> GIT_OK then
         begin
-          AError := Libgit2LastErrorText;
-          if AError <> '' then
-            AError := 'libgit2 add failed: ' + AError
-          else
-            AError := 'libgit2 add failed';
+          AError := BuildLibgit2Error('libgit2 add failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -682,11 +649,7 @@ begin
       RC := git_index_write(IndexHandle);
       if RC <> GIT_OK then
       begin
-        AError := Libgit2LastErrorText;
-        if AError <> '' then
-          AError := 'libgit2 index write failed: ' + AError
-        else
-          AError := 'libgit2 index write failed';
+        AError := BuildLibgit2Error('libgit2 index write failed');
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -716,7 +679,6 @@ var
   RelPathFs: string;
   AbsCandidate: string;
   RC: Integer;
-  LErr: string;
   PathSpecStr: AnsiString;
   PathSpecPtrs: array[0..0] of PChar;
   PathSpecs: git_strarray;
@@ -735,16 +697,8 @@ begin
   RepoHandle := nil;
   IndexHandle := nil;
   try
-    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-    if RC <> GIT_OK then
-    begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open repository failed: ' + LErr
-      else
-        AError := 'libgit2 open repository failed';
+    if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
       Exit(False);
-    end;
 
     WorkDir := '';
     WorkDirP := git_repository_workdir(RepoHandle);
@@ -767,16 +721,8 @@ begin
 
     RelPath := StringReplace(RelPath, '\', '/', [rfReplaceAll]);
 
-    RC := git_repository_index(IndexHandle, RepoHandle);
-    if RC <> GIT_OK then
-    begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open index failed: ' + LErr
-      else
-        AError := 'libgit2 open index failed';
+    if not TryOpenGitRepositoryIndexCore(RepoHandle, IndexHandle, AError) then
       Exit(False);
-    end;
 
     PathSpecStr := AnsiString(RelPath);
     PathSpecPtrs[0] := PChar(PathSpecStr);
@@ -826,11 +772,7 @@ begin
       end;
     end;
 
-    LErr := Libgit2LastErrorText;
-    if LErr <> '' then
-      AError := 'libgit2 add failed: ' + LErr
-    else if AError = '' then
-      AError := 'libgit2 add failed';
+    AError := BuildLibgit2Error('libgit2 add failed');
   finally
     if IndexHandle <> nil then
       git_index_free(IndexHandle);
@@ -863,7 +805,6 @@ var
   SymTargetP: PChar;
   TargetOID: Pgit_oid;
   RC: cint;
-  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -879,14 +820,8 @@ begin
   CommitterSig := nil;
 
   try
-    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open repository failed: ' + LErr
-      else
-        AError := 'libgit2 open repository failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -943,14 +878,8 @@ begin
       Exit(False);
     end;
 
-    RC := git_repository_index(IndexHandle, RepoHandle);
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryIndexCore(RepoHandle, IndexHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open index failed: ' + LErr
-      else
-        AError := 'libgit2 open index failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -958,24 +887,14 @@ begin
     RC := git_index_write_tree(TreeOid, IndexHandle);
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 write tree failed: ' + LErr
-      else
-        AError := 'libgit2 write tree failed';
+      AError := BuildLibgit2Error('libgit2 write tree failed');
       ANeedsFallback := True;
       Exit(False);
     end;
 
     TreeHandle := nil;
-    RC := git_tree_lookup(TreeHandle, RepoHandle, @TreeOid);
-    if RC <> GIT_OK then
+    if not TryLookupGitTreeCore(RepoHandle, TreeOid, TreeHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 tree lookup failed: ' + LErr
-      else
-        AError := 'libgit2 tree lookup failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -990,11 +909,7 @@ begin
       TreeHandle, ParentCount, ParentsPtr);
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 commit failed: ' + LErr
-      else
-        AError := 'libgit2 commit failed';
+      AError := BuildLibgit2Error('libgit2 commit failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1040,7 +955,6 @@ var
   PushOpts: git_push_options;
   CredPayload: TGitTransportCredentialPayload;
   RC: cint;
-  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1056,26 +970,14 @@ begin
     RemoteName := 'origin';
 
   try
-    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open repository failed: ' + LErr
-      else
-        AError := 'libgit2 open repository failed';
       ANeedsFallback := True;
       Exit(False);
     end;
 
-    RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar(RemoteName));
-    if RC <> GIT_OK then
+    if not TryLookupGitRemoteCore(RepoHandle, RemoteName, RemoteHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 remote lookup failed: ' + LErr
-      else
-        AError := 'libgit2 remote lookup failed';
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1128,11 +1030,7 @@ begin
     RC := git_remote_push(RemoteHandle, @RefSpecs, @PushOpts);
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 push failed: ' + LErr
-      else
-        AError := 'libgit2 push failed';
+      AError := BuildLibgit2Error('libgit2 push failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1242,7 +1140,6 @@ var
   CloneOpts: git_clone_options;
   CredPayload: TGitTransportCredentialPayload;
   RC: cint;
-  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1262,11 +1159,7 @@ begin
       RC := git_clone(RepoHandle, PChar(AURL), PChar(ALocalPath), @CloneOpts);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 clone failed: ' + LErr
-        else
-          AError := 'libgit2 clone failed';
+        AError := BuildLibgit2Error('libgit2 clone failed');
         Exit(False);
       end;
 
@@ -1292,7 +1185,6 @@ var
   CredPayload: TGitTransportCredentialPayload;
   RemoteName: string;
   RC: cint;
-  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1311,27 +1203,11 @@ begin
   RemoteHandle := nil;
   try
     try
-      RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-      if RC <> GIT_OK then
-      begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 open repository failed: ' + LErr
-        else
-          AError := 'libgit2 open repository failed';
+      if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
         Exit(False);
-      end;
 
-      RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar(RemoteName));
-      if RC <> GIT_OK then
-      begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 remote lookup failed: ' + LErr
-        else
-          AError := 'libgit2 remote lookup failed';
+      if not TryLookupGitRemoteCore(RepoHandle, RemoteName, RemoteHandle, AError) then
         Exit(False);
-      end;
 
       if not TryInitGitFetchTransportOptions(FetchOpts, CredPayload, AError) then
         Exit(False);
@@ -1339,11 +1215,7 @@ begin
       RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 fetch failed: ' + LErr
-        else
-          AError := 'libgit2 fetch failed';
+        AError := BuildLibgit2Error('libgit2 fetch failed');
         Exit(False);
       end;
 
@@ -1398,7 +1270,6 @@ var
   Identity: TGitOperationIdentity;
   MergeMessage: string;
   RC: cint;
-  LErr: string;
 begin
   Result := False;
   AError := '';
@@ -1459,26 +1330,14 @@ begin
   AuthorSig := nil;
   CommitterSig := nil;
   try
-    RC := git_repository_open(RepoHandle, PChar(ARepoPath));
-    if RC <> GIT_OK then
+    if not TryOpenGitRepositoryCore(ARepoPath, RepoHandle, AError) then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 open repository failed: ' + LErr
-      else
-        AError := 'libgit2 open repository failed';
       ANeedsFallback := True;
       Exit(False);
     end;
 
-    RC := git_remote_lookup(RemoteHandle, RepoHandle, PChar('origin'));
-    if RC <> GIT_OK then
+    if not TryLookupGitRemoteCore(RepoHandle, 'origin', RemoteHandle, AError, 'No remote configured') then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'No remote configured: ' + LErr
-      else
-        AError := 'No remote configured';
       ANeedsFallback := False;
       Exit(False);
     end;
@@ -1492,11 +1351,7 @@ begin
     RC := git_remote_fetch(RemoteHandle, nil, @FetchOpts, nil);
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 fetch failed: ' + LErr
-      else
-        AError := 'libgit2 fetch failed';
+      AError := BuildLibgit2Error('libgit2 fetch failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1507,11 +1362,7 @@ begin
     RC := git_reference_lookup(LocalRef, RepoHandle, PChar(LocalRefName));
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 lookup local branch failed: ' + LErr
-      else
-        AError := 'libgit2 lookup local branch failed';
+      AError := BuildLibgit2Error('libgit2 lookup local branch failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1519,11 +1370,7 @@ begin
     RC := git_reference_lookup(RemoteRef, RepoHandle, PChar(RemoteRefName));
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 lookup remote branch failed: ' + LErr
-      else
-        AError := 'libgit2 lookup remote branch failed';
+      AError := BuildLibgit2Error('libgit2 lookup remote branch failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1540,11 +1387,7 @@ begin
     RC := git_graph_ahead_behind(Ahead, Behind, RepoHandle, git_reference_target(LocalRef), RemoteOid);
     if RC <> GIT_OK then
     begin
-      LErr := Libgit2LastErrorText;
-      if LErr <> '' then
-        AError := 'libgit2 ahead/behind failed: ' + LErr
-      else
-        AError := 'libgit2 ahead/behind failed';
+      AError := BuildLibgit2Error('libgit2 ahead/behind failed');
       ANeedsFallback := True;
       Exit(False);
     end;
@@ -1558,11 +1401,7 @@ begin
       RC := git_reference_set_target(UpdatedRef, LocalRef, RemoteOid, PChar('fpdev fast-forward'));
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 fast-forward failed: ' + LErr
-        else
-          AError := 'libgit2 fast-forward failed';
+        AError := BuildLibgit2Error('libgit2 fast-forward failed');
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1574,11 +1413,7 @@ begin
       RC := git_commit_lookup(TargetCommit, RepoHandle, RemoteOid);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 lookup target commit failed: ' + LErr
-        else
-          AError := 'libgit2 lookup target commit failed';
+        AError := BuildLibgit2Error('libgit2 lookup target commit failed');
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1587,24 +1422,14 @@ begin
       RC := git_commit_tree(TargetTree, TargetCommit);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 lookup target tree failed: ' + LErr
-        else
-          AError := 'libgit2 lookup target tree failed';
+        AError := BuildLibgit2Error('libgit2 lookup target tree failed');
         ANeedsFallback := True;
         Exit(False);
       end;
 
       RepoIndex := nil;
-      RC := git_repository_index(RepoIndex, RepoHandle);
-      if RC <> GIT_OK then
+      if not TryOpenGitRepositoryIndexCore(RepoHandle, RepoIndex, AError) then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 open index failed: ' + LErr
-        else
-          AError := 'libgit2 open index failed';
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1612,11 +1437,7 @@ begin
       RC := git_index_read_tree(RepoIndex, TargetTree);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 update index failed: ' + LErr
-        else
-          AError := 'libgit2 update index failed';
+        AError := BuildLibgit2Error('libgit2 update index failed');
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1624,24 +1445,13 @@ begin
       RC := git_index_write(RepoIndex);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 write index failed: ' + LErr
-        else
-          AError := 'libgit2 write index failed';
+        AError := BuildLibgit2Error('libgit2 write index failed');
         ANeedsFallback := True;
         Exit(False);
       end;
 
-      CheckoutOpts := Default(git_checkout_options);
-      RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
-      if RC <> GIT_OK then
+      if not TryInitGitCheckoutOptionsCore(CheckoutOpts, AError) then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 checkout options init failed: ' + LErr
-        else
-          AError := 'libgit2 checkout options init failed';
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1658,11 +1468,7 @@ begin
       RC := git_checkout_head(RepoHandle, @CheckoutOpts);
       if RC <> GIT_OK then
       begin
-        LErr := Libgit2LastErrorText;
-        if LErr <> '' then
-          AError := 'libgit2 checkout failed: ' + LErr
-        else
-          AError := 'libgit2 checkout failed';
+        AError := BuildLibgit2Error('libgit2 checkout failed');
         ANeedsFallback := True;
         Exit(False);
       end;
@@ -1701,11 +1507,7 @@ begin
         RC := git_commit_lookup(OurCommit, RepoHandle, git_reference_target(LocalRef));
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 lookup HEAD commit failed: ' + LErr
-          else
-            AError := 'libgit2 lookup HEAD commit failed';
+          AError := BuildLibgit2Error('libgit2 lookup HEAD commit failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1713,11 +1515,7 @@ begin
         RC := git_commit_lookup(TheirCommit, RepoHandle, RemoteOid);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 lookup remote commit failed: ' + LErr
-          else
-            AError := 'libgit2 lookup remote commit failed';
+          AError := BuildLibgit2Error('libgit2 lookup remote commit failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1726,11 +1524,7 @@ begin
         RC := git_merge_commits(MergeIndex, RepoHandle, OurCommit, TheirCommit, nil);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 merge commits failed: ' + LErr
-          else
-            AError := 'libgit2 merge commits failed';
+          AError := BuildLibgit2Error('libgit2 merge commits failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1746,24 +1540,20 @@ begin
         RC := git_index_write_tree_to(MergeTreeOid, MergeIndex, RepoHandle);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 write merge tree failed: ' + LErr
-          else
-            AError := 'libgit2 write merge tree failed';
+          AError := BuildLibgit2Error('libgit2 write merge tree failed');
           ANeedsFallback := True;
           Exit(False);
         end;
 
         MergeTree := nil;
-        RC := git_tree_lookup(MergeTree, RepoHandle, @MergeTreeOid);
-        if RC <> GIT_OK then
+        if not TryLookupGitTreeCore(
+          RepoHandle,
+          MergeTreeOid,
+          MergeTree,
+          AError,
+          'libgit2 merge tree lookup failed'
+        ) then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 merge tree lookup failed: ' + LErr
-          else
-            AError := 'libgit2 merge tree lookup failed';
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1780,24 +1570,14 @@ begin
           MergeTree, ParentCount, ParentsPtr);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 merge commit failed: ' + LErr
-          else
-            AError := 'libgit2 merge commit failed';
+          AError := BuildLibgit2Error('libgit2 merge commit failed');
           ANeedsFallback := True;
           Exit(False);
         end;
 
         RepoIndex := nil;
-        RC := git_repository_index(RepoIndex, RepoHandle);
-        if RC <> GIT_OK then
+        if not TryOpenGitRepositoryIndexCore(RepoHandle, RepoIndex, AError) then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 open index failed: ' + LErr
-          else
-            AError := 'libgit2 open index failed';
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1805,11 +1585,7 @@ begin
         RC := git_index_read_tree(RepoIndex, MergeTree);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 update index failed: ' + LErr
-          else
-            AError := 'libgit2 update index failed';
+          AError := BuildLibgit2Error('libgit2 update index failed');
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1817,24 +1593,13 @@ begin
         RC := git_index_write(RepoIndex);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 write index failed: ' + LErr
-          else
-            AError := 'libgit2 write index failed';
+          AError := BuildLibgit2Error('libgit2 write index failed');
           ANeedsFallback := True;
           Exit(False);
         end;
 
-        FillChar(CheckoutOpts, SizeOf(CheckoutOpts), 0);
-        RC := git_checkout_options_init(@CheckoutOpts, GIT_CHECKOUT_OPTIONS_VERSION);
-        if RC <> GIT_OK then
+        if not TryInitGitCheckoutOptionsCore(CheckoutOpts, AError) then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 checkout options init failed: ' + LErr
-          else
-            AError := 'libgit2 checkout options init failed';
           ANeedsFallback := True;
           Exit(False);
         end;
@@ -1843,11 +1608,7 @@ begin
         RC := git_checkout_head(RepoHandle, @CheckoutOpts);
         if RC <> GIT_OK then
         begin
-          LErr := Libgit2LastErrorText;
-          if LErr <> '' then
-            AError := 'libgit2 checkout after merge failed: ' + LErr
-          else
-            AError := 'libgit2 checkout after merge failed';
+          AError := BuildLibgit2Error('libgit2 checkout after merge failed');
           ANeedsFallback := True;
           Exit(False);
         end;
