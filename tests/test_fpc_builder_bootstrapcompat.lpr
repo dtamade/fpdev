@@ -8,7 +8,7 @@ uses
   fpdev.utils.process, fpdev.utils,
   test_config_isolation,
   test_temp_paths,
-  fpdev.fpc.builder;
+  fpdev.fpc.builder, fpdev.fpc.builder.bootstrapresolveflow;
 
 var
   PassCount: Integer = 0;

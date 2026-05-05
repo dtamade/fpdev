@@ -39,7 +39,10 @@ uses
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.fs,
   fpdev.utils.process, fpdev.git.types, fpdev.git.runtime, fpdev.resource.repo, fpdev.constants,
   fpdev.build.toolchain, fpdev.fpc.builderflow,
-  fpdev.fpc.types, fpdev.config, fpdev.paths;
+  fpdev.fpc.types, fpdev.config, fpdev.paths,
+  fpdev.fpc.builder.downloadflow,
+  fpdev.fpc.builder.bootstrapresolveflow,
+  fpdev.fpc.builder.hotpatchflow;
 
 type
   TFPCSourceBuildArgs = array of string;
@@ -75,6 +78,7 @@ type
       out AResolvedVersion, AResolvedCompiler: string
     ): Boolean;
     function EnsureResourceRepository: Boolean;
+    function GetResourceRepoRequiredBootstrapVersionCallback(const AFPCVersion: string): string;
     function HasResourceRepositoryBootstrapCompiler(
       const AVersion, APlatform: string
     ): Boolean;
@@ -137,17 +141,12 @@ type
     property ResourceRepo: TResourceRepository read FResourceRepo;
   end;
 
-function FPCBuilderCanUseSystemCompilerAsBootstrapCore(
-  const ATargetVersion, ACurrentVersion, ARequiredVersion: string
-): Boolean;
 function CreateFPCSourceBuildPlanCore(
   const AInstallDir, ABootstrapFPC: string;
   const AParallelJobs: Integer;
   const AMakeCommand: string;
   const AIsWindows: Boolean
 ): TFPCSourceBuildPlan;
-procedure FPCBuilderInvalidateCompilerMessageIncludesCore(const ASourceDir: string);
-procedure FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(const ASourceDir: string);
 
 const
   { Bootstrap compiler requirements for building from source }
@@ -198,14 +197,6 @@ begin
   inherited Destroy;
 end;
 
-function LooksLikeSemVer(const AVersion: string): Boolean;
-var
-  DotCount: Integer;
-begin
-  DotCount := Length(AVersion) - Length(StringReplace(AVersion, '.', '', [rfReplaceAll]));
-  Result := DotCount >= 1;
-end;
-
 function ResolveFPCSourceBuildTargetVersion(const ASourceDir, AInstallDir: string): string;
 var
   SourceLeaf: string;
@@ -220,24 +211,6 @@ begin
     Exit(Copy(InstallLeaf, 5, MaxInt));
 
   Result := InstallLeaf;
-end;
-
-function FPCBuilderCanUseSystemCompilerAsBootstrapCore(
-  const ATargetVersion, ACurrentVersion, ARequiredVersion: string
-): Boolean;
-begin
-  Result := False;
-
-  if Trim(ACurrentVersion) = '' then
-    Exit;
-
-  if LooksLikeSemVer(ATargetVersion) and SameMajorMinor(ACurrentVersion, ATargetVersion) then
-    Exit(True);
-
-  if (Trim(ARequiredVersion) <> '') and
-     SameMajorMinor(ACurrentVersion, ARequiredVersion) and
-     (CompareSemVer(ACurrentVersion, ARequiredVersion) >= 0) then
-    Exit(True);
 end;
 
 function CreateFPCSourceBuildPlanCore(
@@ -288,112 +261,6 @@ begin
   Result.Params[ParamIndex] := '-j' + IntToStr(EffectiveJobs);
 end;
 
-procedure FPCBuilderInvalidateCompilerMessageIncludesCore(const ASourceDir: string);
-var
-  CompilerDir: string;
-  MsgDir: string;
-  MsgIdxPath: string;
-  MsgTxtPath: string;
-begin
-  CompilerDir := IncludeTrailingPathDelimiter(ASourceDir) + 'compiler';
-  MsgDir := CompilerDir + PathDelim + 'msg';
-  if not DirectoryExists(MsgDir) then
-    Exit;
-
-  MsgIdxPath := CompilerDir + PathDelim + 'msgidx.inc';
-  MsgTxtPath := CompilerDir + PathDelim + 'msgtxt.inc';
-
-  if FileExists(MsgIdxPath) then
-    DeleteFile(MsgIdxPath);
-  if FileExists(MsgTxtPath) then
-    DeleteFile(MsgTxtPath);
-end;
-
-procedure FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(const ASourceDir: string);
-var
-  FPMakePath: string;
-  JWTSourceDir: string;
-  JWTUnitPath: string;
-  BaseJWTUnitPath: string;
-  UnitsRoot: string;
-  FPMakeLines: TStringList;
-  Search: TSearchRec;
-  UnitsSearch: TSearchRec;
-  BaseIndex: Integer;
-  JwtIndex: Integer;
-  TargetIndex: Integer;
-  BaseLine: string;
-  JwtLine: string;
-  UnitsDir: string;
-begin
-  JWTSourceDir := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
-    'fcl-web' + PathDelim + 'src' + PathDelim + 'jwt';
-  if not DirectoryExists(JWTSourceDir) then
-    Exit;
-  JWTUnitPath := JWTSourceDir + PathDelim + 'fpjwt.pp';
-  BaseJWTUnitPath := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
-    'fcl-web' + PathDelim + 'src' + PathDelim + 'base' + PathDelim + 'fpjwt.pp';
-
-  FPMakePath := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
-    'fcl-web' + PathDelim + 'fpmake.pp';
-  if FileExists(FPMakePath) then
-  begin
-    FPMakeLines := TStringList.Create;
-    try
-      FPMakeLines.LoadFromFile(FPMakePath);
-      BaseIndex := FPMakeLines.IndexOf('    P.SourcePath.Add(''src/base'');');
-      JwtIndex := FPMakeLines.IndexOf('    P.SourcePath.Add(''src/jwt'');');
-      TargetIndex := FPMakeLines.IndexOf('    T:=P.Targets.AddUnit(''fpjwt.pp'');');
-      if (BaseIndex >= 0) and (JwtIndex < 0) then
-      begin
-        FPMakeLines.Insert(BaseIndex, '    P.SourcePath.Add(''src/jwt'');');
-        JwtIndex := BaseIndex;
-        Inc(BaseIndex);
-      end;
-      if (BaseIndex >= 0) and (JwtIndex >= 0) and (BaseIndex < JwtIndex) then
-      begin
-        BaseLine := FPMakeLines[BaseIndex];
-        JwtLine := FPMakeLines[JwtIndex];
-        FPMakeLines[BaseIndex] := JwtLine;
-        FPMakeLines[JwtIndex] := BaseLine;
-      end;
-      if TargetIndex >= 0 then
-        FPMakeLines[TargetIndex] := '    T:=P.Targets.AddUnit(''src/jwt/fpjwt.pp'');';
-      FPMakeLines.SaveToFile(FPMakePath);
-    finally
-      FPMakeLines.Free;
-    end;
-  end;
-
-  if FileExists(JWTUnitPath) and FileExists(BaseJWTUnitPath) then
-    CopyFileSafe(JWTUnitPath, BaseJWTUnitPath);
-
-  UnitsRoot := IncludeTrailingPathDelimiter(ASourceDir) + 'packages' + PathDelim +
-    'fcl-web' + PathDelim + 'units';
-  if FindFirst(UnitsRoot + PathDelim + '*', faDirectory, Search) = 0 then
-  begin
-    repeat
-      if (Search.Name <> '.') and (Search.Name <> '..') and
-         ((Search.Attr and faDirectory) <> 0) then
-      begin
-        UnitsDir := UnitsRoot + PathDelim + Search.Name;
-        if FindFirst(UnitsDir + PathDelim + 'fpjwt.*', faAnyFile, UnitsSearch) = 0 then
-        begin
-          repeat
-            if (UnitsSearch.Name <> '.') and (UnitsSearch.Name <> '..') and
-               ((UnitsSearch.Attr and faDirectory) = 0) then
-              DeleteFile(UnitsDir + PathDelim + UnitsSearch.Name);
-          until FindNext(UnitsSearch) <> 0;
-          FindClose(UnitsSearch);
-        end;
-        if FileExists(UnitsDir + PathDelim + 'BuildUnit_fcl_web.pp') then
-          DeleteFile(UnitsDir + PathDelim + 'BuildUnit_fcl_web.pp');
-      end;
-    until FindNext(Search) <> 0;
-    FindClose(Search);
-  end;
-end;
-
 function TFPCSourceBuilder.GetVersionInstallPath(const AVersion: string): string;
 begin
   Result := BuildFPCInstallDirFromInstallRoot(FInstallRoot, AVersion);
@@ -421,48 +288,13 @@ function TFPCSourceBuilder.TryResolveInstalledBootstrapCompiler(
   out AResolvedVersion, AResolvedCompiler: string
 ): Boolean;
 var
-  CandidateVersion: string;
-  CandidateCompiler: string;
-  ReportedVersion: string;
+  Callbacks: TFPCBuilderBootstrapResolveCallbacks;
 begin
-  Result := False;
-  AResolvedVersion := '';
-  AResolvedCompiler := '';
-
-  if Trim(ATargetVersion) <> '' then
-  begin
-    CandidateVersion := ATargetVersion;
-    CandidateCompiler := BuildFPCInstalledExecutablePathCore(GetVersionInstallPath(CandidateVersion));
-    if FileExists(CandidateCompiler) then
-    begin
-      ReportedVersion := GetCompilerVersion(CandidateCompiler);
-      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion,
-        ReportedVersion, ARequiredVersion) then
-      begin
-        AResolvedVersion := ReportedVersion;
-        AResolvedCompiler := CandidateCompiler;
-        Exit(True);
-      end;
-    end;
-  end;
-
-  if (Trim(ARequiredVersion) <> '') and
-     (not SameText(ARequiredVersion, ATargetVersion)) then
-  begin
-    CandidateVersion := ARequiredVersion;
-    CandidateCompiler := BuildFPCInstalledExecutablePathCore(GetVersionInstallPath(CandidateVersion));
-    if FileExists(CandidateCompiler) then
-    begin
-      ReportedVersion := GetCompilerVersion(CandidateCompiler);
-      if FPCBuilderCanUseSystemCompilerAsBootstrapCore(ATargetVersion,
-        ReportedVersion, ARequiredVersion) then
-      begin
-        AResolvedVersion := ReportedVersion;
-        AResolvedCompiler := CandidateCompiler;
-        Exit(True);
-      end;
-    end;
-  end;
+  Callbacks := Default(TFPCBuilderBootstrapResolveCallbacks);
+  Callbacks.GetVersionInstallPath := @GetVersionInstallPath;
+  Callbacks.GetCompilerVersion := @GetCompilerVersion;
+  Result := TryResolveInstalledBootstrapCompilerCore(
+    ATargetVersion, ARequiredVersion, Callbacks, AResolvedVersion, AResolvedCompiler);
 end;
 
 function TFPCSourceBuilder.EnsureResourceRepository: Boolean;
@@ -479,6 +311,14 @@ begin
   end;
 
   Result := Assigned(FResourceRepo);
+end;
+
+function TFPCSourceBuilder.GetResourceRepoRequiredBootstrapVersionCallback(const AFPCVersion: string): string;
+begin
+  if Assigned(FResourceRepo) then
+    Result := FResourceRepo.GetRequiredBootstrapVersion(AFPCVersion)
+  else
+    Result := '';
 end;
 
 function TFPCSourceBuilder.HasResourceRepositoryBootstrapCompiler(
@@ -515,7 +355,7 @@ end;
 procedure TFPCSourceBuilder.PrepareSourceTree(const ASourceDir: string);
 begin
   FPCBuilderInvalidateCompilerMessageIncludesCore(ASourceDir);
-  FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(ASourceDir);
+  FPCBuilderApplyFCLWebJWTSourcePathHotpatchCore(ASourceDir);
 end;
 
 procedure TFPCSourceBuilder.EnsureInstallDirectoryExists(const APath: string);
@@ -598,47 +438,11 @@ end;
 
 function TFPCSourceBuilder.GetRequiredBootstrapVersion(const ATargetVersion: string): string;
 var
-  DownloadedSourceDir: string;
-  MakefileRequiredVersion: string;
-  i: Integer;
+  Callbacks: TFPCBuilderBootstrapResolveCallbacks;
 begin
-  Result := '';
-
-  DownloadedSourceDir := BuildFPCSourceInstallPathCore(FInstallRoot, ATargetVersion);
-  if DirectoryExists(DownloadedSourceDir) then
-  begin
-    MakefileRequiredVersion := ResourceRepoGetBootstrapVersionFromMakefile(DownloadedSourceDir);
-    if MakefileRequiredVersion <> '' then
-    begin
-      Result := MakefileRequiredVersion;
-      Exit;
-    end;
-  end;
-
-  // First try to use resource repository
-  if not Assigned(FResourceRepo) then
-  begin
-    FResourceRepo := TResourceRepository.Create(CreateDefaultConfig);
-    if DirectoryExists(CreateDefaultConfig.LocalPath) then
-      FResourceRepo.LoadManifest;
-  end;
-
-  if Assigned(FResourceRepo) then
-  begin
-    Result := FResourceRepo.GetRequiredBootstrapVersion(ATargetVersion);
-    if Result <> '' then
-      Exit;
-  end;
-
-  // Fallback to hardcoded requirements
-  for i := 0 to High(FPC_BOOTSTRAP_REQUIREMENTS) do
-  begin
-    if SameText(FPC_BOOTSTRAP_REQUIREMENTS[i].TargetVersion, ATargetVersion) then
-    begin
-      Result := FPC_BOOTSTRAP_REQUIREMENTS[i].RequiredVersion;
-      Break;
-    end;
-  end;
+  Callbacks := Default(TFPCBuilderBootstrapResolveCallbacks);
+  Callbacks.GetResourceRepoRequiredBootstrapVersion := @GetResourceRepoRequiredBootstrapVersionCallback;
+  Result := GetRequiredBootstrapVersionCore(ATargetVersion, FInstallRoot, FResourceRepo, Callbacks);
 end;
 
 function TFPCSourceBuilder.EnsureBootstrapCompiler(const ATargetVersion: string): Boolean;
@@ -672,97 +476,10 @@ end;
 
 function TFPCSourceBuilder.DownloadSource(const AVersion, ATargetDir: string): Boolean;
 var
-  Git: IGitRuntime;
   GitTag: string;
 begin
-  Result := False;
-
-  // Find Git tag for version using registry
   GitTag := TVersionRegistry.Instance.GetFPCGitTag(AVersion);
-
-  if GitTag = '' then
-  begin
-    FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_UNKNOWN_VERSION, [AVersion]));
-    Exit;
-  end;
-
-  try
-    FOut.WriteLn(_Fmt(CMD_FPC_INSTALL_DOWNLOADING, [AVersion]) + ' (tag: ' + GitTag + ')...');
-
-    // Ensure parent directory exists
-    if not DirectoryExists(ExtractFileDir(ATargetDir)) then
-      EnsureDir(ExtractFileDir(ATargetDir));
-
-    Git := NewGitRuntime;
-    try
-      if Git.Backend = gbNone then
-      begin
-        FErr.WriteLn(_(MSG_ERROR) + ': ' + _(CMD_FPC_NO_GIT_BACKEND));
-        Exit;
-      end;
-
-      FOut.WriteLn('Using backend: ' + GitBackendToString(Git.Backend));
-
-      // Check if directory already exists
-      if DirectoryExists(ATargetDir) then
-      begin
-        // Directory exists - check if it's a git repo and update it
-        if DirectoryExists(ATargetDir + PathDelim + '.git') then
-        begin
-          FOut.WriteLn('Source directory exists, updating to tag: ' + GitTag);
-
-          // Fetch updates and checkout the requested tag via the unified git runtime.
-          if not Git.Fetch(ATargetDir, 'origin') then
-          begin
-            FErr.WriteLn(_(MSG_ERROR) + ': Git fetch failed: ' + Git.LastError);
-            Exit;
-          end;
-
-          if not Git.Checkout(ATargetDir, GitTag, True) then
-          begin
-            FErr.WriteLn(_(MSG_ERROR) + ': Git checkout failed for tag: ' + GitTag);
-            FErr.WriteLn('  ' + Git.LastError);
-            Exit;
-          end;
-
-          FOut.WriteLn('Git checkout completed successfully');
-          Result := True;
-        end
-        else
-        begin
-          // Directory exists but is not a git repo - remove and clone fresh
-          FOut.WriteLn('Directory exists but is not a git repo, removing...');
-          DeleteDirRecursive(ATargetDir);
-          FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
-          Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
-          if not Result then
-            FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
-          else
-            FOut.WriteLn('Git clone completed successfully');
-        end;
-      end
-      else
-      begin
-        // Directory doesn't exist - clone fresh
-        FOut.WriteLn('Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
-        Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, GitTag);
-        if not Result then
-          FErr.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
-        else
-          FOut.WriteLn('Git clone completed successfully');
-      end;
-
-    finally
-      Git := nil;
-    end;
-
-  except
-    on E: Exception do
-    begin
-      FErr.WriteLn(_(MSG_ERROR) + ': DownloadSource failed - ' + E.Message);
-      Result := False;
-    end;
-  end;
+  Result := DownloadFPCSourceWithGitRuntimeCore(AVersion, ATargetDir, GitTag, FOut, FErr);
 end;
 
 function TFPCSourceBuilder.BuildFromSource(const ASourceDir, AInstallDir: string): Boolean;

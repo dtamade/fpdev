@@ -4,7 +4,7 @@ program test_fpc_builder_msgregen;
 
 uses
   SysUtils, Classes,
-  fpdev.fpc.builder,
+  fpdev.fpc.builder, fpdev.fpc.builder.hotpatchflow,
   test_temp_paths;
 
 var
@@ -117,7 +117,7 @@ begin
     WriteTextFile(UnitsDir + PathDelim + 'fpjwt.o', 'stale obj');
     WriteTextFile(UnitsDir + PathDelim + 'BuildUnit_fcl_web.pp', 'stale build unit');
 
-    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(SourceDir);
+    FPCBuilderApplyFCLWebJWTSourcePathHotpatchCore(SourceDir);
 
     TextFile := TStringList.Create;
     try
@@ -168,7 +168,7 @@ begin
       '    P.SourcePath.Add(''src/jsonrpc'');' + LineEnding +
       '    T:=P.Targets.AddUnit(''fpjwt.pp'');' + LineEnding);
 
-    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(SourceDir);
+    FPCBuilderApplyFCLWebJWTSourcePathHotpatchCore(SourceDir);
 
     TextFile := TStringList.Create;
     try
@@ -219,7 +219,7 @@ begin
       'implementation' + LineEnding +
       'end.');
 
-    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(SourceDir);
+    FPCBuilderApplyFCLWebJWTSourcePathHotpatchCore(SourceDir);
 
     Check('builder mirrors jwt fpjwt into base tree',
       Pos('TJWTSigner', ReadTextFile(BaseJWTPath)) > 0,
@@ -245,7 +245,7 @@ begin
       '    P.SourcePath.Add(''src/webdata'');' + LineEnding +
       '    T:=P.Targets.AddUnit(''fpjwt.pp'');' + LineEnding);
 
-    FPCBuilderApplyFCLWebJWTSourcePathHotfixCore(SourceDir);
+    FPCBuilderApplyFCLWebJWTSourcePathHotpatchCore(SourceDir);
 
     TextFile := TStringList.Create;
     try

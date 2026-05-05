@@ -5,7 +5,7 @@ program test_fpc_builderflow;
 uses
   SysUtils, Classes,
   fpdev.config.interfaces, fpdev.output.intf, fpdev.utils.process,
-  fpdev.fpc.builder, fpdev.fpc.builderflow;
+  fpdev.fpc.builder, fpdev.fpc.builderflow, fpdev.fpc.builder.bootstrapresolveflow;
 
 type
   TStringOutput = class(TInterfacedObject, IOutput)
