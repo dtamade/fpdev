@@ -52,12 +52,6 @@ type
     Params: TFPCSourceBuildArgs;
   end;
 
-  { Bootstrap compiler requirements }
-  TBootstrapRequirement = record
-    TargetVersion: string;
-    RequiredVersion: string;
-  end;
-
   { TFPCBuilder is now in fpdev.fpc.builder.di unit for testability }
   { Re-exported for backward compatibility }
 
@@ -147,15 +141,6 @@ function CreateFPCSourceBuildPlanCore(
   const AMakeCommand: string;
   const AIsWindows: Boolean
 ): TFPCSourceBuildPlan;
-
-const
-  { Bootstrap compiler requirements for building from source }
-  DEFAULT_BOOTSTRAP_VERSION = '3.2.2';
-  FPC_BOOTSTRAP_REQUIREMENTS: array[0..2] of TBootstrapRequirement = (
-    (TargetVersion: '3.2.2'; RequiredVersion: '3.2.0'),
-    (TargetVersion: '3.2.0'; RequiredVersion: '3.0.4'),
-    (TargetVersion: '3.0.4'; RequiredVersion: '3.0.2')
-  );
 
 implementation
 

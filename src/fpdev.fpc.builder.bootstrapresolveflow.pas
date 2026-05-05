@@ -28,9 +28,6 @@ type
   TFPCBuilderBootstrapResolveCallbacks = record
     GetVersionInstallPath: function(const AVersion: string): string of object;
     GetCompilerVersion: function(const AExecutable: string): string of object;
-    EnsureResourceRepository: function: Boolean of object;
-    HasResourceRepoBootstrapCompiler: function(const AVersion, APlatform: string): Boolean of object;
-    FindBestResourceRepoBootstrapVersion: function(const AFPCVersion, APlatform: string): string of object;
     GetResourceRepoRequiredBootstrapVersion: function(const AFPCVersion: string): string of object;
   end;
 
@@ -65,7 +62,7 @@ implementation
 
 uses
   fpdev.fpc.installversionflow, fpdev.resource.repo.bootstrap,
-  fpdev.resource.repo.config, fpdev.paths;
+  fpdev.resource.repo.config;
 
 type
   { Local copy of bootstrap requirements for standalone flow }

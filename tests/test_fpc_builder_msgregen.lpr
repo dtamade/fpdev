@@ -90,7 +90,7 @@ begin
   end;
 end;
 
-procedure TestBuilderAppliesFCLWebJWTSourcePathHotfix;
+procedure TestBuilderAppliesFCLWebJWTSourcePathHotpatch;
 var
   SourceDir: string;
   FPMakePath: string;
@@ -229,7 +229,7 @@ begin
   end;
 end;
 
-procedure TestBuilderSkipsJWTSourceHotfixWhenJWTTreeMissing;
+procedure TestBuilderSkipsJWTSourceHotpatchWhenJWTTreeMissing;
 var
   SourceDir: string;
   FPMakePath: string;
@@ -266,10 +266,10 @@ end;
 
 begin
   TestBuilderDropsGeneratedCompilerMessageIncludes;
-  TestBuilderAppliesFCLWebJWTSourcePathHotfix;
+  TestBuilderAppliesFCLWebJWTSourcePathHotpatch;
   TestBuilderAddsMissingJWTSourcePathWhenJWTTreeExists;
   TestBuilderMirrorsJWTUnitIntoBaseWhenJWTTreeExists;
-  TestBuilderSkipsJWTSourceHotfixWhenJWTTreeMissing;
+  TestBuilderSkipsJWTSourceHotpatchWhenJWTTreeMissing;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);
