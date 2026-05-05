@@ -237,19 +237,18 @@ Following the `docs/history/TODO-FPC-v1.md` philosophy:
 
 > The v2.1.0→v2.2.0 cycle focuses on completing the facade/flow extraction pattern across all remaining modules, then advancing to feature work.
 
-#### 5.1 Git Operations Backend Extraction 🔴 IN PROGRESS
-- [ ] Extract 14 `*WithLibgit2` private methods from `fpdev.git.operations.impl.pas` into `fpdev.git.operations.libgit2backendflow.pas`
-- [ ] Move `AddAllStatusCb` / `IndexMatchedCb` callbacks and `TGitAddAllStatusPayload` / `TIndexMatchPayload` records
-- [ ] Facade target: ~500 lines (down from 1936)
-- **Impact**: Highest — single method `PullWithLibgit2` at 451 lines is the fattest in codebase
-- **Tests**: Existing 352 tests + new libgit2backendflow focused tests
+#### 5.1 Git Operations Backend Extraction ✅ DONE
+- [x] Extract 14 `*WithLibgit2` private methods from `fpdev.git.operations.impl.pas` into `fpdev.git.operations.libgit2backendflow.pas`
+- [x] Move `AddAllStatusCb` / `IndexMatchedCb` callbacks and `TGitAddAllStatusPayload` / `TIndexMatchPayload` records
+- [x] Facade reduced from 1936→611 lines
+- **Commits**: 39bec1a, 5d25704, 52bafa2, 0c47b50, 1cac707, 432eb4d
 
-#### 5.2 FPC Builder Flow Extraction 🟡 PENDING
-- [ ] Extract `DownloadSource` (94 lines) into `fpdev.fpc.builder.downloadflow.pas`
-- [ ] Extract bootstrap resolution chain into `fpdev.fpc.builder.bootstrapresolveflow.pas`
-- [ ] Move hotpatch procedures (`FPCBuilderInvalidateCompilerMessageIncludesCore`, `FPCBuilderApplyFCLWebJWTSourcePathHotfixCore`) into dedicated flow unit
-- [ ] Facade target: ~350-400 lines (down from 805)
-- **Impact**: Moderate — highest avg lines/method of any facade
+#### 5.2 FPC Builder Flow Extraction ✅ DONE
+- [x] Extract `DownloadSource` into `fpdev.fpc.builder.downloadflow.pas`
+- [x] Extract bootstrap resolution chain into `fpdev.fpc.builder.bootstrapresolveflow.pas`
+- [x] Move hotpatch procedures into `fpdev.fpc.builder.hotpatchflow.pas`
+- [x] Facade reduced from 805→507 lines
+- **Commits**: a0c52a7, f76a76e
 
 #### 5.3 Architecture Verification ✅ DONE
 - [x] Scanned all >600-line facades for remaining extraction needs
