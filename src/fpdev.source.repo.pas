@@ -6,7 +6,6 @@ interface
 
 uses
   SysUtils, Classes,
-  git2.api, git2.impl,
   fpdev.utils.fs, fpdev.git.runtime, fpdev.constants;
 
 type
@@ -17,7 +16,6 @@ type
     function GetSourcePath(const AVersion: string): string;
     function IsValidSourceDirectory(const APath: string): Boolean;
   protected
-    function CreateGitManager: IGitManager; virtual;
     function CreateGitRuntime: IGitRuntime; virtual;
   public
     constructor Create(const ASourceRoot: string);
@@ -101,23 +99,6 @@ begin
   Result := DirectoryExists(LGitPath) or FileExists(LGitPath);
 end;
 
-function CheckoutClonedFPCRef(const ARepo: IGitRepository; const ARefName: string): Boolean;
-begin
-  if (ARepo = nil) or (ARefName = '') then
-    Exit(False);
-
-  if ARepo.CheckoutBranchEx(ARefName, True) then
-    Exit(True);
-
-  if ARepo.CheckoutBranchEx('refs/tags/' + ARefName, True) then
-    Exit(True);
-
-  if ARepo.CheckoutBranchEx('refs/remotes/origin/' + ARefName, True) then
-    Exit(True);
-
-  Result := False;
-end;
-
 { TSourceRepoManager }
 
 constructor TSourceRepoManager.Create(const ASourceRoot: string);
@@ -153,11 +134,6 @@ begin
   Result := DirectoryExists(LCompilerPath) and DirectoryExists(LRTLPath) and FileExists(LMakefilePath);
 end;
 
-function TSourceRepoManager.CreateGitManager: IGitManager;
-begin
-  Result := NewGitManager();
-end;
-
 function TSourceRepoManager.CreateGitRuntime: IGitRuntime;
 begin
   Result := NewGitRuntime;
@@ -166,8 +142,7 @@ end;
 function TSourceRepoManager.CloneFPCSource(const AVersion: string): Boolean;
 var
   LVersion, LSourcePath, LRepoURL, LRefName: string;
-  LRepo: IGitRepository;
-  LGitManager: IGitManager;
+  LGit: IGitRuntime;
 begin
   Result := False;
   LVersion := AVersion;
@@ -184,13 +159,14 @@ begin
       Exit(True);
 
     try
-      LGitManager := CreateGitManager();
-      if not LGitManager.Initialize then
+      LGit := CreateGitRuntime;
+      if not LGit.BackendAvailable then
         Exit(False);
-      LRepo := LGitManager.OpenRepository(LSourcePath);
-      if not Assigned(LRepo) then
-        Exit(False);
-      Result := CheckoutClonedFPCRef(LRepo, LRefName);
+      Result := LGit.Checkout(LSourcePath, LRefName, True);
+      if not Result then
+        Result := LGit.Checkout(LSourcePath, 'refs/tags/' + LRefName, True);
+      if not Result then
+        Result := LGit.Checkout(LSourcePath, 'refs/remotes/origin/' + LRefName, True);
       if Result and (not IsValidSourceDirectory(LSourcePath)) then
         Result := False;
       Exit(Result);
@@ -218,12 +194,10 @@ begin
   end;
 
   try
-    LGitManager := CreateGitManager();
-    if not LGitManager.Initialize then Exit(False);
-    LRepo := LGitManager.CloneRepository(LRepoURL, LSourcePath);
-    if not Assigned(LRepo) then
+    LGit := CreateGitRuntime;
+    if not LGit.BackendAvailable then
       Exit(False);
-    Result := CheckoutClonedFPCRef(LRepo, LRefName);
+    Result := LGit.Clone(LRepoURL, LSourcePath, LRefName);
     if Result and (not IsValidSourceDirectory(LSourcePath)) then
       Result := False;
   except
@@ -255,19 +229,21 @@ function TSourceRepoManager.SwitchFPCVersion(const AVersion: string): Boolean;
 var
   LSourcePath: string;
   LRefName: string;
-  LRepo: IGitRepository;
-  LGitManager: IGitManager;
+  LGit: IGitRuntime;
 begin
   Result := False;
   LSourcePath := GetSourcePath(AVersion);
   LRefName := ResolveFPCCloneRef(AVersion);
   if not IsValidSourceDirectory(LSourcePath) then Exit(False);
   try
-    LGitManager := CreateGitManager();
-    if not LGitManager.Initialize then Exit(False);
-    LRepo := LGitManager.OpenRepository(LSourcePath);
-    if not Assigned(LRepo) then Exit(False);
-    Result := CheckoutClonedFPCRef(LRepo, LRefName);
+    LGit := CreateGitRuntime;
+    if not LGit.BackendAvailable then
+      Exit(False);
+    Result := LGit.Checkout(LSourcePath, LRefName, True);
+    if not Result then
+      Result := LGit.Checkout(LSourcePath, 'refs/tags/' + LRefName, True);
+    if not Result then
+      Result := LGit.Checkout(LSourcePath, 'refs/remotes/origin/' + LRefName, True);
   except
     Result := False;
   end;

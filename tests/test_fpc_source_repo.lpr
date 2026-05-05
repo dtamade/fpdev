@@ -7,7 +7,7 @@ uses
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
-  git2.api, git2.types,
+  fpdev.git.runtime, fpdev.git.types,
   fpdev.source.repo, fpdev.fpc.source, fpdev.version.registry,
   fpdev.utils.process,
   test_temp_paths;
@@ -18,62 +18,45 @@ var
   TestsFailed: Integer;
 
 type
-  TProbeGitRepository = class(TInterfacedObject, IGitRepository)
+  TProbeGitRuntime = class(TInterfacedObject, IGitRuntime)
   public
-    CheckoutResult: Boolean;
-    CheckoutCalls: Integer;
-    LastCheckoutBranch: string;
-    LastCheckoutForce: Boolean;
-    constructor Create;
-    function Path: string;
-    function WorkDir: string;
-    function IsBare: Boolean;
-    function IsEmpty: Boolean;
-    function Head: IGitReference;
-    function CurrentBranch: string;
-    function ListBranches(Kind: TGitBranchKind = gbLocal): TStringArray;
-    function CommitByHash(const Hash: string): IGitCommit;
-    function HeadCommit: IGitCommit;
-    function Remote(const Name: string = 'origin'): IGitRemote;
-    function Fetch(const RemoteName: string = 'origin'): Boolean;
-    function CheckoutBranch(const Branch: string): Boolean;
-    function CheckoutBranchEx(const Branch: string; Force: Boolean): Boolean;
-    function Status: TStringArray;
-    function StatusEntries(const Filter: TGitStatusFilter): TGitStatusEntryArray;
-    function IsClean: Boolean;
-    function HasUncommittedChanges: Boolean;
-  end;
-
-  TProbeGitManager = class(TInterfacedObject, IGitManager)
-  public
-    InitializeResult: Boolean;
-    CloneCalls: Integer;
+    CloneOk: Boolean;
+    CheckoutOk: Boolean;
+    BackendOk: Boolean;
+    PullFFOk: Boolean;
     LastCloneURL: string;
     LastClonePath: string;
-    CloneResult: IGitRepository;
+    LastCloneBranch: string;
+    CheckoutCalls: Integer;
+    LastCheckoutBranch: string;
     AutoCreateSourceTree: Boolean;
-    function Initialize: Boolean;
-    procedure Finalize;
-    function OpenRepository(const APath: string): IGitRepository;
-    function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
-    function InitRepository(const APath: string; ABare: Boolean = False): IGitRepository;
+    constructor Create;
+    function GetBackend: TGitBackend;
+    function BackendAvailable: Boolean;
+    function Clone(const AURL, ALocalPath: string; const ABranch: string = ''): Boolean;
+    function Fetch(const ARepoPath: string; const ARemote: string = 'origin'): Boolean;
+    function Checkout(const ARepoPath, AName: string; const Force: Boolean = False): Boolean;
     function IsRepository(const APath: string): Boolean;
-    function DiscoverRepository(const AStartPath: string): string;
-    function GetGlobalConfig(const AKey: string): string;
-    function SetGlobalConfig(const AKey, AValue: string): Boolean;
-    function Version: string;
-    procedure SetVerifySSL(AEnabled: Boolean);
-    procedure SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
-    procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
-    function Initialized: Boolean;
-    function VerifySSL: Boolean;
+    function HasRemote(const ARepoPath: string): Boolean;
+    function Pull(const ARepoPath: string): Boolean;
+    function PullWithMerge(const ARepoPath: string): Boolean;
+    function PullFastForwardOnly(const ARepoPath: string): Boolean;
+    function GetLastError: string;
+    function GetRemoteURL(const ARepoPath: string; const ARemote: string = 'origin'): string;
+    function GetCurrentBranch(const ARepoPath: string): string;
+    function GetShortHeadHash(const ARepoPath: string; const ALength: Integer = 7): string;
+    function ListBranches(const ARepoPath: string): TStringArray;
+    function Add(const ARepoPath, APathSpec: string): Boolean;
+    function Commit(const ARepoPath, AMessage: string): Boolean;
+    function Push(const ARepoPath: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
+    function GetVersion: string;
   end;
 
   TTestSourceRepoManager = class(TSourceRepoManager)
   public
-    ProbeGitManager: IGitManager;
+    ProbeGitRuntime: IGitRuntime;
   protected
-    function CreateGitManager: IGitManager; override;
+    function CreateGitRuntime: IGitRuntime; override;
   end;
 
   TTestFPCSourceManager = class(TFPCSourceManager)
@@ -84,137 +67,38 @@ type
     function RunBuildFPCPackages(const AVersion: string): Boolean;
   end;
 
-constructor TProbeGitRepository.Create;
+constructor TProbeGitRuntime.Create;
 begin
   inherited Create;
-  CheckoutResult := True;
+  CloneOk := True;
+  CheckoutOk := True;
+  BackendOk := True;
+  PullFFOk := True;
+  LastCloneURL := '';
+  LastClonePath := '';
+  LastCloneBranch := '';
   CheckoutCalls := 0;
   LastCheckoutBranch := '';
-  LastCheckoutForce := False;
+  AutoCreateSourceTree := False;
 end;
 
-function TProbeGitRepository.Path: string;
+function TProbeGitRuntime.GetBackend: TGitBackend;
 begin
-  Result := '';
+  if BackendOk then Result := gbLibgit2 else Result := gbNone;
 end;
 
-function TProbeGitRepository.WorkDir: string;
+function TProbeGitRuntime.BackendAvailable: Boolean;
 begin
-  Result := '';
+  Result := BackendOk;
 end;
 
-function TProbeGitRepository.IsBare: Boolean;
+function TProbeGitRuntime.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;
 begin
-  Result := False;
-end;
-
-function TProbeGitRepository.IsEmpty: Boolean;
-begin
-  Result := False;
-end;
-
-function TProbeGitRepository.Head: IGitReference;
-begin
-  Result := nil;
-end;
-
-function TProbeGitRepository.CurrentBranch: string;
-begin
-  Result := LastCheckoutBranch;
-end;
-
-function TProbeGitRepository.ListBranches(Kind: TGitBranchKind): TStringArray;
-begin
-  if Kind = gbAll then;
-  Result := nil;
-end;
-
-function TProbeGitRepository.CommitByHash(const Hash: string): IGitCommit;
-begin
-  if Hash <> '' then;
-  Result := nil;
-end;
-
-function TProbeGitRepository.HeadCommit: IGitCommit;
-begin
-  Result := nil;
-end;
-
-function TProbeGitRepository.Remote(const Name: string): IGitRemote;
-begin
-  if Name <> '' then;
-  Result := nil;
-end;
-
-function TProbeGitRepository.Fetch(const RemoteName: string): Boolean;
-begin
-  if RemoteName <> '' then;
-  Result := True;
-end;
-
-function TProbeGitRepository.CheckoutBranch(const Branch: string): Boolean;
-begin
-  Inc(CheckoutCalls);
-  LastCheckoutBranch := Branch;
-  LastCheckoutForce := False;
-  Result := CheckoutResult;
-end;
-
-function TProbeGitRepository.CheckoutBranchEx(const Branch: string;
-  Force: Boolean): Boolean;
-begin
-  Inc(CheckoutCalls);
-  LastCheckoutBranch := Branch;
-  LastCheckoutForce := Force;
-  Result := CheckoutResult;
-end;
-
-function TProbeGitRepository.Status: TStringArray;
-begin
-  Result := nil;
-end;
-
-function TProbeGitRepository.StatusEntries(
-  const Filter: TGitStatusFilter): TGitStatusEntryArray;
-begin
-  if Filter.IncludeUntracked then;
-  Result := nil;
-end;
-
-function TProbeGitRepository.IsClean: Boolean;
-begin
-  Result := True;
-end;
-
-function TProbeGitRepository.HasUncommittedChanges: Boolean;
-begin
-  Result := False;
-end;
-
-function TProbeGitManager.Initialize: Boolean;
-begin
-  Result := InitializeResult;
-end;
-
-procedure TProbeGitManager.Finalize;
-begin
-end;
-
-function TProbeGitManager.OpenRepository(const APath: string): IGitRepository;
-begin
-  if APath <> '' then;
-  Result := nil;
-end;
-
-function TProbeGitManager.CloneRepository(const AURL,
-  ALocalPath: string): IGitRepository;
-begin
-  Inc(CloneCalls);
   LastCloneURL := AURL;
   LastClonePath := ALocalPath;
-  Result := CloneResult;
-
-  if (Result <> nil) and AutoCreateSourceTree then
+  LastCloneBranch := ABranch;
+  Result := CloneOk;
+  if Result and AutoCreateSourceTree then
   begin
     ForceDirectories(ALocalPath + PathDelim + 'compiler');
     ForceDirectories(ALocalPath + PathDelim + 'rtl');
@@ -229,74 +113,119 @@ begin
   end;
 end;
 
-function TProbeGitManager.InitRepository(const APath: string;
-  ABare: Boolean): IGitRepository;
+function TProbeGitRuntime.Fetch(const ARepoPath: string; const ARemote: string): Boolean;
 begin
-  if APath <> '' then;
-  if ABare then;
-  Result := nil;
-end;
-
-function TProbeGitManager.IsRepository(const APath: string): Boolean;
-begin
-  if APath <> '' then;
-  Result := False;
-end;
-
-function TProbeGitManager.DiscoverRepository(const AStartPath: string): string;
-begin
-  if AStartPath <> '' then;
-  Result := '';
-end;
-
-function TProbeGitManager.GetGlobalConfig(const AKey: string): string;
-begin
-  if AKey <> '' then;
-  Result := '';
-end;
-
-function TProbeGitManager.SetGlobalConfig(const AKey, AValue: string): Boolean;
-begin
-  if AKey <> '' then;
-  if AValue <> '' then;
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
   Result := True;
 end;
 
-function TProbeGitManager.Version: string;
+function TProbeGitRuntime.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Inc(CheckoutCalls);
+  LastCheckoutBranch := AName;
+  if not CheckoutOk then
+  begin
+    // Try alternative ref prefixes like the old CheckoutClonedFPCRef
+    if (CheckoutCalls <= 3) and CheckoutOk then
+      Exit(True);
+    Exit(False);
+  end;
+  Result := CheckoutOk;
+end;
+
+function TProbeGitRuntime.IsRepository(const APath: string): Boolean;
+begin
+  if APath <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.HasRemote(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Pull(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.PullWithMerge(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.PullFastForwardOnly(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.GetLastError: string;
+begin
+  Result := '';
+end;
+
+function TProbeGitRuntime.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  Result := '';
+end;
+
+function TProbeGitRuntime.GetCurrentBranch(const ARepoPath: string): string;
+begin
+  if ARepoPath <> '' then;
+  Result := LastCheckoutBranch;
+end;
+
+function TProbeGitRuntime.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
+begin
+  if ARepoPath <> '' then;
+  if ALength > 0 then;
+  Result := 'abc1234';
+end;
+
+function TProbeGitRuntime.ListBranches(const ARepoPath: string): TStringArray;
+begin
+  if ARepoPath <> '' then;
+  Result := nil;
+end;
+
+function TProbeGitRuntime.Add(const ARepoPath, APathSpec: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if APathSpec <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Commit(const ARepoPath, AMessage: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if AMessage <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  if ABranch <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.GetVersion: string;
 begin
   Result := 'probe';
 end;
 
-procedure TProbeGitManager.SetVerifySSL(AEnabled: Boolean);
+function TTestSourceRepoManager.CreateGitRuntime: IGitRuntime;
 begin
-  if AEnabled then;
-end;
-
-procedure TProbeGitManager.SetCredentialAcquireHandler(
-  AHandler: TCredentialAcquireEvent);
-begin
-  if Assigned(AHandler) then;
-end;
-
-procedure TProbeGitManager.SetCertificateCheckHandler(
-  AHandler: TCertificateCheckEvent);
-begin
-  if Assigned(AHandler) then;
-end;
-
-function TProbeGitManager.Initialized: Boolean;
-begin
-  Result := InitializeResult;
-end;
-
-function TProbeGitManager.VerifySSL: Boolean;
-begin
-  Result := True;
-end;
-
-function TTestSourceRepoManager.CreateGitManager: IGitManager;
-begin
-  Result := ProbeGitManager;
+  Result := ProbeGitRuntime;
 end;
 
 function TTestFPCSourceManager.RunGetVersionFromBranch(const ABranch: string): string;
@@ -552,8 +481,7 @@ end;
 procedure TestCloneFPCSourceUsesRegistryRepositoryAndGitTag;
 var
   Manager: TTestSourceRepoManager;
-  ProbeManager: TProbeGitManager;
-  ProbeRepo: TProbeGitRepository;
+  ProbeRuntime: TProbeGitRuntime;
   Success: Boolean;
   OriginalRegistryPath: string;
   VersionsJSONPath: string;
@@ -601,30 +529,27 @@ begin
       'Custom FPC source registry data reloads',
       'Expected registry reload to succeed for ' + VersionsJSONPath);
 
-    ProbeManager := TProbeGitManager.Create;
-    ProbeManager.InitializeResult := True;
-    ProbeManager.AutoCreateSourceTree := True;
-    ProbeRepo := TProbeGitRepository.Create;
-    ProbeManager.CloneResult := ProbeRepo as IGitRepository;
-    Manager.ProbeGitManager := ProbeManager as IGitManager;
+    ProbeRuntime := TProbeGitRuntime.Create;
+    ProbeRuntime.AutoCreateSourceTree := True;
+    Manager.ProbeGitRuntime := ProbeRuntime;
     ExpectedSourcePath := TestRootDir + PathDelim + 'fpc-sources' + PathDelim + 'fpc-3.2.2';
 
     Success := Manager.CloneFPCSource('3.2.2');
 
-    AssertTrue(Success, 'CloneFPCSource succeeds with injected git manager',
-      'Expected CloneFPCSource to succeed through injected git manager');
-    AssertTrue(ProbeManager.LastCloneURL = CustomRepoURL,
+    AssertTrue(Success, 'CloneFPCSource succeeds with injected git runtime',
+      'Expected CloneFPCSource to succeed through injected git runtime');
+    AssertTrue(ProbeRuntime.LastCloneURL = CustomRepoURL,
       'CloneFPCSource uses repository URL from version registry',
-      'Expected URL "' + CustomRepoURL + '", got "' + ProbeManager.LastCloneURL + '"');
-    AssertTrue(ProbeManager.LastClonePath = ExpectedSourcePath,
+      'Expected URL "' + CustomRepoURL + '", got "' + ProbeRuntime.LastCloneURL + '"');
+    AssertTrue(ProbeRuntime.LastClonePath = ExpectedSourcePath,
       'CloneFPCSource clones into version-specific source path',
-      'Expected path "' + ExpectedSourcePath + '", got "' + ProbeManager.LastClonePath + '"');
-    AssertTrue(ProbeRepo.LastCheckoutBranch = 'custom_release_3_2_2',
-      'CloneFPCSource checks out git tag from version registry',
-      'Expected checkout ref "custom_release_3_2_2", got "' + ProbeRepo.LastCheckoutBranch + '"');
-    AssertTrue(ProbeRepo.CheckoutCalls = 1,
-      'CloneFPCSource checks out exactly one registry ref after clone',
-      'Expected 1 checkout call, got ' + IntToStr(ProbeRepo.CheckoutCalls));
+      'Expected path "' + ExpectedSourcePath + '", got "' + ProbeRuntime.LastClonePath + '"');
+    AssertTrue(ProbeRuntime.LastCloneBranch = 'custom_release_3_2_2',
+      'CloneFPCSource clones with git tag from version registry',
+      'Expected clone branch "custom_release_3_2_2", got "' + ProbeRuntime.LastCloneBranch + '"');
+    AssertTrue(ProbeRuntime.CheckoutCalls = 0,
+      'CloneFPCSource does not call separate checkout after atomic clone',
+      'Expected 0 checkout calls after atomic clone, got ' + IntToStr(ProbeRuntime.CheckoutCalls));
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
@@ -635,8 +560,7 @@ end;
 procedure TestCloneFPCSourceFallsBackToStaticGitTagWhenRegistryEmpty;
 var
   Manager: TTestSourceRepoManager;
-  ProbeManager: TProbeGitManager;
-  ProbeRepo: TProbeGitRepository;
+  ProbeRuntime: TProbeGitRuntime;
   Success: Boolean;
   OriginalRegistryPath: string;
   VersionsJSONPath: string;
@@ -671,20 +595,17 @@ begin
       'Empty FPC source registry data reloads',
       'Expected registry reload to succeed for ' + VersionsJSONPath);
 
-    ProbeManager := TProbeGitManager.Create;
-    ProbeManager.InitializeResult := True;
-    ProbeManager.AutoCreateSourceTree := True;
-    ProbeRepo := TProbeGitRepository.Create;
-    ProbeManager.CloneResult := ProbeRepo as IGitRepository;
-    Manager.ProbeGitManager := ProbeManager as IGitManager;
+    ProbeRuntime := TProbeGitRuntime.Create;
+    ProbeRuntime.AutoCreateSourceTree := True;
+    Manager.ProbeGitRuntime := ProbeRuntime;
 
     Success := Manager.CloneFPCSource('3.2.2');
 
     AssertTrue(Success, 'CloneFPCSource succeeds with static fallback ref',
-      'Expected CloneFPCSource to succeed through injected git manager');
-    AssertTrue(ProbeRepo.LastCheckoutBranch = 'release_3_2_2',
+      'Expected CloneFPCSource to succeed through injected git runtime');
+    AssertTrue(ProbeRuntime.LastCloneBranch = 'release_3_2_2',
       'CloneFPCSource falls back to static git tag when registry has no releases',
-      'Expected checkout ref "release_3_2_2", got "' + ProbeRepo.LastCheckoutBranch + '"');
+      'Expected clone branch "release_3_2_2", got "' + ProbeRuntime.LastCloneBranch + '"');
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;

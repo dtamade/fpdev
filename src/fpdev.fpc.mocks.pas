@@ -15,6 +15,7 @@ interface
 uses
   SysUtils, Classes, Generics.Collections,
   git2.api, git2.types,
+  fpdev.git.runtime, fpdev.git.types,
   fpdev.fpc.interfaces;
 
 type
@@ -177,6 +178,60 @@ type
     procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
     function Initialized: Boolean;
     function VerifySSL: Boolean;
+  end;
+
+  { TMockGitRuntime - Mock git runtime for DI tests (IGitRuntime-based callers) }
+  TMockGitRuntime = class(TInterfacedObject, IGitRuntime)
+  private
+    FBackendAvailable: Boolean;
+    FCloneOk: Boolean;
+    FFetchOk: Boolean;
+    FCheckoutOk: Boolean;
+    FIsRepoOk: Boolean;
+    FHasRemote: Boolean;
+    FPullOk: Boolean;
+    FPullFFOk: Boolean;
+    FLastError: string;
+    FLastCloneURL: string;
+    FLastClonePath: string;
+    FLastCloneBranch: string;
+  public
+    constructor Create;
+
+    procedure SetBackendAvailable(AOk: Boolean);
+    procedure SetCloneOk(AOk: Boolean);
+    procedure SetFetchOk(AOk: Boolean);
+    procedure SetCheckoutOk(AOk: Boolean);
+    procedure SetIsRepoOk(AOk: Boolean);
+    procedure SetHasRemote(AOk: Boolean);
+    procedure SetPullOk(AOk: Boolean);
+    procedure SetPullFFOk(AOk: Boolean);
+    procedure SetLastError(const AError: string);
+
+    property LastCloneURL: string read FLastCloneURL;
+    property LastClonePath: string read FLastClonePath;
+    property LastCloneBranch: string read FLastCloneBranch;
+
+    // IGitRuntime
+    function GetBackend: TGitBackend;
+    function BackendAvailable: Boolean;
+    function Clone(const AURL, ALocalPath: string; const ABranch: string = ''): Boolean;
+    function Fetch(const ARepoPath: string; const ARemote: string = 'origin'): Boolean;
+    function Checkout(const ARepoPath, AName: string; const Force: Boolean = False): Boolean;
+    function IsRepository(const APath: string): Boolean;
+    function HasRemote(const ARepoPath: string): Boolean;
+    function Pull(const ARepoPath: string): Boolean;
+    function PullWithMerge(const ARepoPath: string): Boolean;
+    function PullFastForwardOnly(const ARepoPath: string): Boolean;
+    function GetLastError: string;
+    function GetRemoteURL(const ARepoPath: string; const ARemote: string = 'origin'): string;
+    function GetCurrentBranch(const ARepoPath: string): string;
+    function GetShortHeadHash(const ARepoPath: string; const ALength: Integer = 7): string;
+    function ListBranches(const ARepoPath: string): TStringArray;
+    function Add(const ARepoPath, APathSpec: string): Boolean;
+    function Commit(const ARepoPath, AMessage: string): Boolean;
+    function Push(const ARepoPath: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
+    function GetVersion: string;
   end;
 
 implementation
@@ -690,6 +745,209 @@ end;
 function TMockGitManager.VerifySSL: Boolean;
 begin
   Result := FVerifySSL;
+end;
+
+{ TMockGitRuntime }
+
+constructor TMockGitRuntime.Create;
+begin
+  inherited Create;
+  FBackendAvailable := True;
+  FCloneOk := True;
+  FFetchOk := True;
+  FCheckoutOk := True;
+  FIsRepoOk := False;
+  FHasRemote := True;
+  FPullOk := True;
+  FPullFFOk := True;
+  FLastError := '';
+  FLastCloneURL := '';
+  FLastClonePath := '';
+  FLastCloneBranch := '';
+end;
+
+procedure TMockGitRuntime.SetBackendAvailable(AOk: Boolean);
+begin
+  FBackendAvailable := AOk;
+end;
+
+procedure TMockGitRuntime.SetCloneOk(AOk: Boolean);
+begin
+  FCloneOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetFetchOk(AOk: Boolean);
+begin
+  FFetchOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetCheckoutOk(AOk: Boolean);
+begin
+  FCheckoutOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetIsRepoOk(AOk: Boolean);
+begin
+  FIsRepoOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetHasRemote(AOk: Boolean);
+begin
+  FHasRemote := AOk;
+end;
+
+procedure TMockGitRuntime.SetPullOk(AOk: Boolean);
+begin
+  FPullOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetPullFFOk(AOk: Boolean);
+begin
+  FPullFFOk := AOk;
+end;
+
+procedure TMockGitRuntime.SetLastError(const AError: string);
+begin
+  FLastError := AError;
+end;
+
+function TMockGitRuntime.GetBackend: TGitBackend;
+begin
+  if FBackendAvailable then
+    Result := gbLibgit2
+  else
+    Result := gbNone;
+end;
+
+function TMockGitRuntime.BackendAvailable: Boolean;
+begin
+  Result := FBackendAvailable;
+end;
+
+function TMockGitRuntime.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;
+begin
+  FLastCloneURL := AURL;
+  FLastClonePath := ALocalPath;
+  FLastCloneBranch := ABranch;
+  if not FCloneOk then
+    FLastError := 'Clone failed';
+  Result := FCloneOk;
+end;
+
+function TMockGitRuntime.Fetch(const ARepoPath: string; const ARemote: string): Boolean;
+begin
+  if ARemote <> '' then;
+  if ARepoPath <> '' then;
+  if not FFetchOk then
+    FLastError := 'Fetch failed';
+  Result := FFetchOk;
+end;
+
+function TMockGitRuntime.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if AName <> '' then;
+  if Force then;
+  if not FCheckoutOk then
+    FLastError := 'Checkout failed';
+  Result := FCheckoutOk;
+end;
+
+function TMockGitRuntime.IsRepository(const APath: string): Boolean;
+begin
+  if APath <> '' then;
+  Result := FIsRepoOk;
+end;
+
+function TMockGitRuntime.HasRemote(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := FHasRemote;
+end;
+
+function TMockGitRuntime.Pull(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if not FPullOk then
+    FLastError := 'Pull failed';
+  Result := FPullOk;
+end;
+
+function TMockGitRuntime.PullWithMerge(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if not FPullOk then
+    FLastError := 'Pull with merge failed';
+  Result := FPullOk;
+end;
+
+function TMockGitRuntime.PullFastForwardOnly(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if not FPullFFOk then
+  begin
+    if FLastError = '' then
+      FLastError := 'Fast-forward-only pull failed';
+  end;
+  Result := FPullFFOk;
+end;
+
+function TMockGitRuntime.GetLastError: string;
+begin
+  Result := FLastError;
+end;
+
+function TMockGitRuntime.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  Result := '';
+end;
+
+function TMockGitRuntime.GetCurrentBranch(const ARepoPath: string): string;
+begin
+  if ARepoPath <> '' then;
+  Result := 'main';
+end;
+
+function TMockGitRuntime.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
+begin
+  if ARepoPath <> '' then;
+  if ALength > 0 then;
+  Result := 'abc1234';
+end;
+
+function TMockGitRuntime.ListBranches(const ARepoPath: string): TStringArray;
+begin
+  if ARepoPath <> '' then;
+  Result := nil;
+end;
+
+function TMockGitRuntime.Add(const ARepoPath, APathSpec: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if APathSpec <> '' then;
+  Result := True;
+end;
+
+function TMockGitRuntime.Commit(const ARepoPath, AMessage: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if AMessage <> '' then;
+  Result := True;
+end;
+
+function TMockGitRuntime.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  if ABranch <> '' then;
+  Result := True;
+end;
+
+function TMockGitRuntime.GetVersion: string;
+begin
+  Result := 'mock';
 end;
 
 end.

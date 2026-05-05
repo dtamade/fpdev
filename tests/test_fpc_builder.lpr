@@ -16,7 +16,7 @@ program test_fpc_builder;
 }
 
 uses
-  SysUtils, Classes, git2.api, git2.types, test_temp_paths,
+  SysUtils, Classes, fpdev.git.runtime, fpdev.git.types, test_temp_paths,
   fpdev.fpc.version, fpdev.fpc.builder, fpdev.fpc.builder.di,
   fpdev.fpc.installversionflow,
   fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks, fpdev.config,
@@ -28,34 +28,184 @@ var
   VersionManager: TFPCVersionManager;
   MockFileSystem: TMockFileSystem;
   MockProcessRunner: TMockProcessRunner;
-  MockGitManager: TMockGitManager;
+  MockGitRuntime: TMockGitRuntime;
   Builder: TFPCBuilder;
   TestsPassed: Integer = 0;
   TestsFailed: Integer = 0;
 
 type
-  TProbeBuilderGitManager = class(TInterfacedObject, IGitManager)
+  TProbeGitRuntime = class(TInterfacedObject, IGitRuntime)
   public
-    InitializeResult: Boolean;
-    CloneResult: IGitRepository;
+    CloneOk: Boolean;
+    FetchOk: Boolean;
+    CheckoutOk: Boolean;
+    BackendOk: Boolean;
+    PullFFOk: Boolean;
     LastCloneURL: string;
     LastClonePath: string;
-    function Initialize: Boolean;
-    procedure Finalize;
-    function OpenRepository(const APath: string): IGitRepository;
-    function CloneRepository(const AURL, ALocalPath: string): IGitRepository;
-    function InitRepository(const APath: string; ABare: Boolean = False): IGitRepository;
+    LastCloneBranch: string;
+    PullFFError: string;
+    constructor Create;
+    function GetBackend: TGitBackend;
+    function BackendAvailable: Boolean;
+    function Clone(const AURL, ALocalPath: string; const ABranch: string = ''): Boolean;
+    function Fetch(const ARepoPath: string; const ARemote: string = 'origin'): Boolean;
+    function Checkout(const ARepoPath, AName: string; const Force: Boolean = False): Boolean;
     function IsRepository(const APath: string): Boolean;
-    function DiscoverRepository(const AStartPath: string): string;
-    function GetGlobalConfig(const AKey: string): string;
-    function SetGlobalConfig(const AKey, AValue: string): Boolean;
-    function Version: string;
-    procedure SetVerifySSL(AEnabled: Boolean);
-    procedure SetCredentialAcquireHandler(AHandler: TCredentialAcquireEvent);
-    procedure SetCertificateCheckHandler(AHandler: TCertificateCheckEvent);
-    function Initialized: Boolean;
-    function VerifySSL: Boolean;
+    function HasRemote(const ARepoPath: string): Boolean;
+    function Pull(const ARepoPath: string): Boolean;
+    function PullWithMerge(const ARepoPath: string): Boolean;
+    function PullFastForwardOnly(const ARepoPath: string): Boolean;
+    function GetLastError: string;
+    function GetRemoteURL(const ARepoPath: string; const ARemote: string = 'origin'): string;
+    function GetCurrentBranch(const ARepoPath: string): string;
+    function GetShortHeadHash(const ARepoPath: string; const ALength: Integer = 7): string;
+    function ListBranches(const ARepoPath: string): TStringArray;
+    function Add(const ARepoPath, APathSpec: string): Boolean;
+    function Commit(const ARepoPath, AMessage: string): Boolean;
+    function Push(const ARepoPath: string; const ARemote: string = 'origin'; const ABranch: string = ''): Boolean;
+    function GetVersion: string;
   end;
+
+constructor TProbeGitRuntime.Create;
+begin
+  inherited Create;
+  CloneOk := True;
+  FetchOk := True;
+  CheckoutOk := True;
+  BackendOk := True;
+  PullFFOk := True;
+  LastCloneURL := '';
+  LastClonePath := '';
+  LastCloneBranch := '';
+  PullFFError := '';
+end;
+
+function TProbeGitRuntime.GetBackend: TGitBackend;
+begin
+  if BackendOk then Result := gbLibgit2 else Result := gbNone;
+end;
+
+function TProbeGitRuntime.BackendAvailable: Boolean;
+begin
+  Result := BackendOk;
+end;
+
+function TProbeGitRuntime.Clone(const AURL, ALocalPath: string; const ABranch: string): Boolean;
+begin
+  LastCloneURL := AURL;
+  LastClonePath := ALocalPath;
+  LastCloneBranch := ABranch;
+  Result := CloneOk;
+end;
+
+function TProbeGitRuntime.Fetch(const ARepoPath: string; const ARemote: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  Result := FetchOk;
+end;
+
+function TProbeGitRuntime.Checkout(const ARepoPath, AName: string; const Force: Boolean): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if AName <> '' then;
+  if Force then;
+  Result := CheckoutOk;
+end;
+
+function TProbeGitRuntime.IsRepository(const APath: string): Boolean;
+begin
+  if APath <> '' then;
+  Result := False;
+end;
+
+function TProbeGitRuntime.HasRemote(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Pull(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.PullWithMerge(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.PullFastForwardOnly(const ARepoPath: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if not PullFFOk then
+  begin
+    if PullFFError = '' then
+      PullFFError := 'Fast-forward-only pull failed';
+  end;
+  Result := PullFFOk;
+end;
+
+function TProbeGitRuntime.GetLastError: string;
+begin
+  Result := PullFFError;
+end;
+
+function TProbeGitRuntime.GetRemoteURL(const ARepoPath: string; const ARemote: string): string;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  Result := '';
+end;
+
+function TProbeGitRuntime.GetCurrentBranch(const ARepoPath: string): string;
+begin
+  if ARepoPath <> '' then;
+  Result := 'main';
+end;
+
+function TProbeGitRuntime.GetShortHeadHash(const ARepoPath: string; const ALength: Integer): string;
+begin
+  if ARepoPath <> '' then;
+  if ALength > 0 then;
+  Result := 'abc1234';
+end;
+
+function TProbeGitRuntime.ListBranches(const ARepoPath: string): TStringArray;
+begin
+  if ARepoPath <> '' then;
+  Result := nil;
+end;
+
+function TProbeGitRuntime.Add(const ARepoPath, APathSpec: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if APathSpec <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Commit(const ARepoPath, AMessage: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if AMessage <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.Push(const ARepoPath: string; const ARemote: string; const ABranch: string): Boolean;
+begin
+  if ARepoPath <> '' then;
+  if ARemote <> '' then;
+  if ABranch <> '' then;
+  Result := True;
+end;
+
+function TProbeGitRuntime.GetVersion: string;
+begin
+  Result := 'probe';
+end;
 
 function BuildTempRoot(const APrefix: string): string;
 begin
@@ -357,106 +507,17 @@ begin
   end;
 end;
 
-function TProbeBuilderGitManager.Initialize: Boolean;
-begin
-  Result := InitializeResult;
-end;
-
-procedure TProbeBuilderGitManager.Finalize;
-begin
-end;
-
-function TProbeBuilderGitManager.OpenRepository(const APath: string): IGitRepository;
-begin
-  if APath <> '' then;
-  Result := nil;
-end;
-
-function TProbeBuilderGitManager.CloneRepository(const AURL,
-  ALocalPath: string): IGitRepository;
-begin
-  LastCloneURL := AURL;
-  LastClonePath := ALocalPath;
-  Result := CloneResult;
-end;
-
-function TProbeBuilderGitManager.InitRepository(const APath: string;
-  ABare: Boolean): IGitRepository;
-begin
-  if APath <> '' then;
-  if ABare then;
-  Result := nil;
-end;
-
-function TProbeBuilderGitManager.IsRepository(const APath: string): Boolean;
-begin
-  if APath <> '' then;
-  Result := False;
-end;
-
-function TProbeBuilderGitManager.DiscoverRepository(const AStartPath: string): string;
-begin
-  if AStartPath <> '' then;
-  Result := '';
-end;
-
-function TProbeBuilderGitManager.GetGlobalConfig(const AKey: string): string;
-begin
-  if AKey <> '' then;
-  Result := '';
-end;
-
-function TProbeBuilderGitManager.SetGlobalConfig(const AKey, AValue: string): Boolean;
-begin
-  if AKey <> '' then;
-  if AValue <> '' then;
-  Result := True;
-end;
-
-function TProbeBuilderGitManager.Version: string;
-begin
-  Result := 'probe';
-end;
-
-procedure TProbeBuilderGitManager.SetVerifySSL(AEnabled: Boolean);
-begin
-  if AEnabled then;
-end;
-
-procedure TProbeBuilderGitManager.SetCredentialAcquireHandler(
-  AHandler: TCredentialAcquireEvent);
-begin
-  if Assigned(AHandler) then;
-end;
-
-procedure TProbeBuilderGitManager.SetCertificateCheckHandler(
-  AHandler: TCertificateCheckEvent);
-begin
-  if Assigned(AHandler) then;
-end;
-
-function TProbeBuilderGitManager.Initialized: Boolean;
-begin
-  Result := InitializeResult;
-end;
-
-function TProbeBuilderGitManager.VerifySSL: Boolean;
-begin
-  Result := True;
-end;
-
-{ Test: DownloadSource prefers libgit2 when available }
+{ Test: DownloadSource prefers git runtime when available }
 procedure Test_DownloadSource_PrefersLibgit2;
 var
   Result: TOperationResult;
   TargetDir: string;
   LocalBuilder: TFPCBuilder;
-  LocalGitManager: TMockGitManager;
-  Repo: TMockGitRepository;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test: DownloadSource - Prefers libgit2');
+  WriteLn('Test: DownloadSource - Prefers git runtime');
   WriteLn('==================================================');
 
   ResetMocks;
@@ -465,18 +526,16 @@ begin
   // Ensure CLI path would fail if used
   MockProcessRunner.SetDefaultResult(1, '', 'should not call git CLI');
 
-  LocalGitManager := TMockGitManager.Create;
-  LocalGitManager.SetInitializeOk(True);
-  Repo := TMockGitRepository.Create(TargetDir);
-  Repo.SetCheckoutOk(True);
-  LocalGitManager.SetCloneRepositoryResult(Repo as IGitRepository);
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(True);
+  LocalGitRuntime.SetCloneOk(True);
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
     Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
-    AssertTrue(Result.Success, 'DownloadSource should succeed via libgit2');
+    AssertTrue(Result.Success, 'DownloadSource should succeed via git runtime');
     AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0, 'Git CLI should not be executed');
     AssertTrue(MockFileSystem.DirectoryExists(TargetDir), 'Target directory should be created');
   finally
@@ -489,15 +548,14 @@ var
   Result: TOperationResult;
   TargetDir: string;
   LocalBuilder: TFPCBuilder;
-  ProbeGitManager: TProbeBuilderGitManager;
-  Repo: TMockGitRepository;
+  ProbeRuntime: TProbeGitRuntime;
   OriginalRegistryPath: string;
   VersionsJSONPath: string;
   CustomRepoURL: string;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test: DownloadSource - Uses registry repository with libgit2');
+  WriteLn('Test: DownloadSource - Uses registry repository with git runtime');
   WriteLn('==================================================');
 
   ResetMocks;
@@ -531,25 +589,23 @@ begin
     Free;
   end;
 
-  ProbeGitManager := TProbeBuilderGitManager.Create;
-  ProbeGitManager.InitializeResult := True;
-  Repo := TMockGitRepository.Create(TargetDir);
-  Repo.SetCheckoutOk(True);
-  ProbeGitManager.CloneResult := Repo as IGitRepository;
+  ProbeRuntime := TProbeGitRuntime.Create;
+  ProbeRuntime.BackendOk := True;
+  ProbeRuntime.CloneOk := True;
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, ProbeGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, ProbeRuntime as IGitRuntime);
   try
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
-      'Custom builder registry data reloads for libgit2 path');
+      'Custom builder registry data reloads for git runtime path');
 
     Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
-    AssertTrue(Result.Success, 'DownloadSource should succeed via libgit2 with registry repository');
-    AssertEqualsStr(CustomRepoURL, ProbeGitManager.LastCloneURL,
+    AssertTrue(Result.Success, 'DownloadSource should succeed via git runtime with registry repository');
+    AssertEqualsStr(CustomRepoURL, ProbeRuntime.LastCloneURL,
       'DownloadSource should clone from registry repository URL');
-    AssertEqualsStr(TargetDir, ProbeGitManager.LastClonePath,
+    AssertEqualsStr(TargetDir, ProbeRuntime.LastClonePath,
       'DownloadSource should clone into requested target directory');
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
@@ -563,14 +619,13 @@ var
   Result: TOperationResult;
   TargetDir: string;
   LocalBuilder: TFPCBuilder;
-  ProbeGitManager: TProbeBuilderGitManager;
-  Repo: TMockGitRepository;
+  ProbeRuntime: TProbeGitRuntime;
   OriginalRegistryPath: string;
   VersionsJSONPath: string;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test: DownloadSource - Empty registry falls back to static catalog with libgit2');
+  WriteLn('Test: DownloadSource - Empty registry falls back to static catalog with git runtime');
   WriteLn('==================================================');
 
   ResetMocks;
@@ -593,27 +648,25 @@ begin
     Free;
   end;
 
-  ProbeGitManager := TProbeBuilderGitManager.Create;
-  ProbeGitManager.InitializeResult := True;
-  Repo := TMockGitRepository.Create(TargetDir);
-  Repo.SetCheckoutOk(True);
-  ProbeGitManager.CloneResult := Repo as IGitRepository;
+  ProbeRuntime := TProbeGitRuntime.Create;
+  ProbeRuntime.BackendOk := True;
+  ProbeRuntime.CloneOk := True;
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, ProbeGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, ProbeRuntime as IGitRuntime);
   try
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
-      'Empty builder registry data reloads for libgit2 path');
+      'Empty builder registry data reloads for git runtime path');
 
     Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
     AssertTrue(Result.Success,
       'DownloadSource should succeed with static catalog fallback when registry releases are empty');
-    AssertEqualsStr(FPC_OFFICIAL_REPO, ProbeGitManager.LastCloneURL,
+    AssertEqualsStr(FPC_OFFICIAL_REPO, ProbeRuntime.LastCloneURL,
       'Empty registry should still clone from default FPC repository');
     AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0,
-      'libgit2 fallback path should not execute git CLI');
+      'git runtime path should not execute git CLI');
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
@@ -621,18 +674,17 @@ begin
   end;
 end;
 
-{ Test: UpdateSources prefers libgit2 when available }
+{ Test: UpdateSources prefers git runtime when available }
 procedure Test_UpdateSources_PrefersLibgit2;
 var
   Result: TOperationResult;
   SourceDir, GitDir: string;
   LocalBuilder: TFPCBuilder;
-  LocalGitManager: TMockGitManager;
-  Repo: TMockGitRepository;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
-  WriteLn('Test: UpdateSources - Prefers libgit2');
+  WriteLn('Test: UpdateSources - Prefers git runtime');
   WriteLn('==================================================');
 
   ResetMocks;
@@ -645,29 +697,29 @@ begin
   // Ensure CLI path would fail if used
   MockProcessRunner.SetDefaultResult(1, '', 'should not call git CLI');
 
-  LocalGitManager := TMockGitManager.Create;
-  LocalGitManager.SetInitializeOk(True);
-  Repo := TMockGitRepository.Create(SourceDir);
-  Repo.SetPullResult(gpffUpToDate, '');
-  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(True);
+  LocalGitRuntime.SetPullFFOk(True);
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
     Result := LocalBuilder.UpdateSources('3.2.2');
 
-    AssertTrue(Result.Success, 'UpdateSources should succeed via libgit2');
+    AssertTrue(Result.Success, 'UpdateSources should succeed via git runtime');
     AssertTrue(MockProcessRunner.GetExecutedCommands.Count = 0, 'Git CLI should not be executed');
   finally
     LocalBuilder.Free;
   end;
 end;
 
-{ Test: DownloadSource succeeds with valid version }
+{ Test: DownloadSource succeeds with valid version via CLI fallback }
 procedure Test_DownloadSource_Success;
 var
   Result: TOperationResult;
   TargetDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -677,15 +729,23 @@ begin
   ResetMocks;
   TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2';
 
-  // Setup mock: git clone succeeds
+  // No git runtime backend → CLI fallback
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(False);
   MockProcessRunner.SetResult('git', 0, 'Cloning into...', '');
 
-  Result := Builder.DownloadSource('3.2.2', TargetDir);
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
+  try
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
-  AssertTrue(Result.Success, 'DownloadSource should succeed');
-  AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
-  AssertTrue(MockFileSystem.DirectoryExists(TargetDir), 'Target directory should be created');
-  AssertTrue(MockProcessRunner.GetExecutedCommands.Count > 0, 'Git command should be executed');
+    AssertTrue(Result.Success, 'DownloadSource should succeed');
+    AssertEquals(Ord(ecNone), Ord(Result.ErrorCode), 'ErrorCode should be ecNone');
+    AssertTrue(MockFileSystem.DirectoryExists(TargetDir), 'Target directory should be created');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count > 0, 'Git command should be executed');
+  finally
+    LocalBuilder.Free;
+  end;
 end;
 
 { Test: DownloadSource CLI fallback goes through injected runner via GitOps }
@@ -693,6 +753,8 @@ procedure Test_DownloadSource_CliFallbackUsesInjectedRunner;
 var
   Result: TOperationResult;
   TargetDir: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -702,19 +764,27 @@ begin
   ResetMocks;
   TargetDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc-3.2.2-cli-probe';
 
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(False);
   MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
 
-  Result := Builder.DownloadSource('3.2.2', TargetDir);
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
+  try
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
-  AssertTrue(Result.Success, 'DownloadSource should succeed through CLI fallback');
-  AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
-    'CLI fallback should probe git and then clone through the injected runner');
-  if MockProcessRunner.GetExecutedCommands.Count >= 1 then
-    AssertEqualsStr('git --version', MockProcessRunner.GetExecutedCommands[0],
-      'CLI fallback should probe git availability through injected runner');
-  if MockProcessRunner.GetExecutedCommands.Count >= 2 then
-    AssertTrue(Pos('git clone', MockProcessRunner.GetExecutedCommands[1]) = 1,
-      'CLI fallback should clone through injected runner');
+    AssertTrue(Result.Success, 'DownloadSource should succeed through CLI fallback');
+    AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
+      'CLI fallback should probe git and then clone through the injected runner');
+    if MockProcessRunner.GetExecutedCommands.Count >= 1 then
+      AssertEqualsStr('git --version', MockProcessRunner.GetExecutedCommands[0],
+        'CLI fallback should probe git availability through injected runner');
+    if MockProcessRunner.GetExecutedCommands.Count >= 2 then
+      AssertTrue(Pos('git clone', MockProcessRunner.GetExecutedCommands[1]) = 1,
+        'CLI fallback should clone through injected runner');
+  finally
+    LocalBuilder.Free;
+  end;
 end;
 
 procedure Test_DownloadSource_CliFallbackUsesRegistryRepository;
@@ -724,6 +794,8 @@ var
   OriginalRegistryPath: string;
   VersionsJSONPath: string;
   CustomRepoURL: string;
+  LocalBuilder: TFPCBuilder;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -761,14 +833,18 @@ begin
     Free;
   end;
 
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(False);
   MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
 
+  LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
       'Custom builder registry data reloads for CLI path');
 
-    Result := Builder.DownloadSource('3.2.2', TargetDir);
+    Result := LocalBuilder.DownloadSource('3.2.2', TargetDir);
 
     AssertTrue(Result.Success, 'DownloadSource should succeed through CLI fallback with registry repository');
     AssertTrue(MockProcessRunner.GetExecutedCommands.Count >= 2,
@@ -781,6 +857,7 @@ begin
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
+    LocalBuilder.Free;
   end;
 end;
 
@@ -816,8 +893,7 @@ begin
     Free;
   end;
 
-  MockGitManager.SetInitializeOk(False);
-  MockGitManager.Finalize;
+  MockGitRuntime.SetBackendAvailable(False);
   MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
 
   try
@@ -969,8 +1045,7 @@ var
   Result: TOperationResult;
   SourceDir, GitDir: string;
   LocalBuilder: TFPCBuilder;
-  LocalGitManager: TMockGitManager;
-  Repo: TMockGitRepository;
+  LocalGitRuntime: TMockGitRuntime;
 begin
   WriteLn;
   WriteLn('==================================================');
@@ -985,14 +1060,12 @@ begin
   MockFileSystem.AddDirectory(SourceDir);
   MockFileSystem.AddDirectory(GitDir);
 
-  LocalGitManager := TMockGitManager.Create;
-  LocalGitManager.SetInitializeOk(True);
-  Repo := TMockGitRepository.Create(SourceDir);
-  Repo.SetPullResult(gpffFastForwarded, '');
-  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(True);
+  LocalGitRuntime.SetPullFFOk(True);
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
     Result := LocalBuilder.UpdateSources('3.2.2');
 
@@ -1006,13 +1079,12 @@ begin
 end;
 
 procedure AssertUpdateSourcesFastForwardOnly(const AScenario: string;
-  APullResult: TGitPullFastForwardResult; const APullError: string);
+  const APullError: string);
 var
   Result: TOperationResult;
   SourceDir, GitDir: string;
   LocalBuilder: TFPCBuilder;
-  LocalGitManager: TMockGitManager;
-  Repo: TMockGitRepository;
+  LocalGitRuntime: TMockGitRuntime;
   LowerErr: string;
 begin
   ResetMocks;
@@ -1023,14 +1095,13 @@ begin
   MockFileSystem.AddDirectory(GitDir);
   MockProcessRunner.SetDefaultResult(0, 'Already up to date.', '');
 
-  LocalGitManager := TMockGitManager.Create;
-  LocalGitManager.SetInitializeOk(True);
-  Repo := TMockGitRepository.Create(SourceDir);
-  Repo.SetPullResult(APullResult, APullError);
-  LocalGitManager.SetOpenRepositoryResult(Repo as IGitRepository);
+  LocalGitRuntime := TMockGitRuntime.Create;
+  LocalGitRuntime.SetBackendAvailable(True);
+  LocalGitRuntime.SetPullFFOk(False);
+  LocalGitRuntime.SetLastError(APullError);
 
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
-    MockFileSystem, MockProcessRunner, LocalGitManager as IGitManager);
+    MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
     Result := LocalBuilder.UpdateSources('3.2.2');
 
@@ -1062,7 +1133,6 @@ begin
 
   AssertUpdateSourcesFastForwardOnly(
     'Needs merge',
-    gpffNeedsMerge,
     'Branches diverged; reconcile manually before retrying.'
   );
 end;
@@ -1076,7 +1146,6 @@ begin
 
   AssertUpdateSourcesFastForwardOnly(
     'Detached head',
-    gpffDetachedHead,
     'Repository is in detached HEAD state; switch to a branch before updating.'
   );
 end;
@@ -1090,7 +1159,6 @@ begin
 
   AssertUpdateSourcesFastForwardOnly(
     'Dirty worktree',
-    gpffDirty,
     'Working tree has local changes; commit or stash them before updating.'
   );
 end;
@@ -1487,11 +1555,11 @@ begin
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;
           MockProcessRunner := TMockProcessRunner.Create;
-          MockGitManager := TMockGitManager.Create;
+          MockGitRuntime := TMockGitRuntime.Create;
 
           // Create builder with mock dependencies
           Builder := TFPCBuilder.Create(VersionManager, ConfigManager,
-            MockFileSystem, MockProcessRunner, MockGitManager as IGitManager);
+            MockFileSystem, MockProcessRunner, MockGitRuntime as IGitRuntime);
           try
             // Run tests
             Test_DownloadSource_PrefersLibgit2;

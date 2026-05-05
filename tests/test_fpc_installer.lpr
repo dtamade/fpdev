@@ -15,10 +15,10 @@ program test_fpc_installer;
 }
 
 uses
-  SysUtils, Classes, git2.api,
+  SysUtils, Classes,
   fpdev.fpc.version, fpdev.fpc.installer, fpdev.fpc.builder,
   fpdev.fpc.builder.di, fpdev.fpc.types, fpdev.fpc.interfaces, fpdev.fpc.mocks,
-  fpdev.config, fpdev.paths, fpdev.utils;
+  fpdev.git.runtime, fpdev.config, fpdev.paths, fpdev.utils;
 
 var
   TestInstallRoot: string;
@@ -26,7 +26,7 @@ var
   VersionManager: TFPCVersionManager;
   MockFileSystem: TMockFileSystem;
   MockProcessRunner: TMockProcessRunner;
-  MockGitManager: TMockGitManager;
+  MockGitRuntime: TMockGitRuntime;
   Builder: TFPCBuilder;
   Installer: TFPCInstaller;
   TestsPassed: Integer = 0;
@@ -589,11 +589,12 @@ begin
           // Create mock dependencies
           MockFileSystem := TMockFileSystem.Create;
           MockProcessRunner := TMockProcessRunner.Create;
-          MockGitManager := TMockGitManager.Create;
+          MockGitRuntime := TMockGitRuntime.Create;
+          MockGitRuntime.SetBackendAvailable(False);
 
           // Create builder with mock dependencies
           Builder := TFPCBuilder.Create(VersionManager, ConfigManager,
-            MockFileSystem, MockProcessRunner, MockGitManager as IGitManager);
+            MockFileSystem, MockProcessRunner, MockGitRuntime as IGitRuntime);
 
           // Create installer with mock dependencies
           Installer := TFPCInstaller.Create(VersionManager, ConfigManager,

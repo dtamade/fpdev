@@ -41,9 +41,8 @@ interface
 
 uses
   SysUtils, Classes,
-  git2.api, git2.types,
   fpdev.config, fpdev.fpc.version, fpdev.fpc.interfaces, fpdev.fpc.types,
-  fpdev.constants;
+  fpdev.constants, fpdev.git.runtime, fpdev.git.types;
 
 type
   { TFPCBuilder - FPC builder with dependency injection for testing }
@@ -53,13 +52,12 @@ type
     FConfigManager: TFPDevConfigManager;
     FFileSystem: IFileSystem;
     FProcessRunner: IProcessRunner;
-    FGitManager: IGitManager;
-    FOwnsGitManager: Boolean;
+    FGitRuntime: IGitRuntime;
+    FOwnsGitRuntime: Boolean;
 
     function GetResolvedInstallRoot: string;
     function GetSourceDir(const AVersion: string): string;
-    function EnsureGitManagerInitialized(out AError: string): Boolean;
-    function CheckoutRefWithLibgit2(const ARepo: IGitRepository; const ARefName: string; out AError: string): Boolean;
+    function EnsureGitRuntimeInitialized(out AError: string): Boolean;
   public
     constructor Create(AVersionManager: TFPCVersionManager;
       AConfigManager: TFPDevConfigManager;
@@ -69,7 +67,7 @@ type
       AConfigManager: TFPDevConfigManager;
       AFileSystem: IFileSystem;
       AProcessRunner: IProcessRunner;
-      AGitManager: IGitManager);
+      AGitRuntime: IGitRuntime);
     destructor Destroy; override;
 
     { Downloads FPC source code from official repository.
@@ -104,32 +102,9 @@ type
 implementation
 
 uses
-  fpdev.fpc.builder.gitruntime, fpdev.version.registry, git2.impl,
-  fpdev.paths, fpdev.fpc.installversionflow;
-
-function FastForwardOnlyPullError(const APullResult: TGitPullFastForwardResult;
-  const APullError: string): string;
-begin
-  if Trim(APullError) <> '' then
-    Exit(APullError);
-
-  case APullResult of
-    gpffNeedsMerge:
-      Result := 'Fast-forward-only update blocked because branches diverged; reconcile manually before retrying.';
-    gpffDetachedHead:
-      Result :=
-        'Fast-forward-only update blocked because the repository is in detached HEAD state; ' +
-        'switch to a branch before retrying.';
-    gpffDirty:
-      Result :=
-        'Fast-forward-only update blocked because the working tree has local changes; ' +
-        'commit or stash them before retrying.';
-    gpffNoRemote:
-      Result := 'No remote configured';
-  else
-    Result := 'Git update failed';
-  end;
-end;
+  fpdev.fpc.builder.gitruntime, fpdev.version.registry,
+  fpdev.paths, fpdev.fpc.installversionflow,
+  fpdev.git.errors;
 
 { TFPCBuilder }
 
@@ -143,32 +118,26 @@ begin
   FConfigManager := AConfigManager;
   FFileSystem := AFileSystem;
   FProcessRunner := AProcessRunner;
-  FGitManager := nil;
-  FOwnsGitManager := False;
+  FGitRuntime := nil;
+  FOwnsGitRuntime := False;
 end;
 
 constructor TFPCBuilder.Create(AVersionManager: TFPCVersionManager;
   AConfigManager: TFPDevConfigManager;
   AFileSystem: IFileSystem;
   AProcessRunner: IProcessRunner;
-  AGitManager: IGitManager);
+  AGitRuntime: IGitRuntime);
 begin
   Create(AVersionManager, AConfigManager, AFileSystem, AProcessRunner);
-  FGitManager := AGitManager;
-  FOwnsGitManager := False;
+  FGitRuntime := AGitRuntime;
+  FOwnsGitRuntime := False;
 end;
 
 destructor TFPCBuilder.Destroy;
 begin
-  if FOwnsGitManager and (FGitManager <> nil) then
+  if FOwnsGitRuntime and (FGitRuntime <> nil) then
   begin
-    try
-      if FGitManager.Initialized then
-        FGitManager.Finalize;
-    except
-      // Best-effort cleanup only (DI builder must not raise in Destroy)
-    end;
-    FGitManager := nil;
+    FGitRuntime := nil;
   end;
   inherited Destroy;
 end;
@@ -188,21 +157,21 @@ begin
   Result := BuildFPCSourceInstallPathCore(GetResolvedInstallRoot, AVersion);
 end;
 
-function TFPCBuilder.EnsureGitManagerInitialized(out AError: string): Boolean;
+function TFPCBuilder.EnsureGitRuntimeInitialized(out AError: string): Boolean;
 begin
   Result := False;
   AError := '';
 
   try
-    if FGitManager = nil then
+    if FGitRuntime = nil then
     begin
-      FGitManager := NewGitManager();
-      FOwnsGitManager := True;
+      FGitRuntime := NewGitRuntime;
+      FOwnsGitRuntime := True;
     end;
 
-    if (not FGitManager.Initialized) and (not FGitManager.Initialize) then
+    if not FGitRuntime.BackendAvailable then
     begin
-      AError := 'libgit2 init failed';
+      AError := 'No Git backend available';
       Exit(False);
     end;
 
@@ -210,53 +179,7 @@ begin
   except
     on E: Exception do
     begin
-      AError := 'libgit2 exception: ' + E.Message;
-      Result := False;
-    end;
-  end;
-end;
-
-function TFPCBuilder.CheckoutRefWithLibgit2(
-  const ARepo: IGitRepository;
-  const ARefName: string;
-  out AError: string
-): Boolean;
-var
-  LName: string;
-begin
-  Result := False;
-  AError := '';
-
-  if ARepo = nil then
-  begin
-    AError := 'libgit2 repository is nil';
-    Exit(False);
-  end;
-
-  LName := Trim(ARefName);
-  if LName = '' then
-    Exit(True);
-
-  try
-    // Keep checkout fallback behavior stable: try plain name first, then tags, then remote tracking refs.
-    if Pos('refs/', LName) = 1 then
-      Exit(ARepo.CheckoutBranchEx(LName, True));
-
-    if ARepo.CheckoutBranchEx(LName, True) then
-      Exit(True);
-
-    if ARepo.CheckoutBranchEx('refs/tags/' + LName, True) then
-      Exit(True);
-
-    if ARepo.CheckoutBranchEx('refs/remotes/origin/' + LName, True) then
-      Exit(True);
-
-    AError := 'libgit2 checkout failed: ' + LName;
-    Result := False;
-  except
-    on E: Exception do
-    begin
-      AError := 'libgit2 checkout exception: ' + E.Message;
+      AError := 'Git runtime exception: ' + E.Message;
       Result := False;
     end;
   end;
@@ -267,7 +190,6 @@ var
   GitTag: string;
   RepoURL: string;
   LGitErr: string;
-  LRepo: IGitRepository;
 begin
   // Validate version
   if not FVersionManager.ValidateVersion(AVersion) then
@@ -295,21 +217,21 @@ begin
     Exit;
   end;
 
-  // Prefer libgit2; fall back to command-line git only when needed.
+  // Prefer git runtime; fall back to command-line git only when needed.
   LGitErr := '';
-  if EnsureGitManagerInitialized(LGitErr) then
+  if EnsureGitRuntimeInitialized(LGitErr) then
   begin
     try
-      LRepo := FGitManager.CloneRepository(RepoURL, ATargetDir);
-      if Assigned(LRepo) and CheckoutRefWithLibgit2(LRepo, GitTag, LGitErr) then
+      if FGitRuntime.Clone(RepoURL, ATargetDir, GitTag) then
       begin
         // Keep DI tests deterministic: mock FS doesn't observe external side effects.
         FFileSystem.ForceDirectories(ATargetDir);
         Exit(OperationSuccess);
       end;
+      LGitErr := FGitRuntime.LastError;
     except
       on E: Exception do
-        LGitErr := 'libgit2 clone exception: ' + E.Message;
+        LGitErr := 'Git clone exception: ' + E.Message;
     end;
   end;
 
@@ -366,11 +288,8 @@ end;
 function TFPCBuilder.UpdateSources(const AVersion: string): TOperationResult;
 var
   SourceDir, GitDir: string;
-  LRepo: IGitRepository;
-  Ext: IGitRepositoryExt;
-  PullRes: TGitPullFastForwardResult;
-  PullErr: string;
   LGitErr: string;
+  NormalizedError: string;
 begin
   SourceDir := GetSourceDir(AVersion);
 
@@ -391,7 +310,7 @@ begin
 
   LGitErr := '';
 
-  if not EnsureGitManagerInitialized(LGitErr) then
+  if not EnsureGitRuntimeInitialized(LGitErr) then
   begin
     if LGitErr <> '' then
       Result := OperationError(ecDownloadFailed, LGitErr)
@@ -401,61 +320,20 @@ begin
   end;
 
   try
-    LRepo := FGitManager.OpenRepository(SourceDir);
-    if not Assigned(LRepo) then
-    begin
-      Result := OperationError(ecDownloadFailed, 'Failed to open git repository: ' + SourceDir);
-      Exit;
-    end;
+    if FGitRuntime.PullFastForwardOnly(SourceDir) then
+      Exit(OperationSuccess);
 
-    if not Supports(LRepo, IGitRepositoryExt, Ext) then
-    begin
-      Result := OperationError(ecDownloadFailed,
-        'Fast-forward-only update requires libgit2 fast-forward support for this repository.');
-      Exit;
-    end;
+    LGitErr := FGitRuntime.LastError;
+    NormalizedError := NormalizeGitPullErrorDetail(LGitErr);
 
-    PullErr := '';
-    PullRes := Ext.PullFastForward('origin', PullErr);
-    case PullRes of
-      gpffUpToDate,
-      gpffFastForwarded:
-        Exit(OperationSuccess);
-      gpffNoRemote:
-        begin
-          Result := OperationError(ecDownloadFailed, 'No remote configured');
-          Exit;
-        end;
-      gpffNeedsMerge,
-      gpffDetachedHead,
-      gpffDirty:
-        begin
-          Result := OperationError(ecDownloadFailed, FastForwardOnlyPullError(PullRes, PullErr));
-          Exit;
-        end;
-      gpffError:
-        begin
-          if PullErr <> '' then
-            LGitErr := PullErr
-          else
-            LGitErr := 'Git update failed';
-          Result := OperationError(ecDownloadFailed, LGitErr);
-          Exit;
-        end;
-    end;
+    Result := OperationError(ecDownloadFailed,
+      'Fast-forward-only update blocked: ' + NormalizedError);
   except
     on E: Exception do
     begin
-      Result := OperationError(ecDownloadFailed, 'libgit2 pull exception: ' + E.Message);
+      Result := OperationError(ecDownloadFailed, 'Git update exception: ' + E.Message);
       Exit;
     end;
-  end;
-
-  if LGitErr <> '' then
-    Result := OperationError(ecDownloadFailed, LGitErr)
-  else
-  begin
-    Result := OperationError(ecDownloadFailed, 'Git update failed');
   end;
 end;
 
