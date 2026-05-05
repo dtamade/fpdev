@@ -41,7 +41,10 @@ uses
   fpdev.fpc.residualflow,
   fpdev.fpc.runtimeflow,
   fpdev.fpc.builder,
-  fpdev.build.cache, fpdev.paths;
+  fpdev.build.cache, fpdev.paths,
+  fpdev.fpc.manager.adaptrflow,
+  fpdev.fpc.manager.binarysurfaceflow,
+  fpdev.fpc.manager.metadatasurfaceflow;
 
 type
   { TFPCManager }
@@ -56,6 +59,8 @@ type
     FInstallerMgr: TFPCBinaryInstaller;  // Binary installation service (Facade delegation)
     FBuilderMgr: TFPCSourceBuilder;  // Source build service (Facade delegation)
     FBuildCache: TBuildCache;  // Build artifact cache for fast version switching
+    FBinarySurface: TFPCBinaryInstallSurface;  // Binary install delegation surface
+    FMetadataSurface: TFPCMetadataSurface;  // Metadata I/O delegation surface
 
     FOut: IOutput;
     FErr: IOutput;
@@ -162,53 +167,6 @@ uses
   fpdev.fpc.bootstrapflow,
   fpdev.fpc.indexflow;
 
-type
-  TFPCGitRuntimeAdapter = class(TInterfacedObject, IFPCGitRuntime)
-  private
-    FGit: IGitRuntime;
-  public
-    constructor Create(const AGit: IGitRuntime = nil);
-    function BackendAvailable: Boolean;
-    function IsRepository(const APath: string): Boolean;
-    function HasRemote(const APath: string): Boolean;
-    function Pull(const APath: string): Boolean;
-    function GetLastError: string;
-  end;
-
-constructor TFPCGitRuntimeAdapter.Create(const AGit: IGitRuntime);
-begin
-  inherited Create;
-  if AGit <> nil then
-    FGit := AGit
-  else
-    FGit := NewGitRuntime;
-end;
-
-function TFPCGitRuntimeAdapter.BackendAvailable: Boolean;
-begin
-  Result := (FGit <> nil) and FGit.BackendAvailable;
-end;
-
-function TFPCGitRuntimeAdapter.IsRepository(const APath: string): Boolean;
-begin
-  Result := FGit.IsRepository(APath);
-end;
-
-function TFPCGitRuntimeAdapter.HasRemote(const APath: string): Boolean;
-begin
-  Result := FGit.HasRemote(APath);
-end;
-
-function TFPCGitRuntimeAdapter.Pull(const APath: string): Boolean;
-begin
-  Result := FGit.PullFastForwardOnly(APath);
-end;
-
-function TFPCGitRuntimeAdapter.GetLastError: string;
-begin
-  Result := FGit.LastError;
-end;
-
 // --- FPC command helpers (no inline vars) ----------------------------------
 
 procedure FPC_UpdateIndex(const AConfigPath: string);
@@ -262,10 +220,18 @@ begin
 
   // Pass cache instance to installer for binary caching
   FInstallerMgr.SetCache(FBuildCache);
+
+  // Create delegation surfaces
+  FBinarySurface := TFPCBinaryInstallSurface.Create(FInstallerMgr);
+  FMetadataSurface := TFPCMetadataSurface.Create(FErr);
 end;
 
 destructor TFPCManager.Destroy;
 begin
+  if Assigned(FMetadataSurface) then
+    FMetadataSurface.Free;
+  if Assigned(FBinarySurface) then
+    FBinarySurface.Free;
   if Assigned(FBuildCache) then
     FBuildCache.Free;
   if Assigned(FBuilderMgr) then
@@ -285,16 +251,12 @@ end;
 
 function TFPCManager.WriteMetadata(const AInstallPath: string; const AMeta: TFPDevMetadata): Boolean;
 begin
-  Result := WriteFPCMetadata(AInstallPath, AMeta);
-  if not Result then
-    FErr.WriteLn(_(MSG_ERROR) + ': WriteMetadata failed');
+  Result := FMetadataSurface.WriteMetadata(AInstallPath, AMeta);
 end;
 
 function TFPCManager.ReadMetadata(const AInstallPath: string; out AMeta: TFPDevMetadata): Boolean;
 begin
-  Result := ReadFPCMetadata(AInstallPath, AMeta);
-  if not Result then
-    FErr.WriteLn(_(MSG_ERROR) + ': ReadMetadata failed');
+  Result := FMetadataSurface.ReadMetadata(AInstallPath, AMeta);
 end;
 
 function TFPCManager.GetVersionInstallPath(const AVersion: string): string;
@@ -802,37 +764,37 @@ end;
 
 function TFPCManager.GetBinaryDownloadURL(const AVersion: string): string;
 begin
-  Result := FInstallerMgr.GetBinaryDownloadURLLegacy(AVersion);
+  Result := FBinarySurface.GetBinaryDownloadURL(AVersion);
 end;
 
 function TFPCManager.DownloadBinary(const AVersion: string; out ATempFile: string): Boolean;
 begin
-  Result := FInstallerMgr.DownloadBinaryLegacy(AVersion, ATempFile);
+  Result := FBinarySurface.DownloadBinary(AVersion, ATempFile);
 end;
 
 function TFPCManager.GetBinaryDownloadURLLegacy(const AVersion: string): string;
 begin
-  Result := FInstallerMgr.GetBinaryDownloadURLLegacy(AVersion);
+  Result := FBinarySurface.GetBinaryDownloadURLLegacy(AVersion);
 end;
 
 function TFPCManager.DownloadBinaryLegacy(const AVersion: string; out ATempFile: string): Boolean;
 begin
-  Result := FInstallerMgr.DownloadBinaryLegacy(AVersion, ATempFile);
+  Result := FBinarySurface.DownloadBinaryLegacy(AVersion, ATempFile);
 end;
 
 function TFPCManager.VerifyChecksum(const AFilePath, AVersion: string): Boolean;
 begin
-  Result := FInstallerMgr.VerifyChecksum(AFilePath, AVersion);
+  Result := FBinarySurface.VerifyChecksum(AFilePath, AVersion);
 end;
 
 function TFPCManager.ExtractArchive(const AArchivePath, ADestPath: string): Boolean;
 begin
-  Result := FInstallerMgr.ExtractArchive(AArchivePath, ADestPath);
+  Result := FBinarySurface.ExtractArchive(AArchivePath, ADestPath);
 end;
 
 function TFPCManager.InstallFromBinary(const AVersion: string; const APrefix: string): Boolean;
 begin
-  Result := FInstallerMgr.InstallFromBinary(AVersion, APrefix);
+  Result := FBinarySurface.InstallFromBinary(AVersion, APrefix);
 end;
 
 end.
