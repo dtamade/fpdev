@@ -13,6 +13,7 @@ OPERATIONS_IDENTITYFLOW_PATH = SRC / 'fpdev.git.operations.identityflow.pas'
 OPERATIONS_TRANSPORTFLOW_PATH = SRC / 'fpdev.git.operations.transportflow.pas'
 OPERATIONS_QUERYFLOW_PATH = SRC / 'fpdev.git.operations.queryflow.pas'
 OPERATIONS_MUTATIONFLOW_PATH = SRC / 'fpdev.git.operations.mutationflow.pas'
+OPERATIONS_LIBGIT2BACKENDFLOW_PATH = SRC / 'fpdev.git.operations.libgit2backendflow.pas'
 OPERATIONS_SYNCFLOW_PATH = SRC / 'fpdev.git.operations.syncflow.pas'
 OPERATIONS_PROBEFLOW_PATH = SRC / 'fpdev.git.operations.probeflow.pas'
 UTILS_GIT_PATH = SRC / 'fpdev.utils.git.pas'
@@ -114,6 +115,7 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
         )
         helper_text = OPERATIONS_IDENTITYFLOW_PATH.read_text(encoding='utf-8')
         impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        backendflow_text = OPERATIONS_LIBGIT2BACKENDFLOW_PATH.read_text(encoding='utf-8')
         facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
         self.assertIn(
             'function TryResolveGitOperationIdentity(',
@@ -141,14 +143,14 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
             'fpdev.git.operations.impl should import the internal identityflow helper',
         )
         self.assertGreaterEqual(
-            impl_text.count('TryResolveGitOperationIdentity('),
+            backendflow_text.count('TryResolveGitOperationIdentity('),
             2,
-            'CommitWithLibgit2 and PullWithLibgit2 should both delegate identity resolution to identityflow',
+            'CommitWithLibgit2Core and PullWithLibgit2Core should both delegate identity resolution to identityflow',
         )
         self.assertGreaterEqual(
-            impl_text.count('TryCreateGitOperationSignatures('),
+            backendflow_text.count('TryCreateGitOperationSignatures('),
             2,
-            'CommitWithLibgit2 and PullWithLibgit2 should both delegate signature creation to identityflow',
+            'CommitWithLibgit2Core and PullWithLibgit2Core should both delegate signature creation to identityflow',
         )
         self.assertNotIn(
             'fpdev.git.env.ResolveGitIdentityEnv(',
@@ -173,6 +175,7 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
         )
         helper_text = OPERATIONS_TRANSPORTFLOW_PATH.read_text(encoding='utf-8')
         impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
+        backendflow_text = OPERATIONS_LIBGIT2BACKENDFLOW_PATH.read_text(encoding='utf-8')
         facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
         self.assertIn(
             'procedure LoadGitTransportCredentialPayload(',
@@ -221,18 +224,18 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
         )
         self.assertIn(
             'TryInitGitCloneTransportOptions(',
-            impl_text,
-            'CloneWithLibgit2 should delegate transport setup to transportflow',
+            backendflow_text,
+            'CloneWithLibgit2Core should delegate transport setup to transportflow',
         )
         self.assertGreaterEqual(
-            impl_text.count('TryInitGitFetchTransportOptions('),
+            backendflow_text.count('TryInitGitFetchTransportOptions('),
             2,
-            'FetchWithLibgit2 and PullWithLibgit2 should both delegate fetch transport setup to transportflow',
+            'FetchWithLibgit2Core and PullWithLibgit2Core should both delegate fetch transport setup to transportflow',
         )
         self.assertIn(
             'TryInitGitPushTransportOptions(',
-            impl_text,
-            'PushWithLibgit2 should delegate transport setup to transportflow',
+            backendflow_text,
+            'PushWithLibgit2Core should delegate transport setup to transportflow',
         )
         self.assertNotIn(
             'LoadCredentialPayloadFromEnv(',
@@ -258,41 +261,42 @@ class GitRuntimeBoundaryTests(unittest.TestCase):
         helper_text = OPERATIONS_COREFLOW_PATH.read_text(encoding='utf-8')
         impl_text = OPERATIONS_IMPL_PATH.read_text(encoding='utf-8')
         facade_text = OPERATIONS_PATH.read_text(encoding='utf-8')
+        backendflow_text = OPERATIONS_LIBGIT2BACKENDFLOW_PATH.read_text(encoding='utf-8')
 
-        add_all_section = impl_text.split(
-            'function TGitOperations.AddAllWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.AddPathspecWithLibgit2(', 1
+        add_all_section = backendflow_text.split(
+            'function AddAllWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function AddPathspecWithLibgit2Core(', 1
         )[0]
-        add_pathspec_section = impl_text.split(
-            'function TGitOperations.AddPathspecWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.CommitWithLibgit2(', 1
+        add_pathspec_section = backendflow_text.split(
+            'function AddPathspecWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function CommitWithLibgit2Core(', 1
         )[0]
-        commit_section = impl_text.split(
-            'function TGitOperations.CommitWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.PushWithLibgit2(', 1
+        commit_section = backendflow_text.split(
+            'function CommitWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function PushWithLibgit2Core(', 1
         )[0]
-        clone_section = impl_text.split(
-            'function TGitOperations.CloneWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.FetchWithLibgit2(', 1
+        clone_section = backendflow_text.split(
+            'function CloneWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function FetchWithLibgit2Core(', 1
         )[0]
-        fetch_section = impl_text.split(
-            'function TGitOperations.FetchWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.PullWithLibgit2(', 1
+        fetch_section = backendflow_text.split(
+            'function FetchWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function PullWithLibgit2Core(', 1
         )[0]
-        pull_section = impl_text.split(
-            'function TGitOperations.PullWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.CheckoutWithLibgit2(', 1
+        pull_section = backendflow_text.split(
+            'function PullWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function CheckoutWithLibgit2Core(', 1
         )[0]
-        push_section = impl_text.split(
-            'function TGitOperations.PushWithLibgit2(', 1
-        )[1].split(
-            'function TGitOperations.Add(const ARepoPath, APathSpec: string): Boolean;', 1
+        push_section = backendflow_text.split(
+            'function PushWithLibgit2Core(', 1
+        )[1].rsplit(
+            'function CheckoutWithLibgit2Core(', 1
         )[0]
 
         self.assertIn('function FormatLibgit2Error(', helper_text)

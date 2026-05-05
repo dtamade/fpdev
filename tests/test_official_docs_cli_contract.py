@@ -87,7 +87,7 @@ class OfficialDocsCliContractTests(unittest.TestCase):
             '// Step 2: Green Phase (src/fpdev.project.manager.pas)',
             '> Historical note: the milestone progress tables below are retained as phase snapshots.',
             '**Status**: Feature checklist closed; public CI release proof remains the active finish line.',
-            '**Last Updated**: 2026-03-25 (current public roadmap/status document)',
+            '**Last Updated**: 2026-05-05',
         ]
         for snippet in expected_snippets:
             self.assertIn(snippet, text, f'docs/ROADMAP.md should point to the current owning units: {snippet}')

@@ -25,7 +25,7 @@
 - ✅ **Git Integration**: libgit2-backed wrapper is active; migration cleanup is tracked separately
 - ✅ **Build System**: Linux release acceptance lane and CLI smoke evidence are available
 - ✅ **Configuration**: JSON-based config management is active in the current command surface
-- ✅ **Test Coverage**: 352 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- ✅ **Test Coverage**: 353 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
 - ✅ **Documentation**: User and developer docs are published; release evidence is maintained separately
 - ✅ **All Commands**: fpc, lazarus, project, package, cross, repo, config, perf, env are implemented
 - ✅ **Package Ecosystem**: create, test, validate, publish, search, install, dependencies are available
@@ -35,7 +35,7 @@
 ### Production Readiness
 - Release baseline: Linux automated lane passed; cross-platform proof is published through public CI release-proof artifacts
 - Platform Support: Windows, Linux, macOS
-- Test Coverage: 352 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- Test Coverage: 353 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
 - Release sign-off: public CI release-proof bundle verified and published with v2.1.0
 - Feature checklist: closed for v2.1.0 scope
 - Status source of truth: published GitHub release assets + public CI release-proof bundle

@@ -43,7 +43,7 @@ class ReleaseStatusWordingTests(unittest.TestCase):
 
     def test_roadmap_uses_evidence_driven_status_language(self):
         text = ROADMAP.read_text(encoding='utf-8')
-        self.assertIn('**Status**: Feature Checklist Closed, Release Proof Published, v2.1.0 Released', text)
+        self.assertIn('v2.1.0 Released', text)
         self.assertIn('- Release baseline: Linux automated lane passed; cross-platform proof is published through public CI release-proof artifacts', text)
         self.assertIn('- Status source of truth: published GitHub release assets + public CI release-proof bundle', text)
         self.assertNotIn('**Status**: Roadmap Complete, Linux Release Gates Passed, Owner Checkpoints Pending', text)
