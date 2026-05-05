@@ -1,8 +1,8 @@
 # FPDev Development Roadmap
 
-**Version**: 1.0.0 → 2.1.0
-**Status**: Feature Checklist Closed, Release Proof Published, v2.1.0 Released
-**Last Updated**: 2026-04-09 (release publish status update)
+**Version**: 1.0.0 → 2.2.0-dev
+**Status**: v2.1.0 Released; v2.2.0 Development Active (glm51 branch)
+**Last Updated**: 2026-05-05
 **Methodology**: Test-Driven Development (TDD)
 
 > Canonical status note: this is the current public roadmap/status document for FPDev.
@@ -25,7 +25,7 @@
 - ✅ **Git Integration**: libgit2-backed wrapper is active; migration cleanup is tracked separately
 - ✅ **Build System**: Linux release acceptance lane and CLI smoke evidence are available
 - ✅ **Configuration**: JSON-based config management is active in the current command surface
-- ✅ **Test Coverage**: 346 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- ✅ **Test Coverage**: 352 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
 - ✅ **Documentation**: User and developer docs are published; release evidence is maintained separately
 - ✅ **All Commands**: fpc, lazarus, project, package, cross, repo, config, perf, env are implemented
 - ✅ **Package Ecosystem**: create, test, validate, publish, search, install, dependencies are available
@@ -35,7 +35,7 @@
 ### Production Readiness
 - Release baseline: Linux automated lane passed; cross-platform proof is published through public CI release-proof artifacts
 - Platform Support: Windows, Linux, macOS
-- Test Coverage: 346 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
+- Test Coverage: 352 discoverable tests (same inventory rules as CI), latest full-run evidence recorded separately
 - Release sign-off: public CI release-proof bundle verified and published with v2.1.0
 - Feature checklist: closed for v2.1.0 scope
 - Status source of truth: published GitHub release assets + public CI release-proof bundle
@@ -231,7 +231,82 @@ Following the `docs/history/TODO-FPC-v1.md` philosophy:
 
 ---
 
-## Development Roadmap (Phased Approach)
+## v2.2.0 Development Plan (glm51 branch)
+
+### Phase 5: Structural Refactoring Completion
+
+> The v2.1.0→v2.2.0 cycle focuses on completing the facade/flow extraction pattern across all remaining modules, then advancing to feature work.
+
+#### 5.1 Git Operations Backend Extraction 🔴 IN PROGRESS
+- [ ] Extract 14 `*WithLibgit2` private methods from `fpdev.git.operations.impl.pas` into `fpdev.git.operations.libgit2backendflow.pas`
+- [ ] Move `AddAllStatusCb` / `IndexMatchedCb` callbacks and `TGitAddAllStatusPayload` / `TIndexMatchPayload` records
+- [ ] Facade target: ~500 lines (down from 1936)
+- **Impact**: Highest — single method `PullWithLibgit2` at 451 lines is the fattest in codebase
+- **Tests**: Existing 352 tests + new libgit2backendflow focused tests
+
+#### 5.2 FPC Builder Flow Extraction 🟡 PENDING
+- [ ] Extract `DownloadSource` (94 lines) into `fpdev.fpc.builder.downloadflow.pas`
+- [ ] Extract bootstrap resolution chain into `fpdev.fpc.builder.bootstrapresolveflow.pas`
+- [ ] Move hotpatch procedures (`FPCBuilderInvalidateCompilerMessageIncludesCore`, `FPCBuilderApplyFCLWebJWTSourcePathHotfixCore`) into dedicated flow unit
+- [ ] Facade target: ~350-400 lines (down from 805)
+- **Impact**: Moderate — highest avg lines/method of any facade
+
+#### 5.3 Architecture Verification ✅ DONE
+- [x] Scanned all >600-line facades for remaining extraction needs
+- [x] Confirmed 9/11 large files are already thin facades
+- [x] Identified 2 files needing extraction (5.1, 5.2 above)
+
+### Phase 6: Cross-Platform Hardening
+
+#### 6.1 CI Pipeline Expansion
+- [ ] Add macOS CI lane (currently Linux-only)
+- [ ] Add Windows CI lane
+- [ ] Add cross-compile smoke tests (Linux→Win64, Linux→ARM)
+- [ ] Verify 352+ tests pass on all 3 platforms
+
+#### 6.2 Cross-Compilation E2E Validation
+- [ ] Validate `fpdev cross install x86_64-win64` end-to-end on Linux host
+- [ ] Validate `fpdev cross install aarch64-linux` end-to-end
+- [ ] Document required binutils/libraries per target
+
+### Phase 7: Package Ecosystem Enhancement
+
+#### 7.1 Private Repository Authentication
+- [ ] Design auth token storage (keyring/integration)
+- [ ] Implement `fpdev package repo auth <repo-url> --token <value>`
+- [ ] Add auth headers to package fetch/publish flows
+
+#### 7.2 Mirror and Offline Support
+- [ ] Implement mirror source configuration (`fpdev package repo mirror`)
+- [ ] Add offline package cache strategy (`--offline` for package install)
+- [ ] Document cache location and cleanup policy
+
+### Phase 8: Plugin System Foundation
+
+#### 8.1 Plugin API Design
+- [ ] Define `IFPDevPlugin` interface (command hooks, lifecycle callbacks, config extension)
+- [ ] Design plugin discovery mechanism (directory scan + manifest)
+- [ ] Create plugin sandbox (isolated config namespace, restricted file access)
+
+#### 8.2 Plugin Dogfooding
+- [ ] Refactor one built-in feature as a plugin to validate the API
+- [ ] Write plugin developer guide
+
+### Phase 9: Performance and Observability
+
+#### 9.1 Performance Baseline
+- [ ] Benchmark core operations (fpc install, package resolve, cross build)
+- [ ] Establish timing baselines for regression detection
+- [ ] Add `fpdev perf benchmark` command
+
+#### 9.2 Diagnostics Enhancement
+- [ ] Enhance `fpdev system doctor` with environment checks
+- [ ] Add structured logging for performance-critical paths
+- [ ] Create debug/verbose mode for troubleshooting
+
+---
+
+## Historical: v2.1.0 Completed Phases
 
 ### Phase 1: Core Workflow Enhancements (Current Priority)
 **Goal**: Improve daily development workflow with essential features
@@ -717,6 +792,6 @@ Use this checklist to track implementation progress:
 
 ---
 
-**Last Updated**: 2026-03-25 (current public roadmap/status document)
+**Last Updated**: 2026-05-05 (v2.2.0-dev roadmap added)
 **Maintained By**: FPDev Development Team
 **License**: MIT
