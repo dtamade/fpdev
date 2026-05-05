@@ -163,10 +163,6 @@ begin
       if not LGit.BackendAvailable then
         Exit(False);
       Result := LGit.Checkout(LSourcePath, LRefName, True);
-      if not Result then
-        Result := LGit.Checkout(LSourcePath, 'refs/tags/' + LRefName, True);
-      if not Result then
-        Result := LGit.Checkout(LSourcePath, 'refs/remotes/origin/' + LRefName, True);
       if Result and (not IsValidSourceDirectory(LSourcePath)) then
         Result := False;
       Exit(Result);
@@ -240,10 +236,6 @@ begin
     if not LGit.BackendAvailable then
       Exit(False);
     Result := LGit.Checkout(LSourcePath, LRefName, True);
-    if not Result then
-      Result := LGit.Checkout(LSourcePath, 'refs/tags/' + LRefName, True);
-    if not Result then
-      Result := LGit.Checkout(LSourcePath, 'refs/remotes/origin/' + LRefName, True);
   except
     Result := False;
   end;

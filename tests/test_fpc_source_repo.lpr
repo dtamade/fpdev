@@ -125,13 +125,6 @@ begin
   if ARepoPath <> '' then;
   Inc(CheckoutCalls);
   LastCheckoutBranch := AName;
-  if not CheckoutOk then
-  begin
-    // Try alternative ref prefixes like the old CheckoutClonedFPCRef
-    if (CheckoutCalls <= 3) and CheckoutOk then
-      Exit(True);
-    Exit(False);
-  end;
   Result := CheckoutOk;
 end;
 
