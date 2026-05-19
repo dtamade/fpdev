@@ -62,7 +62,8 @@ type
 implementation
 
 uses
-  fpdev.utils.process;
+  fpjson, jsonparser,
+  fpdev.utils.process, fpdev.paths;
 
 const
   FPC_VERSION_MAIN = 'main';
@@ -226,18 +227,78 @@ end;
 function TBootstrapManager.GetBootstrapDownloadURL(const AVersion: string): string;
 var
   PlatformInfo: TPlatformInfo;
+  RegistryPath, PlatformKey: string;
+  SL: TStringList;
+  J: TJSONData;
+  Root, Compilers, VersionObj, PlatformObj, MirrorsObj: TJSONObject;
 begin
-  // DEPRECATED: This function uses SourceForge URLs which are no longer supported.
-  // Bootstrap compilers should be downloaded from fpdev-repo instead.
-  // See docs/REPO_SPECIFICATION.md for the new repository format.
-
-  // Detect platform and architecture
+  Result := '';
   PlatformInfo := DetectPlatformArch;
+  // Registry uses {os}-{cpu} format: linux-x86_64, darwin-aarch64
+  {$IFDEF LINUX}
+    {$IFDEF CPUX86_64}PlatformKey := 'linux-x86_64';{$ENDIF}
+    {$IFDEF CPUAARCH64}PlatformKey := 'linux-aarch64';{$ENDIF}
+    {$IFDEF CPUI386}PlatformKey := 'linux-i386';{$ENDIF}
+  {$ENDIF}
+  {$IFDEF DARWIN}
+    {$IFDEF CPUX86_64}PlatformKey := 'darwin-x86_64';{$ENDIF}
+    {$IFDEF CPUAARCH64}PlatformKey := 'darwin-aarch64';{$ENDIF}
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+    {$IFDEF CPUX86_64}PlatformKey := 'windows-x86_64';{$ENDIF}
+    {$IFDEF CPUI386}PlatformKey := 'windows-i386';{$ENDIF}
+  {$ENDIF}
 
-  // Legacy SourceForge download URL (kept for backward compatibility)
-  // Format: https://sourceforge.net/projects/freepascal/files/{Platform}/{Version}/fpc-{Version}.{Arch}.zip/download
-  Result := Format(SOURCEFORGE_BOOTSTRAP_URL_TEMPLATE,
-    [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);
+  RegistryPath := IncludeTrailingPathDelimiter(GetDataRoot) +
+    'registry' + PathDelim + 'bootstrap' + PathDelim + 'compilers.json';
+
+  if FileExists(RegistryPath) then
+  begin
+    SL := TStringList.Create;
+    try
+      SL.LoadFromFile(RegistryPath);
+      try
+        J := GetJSON(SL.Text);
+      except
+        J := nil;
+      end;
+    finally
+      SL.Free;
+    end;
+
+    if (J <> nil) and (J.JSONType = jtObject) then
+    begin
+      Root := TJSONObject(J);
+      try
+        if Root.Find('compilers') <> nil then
+        begin
+          Compilers := Root.Objects['compilers'];
+          if Compilers.Find(AVersion) <> nil then
+          begin
+            VersionObj := Compilers.Objects[AVersion];
+            if VersionObj.Find(PlatformKey) <> nil then
+            begin
+              PlatformObj := VersionObj.Objects[PlatformKey];
+              if PlatformObj.Find('mirrors') <> nil then
+              begin
+                MirrorsObj := PlatformObj.Objects['mirrors'];
+                if MirrorsObj.Count > 0 then
+                  Result := MirrorsObj.Items[0].AsString;
+              end;
+            end;
+          end;
+        end;
+      finally
+        Root.Free;
+      end;
+    end
+    else
+      J.Free;
+  end;
+
+  if Result = '' then
+    Result := Format(SOURCEFORGE_BOOTSTRAP_URL_TEMPLATE,
+      [PlatformInfo.Platform, AVersion, AVersion, PlatformInfo.Architecture]);
 end;
 
 end.

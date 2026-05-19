@@ -104,8 +104,8 @@ end;
 
 function BuildFPCSourceInstallPathCore(const AInstallRoot, AVersion: string): string;
 begin
-  Result := AInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' +
-    PathDelim + 'fpc-' + AVersion;
+  if AVersion = '' then;
+  Result := AInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
 end;
 
 function BuildFPCInstalledExecutablePathCore(const AInstallPath: string): string;

@@ -56,7 +56,15 @@ function GetNativeCompilerName: string;
 function EnsureManagedFPCInstallLayout(const AInstallPath, AVersion: string;
   AOut: IOutput = nil): Boolean;
 
+{ Try to execute post-install steps from registry build-steps/fpc-post-install.json.
+  Falls back to EnsureManagedFPCInstallLayout if registry file not available. }
+function ExecuteRegistryPostInstall(const AInstallPath, AVersion: string;
+  AOut: IOutput = nil): Boolean;
+
 implementation
+
+uses
+  fpdev.paths, fpdev.registry.buildsteps;
 
 function GetFPCArchSuffix: string;
 begin
@@ -253,6 +261,43 @@ begin
   if Assigned(FOut) then
     FOut.WriteLn('  fpc wrapper created');
   {$ENDIF}
+end;
+
+function ExecuteRegistryPostInstall(const AInstallPath, AVersion: string;
+  AOut: IOutput): Boolean;
+var
+  StepsPath: string;
+  Steps: TBuildStepArray;
+  Ctx: TBuildStepContext;
+  Executor: TBuildStepExecutor;
+begin
+  StepsPath := IncludeTrailingPathDelimiter(GetDataRoot) +
+    'registry' + PathDelim + 'build-steps' + PathDelim + 'fpc-post-install.json';
+
+  if not FileExists(StepsPath) then
+    Exit(EnsureManagedFPCInstallLayout(AInstallPath, AVersion, AOut));
+
+  Steps := ParseBuildStepsFromFile(StepsPath);
+  if Length(Steps) = 0 then
+    Exit(EnsureManagedFPCInstallLayout(AInstallPath, AVersion, AOut));
+
+  Ctx := Default(TBuildStepContext);
+  Ctx.InstallPath := AInstallPath;
+  Ctx.Version := AVersion;
+  Ctx.NativeCompiler := GetNativeCompilerForPlatform;
+  Ctx.BinPath := IncludeTrailingPathDelimiter(AInstallPath) + 'bin';
+  Ctx.ParallelJobs := 1;
+
+  Executor := TBuildStepExecutor.Create(Ctx, AOut, AOut);
+  try
+    Result := Executor.Execute(Steps);
+  finally
+    Executor.Free;
+    FreeBuildSteps(Steps);
+  end;
+
+  if not Result then
+    Result := EnsureManagedFPCInstallLayout(AInstallPath, AVersion, AOut);
 end;
 
 end.

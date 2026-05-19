@@ -1,0 +1,50 @@
+{
+  "default_version": "3.6",
+  "versions": {
+    "3.6": {
+      "channel": "stable",
+      "status": "active",
+      "release_date": "2024-10-14",
+      "ref": "lazarus_3_6",
+      "branch": "lazarus_3_6",
+
+      "fpc_compatible": ["3.2.2", "3.2.0"],
+      "fpc_minimum": "3.2.0",
+
+      "build": {
+        "template": "build-steps/lazarus-source.json"
+      },
+
+      "post_install": [
+        {"action": "generate-lazarus-cfg"}
+      ]
+    },
+
+    "main": {
+      "channel": "development",
+      "status": "active",
+      "release_date": "rolling",
+      "ref": "main",
+      "branch": "main",
+      "tracking": true,
+
+      "fpc_compatible": ["3.2.2", "3.3.1", "main"],
+      "fpc_minimum": "3.2.2",
+
+      "build": {
+        "inherit": "3.6"
+      }
+    }
+  },
+
+  "channels": {
+    "stable": {
+      "current": "3.6",
+      "description": "Latest stable release"
+    },
+    "development": {
+      "current": "main",
+      "description": "Development trunk"
+    }
+  }
+}

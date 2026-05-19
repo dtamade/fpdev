@@ -40,7 +40,7 @@ begin
   Result := Default(TFPCBinaryPostInstallActions);
   if AConfigGen <> nil then;
 
-  Result.ConfigGenerated := EnsureManagedFPCInstallLayout(AInstallPath, AVersion, AOut);
+  Result.ConfigGenerated := ExecuteRegistryPostInstall(AInstallPath, AVersion, AOut);
   if not Result.ConfigGenerated then
   begin
     WriteLine(AErr, '  Warning: Managed install layout incomplete');

@@ -22,7 +22,7 @@ interface
 uses
   SysUtils,
   fpdev.output.intf, fpdev.git.runtime, fpdev.git.types, fpdev.constants,
-  fpdev.utils.fs;
+  fpdev.utils.fs, fpdev.version.registry;
 
 { Downloads FPC source code from the official repository.
   AVersion: FPC version tag to download
@@ -53,6 +53,7 @@ function DownloadFPCSourceWithGitRuntimeCore(
 ): Boolean;
 var
   Git: IGitRuntime;
+  RepoURL: string;
 begin
   Result := False;
 
@@ -61,6 +62,8 @@ begin
     WriteLine(AErr, _(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_UNKNOWN_VERSION, [AVersion]));
     Exit;
   end;
+
+  RepoURL := TVersionRegistry.Instance.GetFPCRepository;
 
   try
     WriteLine(AOut, _Fmt(CMD_FPC_INSTALL_DOWNLOADING, [AVersion]) + ' (tag: ' + AGitTag + ')...');
@@ -78,44 +81,37 @@ begin
 
       WriteLine(AOut, 'Using backend: ' + GitBackendToString(Git.Backend));
 
-      if DirectoryExists(ATargetDir) then
+      if DirectoryExists(ATargetDir) and
+         DirectoryExists(ATargetDir + PathDelim + '.git') then
       begin
-        if DirectoryExists(ATargetDir + PathDelim + '.git') then
+        WriteLine(AOut, 'Source repository exists, fetching and checking out: ' + AGitTag);
+
+        if not Git.Fetch(ATargetDir, 'origin') then
         begin
-          WriteLine(AOut, 'Source directory exists, updating to tag: ' + AGitTag);
-
-          if not Git.Fetch(ATargetDir, 'origin') then
-          begin
-            WriteLine(AErr, _(MSG_ERROR) + ': Git fetch failed: ' + Git.LastError);
-            Exit;
-          end;
-
-          if not Git.Checkout(ATargetDir, AGitTag, True) then
-          begin
-            WriteLine(AErr, _(MSG_ERROR) + ': Git checkout failed for tag: ' + AGitTag);
-            WriteLine(AErr, '  ' + Git.LastError);
-            Exit;
-          end;
-
-          WriteLine(AOut, 'Git checkout completed successfully');
-          Result := True;
-        end
-        else
-        begin
-          WriteLine(AOut, 'Directory exists but is not a git repo, removing...');
-          DeleteDirRecursive(ATargetDir);
-          WriteLine(AOut, 'Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
-          Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, AGitTag);
-          if not Result then
-            WriteLine(AErr, _(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
-          else
-            WriteLine(AOut, 'Git clone completed successfully');
+          WriteLine(AErr, _(MSG_ERROR) + ': Git fetch failed: ' + Git.LastError);
+          Exit;
         end;
+
+        if not Git.Checkout(ATargetDir, AGitTag, True) then
+        begin
+          WriteLine(AErr, _(MSG_ERROR) + ': Git checkout failed for tag: ' + AGitTag);
+          WriteLine(AErr, '  ' + Git.LastError);
+          Exit;
+        end;
+
+        WriteLine(AOut, 'Git checkout completed successfully');
+        Result := True;
       end
       else
       begin
-        WriteLine(AOut, 'Cloning: ' + FPC_OFFICIAL_REPO + ' -> ' + ATargetDir);
-        Result := Git.Clone(FPC_OFFICIAL_REPO, ATargetDir, AGitTag);
+        if DirectoryExists(ATargetDir) then
+        begin
+          WriteLine(AOut, 'Directory exists but is not a git repo, removing...');
+          DeleteDirRecursive(ATargetDir);
+        end;
+
+        WriteLine(AOut, 'Cloning: ' + RepoURL + ' -> ' + ATargetDir);
+        Result := Git.Clone(RepoURL, ATargetDir, AGitTag);
         if not Result then
           WriteLine(AErr, _(MSG_ERROR) + ': ' + _Fmt(CMD_FPC_GIT_CLONE_FAILED, [Git.LastError]))
         else

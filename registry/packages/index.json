@@ -1,0 +1,180 @@
+{
+  "packages": [
+    {
+      "name": "synapse",
+      "version": "40.1",
+      "description": "TCP/IP library for Delphi and FreePascal",
+      "author": "Lukas Gebauer",
+      "license": "BSD",
+      "homepage": "http://www.ararat.cz/synapse/",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["."],
+      "mirrors": {
+        "github": "https://github.com/geby/synapse/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "fpjson",
+      "version": "3.2.2",
+      "description": "JSON parser and generator for FreePascal (built-in)",
+      "author": "FreePascal Team",
+      "license": "LGPL",
+      "homepage": "https://www.freepascal.org/",
+      "fpc_compatible": ">=3.0.0",
+      "type": "builtin",
+      "unit_paths": [],
+      "mirrors": {},
+      "dependencies": []
+    },
+    {
+      "name": "fphttpclient",
+      "version": "3.2.2",
+      "description": "HTTP client for FreePascal (built-in)",
+      "author": "FreePascal Team",
+      "license": "LGPL",
+      "homepage": "https://www.freepascal.org/",
+      "fpc_compatible": ">=3.2.0",
+      "type": "builtin",
+      "unit_paths": [],
+      "mirrors": {},
+      "dependencies": []
+    },
+    {
+      "name": "indy",
+      "version": "10.6.2",
+      "description": "Internet protocol components",
+      "author": "Indy Project",
+      "license": "BSD",
+      "homepage": "https://www.indyproject.org/",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["Lib/Core", "Lib/Protocols", "Lib/System"],
+      "mirrors": {
+        "github": "https://github.com/IndySockets/Indy/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "zeos",
+      "version": "8.0.0",
+      "description": "Database connectivity components",
+      "author": "ZeosLib Team",
+      "license": "LGPL",
+      "homepage": "https://zeoslib.sourceforge.io/",
+      "fpc_compatible": ">=3.2.0",
+      "type": "source",
+      "unit_paths": ["src/core", "src/dbc", "src/plain"],
+      "mirrors": {
+        "github": "https://github.com/marsupilami79/zeoslib/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "castle-engine",
+      "version": "7.0",
+      "description": "Cross-platform 3D/2D game engine",
+      "author": "Michalis Kamburelis",
+      "license": "LGPL",
+      "homepage": "https://castle-engine.io/",
+      "fpc_compatible": ">=3.2.0",
+      "type": "source",
+      "unit_paths": ["src"],
+      "mirrors": {
+        "github": "https://github.com/castle-engine/castle-engine/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "mormot2",
+      "version": "2.2",
+      "description": "Server-side framework for Delphi and FPC",
+      "author": "Synopse",
+      "license": "MPL/LGPL",
+      "homepage": "https://synopse.info",
+      "fpc_compatible": ">=3.2.0",
+      "type": "source",
+      "unit_paths": ["src"],
+      "mirrors": {
+        "github": "https://github.com/synopse/mORMot2/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "lnet",
+      "version": "0.6.6",
+      "description": "Lightweight networking library",
+      "author": "Ales Katona",
+      "license": "LGPL",
+      "homepage": "https://lnet.wordpress.com/",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["lib"],
+      "mirrors": {
+        "github": "https://github.com/almindor/lnet/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "fpspreadsheet",
+      "version": "1.14",
+      "description": "Spreadsheet reading/writing library",
+      "author": "FPSpreadsheet Team",
+      "license": "LGPL",
+      "homepage": "https://wiki.lazarus.freepascal.org/FPSpreadsheet",
+      "fpc_compatible": ">=3.2.0",
+      "type": "source",
+      "unit_paths": ["source/common"],
+      "mirrors": {
+        "github": "https://github.com/veb86/fpspreadsheet/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "bgra-bitmap",
+      "version": "11.5",
+      "description": "Drawing routines with transparency and antialiasing",
+      "author": "Circular",
+      "license": "LGPL",
+      "homepage": "https://bgrabitmap.github.io/",
+      "fpc_compatible": ">=3.2.0",
+      "type": "source",
+      "unit_paths": ["bgrabitmap"],
+      "mirrors": {
+        "github": "https://github.com/bgrabitmap/bgrabitmap/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "pascaltz",
+      "version": "1.0",
+      "description": "Timezone handling for FreePascal",
+      "author": "Lukas Gebauer",
+      "license": "BSD",
+      "homepage": "https://github.com/dezlov/PascalTZ",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["."],
+      "mirrors": {
+        "github": "https://github.com/dezlov/PascalTZ/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "dcpcrypt",
+      "version": "2.1",
+      "description": "Cryptographic component library",
+      "author": "David Barton",
+      "license": "MIT",
+      "homepage": "https://wiki.lazarus.freepascal.org/DCPcrypt",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["Ciphers", "Hashes"],
+      "mirrors": {
+        "github": "https://github.com/Xor-el/DCPcrypt/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    }
+  ]
+}

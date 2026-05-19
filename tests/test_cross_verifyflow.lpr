@@ -7,7 +7,7 @@ uses
   BaseUnix,
 {$ENDIF}
   SysUtils, Classes, fpjson,
-  fpdev.cross.downloader,
+  fpdev.cross.downloader.downloadflow,
   fpdev.cross.verifyflow,
   test_temp_paths;
 

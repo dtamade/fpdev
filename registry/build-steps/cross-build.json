@@ -1,0 +1,34 @@
+{
+  "description": "Cross-compiler build steps (template with auto-filled variables)",
+  "steps": [
+    {
+      "action": "make",
+      "description": "Build cross-compiler and RTL for target",
+      "targets": ["crossall"],
+      "env": {
+        "CPU_TARGET": "{{cpu}}",
+        "OS_TARGET": "{{os}}",
+        "CROSSOPT": "{{cross_options}}",
+        "PP": "{{host_compiler}}"
+      },
+      "parallel": true
+    },
+    {
+      "action": "make",
+      "description": "Install cross-compiled units",
+      "targets": ["crossinstall"],
+      "env": {
+        "CPU_TARGET": "{{cpu}}",
+        "OS_TARGET": "{{os}}",
+        "PREFIX": "{{install_path}}"
+      }
+    }
+  ],
+  "template_vars": {
+    "cpu": "Target CPU (from cross target definition)",
+    "os": "Target OS (from cross target definition)",
+    "cross_options": "FPC cross-compilation options (from cross target definition)",
+    "host_compiler": "Host FPC compiler path",
+    "install_path": "Installation target directory"
+  }
+}

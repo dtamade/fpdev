@@ -50,10 +50,14 @@ const
   FPDEV_REPO_GITHUB = FPDEV_INDEX_GITHUB;
   FPDEV_REPO_GITEE = FPDEV_INDEX_GITEE;
 
-  // FPC Binary Release Mirrors
+  // FPC Binary Release Mirrors (deprecated - use registry/fpc/binary.json)
   FPC_MIRROR_SOURCEFORGE = 'https://sourceforge.net/projects/freepascal/files';
   FPC_MIRROR_GITHUB_RELEASES = 'https://github.com/fpc/FPCBuild/releases';
   FPC_MIRROR_GITEE_RELEASES = 'https://gitee.com/freepascal/fpc/releases';
+
+  // Registry Repository URLs (bootstrap - hardcoded by design, see REGISTRY_DESIGN.md 11.10)
+  FPDEV_REGISTRY_GITHUB = 'https://github.com/dtamade/fpdev-registry.git';
+  FPDEV_REGISTRY_GITEE  = 'https://gitee.com/dtamade/fpdev-registry.git';
 
   // ============================================================
   // Version Constants

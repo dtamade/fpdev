@@ -26,23 +26,35 @@ var
   K: Integer;
 
   function TryGetArray(AData: TJSONData): TJSONArray;
+  var
+    PkgData: TJSONData;
   begin
     Result := nil;
     if AData = nil then Exit(nil);
     if AData.JSONType = jtArray then Exit(TJSONArray(AData));
-    if (AData.JSONType = jtObject) and Assigned(TJSONObject(AData).Arrays['packages']) then
-      Exit(TJSONObject(AData).Arrays['packages']);
+    if AData.JSONType = jtObject then
+    begin
+      PkgData := TJSONObject(AData).Find('packages');
+      if (PkgData <> nil) and (PkgData.JSONType = jtArray) then
+        Exit(TJSONArray(PkgData));
+    end;
   end;
 
   function HasValidURL(AObj: TJSONObject): Boolean;
   var
-    UrlData: TJSONData;
+    UrlData, MirrorsData: TJSONData;
   begin
     UrlData := AObj.Find('url');
-    if not Assigned(UrlData) then Exit(False);
-    if (UrlData.JSONType = jtString) and (AObj.Get('url', '') = '') then Exit(False);
-    if (UrlData.JSONType = jtArray) and (TJSONArray(UrlData).Count = 0) then Exit(False);
-    Result := True;
+    if Assigned(UrlData) then
+    begin
+      if (UrlData.JSONType = jtString) and (AObj.Get('url', '') <> '') then Exit(True);
+      if (UrlData.JSONType = jtArray) and (TJSONArray(UrlData).Count > 0) then Exit(True);
+    end;
+    MirrorsData := AObj.Find('mirrors');
+    if Assigned(MirrorsData) and (MirrorsData.JSONType = jtObject) and
+       (TJSONObject(MirrorsData).Count > 0) then
+      Exit(True);
+    Result := False;
   end;
 
 begin
@@ -99,10 +111,14 @@ begin
             Pkg.Name := Obj.Get('name', '');
             Pkg.Version := Obj.Get('version', '');
             Pkg.Description := Obj.Get('description', '');
+            Pkg.Author := Obj.Get('author', '');
             Pkg.Homepage := Obj.Get('homepage', '');
             Pkg.License := Obj.Get('license', '');
             Pkg.Repository := Obj.Get('repository', '');
             Pkg.Sha256 := Obj.Get('sha256', '');
+            if (Pkg.Sha256 = '') and (Obj.Find('hash') <> nil) and
+               (Obj.Find('hash').JSONType = jtObject) then
+              Pkg.Sha256 := TJSONObject(Obj.Find('hash')).Get('sha256', '');
             SetLength(Pkg.URLs, 0);
             U := Obj.Find('url');
             if Assigned(U) then
@@ -117,6 +133,15 @@ begin
                 SetLength(Pkg.URLs, TJSONArray(U).Count);
                 for K := 0 to TJSONArray(U).Count - 1 do
                   Pkg.URLs[K] := TJSONArray(U).Items[K].AsString;
+              end;
+            end
+            else if Obj.Find('mirrors') <> nil then
+            begin
+              if Obj.Find('mirrors').JSONType = jtObject then
+              begin
+                SetLength(Pkg.URLs, TJSONObject(Obj.Find('mirrors')).Count);
+                for K := 0 to TJSONObject(Obj.Find('mirrors')).Count - 1 do
+                  Pkg.URLs[K] := TJSONObject(Obj.Find('mirrors')).Items[K].AsString;
               end;
             end;
           end;

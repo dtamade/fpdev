@@ -2,49 +2,24 @@ unit fpdev.build.toolchain;
 
 {$mode objfpc}{$H+}
 
-{
-  TBuildToolchainChecker - Build toolchain detection and verification service
-
-  Extracted from TBuildManager to handle:
-  - Tool detection (make, gmake, fpc, etc.)
-  - Toolchain validation
-  - Build environment verification
-
-  Features:
-  - Result caching with TTL to avoid repeated process spawns
-  - Configurable cache duration (default 30 seconds)
-}
-
 interface
 
 uses
-  SysUtils, Classes, DateUtils, fpdev.build.interfaces;
-
-const
-  DEFAULT_CACHE_TTL_SECONDS = 30;  // Cache results for 30 seconds
+  SysUtils, Classes, DateUtils, fpdev.build.interfaces,
+  fpdev.build.toolchain.detectflow;
 
 type
   TBuildToolHasToolFunc = function(const AExe: string; const AArgs: array of string): Boolean of object;
 
-  { TToolCacheEntry - Cached tool check result }
-  TToolCacheEntry = record
-    Key: string;              // Tool name + args hash
-    Result: Boolean;          // Check result
-    Output: string;           // Command output (if captured)
-    Timestamp: TDateTime;     // When cached
-  end;
-
-  TToolCacheArray = array of TToolCacheEntry;
-
   { TToolchainInfo - Information about detected toolchain }
   TToolchainInfo = record
-    MakeCommand: string;      // Detected make command
-    FPCVersion: string;       // Detected FPC version
-    HasMake: Boolean;         // make/gmake available
-    HasFPC: Boolean;          // FPC available
-    HasGit: Boolean;          // Git available
-    IsValid: Boolean;         // Overall toolchain valid
-    ErrorMessage: string;     // Error if not valid
+    MakeCommand: string;
+    FPCVersion: string;
+    HasMake: Boolean;
+    HasFPC: Boolean;
+    HasGit: Boolean;
+    IsValid: Boolean;
+    ErrorMessage: string;
   end;
 
   { TBuildToolchainChecker }
@@ -52,19 +27,11 @@ type
   private
     FVerbose: Boolean;
     FLastInfo: TToolchainInfo;
-    FCacheTTL: Integer;       // Cache TTL in seconds
-    FCache: TToolCacheArray;  // Tool check cache
-    FCacheHits: Integer;      // Statistics: cache hits
-    FCacheMisses: Integer;    // Statistics: cache misses
-
-    function MakeCacheKey(const AExe: string; const AArgs: array of string): string;
-    function FindCacheEntry(const AKey: string; out AEntry: TToolCacheEntry): Boolean;
-    procedure AddCacheEntry(const AKey: string; AResult: Boolean; const AOutput: string);
-    function ExecuteCommand(const AExe: string; const AArgs: array of string; out AOutput: string): Boolean;
-    function ExecuteCommandCached(const AExe: string; const AArgs: array of string; out AOutput: string): Boolean;
+    FDetectionCache: TToolDetectionCache;
 
   public
     constructor Create(AVerbose: Boolean = False);
+    destructor Destroy; override;
 
     { IToolchainChecker interface methods }
     function IsMakeAvailable: Boolean;
@@ -76,7 +43,7 @@ type
     function GetVerbosity: Integer;
     procedure SetVerbosity(AValue: Integer);
 
-    { Legacy methods (kept for backward compatibility) }
+    { Legacy methods }
     function HasTool(const AExe: string; const AArgs: array of string): Boolean;
     function ResolveMakeCmd: string;
     function CheckToolchain: Boolean;
@@ -87,9 +54,6 @@ type
 
     property Verbose: Boolean read FVerbose write FVerbose;
     property LastInfo: TToolchainInfo read FLastInfo;
-    property CacheTTL: Integer read FCacheTTL write FCacheTTL;
-    property CacheHits: Integer read FCacheHits;
-    property CacheMisses: Integer read FCacheMisses;
   end;
 
 function BuildToolchainResolveMakeCommandCore(
@@ -101,11 +65,8 @@ function BuildToolchainMakeAvailableCore(
   const AIsWindows: Boolean;
   AHasTool: TBuildToolHasToolFunc
 ): Boolean;
- 
-implementation
 
-uses
-  Process;
+implementation
 
 { TBuildToolchainChecker }
 
@@ -113,11 +74,14 @@ constructor TBuildToolchainChecker.Create(AVerbose: Boolean);
 begin
   inherited Create;
   FVerbose := AVerbose;
-  FCacheTTL := DEFAULT_CACHE_TTL_SECONDS;
-  FCacheHits := 0;
-  FCacheMisses := 0;
-  SetLength(FCache, 0);
+  FDetectionCache := TToolDetectionCache.Create;
   Initialize(FLastInfo);
+end;
+
+destructor TBuildToolchainChecker.Destroy;
+begin
+  FDetectionCache.Free;
+  inherited Destroy;
 end;
 
 function BuildToolchainResolveMakeCommandCore(
@@ -165,163 +129,9 @@ begin
               AHasTool('make', ['--version']);
 end;
 
-function TBuildToolchainChecker.MakeCacheKey(const AExe: string; const AArgs: array of string): string;
-var
-  i: Integer;
-begin
-  Result := AExe;
-  for i := Low(AArgs) to High(AArgs) do
-    Result := Result + '|' + AArgs[i];
-end;
-
-function TBuildToolchainChecker.FindCacheEntry(const AKey: string; out AEntry: TToolCacheEntry): Boolean;
-var
-  i: Integer;
-  Age: Int64;
-begin
-  Result := False;
-  Initialize(AEntry);
-
-  for i := 0 to High(FCache) do
-  begin
-    if FCache[i].Key = AKey then
-    begin
-      // Check if entry is still valid
-      Age := SecondsBetween(Now, FCache[i].Timestamp);
-      if Age <= FCacheTTL then
-      begin
-        AEntry := FCache[i];
-        Inc(FCacheHits);
-        Result := True;
-      end;
-      Exit;
-    end;
-  end;
-end;
-
-procedure TBuildToolchainChecker.AddCacheEntry(const AKey: string; AResult: Boolean; const AOutput: string);
-var
-  i, Idx: Integer;
-begin
-  // Check if entry already exists (update it)
-  for i := 0 to High(FCache) do
-  begin
-    if FCache[i].Key = AKey then
-    begin
-      FCache[i].Result := AResult;
-      FCache[i].Output := AOutput;
-      FCache[i].Timestamp := Now;
-      Exit;
-    end;
-  end;
-
-  // Add new entry
-  Idx := Length(FCache);
-  SetLength(FCache, Idx + 1);
-  FCache[Idx].Key := AKey;
-  FCache[Idx].Result := AResult;
-  FCache[Idx].Output := AOutput;
-  FCache[Idx].Timestamp := Now;
-end;
-
-procedure TBuildToolchainChecker.ClearCache;
-begin
-  SetLength(FCache, 0);
-  FCacheHits := 0;
-  FCacheMisses := 0;
-end;
-
-function TBuildToolchainChecker.GetCacheStats: string;
-var
-  Total: Integer;
-  HitRate: Double;
-begin
-  Total := FCacheHits + FCacheMisses;
-  if Total > 0 then
-    HitRate := (FCacheHits * 100.0) / Total
-  else
-    HitRate := 0;
-
-  Result := Format('Cache: %d entries, %d hits, %d misses (%.1f%% hit rate)',
-    [Length(FCache), FCacheHits, FCacheMisses, HitRate]);
-end;
-
-function TBuildToolchainChecker.ExecuteCommand(
-  const AExe: string;
-  const AArgs: array of string;
-  out AOutput: string
-): Boolean;
-var
-  Process: TProcess;
-  OutStream: TStringStream;
-  i: Integer;
-begin
-  Result := False;
-  AOutput := '';
-
-  Process := TProcess.Create(nil);
-  OutStream := TStringStream.Create('');
-  try
-    Process.Executable := AExe;
-    for i := Low(AArgs) to High(AArgs) do
-      Process.Parameters.Add(AArgs[i]);
-
-    Process.Options := [poUsePipes, poNoConsole];
-
-    try
-      Process.Execute;
-
-      // Read output
-      while Process.Running or (Process.Output.NumBytesAvailable > 0) do
-      begin
-        if Process.Output.NumBytesAvailable > 0 then
-          OutStream.CopyFrom(Process.Output, Process.Output.NumBytesAvailable);
-        Sleep(10);
-      end;
-
-      AOutput := OutStream.DataString;
-      Result := (Process.ExitCode = 0);
-    except
-      Result := False;
-    end;
-  finally
-    OutStream.Free;
-    Process.Free;
-  end;
-end;
-
-function TBuildToolchainChecker.ExecuteCommandCached(
-  const AExe: string;
-  const AArgs: array of string;
-  out AOutput: string
-): Boolean;
-var
-  Key: string;
-  Entry: TToolCacheEntry;
-begin
-  Key := MakeCacheKey(AExe, AArgs);
-
-  // Check cache first
-  if FindCacheEntry(Key, Entry) then
-  begin
-    AOutput := Entry.Output;
-    Result := Entry.Result;
-    Exit;
-  end;
-
-  // Cache miss - execute command
-  Inc(FCacheMisses);
-  Result := ExecuteCommand(AExe, AArgs, AOutput);
-
-  // Cache the result
-  AddCacheEntry(Key, Result, AOutput);
-end;
-
 function TBuildToolchainChecker.HasTool(const AExe: string; const AArgs: array of string): Boolean;
-var
-  Output: string;
 begin
-  Result := ExecuteCommandCached(AExe, AArgs, Output);
+  Result := FDetectionCache.HasTool(AExe, AArgs);
 end;
 
 function TBuildToolchainChecker.ResolveMakeCmd: string;
@@ -339,7 +149,6 @@ begin
   Initialize(FLastInfo);
   Result := True;
 
-  // Check make/gmake
   FLastInfo.MakeCommand := ResolveMakeCmd;
   FLastInfo.HasMake := HasTool(FLastInfo.MakeCommand, ['--version']);
   if not FLastInfo.HasMake then
@@ -349,24 +158,15 @@ begin
     Exit(False);
   end;
 
-  // Check FPC
   FLastInfo.HasFPC := HasTool('fpc', ['-iV']);
   if FLastInfo.HasFPC then
   begin
-    if ExecuteCommandCached('fpc', ['-iV'], Output) then
+    if FDetectionCache.ExecuteCached('fpc', ['-iV'], Output) then
       FLastInfo.FPCVersion := Trim(Output);
-  end
-  else
-  begin
-    // FPC not strictly required for bootstrap builds
-    if FVerbose then
-      ; // Could log warning
   end;
 
-  // Check Git (optional but useful)
   FLastInfo.HasGit := HasTool('git', ['--version']);
 
-  // Overall validation
   FLastInfo.IsValid := FLastInfo.HasMake;
   Result := FLastInfo.IsValid;
 end;
@@ -385,7 +185,7 @@ begin
   if FLastInfo.FPCVersion <> '' then
     Exit(FLastInfo.FPCVersion);
 
-  if ExecuteCommandCached('fpc', ['-iV'], Output) then
+  if FDetectionCache.ExecuteCached('fpc', ['-iV'], Output) then
   begin
     Result := Trim(Output);
     FLastInfo.FPCVersion := Result;
@@ -397,8 +197,6 @@ begin
     FLastInfo.HasFPC := False;
   end;
 end;
-
-{ IToolchainChecker interface implementation }
 
 function TBuildToolchainChecker.IsMakeAvailable: Boolean;
 begin
@@ -422,8 +220,7 @@ var
   F: TextFile;
 begin
   Result := False;
-  
-  // Create directory if it doesn't exist
+
   if not DirectoryExists(ASandboxDir) then
   begin
     try
@@ -432,8 +229,7 @@ begin
       Exit(False);
     end;
   end;
-  
-  // Try to write a test file
+
   TestFile := ASandboxDir + PathDelim + '.fpdev_write_test';
   try
     AssignFile(F, TestFile);
@@ -475,6 +271,16 @@ end;
 procedure TBuildToolchainChecker.SetVerbosity(AValue: Integer);
 begin
   FVerbose := (AValue > 0);
+end;
+
+procedure TBuildToolchainChecker.ClearCache;
+begin
+  FDetectionCache.ClearCache;
+end;
+
+function TBuildToolchainChecker.GetCacheStats: string;
+begin
+  Result := FDetectionCache.GetCacheStats;
 end;
 
 end.

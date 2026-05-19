@@ -79,6 +79,8 @@ type
     FBootstrapMap: TStringList;  // Key=TargetVersion, Value=RequiredVersion
     FBootstrapFallbackChain: TStringList;
 
+    procedure ApplyOverrides;
+
   public
     constructor Create;
     destructor Destroy; override;
@@ -124,6 +126,7 @@ type
 implementation
 
 uses
+  fpjson, jsonparser,
   fpdev.paths, fpdev.version.registry.loadflow;
 
 { TVersionRegistry }
@@ -208,8 +211,85 @@ begin
       FDataPath := ResolvedPath;
 
     FLoaded := True;
+    ApplyOverrides;
   finally
     DoneVersionRegistryLoadData(LoadData);
+  end;
+end;
+
+procedure TVersionRegistry.ApplyOverrides;
+var
+  OverridesPath: string;
+  SL: TStringList;
+  J: TJSONData;
+  Root, FPCObj, Versions, Entry: TJSONObject;
+  I, K, Idx: Integer;
+  Key: string;
+  NewRelease: TFPCReleaseInfo;
+begin
+  OverridesPath := IncludeTrailingPathDelimiter(GetDataRoot) + 'overrides.json';
+  if not FileExists(OverridesPath) then Exit;
+
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(OverridesPath);
+    try
+      J := GetJSON(SL.Text);
+    except
+      Exit;
+    end;
+  finally
+    SL.Free;
+  end;
+
+  if (J = nil) or (J.JSONType <> jtObject) then
+  begin
+    J.Free;
+    Exit;
+  end;
+
+  Root := TJSONObject(J);
+  try
+    if Root.Find('fpc') = nil then Exit;
+    if Root.Find('fpc').JSONType <> jtObject then Exit;
+    FPCObj := Root.Objects['fpc'];
+
+    if FPCObj.Find('versions') = nil then Exit;
+    if FPCObj.Find('versions').JSONType <> jtObject then Exit;
+    Versions := FPCObj.Objects['versions'];
+
+    for I := 0 to Versions.Count - 1 do
+    begin
+      Key := Versions.Names[I];
+      if Versions.Items[I].JSONType <> jtObject then Continue;
+      Entry := TJSONObject(Versions.Items[I]);
+
+      Idx := -1;
+      for K := 0 to High(FFPCReleases) do
+        if SameText(FFPCReleases[K].Version, Key) then
+        begin
+          Idx := K;
+          Break;
+        end;
+
+      NewRelease := Default(TFPCReleaseInfo);
+      NewRelease.Version := Key;
+      NewRelease.ReleaseDate := Entry.Get('release_date', 'custom');
+      NewRelease.GitTag := Entry.Get('ref', Key);
+      NewRelease.Branch := Entry.Get('branch', '');
+      NewRelease.Channel := Entry.Get('channel', 'custom');
+      NewRelease.LTS := False;
+
+      if Idx >= 0 then
+        FFPCReleases[Idx] := NewRelease
+      else
+      begin
+        SetLength(FFPCReleases, Length(FFPCReleases) + 1);
+        FFPCReleases[High(FFPCReleases)] := NewRelease;
+      end;
+    end;
+  finally
+    Root.Free;
   end;
 end;
 

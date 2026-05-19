@@ -6,7 +6,7 @@ interface
 
 uses
   SysUtils, Classes, Process, fpjson, jsonparser,
-  fpdev.cross.downloader;
+  fpdev.cross.downloader.downloadflow;
 
 function VerifyCrossBinutilsInstallationCore(
   const AInstallDir, ATarget, AVersion, ASHA256: string

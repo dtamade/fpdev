@@ -46,7 +46,8 @@ uses
   fpdev.cmd.env.export,
   fpdev.cmd.doctor,
   fpdev.cmd.env.hook,
-  fpdev.cmd.env.resolve;
+  fpdev.cmd.env.resolve,
+  fpdev.cmd.update_registry;
 
 procedure EnsureSystemCommandImports;
 

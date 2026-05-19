@@ -25,7 +25,7 @@ function PrepareFPCManifestInstallPlan(const AConfigManager: IConfigManager;
 implementation
 
 uses
-  fpdev.resource.repo, fpdev.utils.fs;
+  fpdev.resource.repo, fpdev.utils.fs, fpdev.paths, fpdev.registry.binary;
 
 function ResolveManifestCacheDirForConfig(const AConfigManager: IConfigManager): string;
 var
@@ -64,6 +64,9 @@ var
   Cache: TManifestCache;
   ManifestParser: TManifestParser;
   FileExt: string;
+  RegistryDir: string;
+  InstallMethod: string;
+  Mirror: string;
 begin
   Result := False;
   APlan := Default(TFPCManifestInstallPlan);
@@ -72,6 +75,27 @@ begin
   APlan.ManifestCacheDir := ResolveManifestCacheDirForConfig(AConfigManager);
   APlan.Platform := GetCurrentPlatform;
 
+  RegistryDir := IncludeTrailingPathDelimiter(GetDataRoot) + 'registry';
+  Mirror := '';
+  if AConfigManager <> nil then
+    Mirror := AConfigManager.GetSettingsManager.GetSettings.Mirror;
+  if (Mirror = '') or (Mirror = 'auto') then
+    Mirror := 'github';
+
+  if TryLoadBinaryTargetFromRegistry(RegistryDir, AVersion, APlan.Platform,
+    Mirror, APlan.Target, InstallMethod, AError) then
+  begin
+    APlan.DownloadDir := BuildDownloadDir;
+    if not DirectoryExists(APlan.DownloadDir) then
+      EnsureDir(APlan.DownloadDir);
+    FileExt := ResolveTargetFileExt(APlan.Target);
+    APlan.DownloadFile := IncludeTrailingPathDelimiter(APlan.DownloadDir)
+      + 'fpc-' + AVersion + '-' + IntToStr(GetTickCount64) + FileExt;
+    APlan.ExtractDir := BuildExtractDir;
+    Exit(True);
+  end;
+
+  AError := '';
   Cache := TManifestCache.Create(APlan.ManifestCacheDir);
   try
     if not Cache.LoadCachedManifest('fpc', ManifestParser, False) then

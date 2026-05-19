@@ -1,0 +1,21 @@
+{
+  "description": "FPC post-install configuration steps",
+  "steps": [
+    {
+      "action": "symlink-compiler",
+      "description": "Create symlink from lib/fpc/VERSION/native_compiler to bin/native_compiler",
+      "platforms": ["linux", "darwin"]
+    },
+    {
+      "action": "create-wrapper",
+      "description": "Create bin/fpc wrapper script that calls native compiler with fpc.cfg",
+      "platforms": ["linux", "darwin"],
+      "template": "#!/bin/sh\n{{bin_path}}/{{native_compiler}} -n @{{bin_path}}/fpc.cfg \"$@\""
+    },
+    {
+      "action": "generate-cfg",
+      "description": "Generate fpc.cfg with unit and library search paths",
+      "platforms": ["linux", "darwin", "windows"]
+    }
+  ]
+}

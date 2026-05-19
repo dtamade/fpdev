@@ -1,0 +1,118 @@
+{
+  "default_version": "3.2.2",
+  "versions": {
+    "3.2.2": {
+      "channel": "stable",
+      "status": "active",
+      "release_date": "2021-05-19",
+      "ref": "release_3_2_2",
+      "branch": "fixes_3_2",
+      "lts": true,
+
+      "bootstrap": {
+        "known_good": ["3.2.0"],
+        "minimum": "3.2.0"
+      },
+
+      "build": {
+        "template": "build-steps/fpc-source.json"
+      },
+
+      "post_install": [
+        {"action": "symlink-compiler", "platforms": ["linux", "darwin"]},
+        {"action": "create-wrapper", "platforms": ["linux", "darwin"]},
+        {"action": "generate-cfg"}
+      ]
+    },
+
+    "3.2.0": {
+      "channel": "stable",
+      "status": "active",
+      "release_date": "2020-06-19",
+      "ref": "release_3_2_0",
+      "branch": "fixes_3_2",
+      "lts": false,
+
+      "bootstrap": {
+        "known_good": ["3.2.0", "3.0.4"],
+        "minimum": "3.0.4"
+      },
+
+      "build": {
+        "template": "build-steps/fpc-source.json"
+      },
+
+      "post_install": [
+        {"action": "symlink-compiler", "platforms": ["linux", "darwin"]},
+        {"action": "create-wrapper", "platforms": ["linux", "darwin"]},
+        {"action": "generate-cfg"}
+      ]
+    },
+
+    "3.0.4": {
+      "channel": "legacy",
+      "status": "active",
+      "release_date": "2017-11-21",
+      "ref": "release_3_0_4",
+      "branch": "fixes_3_0",
+      "lts": false,
+
+      "bootstrap": {
+        "known_good": ["3.0.4", "3.0.2"],
+        "minimum": "3.0.2"
+      },
+
+      "build": {
+        "template": "build-steps/fpc-source.json"
+      },
+
+      "post_install": [
+        {"action": "symlink-compiler", "platforms": ["linux", "darwin"]},
+        {"action": "create-wrapper", "platforms": ["linux", "darwin"]},
+        {"action": "generate-cfg"}
+      ]
+    },
+
+    "3.3.1": {
+      "channel": "development",
+      "status": "active",
+      "release_date": "rolling",
+      "ref": "main",
+      "branch": "main",
+      "tracking": true,
+
+      "bootstrap": {
+        "known_good": ["3.2.2"],
+        "minimum": "3.2.2"
+      },
+
+      "build": {
+        "template": "build-steps/fpc-source.json",
+        "env_override": {
+          "OVERRIDEVERSIONCHECK": null
+        }
+      },
+
+      "post_install": [
+        {"action": "symlink-compiler", "platforms": ["linux", "darwin"]},
+        {"action": "create-wrapper", "platforms": ["linux", "darwin"]},
+        {"action": "generate-cfg"}
+      ]
+    }
+  },
+
+  "channels": {
+    "stable": {
+      "current": "3.2.2",
+      "description": "Latest stable release"
+    },
+    "development": {
+      "current": "3.3.1",
+      "description": "Development trunk"
+    },
+    "legacy": {
+      "current": "3.0.4",
+      "description": "Legacy maintenance"
+    }
+  }
+}

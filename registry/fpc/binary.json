@@ -1,0 +1,72 @@
+{
+  "3.2.2": {
+    "linux-x86_64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-linux-x86_64.tar.gz",
+        "gitee": "https://gitee.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-linux-x86_64.tar.gz"
+      },
+      "hash": {
+        "sha256": "46c083c7308a6fb978f0244c0e2e7c4217210200232923f777fc4f0483ca1caf"
+      },
+      "size": 85384375,
+      "install_method": "nested-tar"
+    },
+    "windows-x86_64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-windows-x86_64.zip",
+        "gitee": "https://gitee.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-windows-x86_64.zip"
+      },
+      "hash": {
+        "sha256": "7182b02643594b082997f1c3af25171ffb85e89c57af1d036b26a1339f749c98"
+      },
+      "size": 86963689,
+      "install_method": "unzip"
+    },
+    "darwin-x86_64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-darwin-x86_64.tar.gz",
+        "gitee": "https://gitee.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-darwin-x86_64.tar.gz"
+      },
+      "hash": {
+        "sha256": "d0fab36b784273c8c5d79f03c0b5ca29ba282386e3c54a4161fbebf9796659e3"
+      },
+      "size": 134990974,
+      "install_method": "nested-tar"
+    },
+    "darwin-aarch64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-darwin-aarch64.tar.gz",
+        "gitee": "https://gitee.com/dtamade/fpdev-fpc/releases/download/v3.2.2/fpc-3.2.2-darwin-aarch64.tar.gz"
+      },
+      "hash": {
+        "sha256": "f3ec0009d4389633be740f8428cd08f6f2ee2381addde846d1afa5ed8b82a86f"
+      },
+      "size": 133797671,
+      "install_method": "nested-tar"
+    }
+  },
+  "3.2.0": {
+    "linux-x86_64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.2.0/fpc-3.2.0-x86_64-linux.tar"
+      },
+      "hash": {
+        "sha256": "d19252e6cfe52f1217f4822a548ee699eaa7e044807aaf8429a0532cb7e4cb3d"
+      },
+      "size": 84336640,
+      "install_method": "nested-tar"
+    }
+  },
+  "3.0.4": {
+    "linux-x86_64": {
+      "mirrors": {
+        "github": "https://github.com/dtamade/fpdev-fpc/releases/download/v3.0.4/fpc-3.0.4.x86_64-linux.tar"
+      },
+      "hash": {
+        "sha256": "7e965baf13c9822a0ff39e7bbfa040bd5599e94d0f3338f1ac4efa989081fd77"
+      },
+      "size": 56842240,
+      "install_method": "nested-tar"
+    }
+  }
+}

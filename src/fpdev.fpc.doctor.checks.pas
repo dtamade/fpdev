@@ -94,11 +94,16 @@ begin
           {$ELSE}
           LFPCPath := LInfo.InstallPath + PathDelim + 'bin' + PathDelim + 'fpc';
           {$ENDIF}
-          if FileExists(LFPCPath) then
+          if not FileExists(LFPCPath) then
+          begin
+            Ctx.Out.WriteLn('    - ' + LToolchains[I] + ' [BROKEN: fpc binary missing]');
+            Inc(Result);
+          end
+          else if RunDoctorToolVersionCore(LFPCPath, '-iV', LOut) and (Trim(LOut) <> '') then
             Ctx.Out.WriteLn('    - ' + LToolchains[I] + ' [OK]')
           else
           begin
-            Ctx.Out.WriteLn('    - ' + LToolchains[I] + ' [BROKEN: fpc binary missing]');
+            Ctx.Out.WriteLn('    - ' + LToolchains[I] + ' [BROKEN: fpc does not respond]');
             Inc(Result);
           end;
         end

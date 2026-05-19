@@ -1,0 +1,27 @@
+{
+  "description": "Default Lazarus source build steps",
+  "steps": [
+    {
+      "action": "make",
+      "description": "Build Lazarus IDE and components",
+      "targets": ["all"],
+      "env": {
+        "PP": "{{fpc_compiler}}",
+        "PREFIX": "{{install_path}}"
+      },
+      "parallel": true
+    },
+    {
+      "action": "make",
+      "description": "Install to target directory",
+      "targets": ["install"],
+      "env": {
+        "PREFIX": "{{install_path}}"
+      }
+    }
+  ],
+  "template_vars": {
+    "fpc_compiler": "Compatible FPC compiler path",
+    "install_path": "Lazarus installation target directory"
+  }
+}

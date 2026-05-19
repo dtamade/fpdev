@@ -1,0 +1,45 @@
+{
+  "compilers": {
+    "3.2.2": {
+      "linux-x86_64": {
+        "mirrors": {
+          "github": "https://github.com/dtamade/fpdev-bootstrap/releases/download/v3.2.2/fpc-3.2.2-bootstrap-linux-x86_64.tar.gz",
+          "gitee": "https://gitee.com/dtamade/fpdev-bootstrap/releases/download/v3.2.2/fpc-3.2.2-bootstrap-linux-x86_64.tar.gz"
+        },
+        "hash": {"sha256": "5adac308a5534b6a76446d8311fc340747cbb7edeaacfe6b651493ff3fe31e83"},
+        "size": 5800000
+      },
+      "darwin-x86_64": {
+        "mirrors": {
+          "github": "https://github.com/dtamade/fpdev-bootstrap/releases/download/v3.2.2/fpc-3.2.2-bootstrap-darwin-x86_64.tar.gz"
+        },
+        "hash": {"sha256": "05d4510c8c887e3c68de20272abf62171aa5b2ef1eba6bce25e4c0bc41ba8b7d"}
+      },
+      "darwin-aarch64": {
+        "mirrors": {
+          "github": "https://github.com/dtamade/fpdev-bootstrap/releases/download/v3.2.2/fpc-3.2.2-bootstrap-darwin-aarch64.tar.gz"
+        },
+        "hash": {"sha256": "b39470f9b6b5b82f50fc8680a5da37d2834f2129c65c24c5628a80894d565451"}
+      }
+    },
+    "3.2.0": {
+      "linux-x86_64": {
+        "mirrors": {
+          "github": "https://github.com/dtamade/fpdev-bootstrap/releases/download/v3.2.0/fpc-3.2.0-bootstrap-linux-x86_64.tar.gz"
+        },
+        "hash": {"sha256": "d19252e6cfe52f1217f4822a548ee699eaa7e044807aaf8429a0532cb7e4cb3d"},
+        "size": 5200000
+      }
+    },
+    "3.0.4": {
+      "linux-x86_64": {
+        "mirrors": {
+          "github": "https://github.com/dtamade/fpdev-bootstrap/releases/download/v3.0.4/fpc-3.0.4-bootstrap-linux-x86_64.tar.gz"
+        },
+        "hash": {"sha256": "7e965baf13c9822a0ff39e7bbfa040bd5599e94d0f3338f1ac4efa989081fd77"}
+      }
+    }
+  },
+
+  "fallback_chain": ["3.2.2", "3.2.0", "3.0.4", "3.0.2", "3.0.0", "2.6.4"]
+}

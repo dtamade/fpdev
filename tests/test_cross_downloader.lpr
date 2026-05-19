@@ -8,7 +8,8 @@ uses
 {$ENDIF}
   SysUtils, test_pause_control, Classes, DateUtils, fpjson, jsonparser,
   test_temp_paths,
-  fpdev.cross.downloader, fpdev.cross.manifest, fpdev.hash, fpdev.toolchain.fetcher;
+  fpdev.cross.downloader, fpdev.cross.downloader.downloadflow,
+  fpdev.cross.manifest, fpdev.hash, fpdev.toolchain.fetcher;
 
 type
   { TCrossDownloaderTest }

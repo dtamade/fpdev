@@ -75,6 +75,9 @@ type
     { Load custom targets from JSON file }
     procedure LoadFromFile(const AFilePath: string);
 
+    { Load targets from registry format: {"targets": {"name": {...}}} }
+    procedure LoadFromRegistryFile(const AFilePath: string);
+
     { Export all targets to JSON array string }
     function ExportToJSON: string;
 
@@ -91,6 +94,9 @@ function MakeTargetDef(const AName, ADisplayName, ACPU, AOS, ASubArch,
   ABuiltin: Boolean = True): TCrossTargetDef;
 
 implementation
+
+uses
+  fpdev.paths;
 
 { Built-in target definitions }
 
@@ -282,9 +288,15 @@ end;
 procedure TCrossTargetRegistry.LoadBuiltinTargets;
 var
   I: Integer;
+  RegistryPath: string;
 begin
   for I := 0 to BUILTIN_TARGET_COUNT - 1 do
     RegisterTarget(BUILTIN_TARGETS[I]);
+
+  RegistryPath := IncludeTrailingPathDelimiter(GetDataRoot) +
+    'registry' + PathDelim + 'cross' + PathDelim + 'targets.json';
+  if FileExists(RegistryPath) then
+    LoadFromRegistryFile(RegistryPath);
 end;
 
 procedure TCrossTargetRegistry.RegisterTarget(const ADef: TCrossTargetDef);
@@ -361,7 +373,11 @@ var
   I: Integer;
 begin
   if AJSON = '' then Exit;
-  Data := GetJSON(AJSON);
+  try
+    Data := GetJSON(AJSON);
+  except
+    Exit;
+  end;
   try
     if not (Data is TJSONArray) then Exit;
     Arr := TJSONArray(Data);
@@ -399,6 +415,67 @@ begin
     LoadFromJSON(SL.Text);
   finally
     SL.Free;
+  end;
+end;
+
+procedure TCrossTargetRegistry.LoadFromRegistryFile(const AFilePath: string);
+var
+  SL: TStringList;
+  Data: TJSONData;
+  Root, Targets, Entry: TJSONObject;
+  Def: TCrossTargetDef;
+  I: Integer;
+  Key: string;
+begin
+  if not FileExists(AFilePath) then Exit;
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(AFilePath);
+    try
+      Data := GetJSON(SL.Text);
+    except
+      Data := nil;
+    end;
+  finally
+    SL.Free;
+  end;
+
+  if (Data = nil) or (Data.JSONType <> jtObject) then
+  begin
+    Data.Free;
+    Exit;
+  end;
+
+  Root := TJSONObject(Data);
+  try
+    if Root.Find('targets') = nil then Exit;
+    if Root.Find('targets').JSONType <> jtObject then Exit;
+    Targets := Root.Objects['targets'];
+
+    for I := 0 to Targets.Count - 1 do
+    begin
+      Key := Targets.Names[I];
+      if Targets.Items[I].JSONType <> jtObject then Continue;
+      Entry := TJSONObject(Targets.Items[I]);
+
+      Def := Default(TCrossTargetDef);
+      Def.Name := Key;
+      Def.DisplayName := Entry.Get('display_name', Key);
+      Def.CPU := Entry.Get('cpu', '');
+      Def.OS := Entry.Get('os', '');
+      Def.SubArch := Entry.Get('subarch', '');
+      Def.ABI := Entry.Get('abi', '');
+      Def.BinutilsPrefix := Entry.Get('binutils_prefix', '');
+      if (Def.BinutilsPrefix = '') and (Entry.Find('binutils') <> nil) and
+         (Entry.Find('binutils').JSONType = jtObject) then
+        Def.BinutilsPrefix := TJSONObject(Entry.Find('binutils')).Get('prefix', '');
+      Def.DefaultCrossOpt := Entry.Get('cross_options', '');
+      Def.Description := Entry.Get('description', '');
+      Def.Builtin := False;
+      RegisterTarget(Def);
+    end;
+  finally
+    Root.Free;
   end;
 end;
 

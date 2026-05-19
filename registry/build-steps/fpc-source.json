@@ -1,0 +1,42 @@
+{
+  "description": "Default FPC source build steps",
+  "steps": [
+    {
+      "action": "make",
+      "description": "Build compiler and RTL",
+      "targets": ["all"],
+      "env": {
+        "PP": "{{bootstrap_compiler}}",
+        "OVERRIDEVERSIONCHECK": "1"
+      },
+      "parallel": true
+    },
+    {
+      "action": "make",
+      "description": "Install to target directory",
+      "targets": ["install"],
+      "env": {
+        "PREFIX": "{{install_path}}",
+        "PP": "{{build_dir}}/compiler/{{native_compiler}}"
+      }
+    }
+  ],
+  "platform_overrides": {
+    "darwin-aarch64": {
+      "env_merge": {
+        "MACOSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    "linux-x86_64": {
+      "env_merge": {
+        "GINSTALL": "/usr/bin/install"
+      }
+    }
+  },
+  "template_vars": {
+    "bootstrap_compiler": "Bootstrap FPC compiler path",
+    "install_path": "Installation target directory",
+    "build_dir": "Source code directory",
+    "native_compiler": "Native compiler binary name (ppcx64/ppca64/etc)"
+  }
+}

@@ -37,6 +37,53 @@ procedure LoadDefaultVersionRegistryDataCore(var AData: TVersionRegistryLoadData
 
 implementation
 
+uses
+  fpdev.version.registry.fromregistry;
+
+function GetMirrorPreferenceFromConfig(const ADataRoot: string): string;
+var
+  ConfigPath: string;
+  SL: TStringList;
+  J: TJSONData;
+  Root, Settings: TJSONObject;
+begin
+  Result := '';
+  ConfigPath := IncludeTrailingPathDelimiter(ADataRoot) + 'config.json';
+  if not FileExists(ConfigPath) then Exit;
+
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(ConfigPath);
+    try
+      J := GetJSON(SL.Text);
+    except
+      Exit;
+    end;
+  finally
+    SL.Free;
+  end;
+
+  if (J = nil) or (J.JSONType <> jtObject) then
+  begin
+    J.Free;
+    Exit;
+  end;
+
+  Root := TJSONObject(J);
+  try
+    if (Root.Find('settings') <> nil) and
+       (Root.Find('settings').JSONType = jtObject) then
+    begin
+      Settings := Root.Objects['settings'];
+      Result := Settings.Get('mirror', '');
+      if SameText(Result, 'auto') then
+        Result := '';
+    end;
+  finally
+    Root.Free;
+  end;
+end;
+
 procedure ResetVersionRegistryLoadDataCore(var AData: TVersionRegistryLoadData);
 begin
   AData.SchemaVersion := '';
@@ -138,6 +185,8 @@ begin
   SetLength(AData.LazarusReleases, 0);
 end;
 
+// Fallback data - used only when registry directory is not available.
+// Canonical data source is now ~/.fpdev/registry/ (see docs/REGISTRY_DESIGN.md)
 procedure LoadDefaultVersionRegistryDataCore(var AData: TVersionRegistryLoadData);
 begin
   ResetVersionRegistryLoadDataCore(AData);
@@ -294,9 +343,23 @@ function TryLoadVersionRegistryDataCore(
 ): Boolean;
 var
   SearchPaths: array[0..3] of string;
+  RegistryDir: string;
+  MirrorPref: string;
   i: Integer;
 begin
   AResolvedPath := '';
+
+  RegistryDir := IncludeTrailingPathDelimiter(ADataRoot) + 'registry';
+  if DirectoryExists(RegistryDir) and
+     FileExists(IncludeTrailingPathDelimiter(RegistryDir) + 'index.json') then
+  begin
+    MirrorPref := GetMirrorPreferenceFromConfig(ADataRoot);
+    if TryLoadVersionRegistryFromRegistryDir(RegistryDir, AData, MirrorPref) then
+    begin
+      AResolvedPath := RegistryDir;
+      Exit(True);
+    end;
+  end;
 
   SearchPaths[0] := AUserDataPath;
   SearchPaths[1] := IncludeTrailingPathDelimiter(AExeDir) + 'data' + PathDelim + 'versions.json';

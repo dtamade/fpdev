@@ -278,13 +278,38 @@ begin
 end;
 
 function TPackageManager.GetPackageInfo(const APackageName: string): TPackageInfo;
+var
+  Available: TPackageArray;
+  I: Integer;
 begin
-  Result := GetPackageInfoCore(APackageName, FPackageRegistry, 'Installed package');
+  Result := GetPackageInfoCore(APackageName, FPackageRegistry, '');
+  if Result.Installed and (Result.Version <> '') then
+    Exit;
+
+  Available := GetAvailablePackages;
+  for I := 0 to High(Available) do
+    if SameText(Available[I].Name, APackageName) then
+    begin
+      Result.Version := Available[I].Version;
+      Result.Description := Available[I].Description;
+      Result.Author := Available[I].Author;
+      Result.License := Available[I].License;
+      Result.Homepage := Available[I].Homepage;
+      Result.Repository := Available[I].Repository;
+      Exit;
+    end;
 end;
 
 function TPackageManager.ParseLocalPackageIndex(const AIndexPath: string): TPackageArray;
+var
+  RegistryIndexPath: string;
 begin
-  Result := ParseLocalPackageIndexCore(AIndexPath);
+  RegistryIndexPath := IncludeTrailingPathDelimiter(FInstallRoot) +
+    'registry' + PathDelim + 'packages' + PathDelim + 'index.json';
+  if FileExists(RegistryIndexPath) then
+    Result := ParseLocalPackageIndexCore(RegistryIndexPath)
+  else
+    Result := ParseLocalPackageIndexCore(AIndexPath);
 end;
 
 function TPackageManager.GetAvailablePackages: TPackageArray;
