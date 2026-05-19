@@ -409,7 +409,7 @@ begin
     );
     Check('execute without yes returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('execute without yes keeps clean callback unused', Probe.CleanCalls = 0, IntToStr(Probe.CleanCalls));
-    Check('execute without yes writes refusal', ErrpObj.Contains('Refusing'), ErrpObj.Text);
+    Check('execute without yes writes refusal', OutpObj.Contains('--yes'), OutpObj.Text);
   finally
     ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
     Probe.Free;

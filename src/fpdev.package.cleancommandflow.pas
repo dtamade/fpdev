@@ -151,8 +151,15 @@ begin
 
   if not APlan.Yes then
   begin
-    if AErr <> nil then
-      AErr.WriteLn(_(CMD_PKG_CLEAN_REFUSE_ROOT));
+    if AOut <> nil then
+    begin
+      if (APlan.Scope = 'sandbox') or (APlan.Scope = 'all') then
+        AOut.WriteLn('Will clean: ' + ASandboxDir);
+      if (APlan.Scope = 'cache') or (APlan.Scope = 'all') then
+        AOut.WriteLn('Will clean: ' + APackageCacheDir);
+      AOut.WriteLn('');
+      AOut.WriteLn('Add --yes to confirm, or --dry-run to preview.');
+    end;
     Exit(EXIT_USAGE_ERROR);
   end;
 
