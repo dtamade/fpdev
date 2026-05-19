@@ -262,7 +262,7 @@ begin
   Result := Default(TLazarusInstallPlan);
   Result.Version := AVersion;
   Result.InstallPath := AInstallRoot + PathDelim + 'lazarus' + PathDelim + AVersion;
-  Result.SourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
+  Result.SourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
   if ARequestedFPCVersion <> '' then
     Result.FPCVersion := ARequestedFPCVersion
   else
@@ -444,7 +444,7 @@ begin
 
   Result.Version := UseVersion;
   if UseVersion <> '' then
-    Result.SourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + UseVersion;
+    Result.SourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
 end;
 
 function CreateLazarusBuildPlanCore(
