@@ -1,0 +1,20 @@
+FROM debian:trixie-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    curl \
+    make \
+    python3 \
+    libgit2-1.9 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /fpdev
+COPY bin/fpdev /usr/local/bin/fpdev
+COPY registry/ /fpdev/registry/
+COPY tests/docker/e2e-validate.sh /fpdev/e2e-validate.sh
+COPY fpdev-lock.json /fpdev/fpdev-lock.json
+
+RUN chmod +x /usr/local/bin/fpdev /fpdev/e2e-validate.sh
+
+ENTRYPOINT ["/bin/bash"]

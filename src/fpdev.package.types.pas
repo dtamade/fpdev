@@ -40,6 +40,7 @@ type
     URLs: TStringArray;       // Download URLs (may be empty)
     Sha256: string;           // Expected checksum (may be empty)
     SourcePath: string;       // Local source/package path (may be empty)
+    Builtin: Boolean;
     Installed: Boolean;
     InstallPath: string;
     InstallDate: TDateTime;

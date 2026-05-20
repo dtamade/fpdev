@@ -88,7 +88,7 @@ begin
         Obj := TJSONObject(Arr.Items[i]);
         if Obj.Get('name', '') = '' then Continue;
         if Obj.Get('version', '') = '' then Continue;
-        if not HasValidURL(Obj) then Continue;
+        if (Obj.Get('type', '') <> 'builtin') and (not HasValidURL(Obj)) then Continue;
         Names.Add(Obj.Get('name', ''));
       end;
 
@@ -104,7 +104,7 @@ begin
           Obj := TJSONObject(Arr.Items[j]);
           if not SameText(Obj.Get('name', ''), Names[i]) then Continue;
           if Obj.Get('version', '') = '' then Continue;
-          if not HasValidURL(Obj) then Continue;
+          if (Obj.Get('type', '') <> 'builtin') and (not HasValidURL(Obj)) then Continue;
 
           if (Pkg.Name = '') or IsVersionHigher(Obj.Get('version', ''), Pkg.Version) then
           begin
@@ -115,6 +115,7 @@ begin
             Pkg.Homepage := Obj.Get('homepage', '');
             Pkg.License := Obj.Get('license', '');
             Pkg.Repository := Obj.Get('repository', '');
+            Pkg.Builtin := (Obj.Get('type', '') = 'builtin');
             Pkg.Sha256 := Obj.Get('sha256', '');
             if (Pkg.Sha256 = '') and (Obj.Find('hash') <> nil) and
                (Obj.Find('hash').JSONType = jtObject) then

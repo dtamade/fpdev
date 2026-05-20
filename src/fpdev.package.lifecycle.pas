@@ -227,7 +227,8 @@ var
   PlanStatus: TPackageInstallPlanBuildStatus;
   MissingDependency: string;
   ResolveError: string;
-  I: Integer;
+  I, J: Integer;
+  IsBuiltin: Boolean;
 begin
   Result := False;
 
@@ -274,6 +275,18 @@ begin
 
   for I := 0 to High(InstallPlan) do
   begin
+    IsBuiltin := False;
+    for J := 0 to High(AAvailablePackages) do
+      if SameText(AAvailablePackages[J].Name, InstallPlan[I].Name) and
+         AAvailablePackages[J].Builtin then
+      begin
+        IsBuiltin := True;
+        Break;
+      end;
+
+    if IsBuiltin then
+      Continue;
+
     if Outp <> nil then
       Outp.WriteLn(_Fmt(MSG_PKG_DEP_INSTALLING_ONE, [InstallPlan[I].Name]));
 

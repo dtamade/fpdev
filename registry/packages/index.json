@@ -182,13 +182,11 @@
       "description": "OpenSSL bindings for FreePascal",
       "author": "FreePascal Community",
       "license": "Apache-2.0",
-      "homepage": "https://github.com/nickelsworth/openssl-pascal",
+      "homepage": "https://www.freepascal.org/",
       "fpc_compatible": ">=3.0.0",
-      "type": "source",
-      "unit_paths": ["."],
-      "mirrors": {
-        "github": "https://github.com/nickelsworth/openssl-pascal/archive/refs/heads/master.zip"
-      },
+      "type": "builtin",
+      "unit_paths": [],
+      "mirrors": {},
       "dependencies": []
     }
   ]
