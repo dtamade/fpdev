@@ -22,6 +22,9 @@ uses
   fpdev.cmd.package.repo.remove,
   fpdev.cmd.package.repo.update,
   fpdev.cmd.package.repo.list,
+  fpdev.cmd.package.source.root,
+  fpdev.cmd.package.source.init,
+  fpdev.cmd.package.source.publish,
   fpdev.cmd.package.help;
 
 procedure EnsurePackageCommandImports;

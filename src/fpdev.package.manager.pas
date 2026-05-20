@@ -314,14 +314,51 @@ end;
 
 function TPackageManager.ParseLocalPackageIndex(const AIndexPath: string): TPackageArray;
 var
-  RegistryIndexPath: string;
+  RegistryIndexPath, CustomIndexPath: string;
+  RegistryPkgs, CustomPkgs: TPackageArray;
+  I, J, Count: Integer;
+  Found: Boolean;
 begin
   RegistryIndexPath := IncludeTrailingPathDelimiter(FInstallRoot) +
     'registry' + PathDelim + 'packages' + PathDelim + 'index.json';
+  CustomIndexPath := FPackageRegistry + PathDelim + 'index.json';
+
   if FileExists(RegistryIndexPath) then
-    Result := ParseLocalPackageIndexCore(RegistryIndexPath)
+    RegistryPkgs := ParseLocalPackageIndexCore(RegistryIndexPath)
   else
-    Result := ParseLocalPackageIndexCore(AIndexPath);
+    SetLength(RegistryPkgs, 0);
+
+  if FileExists(CustomIndexPath) then
+    CustomPkgs := ParseLocalPackageIndexCore(CustomIndexPath)
+  else
+    SetLength(CustomPkgs, 0);
+
+  SetLength(Result, Length(CustomPkgs) + Length(RegistryPkgs));
+  Count := 0;
+
+  for I := 0 to High(CustomPkgs) do
+  begin
+    Result[Count] := CustomPkgs[I];
+    Inc(Count);
+  end;
+
+  for I := 0 to High(RegistryPkgs) do
+  begin
+    Found := False;
+    for J := 0 to Count - 1 do
+      if SameText(Result[J].Name, RegistryPkgs[I].Name) then
+      begin
+        Found := True;
+        Break;
+      end;
+    if not Found then
+    begin
+      Result[Count] := RegistryPkgs[I];
+      Inc(Count);
+    end;
+  end;
+
+  SetLength(Result, Count);
 end;
 
 function TPackageManager.GetAvailablePackages: TPackageArray;

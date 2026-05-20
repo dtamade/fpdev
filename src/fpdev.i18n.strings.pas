@@ -105,6 +105,10 @@ const
   MSG_PKG_UPDATE_ALL_START = 'msg.pkg.update_all_start';
   MSG_PKG_UPDATE_ALL_SUMMARY = 'msg.pkg.update_all_summary';
   MSG_PKG_NOT_INSTALLED_ANY = 'msg.pkg.not_installed_any';
+  MSG_PKG_SOURCE_INIT_OK = 'msg.pkg.source.init_ok';
+  MSG_PKG_SOURCE_INIT_EXISTS = 'msg.pkg.source.init_exists';
+  MSG_PKG_SOURCE_PUBLISH_OK = 'msg.pkg.source.publish_ok';
+  MSG_PKG_SOURCE_ALREADY_EXISTS = 'msg.pkg.source.already_exists';
 
   // Doctor diagnostic messages
   MSG_DOCTOR_OK = 'msg.doctor.ok';
@@ -1003,6 +1007,10 @@ begin
   T(MSG_PKG_UPDATE_ALL_START,  'Updating all installed packages...', '正在更新所有已安装的包...');
   T(MSG_PKG_UPDATE_ALL_SUMMARY,'Update complete: %d updated, %d up-to-date, %d failed', '更新完成: %d 已更新, %d 已是最新, %d 失败');
   T(MSG_PKG_NOT_INSTALLED_ANY, 'No packages installed.',             '没有已安装的包。');
+  T(MSG_PKG_SOURCE_INIT_OK,    'Package source initialized: %s',    '包源已初始化: %s');
+  T(MSG_PKG_SOURCE_INIT_EXISTS, 'index.json already exists: %s',    'index.json 已存在: %s');
+  T(MSG_PKG_SOURCE_PUBLISH_OK, 'Published %s@%s to %s',             '已发布 %s@%s 到 %s');
+  T(MSG_PKG_SOURCE_ALREADY_EXISTS, 'Package %s@%s already exists in index', '包 %s@%s 已存在于索引中');
 
   // Doctor diagnostic messages
   T(MSG_DOCTOR_OK,            '[OK]',                       '[OK]');
