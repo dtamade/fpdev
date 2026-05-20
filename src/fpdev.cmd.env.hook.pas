@@ -110,6 +110,10 @@ const
     '      local version' + LineEnding +
     '      version=$(fpdev system env resolve 2>/dev/null)' + LineEnding +
     '      if [[ -n "$version" && "$version" != "$_FPDEV_CURRENT_VERSION" ]]; then' + LineEnding +
+    '        # Save PATH before first activation' + LineEnding +
+    '        if [[ -z "$_FPDEV_SAVED_PATH" ]]; then' + LineEnding +
+    '          export _FPDEV_SAVED_PATH="$PATH"' + LineEnding +
+    '        fi' + LineEnding +
     '        export _FPDEV_CURRENT_VERSION="$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
     '        local fpdev_root' + LineEnding +
@@ -122,6 +126,15 @@ const
     '          echo "fpdev: FPC $version not installed. Run: fpdev fpc install $version"' + LineEnding +
     '        fi' + LineEnding +
     '      fi' + LineEnding +
+    '    elif [[ -n "$_FPDEV_CURRENT_VERSION" ]]; then' + LineEnding +
+    '      # Deactivate: left project directory, restore original state' + LineEnding +
+    '      if [[ -n "$_FPDEV_SAVED_PATH" ]]; then' + LineEnding +
+    '        export PATH="$_FPDEV_SAVED_PATH"' + LineEnding +
+    '      fi' + LineEnding +
+    '      unset _FPDEV_CURRENT_VERSION' + LineEnding +
+    '      unset _FPDEV_SAVED_PATH' + LineEnding +
+    '      unset FPCDIR' + LineEnding +
+    '      echo "fpdev: Deactivated (left project)"' + LineEnding +
     '    fi' + LineEnding +
     '  fi' + LineEnding +
     '}' + LineEnding +
@@ -174,6 +187,10 @@ const
     '      # Activate version from config' + LineEnding +
     '      set -l version (fpdev system env resolve 2>/dev/null)' + LineEnding +
     '      if test -n "$version" -a "$version" != "$_FPDEV_CURRENT_VERSION"' + LineEnding +
+    '        # Save PATH before first activation' + LineEnding +
+    '        if not set -q _FPDEV_SAVED_PATH' + LineEnding +
+    '          set -gx _FPDEV_SAVED_PATH $PATH' + LineEnding +
+    '        end' + LineEnding +
     '        set -gx _FPDEV_CURRENT_VERSION "$version"' + LineEnding +
     '        # Source activation script if exists' + LineEnding +
     '        set -l fpdev_root (fpdev system env data-root 2>/dev/null)' + LineEnding +
@@ -185,6 +202,15 @@ const
     '          echo "fpdev: FPC $version not installed. Run: fpdev fpc install $version"' + LineEnding +
     '        end' + LineEnding +
     '      end' + LineEnding +
+    '    else if set -q _FPDEV_CURRENT_VERSION' + LineEnding +
+    '      # Deactivate: left project directory, restore original state' + LineEnding +
+    '      if set -q _FPDEV_SAVED_PATH' + LineEnding +
+    '        set -gx PATH $_FPDEV_SAVED_PATH' + LineEnding +
+    '      end' + LineEnding +
+    '      set -e _FPDEV_CURRENT_VERSION' + LineEnding +
+    '      set -e _FPDEV_SAVED_PATH' + LineEnding +
+    '      set -e FPCDIR' + LineEnding +
+    '      echo "fpdev: Deactivated (left project)"' + LineEnding +
     '    end' + LineEnding +
     '  end' + LineEnding +
     'end' + LineEnding +

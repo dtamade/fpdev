@@ -80,7 +80,7 @@ begin
     Exit(EXIT_OK);
   end;
 
-  if FindUnknownOption(AParams, [], UnknownOption) then
+  if FindUnknownOption(AParams, ['--json'], UnknownOption) then
   begin
     AShouldExit := True;
     WriteInfoUsage(AErr);

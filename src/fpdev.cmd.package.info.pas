@@ -20,6 +20,9 @@ type
 implementation
 
 uses
+  fpjson,
+  fpdev.command.utils,
+  fpdev.package.types,
   fpdev.package.infocommandflow;
 
 function TPackageInfoCommand.Name: string; begin Result := 'info'; end;
@@ -36,7 +39,14 @@ var
   LMgr: TPackageManager;
   LPlan: TPackageInfoCommandPlan;
   LShouldExit: Boolean;
+  LJsonOutput: Boolean;
+  Info: TPackageInfo;
+  JObj, JDeps: TJSONObject;
+  JArr: TJSONArray;
+  I: Integer;
 begin
+  LJsonOutput := HasFlag(AParams, 'json');
+
   Result := PreparePackageInfoCommandPlanCore(
     AParams,
     Ctx.Out,
@@ -49,6 +59,41 @@ begin
 
   LMgr := TPackageManager.Create(Ctx.Config);
   try
+    if LJsonOutput then
+    begin
+      Info := LMgr.GetPackageInfoPublic(LPlan.PackageName);
+      if Info.Name = '' then
+      begin
+        if Ctx.Err <> nil then
+          Ctx.Err.WriteLn('Error: package not found: ' + LPlan.PackageName);
+        Exit(1);
+      end;
+      JObj := TJSONObject.Create;
+      try
+        JObj.Add('name', Info.Name);
+        JObj.Add('version', Info.Version);
+        JObj.Add('description', Info.Description);
+        JObj.Add('installed', Info.Installed);
+        if Info.InstallPath <> '' then
+          JObj.Add('installPath', Info.InstallPath);
+        if Info.Author <> '' then
+          JObj.Add('author', Info.Author);
+        if Info.License <> '' then
+          JObj.Add('license', Info.License);
+        if Info.Homepage <> '' then
+          JObj.Add('homepage', Info.Homepage);
+        JArr := TJSONArray.Create;
+        for I := 0 to High(Info.Dependencies) do
+          JArr.Add(Info.Dependencies[I]);
+        JObj.Add('dependencies', JArr);
+        if Ctx.Out <> nil then
+          Ctx.Out.WriteLn(JObj.FormatJSON);
+      finally
+        JObj.Free;
+      end;
+      Exit(0);
+    end;
+
     Result := ExecutePackageInfoCommandPlanCore(
       LPlan,
       Ctx.Out,

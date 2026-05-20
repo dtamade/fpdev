@@ -97,6 +97,7 @@ type
 
     procedure SetKeepBuildArtifacts(const AValue: Boolean);
     procedure SetOfflineMode(const AValue: Boolean);
+    function GetPackageInfoPublic(const APackageName: string): TPackageInfo;
     function GetAvailablePackageList: TPackageArray;
     function GetInstalledPackageList: TPackageArray;
     function Clean(
@@ -229,6 +230,11 @@ end;
 procedure TPackageManager.SetOfflineMode(const AValue: Boolean);
 begin
   FOfflineMode := AValue;
+end;
+
+function TPackageManager.GetPackageInfoPublic(const APackageName: string): TPackageInfo;
+begin
+  Result := GetPackageInfo(APackageName);
 end;
 
 function TPackageManager.Clean(const Scope: string; Outp: IOutput; Errp: IOutput): Boolean;
