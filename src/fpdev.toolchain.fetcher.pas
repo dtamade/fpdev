@@ -26,6 +26,9 @@ type
 const
   { Default timeout for HTTP downloads (30 seconds) }
   DEFAULT_DOWNLOAD_TIMEOUT_MS = 30000;
+  { Retry configuration for package downloads }
+  MAX_FETCH_RETRY = 2;
+  FETCH_RETRY_DELAYS: array[0..1] of Integer = (1000, 2000);
 
 // Parse hash string (format: "sha256:..." or "sha512:...") into algorithm and digest
 function ParseHashString(const AHash: string; out AAlgorithm: THashAlgorithm; out ADigest: string): Boolean;
@@ -176,7 +179,7 @@ function FetchWithMirrors(
   out AErr: string
 ): boolean;
 var
-  i: Integer;
+  i, RetryIdx: Integer;
   URL: string;
   Cli: TFPHTTPClient;
   Tmp: string;
@@ -192,73 +195,73 @@ begin
   for i := Low(AURLs) to High(AURLs) do
   begin
     URL := AURLs[i];
-    Cli := TFPHTTPClient.Create(nil);
-    try
-      Cli.AllowRedirect := True;  // Enable HTTP redirect following
-      if Opt.TimeoutMS>0 then
-      begin
-        Cli.ConnectTimeout := Opt.TimeoutMS;
-        Cli.IOTimeout := Opt.TimeoutMS;
-      end;
+    for RetryIdx := 0 to MAX_FETCH_RETRY do
+    begin
+      Cli := TFPHTTPClient.Create(nil);
       try
-        Cli.Get(URL, Tmp);
-
-        // Verify file size if expected size is provided
-        if Opt.ExpectedSize > 0 then
+        Cli.AllowRedirect := True;
+        if Opt.TimeoutMS>0 then
         begin
-          F := TFileStream.Create(Tmp, fmOpenRead);
-          try
-            FileSize := F.Size;
-          finally
-            F.Free;
-          end;
-
-          if FileSize <> Opt.ExpectedSize then
-          begin
-            AErr := Format('Size mismatch for %s: expected %d bytes, got %d bytes', [URL, Opt.ExpectedSize, FileSize]);
-            DeleteFile(Tmp);
-            Continue;
-          end;
+          Cli.ConnectTimeout := Opt.TimeoutMS;
+          Cli.IOTimeout := Opt.TimeoutMS;
         end;
+        try
+          Cli.Get(URL, Tmp);
 
-        // Verify hash if provided
-        if (Opt.HashAlgorithm <> haUnknown) and (Opt.HashDigest <> '') then
-        begin
-          if not VerifyFileHash(Tmp, Opt.HashAlgorithm, Opt.HashDigest) then
+          if Opt.ExpectedSize > 0 then
           begin
-            case Opt.HashAlgorithm of
-              haSHA256: AErr := 'SHA256 hash mismatch for ' + URL;
-              haSHA512: AErr := 'SHA512 hash mismatch for ' + URL;
-              haUnknown: AErr := 'Hash mismatch for ' + URL;
+            F := TFileStream.Create(Tmp, fmOpenRead);
+            try
+              FileSize := F.Size;
+            finally
+              F.Free;
+            end;
+
+            if FileSize <> Opt.ExpectedSize then
+            begin
+              AErr := Format('Size mismatch for %s: expected %d bytes, got %d bytes', [URL, Opt.ExpectedSize, FileSize]);
+              DeleteFile(Tmp);
+              Break;
+            end;
+          end;
+
+          if (Opt.HashAlgorithm <> haUnknown) and (Opt.HashDigest <> '') then
+          begin
+            if not VerifyFileHash(Tmp, Opt.HashAlgorithm, Opt.HashDigest) then
+            begin
+              case Opt.HashAlgorithm of
+                haSHA256: AErr := 'SHA256 hash mismatch for ' + URL;
+                haSHA512: AErr := 'SHA512 hash mismatch for ' + URL;
+                haUnknown: AErr := 'Hash mismatch for ' + URL;
+              end;
+              DeleteFile(Tmp);
+              Break;
+            end;
+          end;
+
+          if FileExists(DestFile) then DeleteFile(DestFile);
+          if not RenameFile(Tmp, DestFile) then
+          begin
+            if not CopyFileSimple(Tmp, DestFile) then
+            begin
+              AErr := 'Cannot move downloaded file to destination';
+              DeleteFile(Tmp);
+              Break;
             end;
             DeleteFile(Tmp);
-            Continue;
           end;
-        end;
-
-        // Atomic replacement
-        if FileExists(DestFile) then DeleteFile(DestFile);
-        if not RenameFile(Tmp, DestFile) then
-        begin
-          // Fallback to copy
-          if not CopyFileSimple(Tmp, DestFile) then
+          Exit(True);
+        except on E: Exception do
           begin
-            AErr := 'Cannot move downloaded file to destination';
-            DeleteFile(Tmp);
-            Continue;
+            AErr := E.Message;
+            if FileExists(Tmp) then DeleteFile(Tmp);
+            if RetryIdx < MAX_FETCH_RETRY then
+              Sleep(FETCH_RETRY_DELAYS[RetryIdx]);
           end;
-          DeleteFile(Tmp);
         end;
-        Exit(True);
-      except on E: Exception do
-        begin
-          AErr := E.Message;
-          if FileExists(Tmp) then DeleteFile(Tmp);
-          // Try next mirror
-        end;
+      finally
+        Cli.Free;
       end;
-    finally
-      Cli.Free;
     end;
   end;
 end;

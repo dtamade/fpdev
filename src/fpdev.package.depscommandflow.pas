@@ -88,16 +88,17 @@ begin
     if IsLast then begin Connector := '`-- '; ChildPrefix := '    '; end
     else begin Connector := '+-- '; ChildPrefix := '|   '; end;
 
-    AOut.WriteLn(APrefix + Connector + Deps[I]);
-
     SpacePos := Pos(' ', Deps[I]);
     if SpacePos > 0 then
       DepName := Copy(Deps[I], 1, SpacePos - 1)
     else
       DepName := Deps[I];
 
-    if AVisited.IndexOf(DepName) < 0 then
+    if AVisited.IndexOf(DepName) >= 0 then
+      AOut.WriteLn(APrefix + Connector + Deps[I] + ' [circular]')
+    else
     begin
+      AOut.WriteLn(APrefix + Connector + Deps[I]);
       AVisited.Add(DepName);
       PrintDepTree(AOut, AGetDeps, DepName, APrefix + ChildPrefix,
         ADepth + 1, AMaxDepth, AVisited);

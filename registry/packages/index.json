@@ -39,7 +39,7 @@
       "type": "builtin",
       "unit_paths": [],
       "mirrors": {},
-      "dependencies": []
+      "dependencies": ["openssl"]
     },
     {
       "name": "indy",
@@ -69,7 +69,7 @@
       "mirrors": {
         "github": "https://github.com/marsupilami79/zeoslib/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["rtl-generics"]
     },
     {
       "name": "castle-engine",
@@ -84,7 +84,7 @@
       "mirrors": {
         "github": "https://github.com/castle-engine/castle-engine/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["fpjson", "rtl-generics"]
     },
     {
       "name": "mormot2",
@@ -114,7 +114,7 @@
       "mirrors": {
         "github": "https://github.com/almindor/lnet/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["openssl"]
     },
     {
       "name": "fpspreadsheet",
@@ -129,7 +129,7 @@
       "mirrors": {
         "github": "https://github.com/veb86/fpspreadsheet/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["fcl-xml"]
     },
     {
       "name": "bgra-bitmap",
@@ -144,7 +144,7 @@
       "mirrors": {
         "github": "https://github.com/bgrabitmap/bgrabitmap/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["fcl-xml"]
     },
     {
       "name": "pascaltz",
@@ -184,6 +184,32 @@
       "license": "Apache-2.0",
       "homepage": "https://www.freepascal.org/",
       "fpc_compatible": ">=3.0.0",
+      "type": "builtin",
+      "unit_paths": [],
+      "mirrors": {},
+      "dependencies": []
+    },
+    {
+      "name": "fcl-xml",
+      "version": "3.2.2",
+      "description": "XML parser and DOM for FreePascal (built-in)",
+      "author": "FreePascal Team",
+      "license": "LGPL",
+      "homepage": "https://www.freepascal.org/",
+      "fpc_compatible": ">=3.0.0",
+      "type": "builtin",
+      "unit_paths": [],
+      "mirrors": {},
+      "dependencies": []
+    },
+    {
+      "name": "rtl-generics",
+      "version": "3.2.2",
+      "description": "Generic collections for FreePascal (built-in)",
+      "author": "FreePascal Team",
+      "license": "LGPL",
+      "homepage": "https://www.freepascal.org/",
+      "fpc_compatible": ">=3.2.0",
       "type": "builtin",
       "unit_paths": [],
       "mirrors": {},

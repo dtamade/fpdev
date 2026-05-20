@@ -360,12 +360,40 @@ jobs:
         path: owner-proof/
         retention-days: 7
 
+  e2e-docker:
+    name: Docker E2E validation
+    needs: release-acceptance-linux
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Linux release asset
+      uses: actions/download-artifact@v4
+      with:
+        name: release-asset-linux-x64
+        path: release-asset/
+
+    - name: Extract fpdev binary
+      run: |
+        mkdir -p bin
+        tar -xzf release-asset/fpdev-linux-x64.tar.gz -C bin/
+        chmod +x bin/fpdev
+
+    - name: Build Docker E2E image
+      run: docker build -t fpdev-e2e -f tests/docker/Dockerfile.e2e .
+
+    - name: Run E2E validation
+      run: docker run --rm fpdev-e2e /fpdev/e2e-validate.sh
+
   assemble-release-ready-bundle:
     name: Assemble release-ready bundle
     needs:
       - compile-check
       - release-acceptance-linux
       - cross-platform-cli-smoke
+      - e2e-docker
     runs-on: ubuntu-latest
 
     steps:

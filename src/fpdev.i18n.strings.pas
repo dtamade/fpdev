@@ -100,6 +100,11 @@ const
   MSG_PKG_DEP_RESOLVING = 'msg.pkg.dep_resolving';
   MSG_PKG_ARCHIVE_SHA256 = 'msg.pkg.archive_sha256';
   MSG_PKG_CLEAN_TMP_FAILED = 'msg.pkg.clean_tmp_failed';
+  MSG_PKG_DOWNLOAD_FAILED = 'msg.pkg.download_failed';
+  MSG_PKG_CACHE_HIT = 'msg.pkg.cache_hit';
+  MSG_PKG_UPDATE_ALL_START = 'msg.pkg.update_all_start';
+  MSG_PKG_UPDATE_ALL_SUMMARY = 'msg.pkg.update_all_summary';
+  MSG_PKG_NOT_INSTALLED_ANY = 'msg.pkg.not_installed_any';
 
   // Doctor diagnostic messages
   MSG_DOCTOR_OK = 'msg.doctor.ok';
@@ -993,6 +998,11 @@ begin
   T(MSG_PKG_DEP_INSTALL_FAILED, 'Failed to install dependency: %s', '安装依赖失败: %s');
   T(MSG_PKG_DEP_RESOLVING,    'Resolving dependencies...',         '正在解析依赖...');
   T(MSG_PKG_ARCHIVE_SHA256,   'SHA256: %s',                        'SHA256: %s');
+  T(MSG_PKG_DOWNLOAD_FAILED,  'Failed to download %s: %s',         '下载 %s 失败: %s');
+  T(MSG_PKG_CACHE_HIT,        'Using cached archive for %s',       '使用 %s 的缓存归档');
+  T(MSG_PKG_UPDATE_ALL_START,  'Updating all installed packages...', '正在更新所有已安装的包...');
+  T(MSG_PKG_UPDATE_ALL_SUMMARY,'Update complete: %d updated, %d up-to-date, %d failed', '更新完成: %d 已更新, %d 已是最新, %d 失败');
+  T(MSG_PKG_NOT_INSTALLED_ANY, 'No packages installed.',             '没有已安装的包。');
 
   // Doctor diagnostic messages
   T(MSG_DOCTOR_OK,            '[OK]',                       '[OK]');

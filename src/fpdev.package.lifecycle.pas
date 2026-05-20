@@ -349,8 +349,18 @@ begin
       Exit;
   end;
 
+  if FileExists(Plan.ZipPath) then
+  begin
+    if Outp <> nil then
+      Outp.WriteLn(_Fmt(MSG_PKG_CACHE_HIT, [APackageName]));
+  end;
+
   if not ADownloadCached(Plan.URLs, Plan.ZipPath, Plan.FetchOptions, Err) then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(MSG_PKG_DOWNLOAD_FAILED, [APackageName, Err]));
     Exit;
+  end;
 
   if not AInstallArchive(
     APackageName,

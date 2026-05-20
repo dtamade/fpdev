@@ -11,6 +11,7 @@ uses
 type
   TPackageUpdateCommandPlan = record
     PackageName: string;
+    UpdateAll: Boolean;
   end;
 
   TPackageUninstallCommandPlan = record
@@ -211,17 +212,56 @@ function PreparePackageUpdateCommandPlanCore(
   out APlan: TPackageUpdateCommandPlan;
   out AShouldExit: Boolean
 ): Integer;
+var
+  UnknownOption: string;
 begin
   APlan := Default(TPackageUpdateCommandPlan);
-  Result := PrepareSingleTargetPlanCore(
-    AParams,
-    AOut,
-    AErr,
-    plckUpdate,
-    'package',
-    APlan.PackageName,
-    AShouldExit
-  );
+  Result := EXIT_OK;
+  AShouldExit := False;
+
+  if HasFlag(AParams, 'help') or HasFlag(AParams, 'h') then
+  begin
+    AShouldExit := True;
+    WriteLifecycleHelp(AOut, plckUpdate);
+    Exit(EXIT_OK);
+  end;
+
+  if FindUnknownOption(AParams, ['--all'], UnknownOption) then
+  begin
+    AShouldExit := True;
+    WriteLifecycleUsage(AErr, plckUpdate);
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  APlan.UpdateAll := HasFlag(AParams, 'all');
+
+  if APlan.UpdateAll then
+  begin
+    if CountPositionalArgs(AParams) > 0 then
+    begin
+      AShouldExit := True;
+      WriteLifecycleUsage(AErr, plckUpdate);
+      Exit(EXIT_USAGE_ERROR);
+    end;
+    Exit(EXIT_OK);
+  end;
+
+  if CountPositionalArgs(AParams) > 1 then
+  begin
+    AShouldExit := True;
+    WriteLifecycleUsage(AErr, plckUpdate);
+    Exit(EXIT_USAGE_ERROR);
+  end;
+
+  APlan.PackageName := Trim(GetPositionalArg(AParams, 0));
+  if APlan.PackageName = '' then
+  begin
+    AShouldExit := True;
+    if AErr <> nil then
+      AErr.WriteLn(_Fmt(ERR_MISSING_ARGUMENT, ['package']));
+    WriteLifecycleUsage(AErr, plckUpdate);
+    Exit(EXIT_USAGE_ERROR);
+  end;
 end;
 
 function ExecutePackageUpdateCommandPlanCore(
@@ -234,6 +274,7 @@ function ExecutePackageUpdateCommandPlanCore(
 var
   InstalledPackages: TPackageArray;
   AvailablePackages: TPackageArray;
+  I, Updated, UpToDate, Failed: Integer;
 begin
   Result := EXIT_ERROR;
 
@@ -241,6 +282,40 @@ begin
      (not Assigned(AGetAvailablePackages)) or
      (not Assigned(AUpdatePackage)) then
     Exit(EXIT_ERROR);
+
+  if APlan.UpdateAll then
+  begin
+    InstalledPackages := AGetInstalledPackages();
+    if Length(InstalledPackages) = 0 then
+    begin
+      if AOut <> nil then
+        AOut.WriteLn(_(MSG_PKG_NOT_INSTALLED_ANY));
+      Exit(EXIT_OK);
+    end;
+
+    if AOut <> nil then
+      AOut.WriteLn(_(MSG_PKG_UPDATE_ALL_START));
+
+    Updated := 0;
+    UpToDate := 0;
+    Failed := 0;
+    for I := 0 to High(InstalledPackages) do
+    begin
+      if AUpdatePackage(InstalledPackages[I].Name, AOut, AErr) then
+        Inc(Updated)
+      else
+        Inc(Failed);
+    end;
+    UpToDate := Length(InstalledPackages) - Updated - Failed;
+
+    if AOut <> nil then
+      AOut.WriteLn(_Fmt(MSG_PKG_UPDATE_ALL_SUMMARY, [Updated, UpToDate, Failed]));
+
+    if Failed > 0 then
+      Exit(EXIT_ERROR)
+    else
+      Exit(EXIT_OK);
+  end;
 
   InstalledPackages := AGetInstalledPackages();
   if not PackageExists(InstalledPackages, APlan.PackageName) then
