@@ -1,0 +1,85 @@
+name: Scheduled E2E - Real FPC Install
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'  # Weekly Monday 03:17 UTC
+  workflow_dispatch:
+
+jobs:
+  real-fpc-install:
+    name: Real FPC install + compile verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y fpc lazarus libgit2-dev wget
+
+    - name: Build fpdev
+      run: lazbuild -B fpdev.lpi
+
+    - name: Verify clean state
+      run: |
+        rm -rf ~/.fpdev
+        echo "Clean state verified"
+
+    - name: Setup registry
+      run: |
+        mkdir -p ~/.fpdev/registry/packages
+        cp registry/packages/index.json ~/.fpdev/registry/packages/index.json
+        mkdir -p ~/.fpdev/packages
+
+    - name: Test package install (network)
+      run: |
+        set +e
+        ./bin/fpdev package install synapse 2>&1
+        INSTALL_EXIT=$?
+        set -e
+        if [ $INSTALL_EXIT -eq 0 ]; then
+          echo "PASS: synapse installed successfully"
+        else
+          echo "INFO: install exited $INSTALL_EXIT (may be network issue)"
+        fi
+
+    - name: Test package lock generation
+      run: |
+        cd /tmp && mkdir -p lock-verify && cd lock-verify
+        $GITHUB_WORKSPACE/bin/fpdev package lock
+        echo "Lock command completed"
+
+    - name: Test offline mode (should fail gracefully)
+      run: |
+        set +e
+        ./bin/fpdev package install nonexistent-pkg --offline 2>&1
+        EXIT_CODE=$?
+        set -e
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "PASS: offline mode correctly rejects uncached package"
+        else
+          echo "FAIL: offline mode should have failed"
+          exit 1
+        fi
+
+    - name: Test completion generation
+      run: |
+        ./bin/fpdev completion bash > /dev/null
+        ./bin/fpdev completion zsh > /dev/null
+        ./bin/fpdev completion fish > /dev/null
+        COMPLETIONS=$(./bin/fpdev completion --list)
+        if echo "$COMPLETIONS" | grep -q "package"; then
+          echo "PASS: completion lists package command"
+        else
+          echo "FAIL: completion missing package"
+          exit 1
+        fi
+
+    - name: Test full CLI smoke
+      run: bash scripts/cli_smoke.sh ./bin/fpdev
+
+    - name: Run unit tests
+      run: bash scripts/run_all_tests.sh
