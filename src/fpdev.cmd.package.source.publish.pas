@@ -22,6 +22,9 @@ implementation
 uses
   fpdev.command.utils,
   fpdev.package.source.publishflow,
+  fpdev.package.metadataio,
+  fpdev.package.types,
+  fpdev.hash,
   fpdev.i18n, fpdev.i18n.strings;
 
 function TPackageSourcePublishCommand.Name: string; begin Result := 'publish'; end;
@@ -36,9 +39,10 @@ end;
 function TPackageSourcePublishCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
   Plan: TPackageSourcePublishPlan;
-  UnknownOption, DepsStr: string;
+  UnknownOption, DepsStr, PkgJsonPath, ArchivePath: string;
   DepParts: TStringArray;
   I: Integer;
+  MetaInfo: TPackageInfo;
 begin
   Result := 0;
   Initialize(Plan);
@@ -53,16 +57,20 @@ begin
       Ctx.Out.WriteLn('');
       Ctx.Out.WriteLn('Required:');
       Ctx.Out.WriteLn('  --index=<path>       Path to index.json');
+      Ctx.Out.WriteLn('  --url=<url>          Download URL');
+      Ctx.Out.WriteLn('');
+      Ctx.Out.WriteLn('Package info (provide --name/--version or --package-json):');
       Ctx.Out.WriteLn('  --name=<name>        Package name');
       Ctx.Out.WriteLn('  --version=<ver>      Package version');
-      Ctx.Out.WriteLn('  --url=<url>          Download URL');
+      Ctx.Out.WriteLn('  --package-json=<path> Read metadata from package.json');
       Ctx.Out.WriteLn('');
       Ctx.Out.WriteLn('Optional:');
       Ctx.Out.WriteLn('  --description=<text> Package description');
       Ctx.Out.WriteLn('  --author=<name>      Author name');
       Ctx.Out.WriteLn('  --license=<id>       License identifier');
       Ctx.Out.WriteLn('  --homepage=<url>     Homepage URL');
-      Ctx.Out.WriteLn('  --sha256=<hash>      Expected SHA256 hash');
+      Ctx.Out.WriteLn('  --sha256=<hash|auto> SHA256 hash (use "auto" with --archive)');
+      Ctx.Out.WriteLn('  --archive=<path>     Archive file for auto SHA256 calculation');
       Ctx.Out.WriteLn('  --deps=<a,b,c>       Comma-separated dependencies');
     end;
     Exit(0);
@@ -71,7 +79,8 @@ begin
   if FindUnknownOption(AParams,
     ['--index=', '--name=', '--version=', '--url=',
      '--description=', '--author=', '--license=',
-     '--homepage=', '--sha256=', '--deps='],
+     '--homepage=', '--sha256=', '--deps=',
+     '--package-json=', '--archive='],
     UnknownOption) then
   begin
     if Ctx.Err <> nil then
@@ -79,24 +88,64 @@ begin
     Exit(1);
   end;
 
-  GetFlagValue(AParams, 'index', Plan.IndexPath);
-  GetFlagValue(AParams, 'name', Plan.PackageName);
-  GetFlagValue(AParams, 'version', Plan.Version);
-  GetFlagValue(AParams, 'url', Plan.URL);
-  GetFlagValue(AParams, 'description', Plan.Description);
-  GetFlagValue(AParams, 'author', Plan.Author);
-  GetFlagValue(AParams, 'license', Plan.License);
-  GetFlagValue(AParams, 'homepage', Plan.Homepage);
-  GetFlagValue(AParams, 'sha256', Plan.Sha256);
+  PkgJsonPath := '';
+  ArchivePath := '';
+  GetFlagValue(AParams, 'package-json', PkgJsonPath);
+  GetFlagValue(AParams, 'archive', ArchivePath);
 
+  if PkgJsonPath <> '' then
+  begin
+    Initialize(MetaInfo);
+    if ApplyPackageMetadataToInfoCore(PkgJsonPath, MetaInfo) then
+    begin
+      Plan.PackageName := MetaInfo.Name;
+      Plan.Version := MetaInfo.Version;
+      Plan.Description := MetaInfo.Description;
+      Plan.Author := MetaInfo.Author;
+      Plan.License := MetaInfo.License;
+      Plan.Homepage := MetaInfo.Homepage;
+      Plan.Dependencies := MetaInfo.Dependencies;
+    end
+    else
+    begin
+      if Ctx.Err <> nil then
+        Ctx.Err.WriteLn(_(MSG_ERROR) + ': cannot read package.json: ' + PkgJsonPath);
+      Exit(1);
+    end;
+  end;
+
+  GetFlagValue(AParams, 'index', Plan.IndexPath);
+  GetFlagValue(AParams, 'url', Plan.URL);
   DepsStr := '';
   GetFlagValue(AParams, 'deps', DepsStr);
+
   if DepsStr <> '' then
   begin
     DepParts := DepsStr.Split(',');
     SetLength(Plan.Dependencies, Length(DepParts));
     for I := 0 to High(DepParts) do
       Plan.Dependencies[I] := Trim(DepParts[I]);
+  end;
+
+  // Explicit flags override package-json values
+  if GetFlagValue(AParams, 'name', UnknownOption) then Plan.PackageName := UnknownOption;
+  if GetFlagValue(AParams, 'version', UnknownOption) then Plan.Version := UnknownOption;
+  if GetFlagValue(AParams, 'description', UnknownOption) then Plan.Description := UnknownOption;
+  if GetFlagValue(AParams, 'author', UnknownOption) then Plan.Author := UnknownOption;
+  if GetFlagValue(AParams, 'license', UnknownOption) then Plan.License := UnknownOption;
+  if GetFlagValue(AParams, 'homepage', UnknownOption) then Plan.Homepage := UnknownOption;
+
+  GetFlagValue(AParams, 'sha256', Plan.Sha256);
+  if (Plan.Sha256 = 'auto') then
+  begin
+    if (ArchivePath <> '') and FileExists(ArchivePath) then
+      Plan.Sha256 := SHA256FileHex(ArchivePath)
+    else
+    begin
+      if Ctx.Err <> nil then
+        Ctx.Err.WriteLn(_(MSG_ERROR) + ': --sha256=auto requires --archive=<existing-file>');
+      Exit(1);
+    end;
   end;
 
   if Plan.IndexPath = '' then

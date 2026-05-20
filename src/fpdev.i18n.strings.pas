@@ -109,6 +109,8 @@ const
   MSG_PKG_SOURCE_INIT_EXISTS = 'msg.pkg.source.init_exists';
   MSG_PKG_SOURCE_PUBLISH_OK = 'msg.pkg.source.publish_ok';
   MSG_PKG_SOURCE_ALREADY_EXISTS = 'msg.pkg.source.already_exists';
+  MSG_PKG_LOCK_GENERATED = 'msg.pkg.lock_generated';
+  MSG_PKG_OFFLINE_NOT_CACHED = 'msg.pkg.offline_not_cached';
 
   // Doctor diagnostic messages
   MSG_DOCTOR_OK = 'msg.doctor.ok';
@@ -275,6 +277,7 @@ const
   HELP_PACKAGE_INSTALL_OPT_KEEP = 'help.package.install.opt.keep';
   HELP_PACKAGE_INSTALL_OPT_NODEPS = 'help.package.install.opt.nodeps';
   HELP_PACKAGE_INSTALL_OPT_DRYRUN = 'help.package.install.opt.dryrun';
+  HELP_PACKAGE_INSTALL_OPT_OFFLINE = 'help.package.install.opt.offline';
   HELP_PACKAGE_INSTALL_OPT_HELP = 'help.package.install.opt.help';
   HELP_PACKAGE_UNINSTALL_USAGE = 'help.package.uninstall.usage';
   HELP_PACKAGE_UNINSTALL_DESC = 'help.package.uninstall.desc';
@@ -1011,6 +1014,8 @@ begin
   T(MSG_PKG_SOURCE_INIT_EXISTS, 'index.json already exists: %s',    'index.json 已存在: %s');
   T(MSG_PKG_SOURCE_PUBLISH_OK, 'Published %s@%s to %s',             '已发布 %s@%s 到 %s');
   T(MSG_PKG_SOURCE_ALREADY_EXISTS, 'Package %s@%s already exists in index', '包 %s@%s 已存在于索引中');
+  T(MSG_PKG_LOCK_GENERATED,    'Lock file generated: %s',           '锁文件已生成: %s');
+  T(MSG_PKG_OFFLINE_NOT_CACHED, 'Package %s not in cache; cannot install in offline mode', '包 %s 不在缓存中，无法在离线模式下安装');
 
   // Doctor diagnostic messages
   T(MSG_DOCTOR_OK,            '[OK]',                       '[OK]');
@@ -1179,6 +1184,7 @@ begin
   T(HELP_PACKAGE_INSTALL_OPT_KEEP, '  --keep-build-artifacts    Keep build artifacts after installation',      '  --keep-build-artifacts    安装后保留构建产物');
   T(HELP_PACKAGE_INSTALL_OPT_NODEPS, '  --no-deps                 Skip dependency resolution',                  '  --no-deps                 跳过依赖解析');
   T(HELP_PACKAGE_INSTALL_OPT_DRYRUN, '  --dry-run                 Show what would be installed without installing', '  --dry-run                 显示将安装内容但不实际安装');
+  T(HELP_PACKAGE_INSTALL_OPT_OFFLINE, '  --offline                 Install from cache only, no network access',    '  --offline                 仅从缓存安装，不访问网络');
   T(HELP_PACKAGE_INSTALL_OPT_HELP, '  --help, -h                Show this help message',                       '  --help, -h                显示此帮助信息');
   T(HELP_PACKAGE_UNINSTALL_USAGE,  'Usage: fpdev package uninstall <name>',                                    '用法: fpdev package uninstall <名称>');
   T(HELP_PACKAGE_UNINSTALL_DESC,   'Uninstall a package.',                                                     '卸载包。');

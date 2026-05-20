@@ -50,6 +50,7 @@ type
     FResourceRepo: TResourceRepository;
     FBuilder: TPackageBuilder;
     FRepoService: TPackageRepositoryService;
+    FOfflineMode: Boolean;
 
     function GetAvailablePackages: TPackageArray;
     function GetInstalledPackages: TPackageArray;
@@ -95,6 +96,7 @@ type
     destructor Destroy; override;
 
     procedure SetKeepBuildArtifacts(const AValue: Boolean);
+    procedure SetOfflineMode(const AValue: Boolean);
     function GetAvailablePackageList: TPackageArray;
     function GetInstalledPackageList: TPackageArray;
     function Clean(
@@ -222,6 +224,11 @@ end;
 procedure TPackageManager.SetKeepBuildArtifacts(const AValue: Boolean);
 begin
   FBuilder.KeepArtifacts := AValue;
+end;
+
+procedure TPackageManager.SetOfflineMode(const AValue: Boolean);
+begin
+  FOfflineMode := AValue;
 end;
 
 function TPackageManager.Clean(const Scope: string; Outp: IOutput; Errp: IOutput): Boolean;
@@ -532,6 +539,7 @@ begin
       GetCacheDir,
       GetSandboxDir,
       FBuilder.KeepArtifacts,
+      FOfflineMode,
       @ValidatePackage,
       @IsPackageInstalled,
       @GetAvailablePackages,

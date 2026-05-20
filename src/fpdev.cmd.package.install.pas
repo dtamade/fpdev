@@ -55,6 +55,7 @@ begin
       Ctx.Out,
       Ctx.Err,
       @LMgr.SetKeepBuildArtifacts,
+      @LMgr.SetOfflineMode,
       @LMgr.GetAvailablePackageList,
       @LMgr.InstallPackage
     );

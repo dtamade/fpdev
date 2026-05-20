@@ -15,9 +15,11 @@ type
     KeepBuildArtifacts: Boolean;
     NoDeps: Boolean;
     DryRun: Boolean;
+    OfflineMode: Boolean;
   end;
 
   TPackageInstallCommandSetKeepArtifactsProc = procedure(const AValue: Boolean) of object;
+  TPackageInstallCommandSetOfflineModeProc = procedure(const AValue: Boolean) of object;
   TPackageInstallCommandGetAvailablePackagesFunc = function: TPackageArray of object;
   TPackageInstallCommandInstallFunc = function(
     const APackageName: string;
@@ -37,6 +39,7 @@ function ExecutePackageInstallCommandPlanCore(
   const APlan: TPackageInstallCommandPlan;
   const AOut, AErr: IOutput;
   ASetKeepArtifacts: TPackageInstallCommandSetKeepArtifactsProc;
+  ASetOfflineMode: TPackageInstallCommandSetOfflineModeProc;
   AGetAvailablePackages: TPackageInstallCommandGetAvailablePackagesFunc;
   AInstallPackage: TPackageInstallCommandInstallFunc
 ): Integer;
@@ -70,6 +73,7 @@ begin
   AOut.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_KEEP));
   AOut.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_NODEPS));
   AOut.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_DRYRUN));
+  AOut.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_OFFLINE));
   AOut.WriteLn(_(HELP_PACKAGE_INSTALL_OPT_HELP));
 end;
 
@@ -96,7 +100,7 @@ begin
 
   if FindUnknownOption(
     AParams,
-    ['--keep-build-artifacts', '--no-deps', '--dry-run'],
+    ['--keep-build-artifacts', '--no-deps', '--dry-run', '--offline'],
     UnknownOption
   ) then
   begin
@@ -140,12 +144,14 @@ begin
   APlan.KeepBuildArtifacts := HasFlag(AParams, 'keep-build-artifacts');
   APlan.NoDeps := HasFlag(AParams, 'no-deps');
   APlan.DryRun := HasFlag(AParams, 'dry-run');
+  APlan.OfflineMode := HasFlag(AParams, 'offline');
 end;
 
 function ExecutePackageInstallCommandPlanCore(
   const APlan: TPackageInstallCommandPlan;
   const AOut, AErr: IOutput;
   ASetKeepArtifacts: TPackageInstallCommandSetKeepArtifactsProc;
+  ASetOfflineMode: TPackageInstallCommandSetOfflineModeProc;
   AGetAvailablePackages: TPackageInstallCommandGetAvailablePackagesFunc;
   AInstallPackage: TPackageInstallCommandInstallFunc
 ): Integer;
@@ -159,6 +165,9 @@ begin
 
   if APlan.KeepBuildArtifacts and Assigned(ASetKeepArtifacts) then
     ASetKeepArtifacts(True);
+
+  if APlan.OfflineMode and Assigned(ASetOfflineMode) then
+    ASetOfflineMode(True);
 
   if APlan.DryRun then
   begin

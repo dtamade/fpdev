@@ -387,7 +387,7 @@ begin
     Probe.ValidateResult := True;
     Probe.InstalledResult := True;
     Check('install manager returns true for installed package',
-      ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', False,
+      ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', False, False,
         @Probe.Validate, @Probe.IsInstalled, @Probe.GetAvailablePackages, @Probe.BuildPlan,
         @Probe.ResolveDependencies, @Probe.DownloadCached, @Probe.InstallArchive, OutRef, ErrRef));
     Check('install manager skips plan build for installed package', Probe.BuildPlanCalls = 0,
@@ -425,7 +425,7 @@ begin
     Probe.NextDownloadPlan.URLs[0] := 'https://example.com/alpha.zip';
 
     Check('install manager succeeds when all phases pass',
-      ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', True,
+      ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', True, False,
         @Probe.Validate, @Probe.IsInstalled, @Probe.GetAvailablePackages, @Probe.BuildPlan,
         @Probe.ResolveDependencies, @Probe.DownloadCached, @Probe.InstallArchive, OutRef, ErrRef));
     Check('install manager resolves dependencies once', Probe.ResolveDepsCalls = 1,
@@ -466,7 +466,7 @@ begin
     Probe.NextDownloadPlan.PackageInfo.Dependencies[0] := 'beta';
 
     Check('install manager returns false on dependency failure',
-      not ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', False,
+      not ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', False, False,
         @Probe.Validate, @Probe.IsInstalled, @Probe.GetAvailablePackages, @Probe.BuildPlan,
         @Probe.ResolveDependencies, @Probe.DownloadCached, @Probe.InstallArchive, OutRef, ErrRef));
     Check('install manager stops before download on dependency failure', Probe.DownloadCalls = 0,

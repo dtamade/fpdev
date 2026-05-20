@@ -347,6 +347,7 @@ begin
       OutRef,
       ErrRef,
       @Probe.SetKeepArtifacts,
+      nil,
       @Probe.GetAvailablePackages,
       @Probe.InstallPackage
     );
@@ -390,6 +391,7 @@ begin
       OutRef,
       ErrRef,
       @Probe.SetKeepArtifacts,
+      nil,
       @Probe.GetAvailablePackages,
       @Probe.InstallPackage
     );
@@ -431,6 +433,7 @@ begin
       OutRef,
       ErrRef,
       @Probe.SetKeepArtifacts,
+      nil,
       @Probe.GetAvailablePackages,
       @Probe.InstallPackage
     );
@@ -471,6 +474,7 @@ begin
       OutRef,
       ErrRef,
       @Probe.SetKeepArtifacts,
+      nil,
       @Probe.GetAvailablePackages,
       @Probe.InstallPackage
     );

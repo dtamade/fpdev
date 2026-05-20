@@ -6,7 +6,7 @@ unit fpdev.package.depgraph;
 interface
 
 uses
-  SysUtils, Classes, fpdev.pkg.deps, fpdev.package.types;
+  SysUtils, Classes, fpdev.pkg.deps, fpdev.pkg.version, fpdev.package.types;
 
 type
   TPackageDepDescriptor = record
@@ -320,6 +320,13 @@ begin
       begin
         AMissingDependency := ARootPackage.Dependencies[I];
         Exit(pipsMissingDependency);
+      end;
+
+      if not ValidateVersion(Descriptor.Version, ARootPackage.Dependencies[I]) then
+      begin
+        AResolveError := Descriptor.Name + ' ' + Descriptor.Version +
+          ' does not satisfy constraint: ' + ARootPackage.Dependencies[I];
+        Exit(pipsResolveError);
       end;
 
       Graph.AddNode(Descriptor.Name, Descriptor.Version);

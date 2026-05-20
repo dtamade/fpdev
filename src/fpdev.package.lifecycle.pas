@@ -70,6 +70,7 @@ function ExecutePackageDependencyInstallCore(
 function ExecutePackageManagerInstallCore(
   const APackageName, AVersion, ACacheDir, ASandboxDir: string;
   AKeepArtifacts: Boolean;
+  AOffline: Boolean;
   AValidatePackage: TPackageNameValidator;
   AIsPackageInstalled: TPackageInstalledChecker;
   AGetAvailablePackages: TPackageAvailableProvider;
@@ -305,6 +306,7 @@ end;
 function ExecutePackageManagerInstallCore(
   const APackageName, AVersion, ACacheDir, ASandboxDir: string;
   AKeepArtifacts: Boolean;
+  AOffline: Boolean;
   AValidatePackage: TPackageNameValidator;
   AIsPackageInstalled: TPackageInstalledChecker;
   AGetAvailablePackages: TPackageAvailableProvider;
@@ -353,6 +355,12 @@ begin
   begin
     if Outp <> nil then
       Outp.WriteLn(_Fmt(MSG_PKG_CACHE_HIT, [APackageName]));
+  end
+  else if AOffline then
+  begin
+    if Errp <> nil then
+      Errp.WriteLn(_(MSG_ERROR) + ': ' + _Fmt(MSG_PKG_OFFLINE_NOT_CACHED, [APackageName]));
+    Exit;
   end;
 
   if not ADownloadCached(Plan.URLs, Plan.ZipPath, Plan.FetchOptions, Err) then

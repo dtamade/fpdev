@@ -17,6 +17,7 @@ uses
   fpdev.cmd.package.publish,
   fpdev.cmd.package.deps,
   fpdev.cmd.package.why,
+  fpdev.cmd.package.lock,
   fpdev.cmd.package.repo.root,
   fpdev.cmd.package.repo.add,
   fpdev.cmd.package.repo.remove,
