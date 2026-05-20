@@ -44,6 +44,9 @@ var
   SL: TStringList;
   J: TJSONData;
   O: TJSONObject;
+  DepData: TJSONData;
+  DepArr: TJSONArray;
+  DI: Integer;
 begin
   Initialize(Result);
   Result.Name := APackageName;
@@ -71,6 +74,16 @@ begin
               Result.License := O.Get('license', '');
               Result.Repository := O.Get('repository', '');
               Result.SourcePath := O.Get('source_path', '');
+              DepData := O.Find('dependencies');
+              if Assigned(DepData) and (DepData.JSONType = jtArray) then
+              begin
+                DepArr := TJSONArray(DepData);
+                SetLength(Result.Dependencies, DepArr.Count);
+                for DI := 0 to DepArr.Count - 1 do
+                  Result.Dependencies[DI] := DepArr.Items[DI].AsString;
+              end
+              else
+                SetLength(Result.Dependencies, 0);
             end;
           finally
             J.Free;

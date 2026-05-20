@@ -10,7 +10,7 @@ uses
   fpdev.lazarus.manager, fpdev.config.interfaces, fpdev.config.managers, fpdev.git2,
   fpdev.utils, fpdev.git.types, fpdev.constants, fpdev.version.registry, fpdev.lazarus.source,
   fpdev.lazarus.config, fpdev.lazarus.commandflow, fpdev.output.intf,
-  fpdev.i18n, fpdev.i18n.strings,
+  fpdev.i18n, fpdev.i18n.strings, fpdev.utils.fs,
   test_temp_paths;
 
 var
@@ -19,6 +19,7 @@ var
   LazarusManager: fpdev.lazarus.manager.TLazarusManager;
   TestsPassed: Integer;
   TestsFailed: Integer;
+  SavedDataRoot: string;
 
 type
   TStringOutput = class(TInterfacedObject, IOutput)
@@ -313,6 +314,10 @@ begin
   if not PathUsesSystemTempRoot(TestRootDir) then
     raise Exception.Create('Test root dir should use system temp root');
 
+  // Override data root to prevent real registry from interfering
+  SavedDataRoot := get_env('FPDEV_DATA_ROOT');
+  set_env('FPDEV_DATA_ROOT', TestRootDir);
+
   // Initialize config manager
   ConfigManager := CreateIsolatedConfigManager;
 
@@ -334,6 +339,11 @@ begin
   if Assigned(LazarusManager) then
     LazarusManager.Free;
   ConfigManager := nil;
+
+  if SavedDataRoot <> '' then
+    set_env('FPDEV_DATA_ROOT', SavedDataRoot)
+  else
+    unset_env('FPDEV_DATA_ROOT');
 
   CleanupTempDir(TestRootDir);
 
@@ -488,7 +498,7 @@ begin
 
   try
     // Setup: Create a mock Lazarus source directory with git
-    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
     ForceDirectories(SourceDir);
     ForceDirectories(SourceDir + PathDelim + 'ide');
     ForceDirectories(SourceDir + PathDelim + 'lcl');
@@ -543,8 +553,11 @@ begin
 
   try
     // Setup: Create a source directory without .git (invalid repository scenario)
-    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-conflict';
-    ForceDirectories(SourceDir);
+    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
+    DeleteDirRecursive(SourceDir);
+    ForceDirectories(SourceDir + PathDelim + 'ide');
+    ForceDirectories(SourceDir + PathDelim + 'lcl');
+    ForceDirectories(SourceDir + PathDelim + 'packager');
 
     // Create some local files, but keep the directory non-repository
     with TStringList.Create do
@@ -578,6 +591,7 @@ begin
   WriteLn('Test 2b: UpdateSources Reports Missing Source Directory');
   WriteLn('==================================================');
 
+  DeleteDirRecursive(TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus');
   Outp := TStringOutput.Create;
   Errp := TStringOutput.Create;
   try
@@ -586,7 +600,7 @@ begin
     AssertFalse(Success, 'UpdateSources reports missing source directory',
       'Expected UpdateSources(missing) to fail when source directory does not exist');
     AssertTrue(Errp.Contains(_Fmt(CMD_LAZARUS_SOURCE_DIR_NOT_FOUND, [
-      TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-missing'
+      TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus'
     ])), 'UpdateSources emits missing source directory error',
       'Expected missing source directory error, got: ' + Errp.Text);
   finally
@@ -611,7 +625,8 @@ begin
 
   try
     // Setup: Create a mock Lazarus source directory
-    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-rebuild';
+    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
+    DeleteDirRecursive(SourceDir);
     ForceDirectories(SourceDir);
     ForceDirectories(SourceDir + PathDelim + 'ide');
     ForceDirectories(SourceDir + PathDelim + 'lcl');
@@ -664,7 +679,8 @@ begin
   WriteLn('==================================================');
 
   try
-    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-nonsource';
+    SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
+    DeleteDirRecursive(SourceDir);
     OriginDir := TestRootDir + PathDelim + 'lazarus-update-origin.git';
     WorkDir := TestRootDir + PathDelim + 'lazarus-update-work';
 
@@ -731,7 +747,8 @@ begin
   WriteLn('Test 4b: UpdateSources Reports Invalid Source Directory');
   WriteLn('==================================================');
 
-  SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-invalid';
+  SourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
+  DeleteDirRecursive(SourceDir);
   ForceDirectories(SourceDir);
 
   Outp := TStringOutput.Create;

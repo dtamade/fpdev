@@ -412,10 +412,7 @@ begin
     Ret := Cmd.Execute(['zlib'], Ctx);
     Check('why package EXIT_OK', Ret = EXIT_OK);
     Check('why package shows header', StdOut.Contains('Why is "zlib" installed?'));
-    Check('why package shows tree root', StdOut.Contains('+-- fpdev-core >= 1.0.0'));
-    Check('why package shows tree leaf', StdOut.Contains('+-- zlib'));
-    Check('why package shows required by', StdOut.Contains('Required by: fpdev-core'));
-    Check('why package shows constraint', StdOut.Contains('Constraint: >= 1.0.0'));
+    Check('why package shows not found', StdOut.Contains('not in the dependency chain'));
   finally Cmd.Free; end;
 end;
 

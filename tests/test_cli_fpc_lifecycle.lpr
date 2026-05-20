@@ -103,8 +103,7 @@ var
   RemoteBareDir: string;
 begin
   Result := False;
-  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' +
-    PathDelim + 'fpc-' + AVersion;
+  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   FixtureRoot := AInstallRoot + PathDelim + '_git_fixture';
   ASeedDir := FixtureRoot + PathDelim + 'seed';
   RemoteBareDir := FixtureRoot + PathDelim + 'remote.git';
@@ -277,7 +276,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := GTempDir + PathDelim + 'update_missing_installroot';
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(InstallRoot);
 
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);
@@ -312,7 +311,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := GTempDir + PathDelim + 'update_local_only_installroot';
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(SourceDir);
 
   Ctx := CreateTestContext(GTempDir, StdOut, StdErr);

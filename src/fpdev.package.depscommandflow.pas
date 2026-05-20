@@ -5,6 +5,7 @@ unit fpdev.package.depscommandflow;
 interface
 
 uses
+  SysUtils,
   fpdev.output.intf;
 
 type
@@ -13,6 +14,9 @@ type
     ShowFlat: Boolean;
     MaxDepth: Integer;
   end;
+
+  TPackageDepsProvider = function(const APackageName: string): TStringArray of object;
+  TProjectDepsReader = function: TStringArray of object;
 
 function PreparePackageDepsCommandPlanCore(
   const AParams: array of string;
@@ -23,13 +27,15 @@ function PreparePackageDepsCommandPlanCore(
 
 function ExecutePackageDepsCommandPlanCore(
   const APlan: TPackageDepsCommandPlan;
-  const AOut, AErr: IOutput
+  const AOut, AErr: IOutput;
+  AGetDeps: TPackageDepsProvider;
+  AGetProjectDeps: TProjectDepsReader
 ): Integer;
 
 implementation
 
 uses
-  SysUtils,
+  Classes,
   fpdev.command.utils,
   fpdev.exitcodes,
   fpdev.i18n,
@@ -62,25 +68,41 @@ begin
   AOut.WriteLn(_(HELP_PACKAGE_DEPS_EXAMPLE_FLAT));
 end;
 
-procedure PrintDepTree(const AOut: IOutput; const ADeps: TStringArray;
-  const APrefix: string; ADepth, AMaxDepth: Integer);
+procedure PrintDepTree(const AOut: IOutput; AGetDeps: TPackageDepsProvider;
+  const APackageName, APrefix: string; ADepth, AMaxDepth: Integer;
+  AVisited: TStringList);
 var
+  Deps: TStringArray;
   I: Integer;
+  IsLast: Boolean;
+  Connector, ChildPrefix, DepName: string;
+  SpacePos: SizeInt;
 begin
-  if (AOut = nil) or ((AMaxDepth > 0) and (ADepth > AMaxDepth)) then
-    Exit;
+  if (AOut = nil) or (not Assigned(AGetDeps)) then Exit;
+  if (AMaxDepth > 0) and (ADepth > AMaxDepth) then Exit;
 
-  for I := 0 to High(ADeps) do
-    AOut.WriteLn(APrefix + '+-- ' + ADeps[I]);
-end;
+  Deps := AGetDeps(APackageName);
+  for I := 0 to High(Deps) do
+  begin
+    IsLast := (I = High(Deps));
+    if IsLast then begin Connector := '`-- '; ChildPrefix := '    '; end
+    else begin Connector := '+-- '; ChildPrefix := '|   '; end;
 
-function BuildSampleDeps: TStringArray;
-begin
-  Result := nil;
-  SetLength(Result, 3);
-  Result[0] := 'fpdev-core >= 1.0.0';
-  Result[1] := 'libgit2 >= 0.28.0';
-  Result[2] := 'zlib >= 1.2.0';
+    AOut.WriteLn(APrefix + Connector + Deps[I]);
+
+    SpacePos := Pos(' ', Deps[I]);
+    if SpacePos > 0 then
+      DepName := Copy(Deps[I], 1, SpacePos - 1)
+    else
+      DepName := Deps[I];
+
+    if AVisited.IndexOf(DepName) < 0 then
+    begin
+      AVisited.Add(DepName);
+      PrintDepTree(AOut, AGetDeps, DepName, APrefix + ChildPrefix,
+        ADepth + 1, AMaxDepth, AVisited);
+    end;
+  end;
 end;
 
 function PreparePackageDepsCommandPlanCore(
@@ -135,12 +157,15 @@ end;
 
 function ExecutePackageDepsCommandPlanCore(
   const APlan: TPackageDepsCommandPlan;
-  const AOut, AErr: IOutput
+  const AOut, AErr: IOutput;
+  AGetDeps: TPackageDepsProvider;
+  AGetProjectDeps: TProjectDepsReader
 ): Integer;
 var
   LPackageName: string;
-  LSampleDeps: TStringArray;
+  LDeps: TStringArray;
   I: Integer;
+  Visited: TStringList;
 begin
   if AErr <> nil then;
   Result := EXIT_OK;
@@ -155,24 +180,68 @@ begin
     AOut.WriteLn('');
   end;
 
-  LSampleDeps := BuildSampleDeps;
-  if APlan.ShowFlat then
+  LDeps := nil;
+  if APlan.PackageName = '' then
+  begin
+    if Assigned(AGetProjectDeps) then
+      LDeps := AGetProjectDeps();
+  end
+  else
+  begin
+    if Assigned(AGetDeps) then
+      LDeps := AGetDeps(APlan.PackageName);
+  end;
+
+  if Length(LDeps) = 0 then
   begin
     if AOut <> nil then
-      for I := 0 to High(LSampleDeps) do
-        AOut.WriteLn('  ' + LSampleDeps[I]);
+      AOut.WriteLn('  (none)');
+  end
+  else if APlan.ShowFlat then
+  begin
+    if AOut <> nil then
+      for I := 0 to High(LDeps) do
+        AOut.WriteLn('  ' + LDeps[I]);
   end
   else
   begin
     if AOut <> nil then
-      AOut.WriteLn(LPackageName);
-    PrintDepTree(AOut, LSampleDeps, '', 1, APlan.MaxDepth);
+    begin
+      Visited := TStringList.Create;
+      try
+        Visited.CaseSensitive := False;
+        Visited.Add(LPackageName);
+        AOut.WriteLn(LPackageName);
+        if APlan.PackageName = '' then
+        begin
+          for I := 0 to High(LDeps) do
+          begin
+            if I = High(LDeps) then
+              AOut.WriteLn('`-- ' + LDeps[I])
+            else
+              AOut.WriteLn('+-- ' + LDeps[I]);
+            if Visited.IndexOf(LDeps[I]) < 0 then
+            begin
+              Visited.Add(LDeps[I]);
+              if I = High(LDeps) then
+                PrintDepTree(AOut, AGetDeps, LDeps[I], '    ', 2, APlan.MaxDepth, Visited)
+              else
+                PrintDepTree(AOut, AGetDeps, LDeps[I], '|   ', 2, APlan.MaxDepth, Visited);
+            end;
+          end;
+        end
+        else
+          PrintDepTree(AOut, AGetDeps, APlan.PackageName, '', 1, APlan.MaxDepth, Visited);
+      finally
+        Visited.Free;
+      end;
+    end;
   end;
 
   if AOut <> nil then
   begin
     AOut.WriteLn('');
-    AOut.WriteLn(_Fmt(CMD_PKG_DEPS_TOTAL, [Length(LSampleDeps)]));
+    AOut.WriteLn(_Fmt(CMD_PKG_DEPS_TOTAL, [Length(LDeps)]));
   end;
 end;
 

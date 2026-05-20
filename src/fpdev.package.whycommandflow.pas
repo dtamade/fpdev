@@ -5,12 +5,15 @@ unit fpdev.package.whycommandflow;
 interface
 
 uses
+  SysUtils,
   fpdev.output.intf;
 
 type
   TPackageWhyCommandPlan = record
     PackageName: string;
   end;
+
+  TPackageWhyTracer = function(const APackageName: string): TStringArray of object;
 
 function PreparePackageWhyCommandPlanCore(
   const AParams: array of string;
@@ -21,13 +24,13 @@ function PreparePackageWhyCommandPlanCore(
 
 function ExecutePackageWhyCommandPlanCore(
   const APlan: TPackageWhyCommandPlan;
-  const AOut, AErr: IOutput
+  const AOut, AErr: IOutput;
+  ATrace: TPackageWhyTracer
 ): Integer;
 
 implementation
 
 uses
-  SysUtils,
   fpdev.command.utils,
   fpdev.exitcodes,
   fpdev.i18n,
@@ -106,8 +109,12 @@ end;
 
 function ExecutePackageWhyCommandPlanCore(
   const APlan: TPackageWhyCommandPlan;
-  const AOut, AErr: IOutput
+  const AOut, AErr: IOutput;
+  ATrace: TPackageWhyTracer
 ): Integer;
+var
+  LPath: TStringArray;
+  I: Integer;
 begin
   if AErr <> nil then;
   Result := EXIT_OK;
@@ -116,14 +123,28 @@ begin
   begin
     AOut.WriteLn(_Fmt(CMD_PKG_WHY_HEADER, [APlan.PackageName]));
     AOut.WriteLn('');
+  end;
+
+  LPath := nil;
+  if Assigned(ATrace) then
+    LPath := ATrace(APlan.PackageName);
+
+  if Length(LPath) < 2 then
+  begin
+    if AOut <> nil then
+      AOut.WriteLn(_Fmt(CMD_PKG_WHY_NOT_FOUND, [APlan.PackageName]));
+    Exit(EXIT_OK);
+  end;
+
+  if AOut <> nil then
+  begin
     AOut.WriteLn(_(CMD_PKG_WHY_PATH));
     AOut.WriteLn('');
-    AOut.WriteLn(_(CMD_PKG_WHY_CURRENT_PROJECT));
-    AOut.WriteLn(_Fmt(CMD_PKG_WHY_TREE_NODE, ['fpdev-core >= 1.0.0']));
-    AOut.WriteLn(_Fmt(CMD_PKG_WHY_TREE_LEAF, [APlan.PackageName]));
+    AOut.WriteLn('  ' + LPath[0]);
+    for I := 1 to High(LPath) do
+      AOut.WriteLn('  ' + StringOfChar(' ', (I - 1) * 2) + '+-- ' + LPath[I]);
     AOut.WriteLn('');
-    AOut.WriteLn(_Fmt(CMD_PKG_WHY_REQUIRED_BY, ['fpdev-core']));
-    AOut.WriteLn(_Fmt(CMD_PKG_WHY_CONSTRAINT, ['>= 1.0.0']));
+    AOut.WriteLn(_Fmt(CMD_PKG_WHY_REQUIRED_BY, [LPath[High(LPath) - 1]]));
   end;
 end;
 

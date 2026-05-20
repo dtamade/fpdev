@@ -236,9 +236,9 @@ begin
     Check('maintenanceflow update uses current version fallback',
       Probe.CurrentVersionCalls = 1);
     Check('maintenanceflow update reports missing source dir',
-      Errp.Contains('sources' + PathDelim + 'lazarus-3.0'));
+      Errp.Contains('sources' + PathDelim + 'lazarus'));
 
-    ForceDirectories(InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0');
+    ForceDirectories(InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus');
     Errp.Clear;
 
     Check(
@@ -254,7 +254,7 @@ begin
       )
     );
     Check('maintenanceflow update validates resolved source dir',
-      Probe.LastValidatedSourceDir = InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0');
+      Probe.LastValidatedSourceDir = InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus');
   finally
     Errp.Free;
     Outp.Free;
@@ -270,7 +270,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := CreateUniqueTempDir('test_lazarus_maintenanceflow_clean');
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-4.0';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
   ForceDirectories(SourceDir);
 
   Probe := TMaintenanceProbe.Create;

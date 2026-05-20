@@ -13,7 +13,7 @@
       "mirrors": {
         "github": "https://github.com/geby/synapse/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["openssl"]
     },
     {
       "name": "fpjson",
@@ -54,7 +54,7 @@
       "mirrors": {
         "github": "https://github.com/IndySockets/Indy/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["openssl"]
     },
     {
       "name": "zeos",
@@ -99,7 +99,7 @@
       "mirrors": {
         "github": "https://github.com/synopse/mORMot2/archive/refs/heads/master.zip"
       },
-      "dependencies": []
+      "dependencies": ["openssl"]
     },
     {
       "name": "lnet",
@@ -173,6 +173,21 @@
       "unit_paths": ["Ciphers", "Hashes"],
       "mirrors": {
         "github": "https://github.com/Xor-el/DCPcrypt/archive/refs/heads/master.zip"
+      },
+      "dependencies": []
+    },
+    {
+      "name": "openssl",
+      "version": "3.0.0",
+      "description": "OpenSSL bindings for FreePascal",
+      "author": "FreePascal Community",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/nickelsworth/openssl-pascal",
+      "fpc_compatible": ">=3.0.0",
+      "type": "source",
+      "unit_paths": ["."],
+      "mirrors": {
+        "github": "https://github.com/nickelsworth/openssl-pascal/archive/refs/heads/master.zip"
       },
       "dependencies": []
     }

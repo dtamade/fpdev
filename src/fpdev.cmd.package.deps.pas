@@ -2,21 +2,11 @@ unit fpdev.cmd.package.deps;
 
 {$mode objfpc}{$H+}
 
-{
-  B057: package deps command
-
-  Shows dependency tree for a package or the current project.
-  Usage:
-    fpdev package deps [package-name]
-    fpdev package deps --tree
-    fpdev package deps --flat
-}
-
 interface
 
 uses
   SysUtils,
-  fpdev.command.intf, fpdev.command.registry;
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager;
 
 type
   TPackageDepsCommand = class(TInterfacedObject, ICommand)
@@ -32,24 +22,13 @@ implementation
 uses
   fpdev.package.depscommandflow;
 
-function TPackageDepsCommand.Name: string;
-begin
-  Result := 'deps';
-end;
-
-function TPackageDepsCommand.Aliases: TStringArray;
-begin
-  Result := nil;
-end;
-
-function TPackageDepsCommand.FindSub(const AName: string): ICommand;
-begin
-  Result := nil;
-  if AName <> '' then; // Suppress unused parameter
-end;
+function TPackageDepsCommand.Name: string; begin Result := 'deps'; end;
+function TPackageDepsCommand.Aliases: TStringArray; begin Result := nil; end;
+function TPackageDepsCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
 function TPackageDepsCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
+  LMgr: TPackageManager;
   LPlan: TPackageDepsCommandPlan;
   LShouldExit: Boolean;
 begin
@@ -63,11 +42,18 @@ begin
   if LShouldExit then
     Exit(Result);
 
-  Result := ExecutePackageDepsCommandPlanCore(
-    LPlan,
-    Ctx.Out,
-    Ctx.Err
-  );
+  LMgr := TPackageManager.Create(Ctx.Config);
+  try
+    Result := ExecutePackageDepsCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LMgr.GetDepsForPackage,
+      @LMgr.GetProjectDependencies
+    );
+  finally
+    LMgr.Free;
+  end;
 end;
 
 function PackageDepsFactory: ICommand;

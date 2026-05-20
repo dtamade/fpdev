@@ -109,7 +109,7 @@ var
   RemoteBareDir: string;
 begin
   Result := False;
-  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-' + AVersion;
+  ASourceDir := AInstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
   FixtureRoot := AInstallRoot + PathDelim + '_git_fixture';
   ASeedDir := FixtureRoot + PathDelim + 'seed';
   RemoteBareDir := FixtureRoot + PathDelim + 'remote.git';
@@ -979,7 +979,7 @@ begin
     Exit;
   end;
 
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
   Cmd := TLazUpdateCommand.Create;
   try
     Ret := Cmd.Execute(['3.0'], Ctx);
@@ -1005,7 +1005,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := GTempDir + PathDelim + 'update_local_only_installroot';
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'lazarus';
   ForceDirectories(SourceDir + PathDelim + 'ide');
   ForceDirectories(SourceDir + PathDelim + 'lcl');
   ForceDirectories(SourceDir + PathDelim + 'packager');

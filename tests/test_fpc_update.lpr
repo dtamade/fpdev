@@ -132,7 +132,7 @@ begin
   WriteLn('==================================================');
 
   // Create empty source directory (in correct location)
-  EmptySourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-empty';
+  EmptySourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(EmptySourceDir);
 
   try
@@ -163,8 +163,8 @@ begin
   WriteLn('Test: UpdateSources updates valid git repository');
   WriteLn('==================================================');
 
-  // Create FPC source directory structure: InstallRoot/sources/fpc/fpc-testver
-  TestSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-testver';
+  // Create FPC source directory structure: InstallRoot/sources/fpc
+  TestSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(TestSourceDir);
 
   try
@@ -279,7 +279,7 @@ begin
   WriteLn('Test: UpdateSources uses current version when version blank');
   WriteLn('==================================================');
 
-  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(CurrentSourceDir);
 
   Toolchain := Default(TToolchainInfo);

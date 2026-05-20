@@ -2,19 +2,11 @@ unit fpdev.cmd.package.why;
 
 {$mode objfpc}{$H+}
 
-{
-  B058: package why command
-
-  Explains why a package is installed (shows dependency path).
-  Usage:
-    fpdev package why <package-name>
-}
-
 interface
 
 uses
   SysUtils,
-  fpdev.command.intf, fpdev.command.registry;
+  fpdev.command.intf, fpdev.command.registry, fpdev.package.manager;
 
 type
   TPackageWhyCommand = class(TInterfacedObject, ICommand)
@@ -30,24 +22,13 @@ implementation
 uses
   fpdev.package.whycommandflow;
 
-function TPackageWhyCommand.Name: string;
-begin
-  Result := 'why';
-end;
-
-function TPackageWhyCommand.Aliases: TStringArray;
-begin
-  Result := nil;
-end;
-
-function TPackageWhyCommand.FindSub(const AName: string): ICommand;
-begin
-  Result := nil;
-  if AName <> '' then; // Suppress unused parameter
-end;
+function TPackageWhyCommand.Name: string; begin Result := 'why'; end;
+function TPackageWhyCommand.Aliases: TStringArray; begin Result := nil; end;
+function TPackageWhyCommand.FindSub(const AName: string): ICommand; begin if AName <> '' then; Result := nil; end;
 
 function TPackageWhyCommand.Execute(const AParams: array of string; const Ctx: IContext): Integer;
 var
+  LMgr: TPackageManager;
   LPlan: TPackageWhyCommandPlan;
   LShouldExit: Boolean;
 begin
@@ -61,11 +42,17 @@ begin
   if LShouldExit then
     Exit(Result);
 
-  Result := ExecutePackageWhyCommandPlanCore(
-    LPlan,
-    Ctx.Out,
-    Ctx.Err
-  );
+  LMgr := TPackageManager.Create(Ctx.Config);
+  try
+    Result := ExecutePackageWhyCommandPlanCore(
+      LPlan,
+      Ctx.Out,
+      Ctx.Err,
+      @LMgr.TraceDependencyPath
+    );
+  finally
+    LMgr.Free;
+  end;
 end;
 
 function PackageWhyFactory: ICommand;

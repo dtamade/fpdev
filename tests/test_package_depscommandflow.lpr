@@ -35,6 +35,15 @@ type
     function Text: string;
   end;
 
+  TDepsProbe = class
+  public
+    MockDeps: TStringArray;
+    RootPackage: string;
+    LastPackage: string;
+    CallCount: Integer;
+    function GetDeps(const APackageName: string): TStringArray;
+  end;
+
 var
   PassCount: Integer = 0;
   FailCount: Integer = 0;
@@ -142,6 +151,16 @@ begin
   Result := FBuffer.Text;
 end;
 
+function TDepsProbe.GetDeps(const APackageName: string): TStringArray;
+begin
+  Inc(CallCount);
+  LastPackage := APackageName;
+  if SameText(APackageName, RootPackage) then
+    Result := MockDeps
+  else
+    Result := nil;
+end;
+
 procedure InitOutputs(
   out AOutObj, AErrObj: TStringOutput;
   out AOut, AErr: IOutput
@@ -195,12 +214,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      ['--help'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['--help'], Outp, Errp, Plan, ShouldExit);
     Check('prepare help returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
     Check('prepare help requests exit', ShouldExit, 'should exit');
     Check('prepare help writes usage', OutpObj.Contains('fpdev package deps'), OutpObj.Text);
@@ -221,12 +235,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      ['--unknown'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['--unknown'], Outp, Errp, Plan, ShouldExit);
     Check('prepare unknown option returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare unknown option requests exit', ShouldExit, 'should exit');
     Check('prepare unknown option writes usage', ErrpObj.Contains('fpdev package deps'), ErrpObj.Text);
@@ -246,12 +255,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      ['--depth=abc'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['--depth=abc'], Outp, Errp, Plan, ShouldExit);
     Check('prepare invalid depth returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare invalid depth requests exit', ShouldExit, 'should exit');
     Check('prepare invalid depth writes usage', ErrpObj.Contains('fpdev package deps'), ErrpObj.Text);
@@ -271,12 +275,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      ['demo', 'extra'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['demo', 'extra'], Outp, Errp, Plan, ShouldExit);
     Check('prepare extra positional returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare extra positional requests exit', ShouldExit, 'should exit');
     Check('prepare extra positional writes usage', ErrpObj.Contains('fpdev package deps'), ErrpObj.Text);
@@ -296,12 +295,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      [],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      [], Outp, Errp, Plan, ShouldExit);
     Check('prepare defaults returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
     Check('prepare defaults keeps running', not ShouldExit, 'unexpected exit');
     Check('prepare defaults keeps flat false', not Plan.ShowFlat, 'expected tree mode');
@@ -323,12 +317,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageDepsCommandPlanCore(
-      ['demo', '--flat', '--depth=2'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['demo', '--flat', '--depth=2'], Outp, Errp, Plan, ShouldExit);
     Check('prepare flags returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
     Check('prepare flags keeps running', not ShouldExit, 'unexpected exit');
     Check('prepare flags keeps package', Plan.PackageName = 'demo', Plan.PackageName);
@@ -339,32 +328,65 @@ begin
   end;
 end;
 
-procedure TestExecuteDefaultTreeOutput;
+procedure TestExecuteWithDeps;
 var
   Plan: TPackageDepsCommandPlan;
+  Probe: TDepsProbe;
   OutpObj, ErrpObj: TStringOutput;
   Outp, Errp: IOutput;
   Code: Integer;
 begin
   Plan := Default(TPackageDepsCommandPlan);
+  Plan.PackageName := 'mormot2';
+  Probe := TDepsProbe.Create;
+  Probe.RootPackage := 'mormot2';
+  SetLength(Probe.MockDeps, 2);
+  Probe.MockDeps[0] := 'zlib >= 1.2.0';
+  Probe.MockDeps[1] := 'openssl >= 1.1.0';
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
-    Code := ExecutePackageDepsCommandPlanCore(Plan, Outp, Errp);
-    Check('execute default returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
-    Check('execute default shows header', OutpObj.Contains('Dependencies for:'), OutpObj.Text);
-    Check('execute default shows current project', OutpObj.Contains('current project'), OutpObj.Text);
-    Check('execute default shows root node', OutpObj.Contains('current project'), OutpObj.Text);
-    Check('execute default shows tree dep', OutpObj.Contains('+-- fpdev-core >= 1.0.0'), OutpObj.Text);
-    Check('execute default shows summary', OutpObj.Contains('Total:'), OutpObj.Text);
-    Check('execute default keeps stderr empty', Trim(ErrpObj.Text) = '', ErrpObj.Text);
+    Code := ExecutePackageDepsCommandPlanCore(Plan, Outp, Errp, @Probe.GetDeps, nil);
+    Check('execute with deps returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
+    Check('execute with deps calls provider for root', Probe.CallCount >= 1, IntToStr(Probe.CallCount));
+    Check('execute with deps shows header', OutpObj.Contains('mormot2'), OutpObj.Text);
+    Check('execute with deps shows first dep', OutpObj.Contains('zlib >= 1.2.0'), OutpObj.Text);
+    Check('execute with deps shows second dep', OutpObj.Contains('openssl >= 1.1.0'), OutpObj.Text);
+    Check('execute with deps shows total', OutpObj.Contains('2'), OutpObj.Text);
   finally
     ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteNoDeps;
+var
+  Plan: TPackageDepsCommandPlan;
+  Probe: TDepsProbe;
+  OutpObj, ErrpObj: TStringOutput;
+  Outp, Errp: IOutput;
+  Code: Integer;
+begin
+  Plan := Default(TPackageDepsCommandPlan);
+  Plan.PackageName := 'synapse';
+  Probe := TDepsProbe.Create;
+  Probe.RootPackage := 'synapse';
+  Probe.MockDeps := nil;
+  InitOutputs(OutpObj, ErrpObj, Outp, Errp);
+  try
+    Code := ExecutePackageDepsCommandPlanCore(Plan, Outp, Errp, @Probe.GetDeps, nil);
+    Check('execute no deps returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
+    Check('execute no deps shows none', OutpObj.Contains('(none)'), OutpObj.Text);
+    Check('execute no deps shows zero total', OutpObj.Contains('0'), OutpObj.Text);
+  finally
+    ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
+    Probe.Free;
   end;
 end;
 
 procedure TestExecuteFlatOutput;
 var
   Plan: TPackageDepsCommandPlan;
+  Probe: TDepsProbe;
   OutpObj, ErrpObj: TStringOutput;
   Outp, Errp: IOutput;
   Code: Integer;
@@ -372,16 +394,21 @@ begin
   Plan := Default(TPackageDepsCommandPlan);
   Plan.PackageName := 'mylib';
   Plan.ShowFlat := True;
+  Probe := TDepsProbe.Create;
+  Probe.RootPackage := 'mylib';
+  SetLength(Probe.MockDeps, 2);
+  Probe.MockDeps[0] := 'dep-a >= 1.0';
+  Probe.MockDeps[1] := 'dep-b >= 2.0';
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
-    Code := ExecutePackageDepsCommandPlanCore(Plan, Outp, Errp);
+    Code := ExecutePackageDepsCommandPlanCore(Plan, Outp, Errp, @Probe.GetDeps, nil);
     Check('execute flat returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
-    Check('execute flat shows custom header', OutpObj.Contains('Dependencies for: mylib'), OutpObj.Text);
-    Check('execute flat omits tree connector', not OutpObj.Contains('+-- fpdev-core >= 1.0.0'), OutpObj.Text);
-    Check('execute flat prints first dependency', OutpObj.Contains('  fpdev-core >= 1.0.0'), OutpObj.Text);
-    Check('execute flat prints last dependency', OutpObj.Contains('  zlib >= 1.2.0'), OutpObj.Text);
+    Check('execute flat shows header', OutpObj.Contains('mylib'), OutpObj.Text);
+    Check('execute flat omits tree connector', not OutpObj.Contains('+--'), OutpObj.Text);
+    Check('execute flat prints deps', OutpObj.Contains('  dep-a >= 1.0'), OutpObj.Text);
   finally
     ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
+    Probe.Free;
   end;
 end;
 
@@ -394,7 +421,8 @@ begin
   TestPrepareRejectsExtraPositional;
   TestPrepareDefaults;
   TestPrepareFlags;
-  TestExecuteDefaultTreeOutput;
+  TestExecuteWithDeps;
+  TestExecuteNoDeps;
   TestExecuteFlatOutput;
 
   WriteLn;

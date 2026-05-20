@@ -5,7 +5,7 @@ program test_fpc_clean;
 
 uses
   SysUtils, test_config_isolation, Classes, fpdev.fpc.manager, fpdev.config.interfaces, fpdev.config.managers
-  , test_temp_paths
+  , fpdev.utils.fs, test_temp_paths
   {$IFDEF UNIX}
   , BaseUnix
   {$ENDIF};
@@ -32,8 +32,8 @@ begin
   Settings.InstallRoot := TestInstallRoot;
   SettingsMgr.SetSettings(Settings);
 
-  // 创建FPC源码目录结构: InstallRoot/sources/fpc/fpc-test
-  TestSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-test';
+  // 创建FPC源码目录结构: InstallRoot/sources/fpc
+  TestSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(TestSourceDir);
 
   // 创建模拟的FPC源码结构
@@ -202,7 +202,7 @@ begin
   WriteLn('Test: CleanSources uses current version when version blank');
   WriteLn('==================================================');
 
-  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  CurrentSourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   CurrentCompilerDir := CurrentSourceDir + PathDelim + 'compiler';
   ForceDirectories(CurrentCompilerDir);
 
@@ -264,7 +264,8 @@ begin
   WriteLn('Test: CleanSources handles non-existent directory');
   WriteLn('==================================================');
 
-  // Execute clean on non-existent version
+  // Execute clean when source dir does not exist
+  DeleteDirRecursive(TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc');
   Success := FPCManager.CleanSources('nonexistent-version-999');
 
   if Success then
@@ -287,7 +288,7 @@ begin
   WriteLn('==================================================');
 
   // Create empty source directory (in correct location)
-  EmptySourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-empty';
+  EmptySourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(EmptySourceDir);
 
   try

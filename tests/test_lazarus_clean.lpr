@@ -124,7 +124,7 @@ begin
 
   try
     // Setup: Create mock Lazarus source directory structure
-    TestSourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-3.0';
+    TestSourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
     ForceDirectories(TestSourceDir);
 
     // Create typical Lazarus directory structure
@@ -291,6 +291,9 @@ begin
   WriteLn('==================================================');
 
   try
+    // Remove sources/lazarus left by Test 1 (single-repo model: all versions share one dir)
+    CleanupTempDir(TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus');
+
     // Execute: Call CleanSources on non-existent version
     Success := LazarusManager.CleanSources('nonexistent-999');
 
@@ -319,11 +322,11 @@ begin
 
   try
     // Setup: Create empty Lazarus source directory without ide/lcl/packager
-    EmptySourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus-empty';
+    EmptySourceDir := TestRootDir + PathDelim + 'sources' + PathDelim + 'lazarus';
     ForceDirectories(EmptySourceDir);
 
     // Execute: Call CleanSources on invalid directory
-    Success := LazarusManager.CleanSources('empty');
+    Success := LazarusManager.CleanSources('3.0');
 
     // Assert: CleanSources should reject invalid directory
     AssertFalse(Success, 'CleanSources rejects invalid source directory',

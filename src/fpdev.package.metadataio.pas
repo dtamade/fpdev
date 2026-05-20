@@ -78,6 +78,9 @@ begin
       end;
       if Info.Sha256 <> '' then
         O.Add('sha256', Info.Sha256);
+      O.Add('dependencies', TJSONArray.Create);
+      for i := 0 to High(Info.Dependencies) do
+        TJSONArray(O.Arrays['dependencies']).Add(Info.Dependencies[i]);
 
       SL := TStringList.Create;
       try

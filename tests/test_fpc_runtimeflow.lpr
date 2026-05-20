@@ -359,7 +359,7 @@ var
 begin
   Plan := CreateFPCSourcePlanCore('/tmp/fpdev-root', '');
   Check('source plan falls back to main version', Plan.Version = 'main', 'got=' + Plan.Version);
-  Check('source plan path uses fpc-main', Pos('fpc-main', Plan.SourceDir) > 0, 'path=' + Plan.SourceDir);
+  Check('source plan path ends with sources/fpc', Plan.SourceDir = '/tmp/fpdev-root/sources/fpc', 'path=' + Plan.SourceDir);
 end;
 
 procedure TestExecuteFPCUpdatePlanCoreFailsWhenSourceMissing;

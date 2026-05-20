@@ -119,6 +119,15 @@ begin
             if (Pkg.Sha256 = '') and (Obj.Find('hash') <> nil) and
                (Obj.Find('hash').JSONType = jtObject) then
               Pkg.Sha256 := TJSONObject(Obj.Find('hash')).Get('sha256', '');
+            U := Obj.Find('dependencies');
+            if Assigned(U) and (U.JSONType = jtArray) then
+            begin
+              SetLength(Pkg.Dependencies, TJSONArray(U).Count);
+              for K := 0 to TJSONArray(U).Count - 1 do
+                Pkg.Dependencies[K] := TJSONArray(U).Items[K].AsString;
+            end
+            else
+              SetLength(Pkg.Dependencies, 0);
             SetLength(Pkg.URLs, 0);
             U := Obj.Find('url');
             if Assigned(U) then

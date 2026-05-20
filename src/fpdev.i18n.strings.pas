@@ -629,6 +629,7 @@ const
   CMD_PKG_WHY_TREE_LEAF = 'cmd.pkg.why.tree_leaf';
   CMD_PKG_WHY_REQUIRED_BY = 'cmd.pkg.why.required_by';
   CMD_PKG_WHY_CONSTRAINT = 'cmd.pkg.why.constraint';
+  CMD_PKG_WHY_NOT_FOUND = 'cmd.pkg.why.not_found';
   CMD_PKG_TEST_META_NOT_FOUND = 'cmd.pkg.test.meta_not_found';
   CMD_PKG_TEST_META_NOT_JSON_OBJECT = 'cmd.pkg.test.meta_not_json_object';
   CMD_PKG_TEST_META_LOAD_FAILED = 'cmd.pkg.test.meta_load_failed';
@@ -1530,6 +1531,7 @@ begin
   T(CMD_PKG_WHY_TREE_LEAF,       '          +-- %s',                       '          +-- %s');
   T(CMD_PKG_WHY_REQUIRED_BY,     'Required by: %s',                        '被以下依赖: %s');
   T(CMD_PKG_WHY_CONSTRAINT,      'Constraint: %s',                         '约束: %s');
+  T(CMD_PKG_WHY_NOT_FOUND,       '"%s" is not in the dependency chain.',    '"%s" 不在依赖链中。');
   T(CMD_PKG_TEST_META_NOT_FOUND, 'package.json not found in package directory', '包目录中未找到 package.json');
   T(CMD_PKG_TEST_META_NOT_JSON_OBJECT, 'package.json is not a valid JSON object', 'package.json 不是有效的 JSON 对象');
   T(CMD_PKG_TEST_META_LOAD_FAILED, 'Failed to load package.json: %s',      '加载 package.json 失败: %s');

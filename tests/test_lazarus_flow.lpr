@@ -223,8 +223,8 @@ begin
     Plan.FPCVersion = '3.2.2',
     'got=' + Plan.FPCVersion);
   Check('install plan keeps source mode', not Plan.NeedsSourceFallbackWarning);
-  Check('install plan source dir uses version suffix',
-    Pos('lazarus-3.2', Plan.SourceDir) > 0,
+  Check('install plan source dir is single-repo path',
+    Pos('sources' + PathDelim + 'lazarus', Plan.SourceDir) > 0,
     'source=' + Plan.SourceDir);
 end;
 

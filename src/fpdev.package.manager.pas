@@ -155,6 +155,9 @@ type
       Errp: IOutput = nil
     ): Boolean;
     function GetLastPublishExitCode: Integer;
+    function GetDepsForPackage(const APackageName: string): TStringArray;
+    function TraceDependencyPath(const APackageName: string): TStringArray;
+    function GetProjectDependencies: TStringArray;
   end;
 
 implementation
@@ -165,6 +168,7 @@ uses
   fpdev.package.indexparser,
   fpdev.package.installflow,
   fpdev.package.lifecycle,
+  fpdev.package.lockfile,
   fpdev.package.publishflow,
   fpdev.package.query.available,
   fpdev.package.query.info,
@@ -283,19 +287,27 @@ var
   I: Integer;
 begin
   Result := GetPackageInfoCore(APackageName, FPackageRegistry, '');
-  if Result.Installed and (Result.Version <> '') then
+  if Result.Installed and (Result.Version <> '') and (Length(Result.Dependencies) > 0) then
     Exit;
 
   Available := GetAvailablePackages;
   for I := 0 to High(Available) do
     if SameText(Available[I].Name, APackageName) then
     begin
-      Result.Version := Available[I].Version;
-      Result.Description := Available[I].Description;
-      Result.Author := Available[I].Author;
-      Result.License := Available[I].License;
-      Result.Homepage := Available[I].Homepage;
-      Result.Repository := Available[I].Repository;
+      if Result.Version = '' then
+        Result.Version := Available[I].Version;
+      if Result.Description = '' then
+        Result.Description := Available[I].Description;
+      if Result.Author = '' then
+        Result.Author := Available[I].Author;
+      if Result.License = '' then
+        Result.License := Available[I].License;
+      if Result.Homepage = '' then
+        Result.Homepage := Available[I].Homepage;
+      if Result.Repository = '' then
+        Result.Repository := Available[I].Repository;
+      if Length(Result.Dependencies) = 0 then
+        Result.Dependencies := Available[I].Dependencies;
       Exit;
     end;
 end;
@@ -782,6 +794,138 @@ end;
 function TPackageManager.GetInstalledPackageList: TPackageArray;
 begin
   Result := GetInstalledPackages;
+end;
+
+function TPackageManager.GetDepsForPackage(const APackageName: string): TStringArray;
+var
+  Info: TPackageInfo;
+begin
+  Info := GetPackageInfo(APackageName);
+  Result := Info.Dependencies;
+end;
+
+function ExtractDepName(const ADep: string): string;
+var
+  SpacePos: SizeInt;
+begin
+  SpacePos := Pos(' ', ADep);
+  if SpacePos > 0 then
+    Result := Copy(ADep, 1, SpacePos - 1)
+  else
+    Result := ADep;
+end;
+
+function TPackageManager.TraceDependencyPath(const APackageName: string): TStringArray;
+var
+  AllPkgs: TPackageArray;
+  ProjectDeps: TStringArray;
+  ProjectPkg: TPackageInfo;
+  Visited: TStringList;
+  I, J: Integer;
+
+  function FindParent(const ATarget: string): string;
+  var
+    PI, DJ: Integer;
+  begin
+    Result := '';
+    for PI := 0 to High(AllPkgs) do
+      for DJ := 0 to High(AllPkgs[PI].Dependencies) do
+        if SameText(ExtractDepName(AllPkgs[PI].Dependencies[DJ]), ATarget) then
+          Exit(AllPkgs[PI].Name);
+  end;
+
+  procedure BuildPath(const ATarget: string);
+  var
+    Parent: string;
+    Chain: TStringArray;
+    Len, K: Integer;
+  begin
+    Chain := nil;
+    SetLength(Chain, 1);
+    Chain[0] := ATarget;
+    Visited := TStringList.Create;
+    try
+      Visited.CaseSensitive := False;
+      Visited.Add(ATarget);
+      Parent := FindParent(ATarget);
+      while Parent <> '' do
+      begin
+        if Visited.IndexOf(Parent) >= 0 then
+          Break;
+        Visited.Add(Parent);
+        Len := Length(Chain);
+        SetLength(Chain, Len + 1);
+        Chain[Len] := Parent;
+        Parent := FindParent(Parent);
+      end;
+    finally
+      Visited.Free;
+    end;
+
+    if Length(Chain) < 2 then
+    begin
+      Result := nil;
+      Exit;
+    end;
+
+    SetLength(Result, Length(Chain) + 1);
+    Result[0] := _(CMD_PKG_DEPS_CURRENT_PROJECT);
+    for K := High(Chain) downto 0 do
+      Result[Length(Chain) - K] := Chain[K];
+  end;
+
+begin
+  Result := nil;
+  AllPkgs := GetInstalledPackages;
+  if Length(AllPkgs) = 0 then
+    AllPkgs := GetAvailablePackages;
+
+  ProjectDeps := GetProjectDependencies;
+  if Length(ProjectDeps) > 0 then
+  begin
+    ProjectPkg := EmptyPackageInfo;
+    ProjectPkg.Name := _(CMD_PKG_DEPS_CURRENT_PROJECT);
+    ProjectPkg.Dependencies := ProjectDeps;
+    SetLength(AllPkgs, Length(AllPkgs) + 1);
+    AllPkgs[High(AllPkgs)] := ProjectPkg;
+  end;
+
+  for I := 0 to High(AllPkgs) do
+    for J := 0 to High(AllPkgs[I].Dependencies) do
+      if SameText(ExtractDepName(AllPkgs[I].Dependencies[J]), APackageName) then
+      begin
+        BuildPath(APackageName);
+        Exit;
+      end;
+end;
+
+function TPackageManager.GetProjectDependencies: TStringArray;
+var
+  LockPath: string;
+  LockFile: TPackageLockFile;
+  Names: TStringList;
+  I: Integer;
+begin
+  Result := nil;
+  LockPath := IncludeTrailingPathDelimiter(GetCurrentDir) + LOCKFILE_NAME;
+  if not FileExists(LockPath) then
+    Exit;
+
+  LockFile := TPackageLockFile.Create(LockPath);
+  try
+    if not LockFile.Load then
+      Exit;
+    Names := LockFile.GetPackageNames;
+    try
+      SetLength(Result, Names.Count);
+      for I := 0 to Names.Count - 1 do
+        Result[I] := Names[I];
+    finally
+      Names.Free;
+    end;
+  finally
+    LockFile.Free;
+  end;
 end;
 
 end.

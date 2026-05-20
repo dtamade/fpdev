@@ -35,6 +35,14 @@ type
     function Text: string;
   end;
 
+  TWhyProbe = class
+  public
+    MockPath: TStringArray;
+    LastPackage: string;
+    CallCount: Integer;
+    function Trace(const APackageName: string): TStringArray;
+  end;
+
 var
   PassCount: Integer = 0;
   FailCount: Integer = 0;
@@ -142,6 +150,13 @@ begin
   Result := FBuffer.Text;
 end;
 
+function TWhyProbe.Trace(const APackageName: string): TStringArray;
+begin
+  Inc(CallCount);
+  LastPackage := APackageName;
+  Result := MockPath;
+end;
+
 procedure InitOutputs(
   out AOutObj, AErrObj: TStringOutput;
   out AOut, AErr: IOutput
@@ -195,12 +210,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageWhyCommandPlanCore(
-      ['--help'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['--help'], Outp, Errp, Plan, ShouldExit);
     Check('prepare help returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
     Check('prepare help requests exit', ShouldExit, 'should exit');
     Check('prepare help writes usage', OutpObj.Contains('fpdev package why'), OutpObj.Text);
@@ -221,12 +231,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageWhyCommandPlanCore(
-      ['--unknown'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['--unknown'], Outp, Errp, Plan, ShouldExit);
     Check('prepare unknown option returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare unknown option requests exit', ShouldExit, 'should exit');
     Check('prepare unknown option writes usage', ErrpObj.Contains('fpdev package why'), ErrpObj.Text);
@@ -246,12 +251,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageWhyCommandPlanCore(
-      [],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      [], Outp, Errp, Plan, ShouldExit);
     Check('prepare missing package returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare missing package requests exit', ShouldExit, 'should exit');
     Check('prepare missing package writes error', ErrpObj.Contains('Missing argument'), ErrpObj.Text);
@@ -272,12 +272,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageWhyCommandPlanCore(
-      ['zlib', 'extra'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['zlib', 'extra'], Outp, Errp, Plan, ShouldExit);
     Check('prepare extra positional returns EXIT_USAGE_ERROR', Code = EXIT_USAGE_ERROR, IntToStr(Code));
     Check('prepare extra positional requests exit', ShouldExit, 'should exit');
     Check('prepare extra positional writes usage', ErrpObj.Contains('fpdev package why'), ErrpObj.Text);
@@ -297,12 +292,7 @@ begin
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
     Code := PreparePackageWhyCommandPlanCore(
-      ['zlib'],
-      Outp,
-      Errp,
-      Plan,
-      ShouldExit
-    );
+      ['zlib'], Outp, Errp, Plan, ShouldExit);
     Check('prepare package returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
     Check('prepare package keeps running', not ShouldExit, 'unexpected exit');
     Check('prepare package keeps name', Plan.PackageName = 'zlib', Plan.PackageName);
@@ -311,28 +301,59 @@ begin
   end;
 end;
 
-procedure TestExecuteOutput;
+procedure TestExecuteWithPath;
 var
   Plan: TPackageWhyCommandPlan;
+  Probe: TWhyProbe;
   OutpObj, ErrpObj: TStringOutput;
   Outp, Errp: IOutput;
   Code: Integer;
 begin
   Plan := Default(TPackageWhyCommandPlan);
   Plan.PackageName := 'zlib';
+  Probe := TWhyProbe.Create;
+  SetLength(Probe.MockPath, 3);
+  Probe.MockPath[0] := 'my-project';
+  Probe.MockPath[1] := 'mormot2';
+  Probe.MockPath[2] := 'zlib';
   InitOutputs(OutpObj, ErrpObj, Outp, Errp);
   try
-    Code := ExecutePackageWhyCommandPlanCore(Plan, Outp, Errp);
-    Check('execute returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
-    Check('execute shows header', OutpObj.Contains('Why is "zlib" installed?'), OutpObj.Text);
-    Check('execute shows path heading', OutpObj.Contains('Dependency path:'), OutpObj.Text);
-    Check('execute shows tree root', OutpObj.Contains('+-- fpdev-core >= 1.0.0'), OutpObj.Text);
-    Check('execute shows tree leaf', OutpObj.Contains('+-- zlib'), OutpObj.Text);
-    Check('execute shows required by', OutpObj.Contains('Required by: fpdev-core'), OutpObj.Text);
-    Check('execute shows constraint', OutpObj.Contains('Constraint: >= 1.0.0'), OutpObj.Text);
-    Check('execute keeps stderr empty', Trim(ErrpObj.Text) = '', ErrpObj.Text);
+    Code := ExecutePackageWhyCommandPlanCore(Plan, Outp, Errp, @Probe.Trace);
+    Check('execute with path returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
+    Check('execute with path calls tracer', Probe.CallCount = 1, IntToStr(Probe.CallCount));
+    Check('execute with path passes package', Probe.LastPackage = 'zlib', Probe.LastPackage);
+    Check('execute with path shows header', OutpObj.Contains('zlib'), OutpObj.Text);
+    Check('execute with path shows path heading', OutpObj.Contains('Dependency path'), OutpObj.Text);
+    Check('execute with path shows root', OutpObj.Contains('my-project'), OutpObj.Text);
+    Check('execute with path shows parent', OutpObj.Contains('mormot2'), OutpObj.Text);
+    Check('execute with path shows required by', OutpObj.Contains('Required by: mormot2'), OutpObj.Text);
   finally
     ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
+    Probe.Free;
+  end;
+end;
+
+procedure TestExecuteNotFound;
+var
+  Plan: TPackageWhyCommandPlan;
+  Probe: TWhyProbe;
+  OutpObj, ErrpObj: TStringOutput;
+  Outp, Errp: IOutput;
+  Code: Integer;
+begin
+  Plan := Default(TPackageWhyCommandPlan);
+  Plan.PackageName := 'unknown-pkg';
+  Probe := TWhyProbe.Create;
+  Probe.MockPath := nil;
+  InitOutputs(OutpObj, ErrpObj, Outp, Errp);
+  try
+    Code := ExecutePackageWhyCommandPlanCore(Plan, Outp, Errp, @Probe.Trace);
+    Check('execute not found returns EXIT_OK', Code = EXIT_OK, IntToStr(Code));
+    Check('execute not found shows not-found msg', OutpObj.Contains('unknown-pkg'), OutpObj.Text);
+    Check('execute not found shows not in chain', OutpObj.Contains('not in the dependency chain'), OutpObj.Text);
+  finally
+    ReleaseOutputs(Outp, Errp, OutpObj, ErrpObj);
+    Probe.Free;
   end;
 end;
 
@@ -344,7 +365,8 @@ begin
   TestPrepareRejectsMissingPackage;
   TestPrepareRejectsExtraPositional;
   TestPrepareKeepsPackage;
-  TestExecuteOutput;
+  TestExecuteWithPath;
+  TestExecuteNotFound;
 
   WriteLn;
   WriteLn('Passed: ', PassCount);

@@ -218,7 +218,7 @@ begin
   Settings.InstallRoot := TempRoot;
   SettingsMgr.SetSettings(Settings);
 
-  SourceDir := TempRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TempRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(SourceDir);
   MakefilePath := SourceDir + PathDelim + 'Makefile';
 
@@ -337,7 +337,7 @@ begin
   Settings.ParallelJobs := 1;
   SettingsMgr.SetSettings(Settings);
 
-  SourceDir := TempRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TempRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   CustomPrefix := TempRoot + PathDelim + 'custom-prefix';
   TargetBootstrapExe := TempRoot + PathDelim + 'toolchains' + PathDelim + 'fpc' +
     PathDelim + '3.2.2' + PathDelim + 'bin' + PathDelim + 'fpc';
@@ -392,17 +392,17 @@ begin
     Check('custom prefix harness build succeeds', BuildOK, ErrBufObj.Text);
     Check(
       'custom prefix build uses installed bootstrap compiler',
-      OutBufObj.Contains('Using installed FPC 3.2.2 as bootstrap compiler'),
+      OutBufObj.Contains('Using installed FPC 3.2.0 as bootstrap compiler'),
       OutBufObj.Text
     );
     Check(
       'custom prefix executing line includes PP',
-      OutBufObj.Contains('PP=' + TargetBootstrapExe),
+      OutBufObj.Contains('PP=' + RequiredBootstrapExe),
       OutBufObj.Text
     );
     Check(
       'make receives PP from installed bootstrap',
-      Pos(TargetBootstrapExe, ReadTrimmedTextFile(BuildPPPath)) > 0,
+      Pos(RequiredBootstrapExe, ReadTrimmedTextFile(BuildPPPath)) > 0,
       ReadTrimmedTextFile(BuildPPPath)
     );
   finally

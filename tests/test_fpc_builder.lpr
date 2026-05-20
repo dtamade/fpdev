@@ -596,6 +596,7 @@ begin
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
     MockFileSystem, MockProcessRunner, ProbeRuntime as IGitRuntime);
   try
+    set_env('FPDEV_DATA_ROOT', TestInstallRoot);
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
       'Custom builder registry data reloads for git runtime path');
@@ -610,6 +611,7 @@ begin
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
+    RestoreEnv('FPDEV_DATA_ROOT', '');
     LocalBuilder.Free;
   end;
 end;
@@ -655,6 +657,7 @@ begin
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
     MockFileSystem, MockProcessRunner, ProbeRuntime as IGitRuntime);
   try
+    set_env('FPDEV_DATA_ROOT', TestInstallRoot);
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
       'Empty builder registry data reloads for git runtime path');
@@ -670,6 +673,7 @@ begin
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
+    RestoreEnv('FPDEV_DATA_ROOT', '');
     LocalBuilder.Free;
   end;
 end;
@@ -688,7 +692,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   GitDir := SourceDir + PathDelim + '.git';
 
   MockFileSystem.AddDirectory(SourceDir);
@@ -840,6 +844,7 @@ begin
   LocalBuilder := TFPCBuilder.Create(VersionManager, ConfigManager,
     MockFileSystem, MockProcessRunner, LocalGitRuntime as IGitRuntime);
   try
+    set_env('FPDEV_DATA_ROOT', TestInstallRoot);
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
       'Custom builder registry data reloads for CLI path');
@@ -857,6 +862,7 @@ begin
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
+    RestoreEnv('FPDEV_DATA_ROOT', '');
     LocalBuilder.Free;
   end;
 end;
@@ -897,6 +903,7 @@ begin
   MockProcessRunner.SetResult('git', 0, 'git version 2.43.0', '');
 
   try
+    set_env('FPDEV_DATA_ROOT', TestInstallRoot);
     TVersionRegistry.Instance.DataPath := VersionsJSONPath;
     AssertTrue(TVersionRegistry.Instance.Reload,
       'Empty builder registry data reloads for CLI path');
@@ -915,6 +922,7 @@ begin
   finally
     TVersionRegistry.Instance.DataPath := OriginalRegistryPath;
     TVersionRegistry.Instance.Reload;
+    RestoreEnv('FPDEV_DATA_ROOT', '');
   end;
 end;
 
@@ -1053,7 +1061,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   GitDir := SourceDir + PathDelim + '.git';
 
   // Setup mock: source directory and .git exist, git commands succeed
@@ -1088,7 +1096,7 @@ var
   LowerErr: string;
 begin
   ResetMocks;
-  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   GitDir := SourceDir + PathDelim + '.git';
 
   MockFileSystem.AddDirectory(SourceDir);
@@ -1175,7 +1183,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
 
   // Setup mock: source directory exists but no .git
   MockFileSystem.AddDirectory(SourceDir);
@@ -1332,7 +1340,7 @@ begin
   WriteLn('==================================================');
 
   ResetMocks;
-  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-3.2.2';
+  SourceDir := TestInstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
 
   // Setup mock: source directory exists
   MockFileSystem.AddDirectory(SourceDir);

@@ -223,7 +223,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := CreateUniqueTempDir('test_fpc_maintenanceflow_update');
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(SourceDir);
 
   Probe := TMaintenanceProbe.Create;
@@ -253,10 +253,10 @@ begin
       Probe.CurrentVersionCalls = 1,
       'calls=' + IntToStr(Probe.CurrentVersionCalls));
     Check('maintenanceflow update resolves current version source dir',
-      Pos('fpc-currentver', Probe.LastExistsPath) > 0,
+      Pos('sources' + PathDelim + 'fpc', Probe.LastExistsPath) > 0,
       Probe.LastExistsPath);
     Check('maintenanceflow update passes resolved path to git runtime',
-      Pos('fpc-currentver', GitProbe.LastRepoPath) > 0,
+      Pos('sources' + PathDelim + 'fpc', GitProbe.LastRepoPath) > 0,
       GitProbe.LastRepoPath);
   finally
     Probe.Free;
@@ -271,7 +271,7 @@ var
   SourceDir: string;
 begin
   InstallRoot := CreateUniqueTempDir('test_fpc_maintenanceflow_clean');
-  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc' + PathDelim + 'fpc-currentver';
+  SourceDir := InstallRoot + PathDelim + 'sources' + PathDelim + 'fpc';
   ForceDirectories(SourceDir);
 
   Probe := TMaintenanceProbe.Create;
@@ -297,7 +297,7 @@ begin
       Probe.CurrentVersionCalls = 1,
       'calls=' + IntToStr(Probe.CurrentVersionCalls));
     Check('maintenanceflow clean resolves current version source dir',
-      Pos('fpc-currentver', Probe.LastCleanPath) > 0,
+      Pos('sources' + PathDelim + 'fpc', Probe.LastCleanPath) > 0,
       Probe.LastCleanPath);
     Check('maintenanceflow clean invokes cleaner once',
       Probe.CleanCalls = 1,

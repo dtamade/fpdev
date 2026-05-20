@@ -229,7 +229,7 @@ var
 begin
   Plan := CreateLazarusSourcePlanCore('/tmp/fpdev-data', '', '3.2');
   Check('source plan uses current version fallback', Plan.Version = '3.2', 'got=' + Plan.Version);
-  Check('source plan path includes version suffix', Pos('lazarus-3.2', Plan.SourceDir) > 0, 'path=' + Plan.SourceDir);
+  Check('source plan path uses single-repo source dir', Plan.SourceDir = '/tmp/fpdev-data' + PathDelim + 'sources' + PathDelim + 'lazarus', 'path=' + Plan.SourceDir);
 end;
 
 procedure TestExecuteLazarusUpdatePlanCoreReturnsFalseWithoutGitBackend;
