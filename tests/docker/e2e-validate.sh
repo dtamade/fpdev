@@ -18,7 +18,7 @@ echo
 # Check fpdev binary works
 echo "[2/7] Checking fpdev binary..."
 fpdev --help > /dev/null 2>&1 || true
-fpdev system check 2>&1 | head -5 || true
+fpdev version 2>&1 || true
 echo "  OK: fpdev binary functional"
 echo
 
