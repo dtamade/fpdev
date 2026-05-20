@@ -61,6 +61,7 @@ begin
           Pkg.Name := RepoInfo.Name;
           Pkg.Version := RepoInfo.Version;
           Pkg.Description := RepoInfo.Description;
+          Pkg.Dependencies := Copy(RepoInfo.Dependencies);
           if Assigned(AIsInstalled) then
             Pkg.Installed := AIsInstalled(Pkg.Name)
           else
