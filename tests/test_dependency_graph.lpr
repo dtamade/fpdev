@@ -382,6 +382,98 @@ begin
     WriteLn('    ', i + 1, '. ', SortedOrder[i]);
 end;
 
+procedure TestBuildDependencyInstallPlanCoreRejectsUnsatisfiedConstraint;
+var
+  Root: TPackageDepDescriptor;
+  Available: TPackageDepDescriptorArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildDependencyInstallPlanCore rejects unsatisfied version constraint ===');
+
+  Root := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgA>=5.0.0']);
+  SetLength(Available, 1);
+  Available[0] := CreateDepDescriptor('pkgA', '2.0.0', []);
+
+  Status := BuildDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsResolveError, 'Unsatisfied constraint returns resolve error status');
+  Assert(Pos('pkgA', ResolveError) > 0, 'Resolve error mentions package name');
+  Assert(Pos('>=5.0.0', ResolveError) > 0, 'Resolve error mentions constraint');
+  Assert(Length(Plan) = 0, 'Plan remains empty on constraint failure');
+end;
+
+procedure TestBuildDependencyInstallPlanCoreAcceptsSatisfiedConstraint;
+var
+  Root: TPackageDepDescriptor;
+  Available: TPackageDepDescriptorArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildDependencyInstallPlanCore accepts satisfied version constraint ===');
+
+  Root := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgA>=1.0.0']);
+  SetLength(Available, 1);
+  Available[0] := CreateDepDescriptor('pkgA', '2.0.0', []);
+
+  Status := BuildDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsOk, 'Satisfied constraint returns ok status');
+  Assert(Length(Plan) = 1, 'Plan contains the dependency');
+  Assert((Length(Plan) >= 1) and SameText(Plan[0].Name, 'pkgA'),
+    'Plan contains pkgA');
+  Assert(ResolveError = '', 'No resolve error on success');
+end;
+
+procedure TestBuildDependencyInstallPlanCoreAcceptsBareNameDependency;
+var
+  Root: TPackageDepDescriptor;
+  Available: TPackageDepDescriptorArray;
+  Plan: TPackageInstallPlanItemArray;
+  Status: TPackageInstallPlanBuildStatus;
+  MissingDependency: string;
+  ResolveError: string;
+begin
+  WriteLn('');
+  WriteLn('=== Test: BuildDependencyInstallPlanCore accepts bare name (no constraint) ===');
+
+  Root := CreateDepDescriptor('pkgRoot', '1.0.0', ['pkgA']);
+  SetLength(Available, 1);
+  Available[0] := CreateDepDescriptor('pkgA', '0.1.0', []);
+
+  Status := BuildDependencyInstallPlanCore(
+    Root,
+    Available,
+    @ExtractPackageName,
+    Plan,
+    MissingDependency,
+    ResolveError
+  );
+
+  Assert(Status = pipsOk, 'Bare name dependency returns ok status');
+  Assert(Length(Plan) = 1, 'Plan contains the dependency');
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('Dependency Graph Tests');
@@ -395,6 +487,9 @@ begin
   TestBuildDependencyInstallPlanCoreReportsMissingDependency;
   TestBuildPackageDependencyInstallPlanCoreBuildsPlanFromPackageInfo;
   TestBuildPackageDependencyInstallPlanCoreReportsMissingDependency;
+  TestBuildDependencyInstallPlanCoreRejectsUnsatisfiedConstraint;
+  TestBuildDependencyInstallPlanCoreAcceptsSatisfiedConstraint;
+  TestBuildDependencyInstallPlanCoreAcceptsBareNameDependency;
 
   WriteLn('');
   WriteLn('========================================');

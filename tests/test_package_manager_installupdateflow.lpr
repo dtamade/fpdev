@@ -557,6 +557,43 @@ begin
   end;
 end;
 
+procedure TestExecutePackageManagerInstallCoreOfflineBlocksWhenNotCached;
+var
+  Probe: TManagerFlowProbe;
+  OutBuf, ErrBuf: TStringOutput;
+  OutRef, ErrRef: IOutput;
+begin
+  Probe := TManagerFlowProbe.Create;
+  OutBuf := TStringOutput.Create;
+  ErrBuf := TStringOutput.Create;
+  OutRef := OutBuf as IOutput;
+  ErrRef := ErrBuf as IOutput;
+  try
+    Probe.ValidateResult := True;
+    Probe.InstalledResult := False;
+    Probe.BuildPlanResult := True;
+    Probe.DownloadResult := True;
+    Probe.InstallArchiveResult := True;
+    Probe.NextDownloadPlan.PackageInfo.Name := 'alpha';
+    Probe.NextDownloadPlan.PackageInfo.Version := '1.0.0';
+    SetLength(Probe.NextDownloadPlan.PackageInfo.Dependencies, 0);
+    Probe.NextDownloadPlan.ZipPath := '/tmp/nonexistent-cache-path/alpha-1.0.0.zip';
+    SetLength(Probe.NextDownloadPlan.URLs, 1);
+    Probe.NextDownloadPlan.URLs[0] := 'https://example.com/alpha.zip';
+
+    Check('offline install returns false when cache missing',
+      not ExecutePackageManagerInstallCore('alpha', '', '/tmp/cache', '/tmp/sandbox', False, True,
+        @Probe.Validate, @Probe.IsInstalled, @Probe.GetAvailablePackages, @Probe.BuildPlan,
+        @Probe.ResolveDependencies, @Probe.DownloadCached, @Probe.InstallArchive, OutRef, ErrRef));
+    Check('offline install does not attempt download', Probe.DownloadCalls = 0,
+      'download calls=' + IntToStr(Probe.DownloadCalls));
+    Check('offline install prints offline error', ErrBuf.Contains('offline'),
+      ErrBuf.Text);
+  finally
+    ErrRef := nil; OutRef := nil; ErrBuf := nil; OutBuf := nil; Probe.Free;
+  end;
+end;
+
 begin
   WriteLn('========================================');
   WriteLn('  Package Manager Install/Update Flow');
@@ -566,6 +603,7 @@ begin
   TestExecutePackageManagerInstallCoreSkipsInstalledPackage;
   TestExecutePackageManagerInstallCoreResolvesDepsAndWarnsOnCleanup;
   TestExecutePackageManagerInstallCoreStopsWhenDepsFail;
+  TestExecutePackageManagerInstallCoreOfflineBlocksWhenNotCached;
   TestExecutePackageDependencyInstallCoreInstallsResolvedDependencies;
   TestExecutePackageDependencyInstallCoreReportsInstallFailure;
   TestExecutePackageManagerUpdateCoreRejectsInvalidPackage;
